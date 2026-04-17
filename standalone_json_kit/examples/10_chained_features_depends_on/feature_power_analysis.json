@@ -1,0 +1,32 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "power_analysis",
+  "domain": "my_domain",
+  "description": "Power analysis feature. Requires dft_support because power checks rely on scan-chain configuration established by the DFT foundation.",
+  "depends_on": ["dft_support"],
+  "metadata": {
+    "owner": "power-team",
+    "tags": ["power", "signoff"]
+  },
+  "files": {
+    "include": ["procs/power_procs.tcl"]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "power_check",
+      "reference": "main",
+      "load_from": "main",
+      "command": "-xt vw Imy_shell -B BLOCK -T power_check",
+      "exit_codes": [0, 3],
+      "dependencies": ["main"],
+      "steps": [
+        "source procs/dft_procs.tcl",
+        "source procs/power_procs.tcl",
+        "get_scan_config",
+        "run_power_analysis",
+        "report_power_summary"
+      ]
+    }
+  ]
+}

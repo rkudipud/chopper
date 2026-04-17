@@ -1,0 +1,16 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base with file-level includes only. Use when you want Chopper to keep or remove entire Tcl files without proc-level granularity.",
+  "files": {
+    "include": [
+      "setup.tcl",
+      "utils/*.tcl",
+      "procs/core_procs.tcl"
+    ],
+    "exclude": [
+      "procs/legacy_procs.tcl"
+    ]
+  }
+}

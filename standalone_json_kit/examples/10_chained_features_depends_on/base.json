@@ -1,0 +1,36 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base for a domain with chained feature dependencies. DFT must be applied before power, and both must be applied before pipeline.",
+  "files": {
+    "include": [
+      "setup.tcl",
+      "vars.tcl",
+      "procs/core_procs.tcl"
+    ]
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source setup.tcl",
+        "source vars.tcl"
+      ]
+    },
+    {
+      "name": "main",
+      "load_from": "setup",
+      "command": "-xt vw Imy_shell -B BLOCK -T main",
+      "exit_codes": [0, 3, 5],
+      "dependencies": ["setup"],
+      "steps": [
+        "source procs/core_procs.tcl",
+        "run_main_flow"
+      ]
+    }
+  ]
+}

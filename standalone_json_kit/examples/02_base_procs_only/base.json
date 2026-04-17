@@ -1,0 +1,24 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base with proc-level includes and excludes only. Use when you need surgical control over which procs survive the trim, independent of full-file treatment.",
+  "procedures": {
+    "include": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["run_setup", "load_design", "verify_netlist"]
+      },
+      {
+        "file": "procs/util_procs.tcl",
+        "procs": ["report_summary", "check_constraints"]
+      }
+    ],
+    "exclude": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["legacy_load_design"]
+      }
+    ]
+  }
+}

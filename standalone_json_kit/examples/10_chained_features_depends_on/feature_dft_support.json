@@ -1,0 +1,21 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "dft_support",
+  "domain": "my_domain",
+  "description": "DFT foundation feature. No prerequisites — can be applied to any base. Other features that add DFT-aware stages should declare depends_on: [\"dft_support\"].",
+  "metadata": {
+    "owner": "dft-team",
+    "tags": ["dft", "foundation"]
+  },
+  "files": {
+    "include": ["procs/dft_procs.tcl"]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "procs/dft_procs.tcl",
+        "procs": ["setup_scan_chains", "verify_scan", "get_scan_config"]
+      }
+    ]
+  }
+}

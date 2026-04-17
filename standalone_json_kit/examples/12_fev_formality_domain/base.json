@@ -1,0 +1,120 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "fev_formality",
+  "owner": "fev-team",
+  "vendor": "synopsys",
+  "tool": "formality",
+  "description": "Base flow for Synopsys Formality formal equivalence verification. Covers the standard RTL-to-gate and RTL-to-RTL flows. Procs are split across default_fm_procs.tcl (stable, domain-owned) and addon/project proc files (optional, project-owned). The milestone and rules files are always included.",
+  "files": {
+    "include": [
+      "default_fm_procs.tcl",
+      "default_milestone.fm.tcl",
+      "default_rules.fm.tcl",
+      "vars.tcl",
+      "prepare_fev_formality.tcl",
+      "promote.tcl"
+    ],
+    "exclude": [
+      "utils/extract_testcase/**",
+      "utils/retime/**",
+      "utils/targ_synth/**"
+    ]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "default_fm_procs.tcl",
+        "procs": [
+          "iproc_source",
+          "iproc_msg",
+          "modify_search_path",
+          "annotate_trace",
+          "setup_formality_env",
+          "run_formality_verify",
+          "report_formality_results"
+        ]
+      }
+    ]
+  },
+  "stages": [
+    {
+      "name": "fev_fm_rtl2rtl",
+      "load_from": "",
+      "command": "-xt vw Ifev_fm_shell -B BLOCK -T fev_fm_rtl2rtl",
+      "exit_codes": [0, 3, 5],
+      "steps": [
+        "source vars.tcl",
+        "source prepare_fev_formality.tcl",
+        "source default_fm_procs.tcl",
+        "iproc_source -file addon_fm_procs.tcl -optional",
+        "iproc_source -file project_fm_procs.tcl -optional",
+        "setup_formality_env",
+        "run_formality_verify",
+        "report_formality_results"
+      ]
+    },
+    {
+      "name": "promote_fev_fm_rtl2rtl",
+      "load_from": "fev_fm_rtl2rtl",
+      "command": "vw $ward/global/snps/fev_formality/promote.tcl -B BLOCK -T fev_fm_rtl2rtl -force",
+      "dependencies": ["fev_fm_rtl2rtl"],
+      "steps": [
+        "promote_outputs"
+      ]
+    },
+    {
+      "name": "fev_fm_rtl2gate",
+      "load_from": "",
+      "command": "-xt vw Ifev_fm_shell -B BLOCK -T fev_fm_rtl2gate",
+      "exit_codes": [0, 3, 5],
+      "steps": [
+        "source vars.tcl",
+        "source prepare_fev_formality.tcl",
+        "source default_fm_procs.tcl",
+        "iproc_source -file addon_fm_procs.tcl -optional",
+        "iproc_source -file project_fm_procs.tcl -optional",
+        "setup_formality_env",
+        "run_formality_verify",
+        "report_formality_results"
+      ]
+    },
+    {
+      "name": "promote_fev_fm_rtl2gate",
+      "load_from": "fev_fm_rtl2gate",
+      "command": "vw $ward/global/snps/fev_formality/promote.tcl -B BLOCK -T fev_fm_rtl2gate -force",
+      "dependencies": ["fev_fm_rtl2gate"],
+      "steps": [
+        "promote_outputs"
+      ]
+    },
+    {
+      "name": "fev_fm_rtl2apr",
+      "load_from": "",
+      "command": "-xt vw Ifev_fm_shell -B BLOCK -T fev_fm_rtl2apr",
+      "exit_codes": [0, 3, 5],
+      "inputs": [
+        "$ward/runs/BLOCK/TECH/release/latest/finish/$ivar(design_name).pt.v.gz",
+        "$ward/runs/BLOCK/TECH/release/latest/finish/$ivar(design_name).upf"
+      ],
+      "steps": [
+        "source vars.tcl",
+        "source prepare_fev_formality.tcl",
+        "source default_fm_procs.tcl",
+        "iproc_source -file addon_fm_procs.tcl -optional",
+        "iproc_source -file project_fm_procs.tcl -optional",
+        "setup_formality_env",
+        "run_formality_verify",
+        "report_formality_results"
+      ]
+    },
+    {
+      "name": "promote_fev_fm_rtl2apr",
+      "load_from": "fev_fm_rtl2apr",
+      "command": "vw $ward/global/snps/fev_formality/promote.tcl -B BLOCK -T fev_fm_rtl2apr -force",
+      "dependencies": ["fev_fm_rtl2apr"],
+      "steps": [
+        "promote_outputs"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "fev_fm_eco",
+  "domain": "fev_formality",
+  "description": "ECO (Engineering Change Order) Formality flow. Adds pre-RTL-to-post-RTL and pre-RTL-to-pre-net ECO verification stages, plus ECO synthesis and targeted synthesis. Requires the base RTL flows to already be present. Directly reflects fev_fm_eco.stack.",
+  "metadata": {
+    "owner": "fev-team",
+    "tags": ["fev", "eco", "engineering-change-order"]
+  },
+  "files": {
+    "include": [
+      "fev_fm_eco_pre_synth.tcl",
+      "fev_fm_eco_post_synth.tcl",
+      "fev_fm_eco_confirm_patch.tcl",
+      "utils/targ_synth/run_targeted_synth.tcl"
+    ]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "eco_pre_rtl_to_post_rtl",
+      "reference": "fev_fm_rtl2gate",
+      "load_from": "",
+      "command": "-xt vw Ifev_fm_shell -B BLOCK -T eco_pre_rtl_to_post_rtl -skipaudit",
+      "steps": [
+        "source vars.tcl",
+        "source fev_fm_eco_pre_synth.tcl",
+        "run_eco_pre_rtl_to_post_rtl"
+      ]
+    },
+    {
+      "action": "add_stage_after",
+      "name": "eco_pre_rtl_to_pre_net",
+      "reference": "eco_pre_rtl_to_post_rtl",
+      "load_from": "",
+      "command": "-xt vw Ifev_fm_shell -B BLOCK -T eco_pre_rtl_to_pre_net -skipaudit",
+      "steps": [
+        "source vars.tcl",
+        "source fev_fm_eco_pre_synth.tcl",
+        "run_eco_pre_rtl_to_pre_net"
+      ]
+    },
+    {
+      "action": "add_stage_after",
+      "name": "eco_pre_synth",
+      "reference": "eco_pre_rtl_to_pre_net",
+      "load_from": "",
+      "command": "-xt vw Ieco_fm_shell -B BLOCK -S eco_pre_synth",
+      "outputs": [
+        "$ward/runs/BLOCK/TECH/fev_formality/fm_eco/outputs/fm_eco_region.frd",
+        "$ward/runs/BLOCK/TECH/fev_formality/fm_eco/outputs/fm_eco_edits_unoptimized.tcl"
+      ],
+      "steps": [
+        "source fev_fm_eco_pre_synth.tcl",
+        "run_eco_pre_synth"
+      ]
+    },
+    {
+      "action": "add_stage_after",
+      "name": "eco_targ_synth",
+      "reference": "eco_pre_synth",
+      "load_from": "eco_pre_synth",
+      "command": "-xt vw Ifc_shell -B BLOCK -F apr_fc -output_log_file logs/fc.targeted_synth.log -f $ward/global/snps/fev_formality/utils/targ_synth/run_targeted_synth.tcl",
+      "dependencies": ["eco_pre_synth"],
+      "outputs": [
+        "$ward/runs/BLOCK/TECH/apr_fc/outputs/targeted_synth/$ivar(design_name).pt_nonpg.v.gz",
+        "$ward/runs/BLOCK/TECH/apr_fc/outputs/eco_ts_flow.svf"
+      ],
+      "steps": [
+        "source utils/targ_synth/run_targeted_synth.tcl"
+      ]
+    }
+  ]
+}

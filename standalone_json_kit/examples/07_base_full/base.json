@@ -1,0 +1,69 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "vendor": "synopsys",
+  "tool": "formality",
+  "description": "Full base with all three sections — files, procedures, and stages. Maximum control: files define the inclusion boundary, procs control granular trimming, and stages drive run-file and stack generation.",
+  "files": {
+    "include": [
+      "setup.tcl",
+      "vars.tcl",
+      "procs/**/*.tcl",
+      "milestone.tcl"
+    ],
+    "exclude": [
+      "procs/legacy/*.tcl"
+    ]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["run_setup", "load_design", "verify_netlist", "report_summary"]
+      }
+    ],
+    "exclude": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["debug_dump", "old_verify_netlist"]
+      }
+    ]
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source setup.tcl",
+        "source vars.tcl",
+        "run_setup"
+      ]
+    },
+    {
+      "name": "main",
+      "load_from": "setup",
+      "command": "-xt vw Imy_shell -B BLOCK -T main",
+      "exit_codes": [0, 3, 5],
+      "dependencies": ["setup"],
+      "inputs": ["$ward/runs/BLOCK/TECH/upstream/outputs/design.v.gz"],
+      "outputs": ["$ward/runs/BLOCK/TECH/my_domain/outputs/result.rpt"],
+      "steps": [
+        "load_design",
+        "verify_netlist",
+        "report_summary"
+      ]
+    },
+    {
+      "name": "promote",
+      "load_from": "main",
+      "command": "vw $ward/global/promote.tcl -B BLOCK -T main -force",
+      "dependencies": ["main"],
+      "steps": [
+        "promote_outputs"
+      ]
+    }
+  ]
+}

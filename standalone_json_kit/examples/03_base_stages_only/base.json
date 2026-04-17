@@ -1,0 +1,40 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "tool": "formality",
+  "description": "Base with stage definitions only. Use when the domain is purely flow-driven (no proc trimming needed) and you want Chopper to generate the run files and stack entries.",
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source setup.tcl",
+        "load_design"
+      ]
+    },
+    {
+      "name": "run_verify",
+      "load_from": "setup",
+      "command": "-xt vw Imy_shell -B BLOCK -T run_verify",
+      "exit_codes": [0, 3, 5],
+      "dependencies": ["setup"],
+      "steps": [
+        "source verify.tcl",
+        "run_verification",
+        "report_results"
+      ]
+    },
+    {
+      "name": "promote",
+      "load_from": "run_verify",
+      "command": "vw $ward/global/promote.tcl -B BLOCK -T run_verify -force",
+      "dependencies": ["run_verify"],
+      "steps": [
+        "promote_outputs"
+      ]
+    }
+  ]
+}

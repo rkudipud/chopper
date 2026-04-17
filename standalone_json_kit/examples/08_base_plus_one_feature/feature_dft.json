@@ -1,0 +1,41 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "dft",
+  "domain": "my_domain",
+  "description": "DFT (Design For Test) feature: adds scan-chain related procs and inserts a dedicated dft_check stage after the main stage.",
+  "metadata": {
+    "owner": "dft-team",
+    "tags": ["dft", "scan", "signoff"],
+    "wiki": "https://wiki.example.com/dft-feature"
+  },
+  "files": {
+    "include": [
+      "procs/dft_procs.tcl"
+    ]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "procs/dft_procs.tcl",
+        "procs": ["setup_scan_chains", "verify_scan", "report_dft_coverage"]
+      }
+    ]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "dft_check",
+      "reference": "main",
+      "load_from": "main",
+      "command": "-xt vw Imy_shell -B BLOCK -T dft_check",
+      "exit_codes": [0, 3],
+      "dependencies": ["main"],
+      "steps": [
+        "source procs/dft_procs.tcl",
+        "setup_scan_chains",
+        "verify_scan",
+        "report_dft_coverage"
+      ]
+    }
+  ]
+}

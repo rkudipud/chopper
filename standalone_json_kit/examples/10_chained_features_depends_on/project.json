@@ -1,0 +1,19 @@
+{
+  "$schema": "chopper/project/v1",
+  "project": "PROJECT_FULL_SIGNOFF",
+  "domain": "my_domain",
+  "owner": "integration-team",
+  "base": "chopper/base.json",
+  "features": [
+    "chopper/features/dft_support.json",
+    "chopper/features/power_analysis.json",
+    "chopper/features/pipeline_signoff.json"
+  ],
+  "notes": [
+    "Order is authoritative and required by depends_on chains:",
+    "  1. dft_support — no prerequisites",
+    "  2. power_analysis — depends_on: [dft_support]",
+    "  3. pipeline_signoff — depends_on: [dft_support, power_analysis]",
+    "Swapping any entry would violate the dependency declaration in the feature JSONs."
+  ]
+}

@@ -1,0 +1,16 @@
+1.0.0
+
+Schema versions included:
+  base-v1.schema.json    — chopper/base/v1    (Draft-07)
+  feature-v1.schema.json — chopper/feature/v1 (Draft-07)
+  project-v1.schema.json — chopper/project/v1 (Draft-07)
+
+Released: April 2026
+Status: Standalone (pre-runtime shippable)
+
+Changelog:
+  1.0.0 — Initial release
+           * depends_on field added to feature schema (array-only, minItems:1)
+           * stage dependencies simplified to array-only in base and feature schemas
+           * All stage field descriptions grounded in stack file N/J/L/D/I/O semantics
+           * base-v1 structural repairs: load_from, steps, name field, stages block

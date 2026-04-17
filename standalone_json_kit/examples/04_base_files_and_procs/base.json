@@ -1,0 +1,26 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base combining file-level and proc-level control. Use when most files are kept whole but a few files need selective proc trimming.",
+  "files": {
+    "include": [
+      "setup.tcl",
+      "vars.tcl"
+    ]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["run_setup", "load_design", "verify_netlist"]
+      }
+    ],
+    "exclude": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["debug_only_proc", "legacy_load"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base with procs and stages but no file-level declarations. Use when all file presence is governed by stage steps, but individual procs still need surgical trimming.",
+  "procedures": {
+    "include": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["run_setup", "verify_netlist", "report_summary"]
+      }
+    ],
+    "exclude": [
+      {
+        "file": "procs/core_procs.tcl",
+        "procs": ["old_verify_netlist"]
+      }
+    ]
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source procs/core_procs.tcl",
+        "run_setup"
+      ]
+    },
+    {
+      "name": "verify",
+      "load_from": "setup",
+      "command": "-xt vw Imy_shell -B BLOCK -T verify",
+      "exit_codes": [0, 3, 5],
+      "dependencies": ["setup"],
+      "steps": [
+        "verify_netlist",
+        "report_summary"
+      ]
+    }
+  ]
+}
