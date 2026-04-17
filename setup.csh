@@ -16,7 +16,7 @@ endif
 
 set venv_dir = "$script_dir/.venv"
 set python_cmd = "python3"
-set proxy = "http://proxy-dmz.intel.com:912"
+set proxy = "http://proxy-chain.intel.com:928"
 
 echo "=== Chopper Dev Environment Setup ==="
 echo "Platform: Unix/Linux/macOS (PRIMARY: tcsh - bash/zsh NOT available)"
@@ -31,9 +31,17 @@ endif
 echo "[2/4] Activating venv..."
 source "$venv_dir/bin/activate.csh"
 
-echo "[3/4] Configuring pip proxy..."
+echo "[3/4] Configuring pip and Git proxy..."
 pip config set global.proxy "$proxy" --quiet >& /dev/null
 pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet >& /dev/null
+# Configure Git proxy
+git config --global http.proxy "$proxy" >& /dev/null
+git config --global https.proxy "$proxy" >& /dev/null
+git config --global http.proxyStrictSSL false >& /dev/null
+git config --global core.noProxy "intel.com,.intel.com,127.0.0.1,.devtools.intel.com" >& /dev/null
+git config --global http.postBuffer 524288000 >& /dev/null
+git config --global http.lowSpeedLimit 0 >& /dev/null
+git config --global http.lowSpeedTime 999999 >& /dev/null
 
 echo "[4/4] Installing dependencies..."
 pip install --upgrade pip --quiet
