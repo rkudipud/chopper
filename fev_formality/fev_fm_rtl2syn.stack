@@ -1,0 +1,10 @@
+N fev_fm_rtl2syn
+J -xt vw Ifev_fm_shell -B BLOCK -T fev_fm_rtl2syn
+I $ward/runs/BLOCK/TECH/release/latest/compile_initial_opto/$ivar(design_name).pt.v.gz $ward/runs/BLOCK/TECH/release/latest/compile_initial_opto/$ivar(design_name).upf
+L 0 3 5
+D
+
+N promote_fev_fm_rtl2syn
+J vw $ward/global/snps/fev_formality/promote.tcl -B BLOCK -T fev_fm_rtl2syn -force
+D fev_fm_rtl2syn
+

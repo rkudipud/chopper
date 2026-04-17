@@ -1,0 +1,24 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "feature_a",
+  "description": "Test feature that adds a proc and excludes a trace-derived proc",
+  "files": {
+    "include": [
+      "extra_utils.tcl"
+    ]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "main_flow.tcl",
+        "procs": ["cleanup_flow"]
+      }
+    ],
+    "exclude": [
+      {
+        "file": "helper_procs.tcl",
+        "procs": ["debug_dump"]
+      }
+    ]
+  }
+}

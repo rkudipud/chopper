@@ -1,0 +1,471 @@
+FlowBuilder (Feature Manager) for SD Flows
+Overview
+Running the Flow Builder
+Flow Configuration
+Project/Design Class Configuration
+User Configuration
+Flow Builder Interface
+Inputs
+Outputs
+Basic Flow Definition
+Content
+Example
+Feature Management
+Feature Integration
+If/else Usage in Run File
+Process Feature
+Example of Feature Json File
+Flow Configuration
+Feature Priority
+Overview
+The construction flows contains features that are used only for specific design styles (for example RP, ctmesh, DOP). The features need to be enabled for 
+some projects/designs and disabled for others. The usual method to achieve this is to enable the features by using ivars and if/else statements. This leads 
+to complex code that could overwhelmed the users. 
+The goal of the flow feature management is to provide a method to dynamically customize the flow to meet the design methodology while keeping the code 
+simple.  
+Flow Builder Overview & Training Video Overview video
+Running the Flow Builder
+---PAGE---
+Usage: flow_builder.py [-h] -F FLOW [-J JSON] -B BUILD_DIR [-D DESIGN] [-R RUN_DIR] [-I | --info | --no-info] [-O OUTPUT]
+Cheetah Flow Builder
+options:
+  -h, --help                          show this help message and exit
+  -F FLOW, --flow FLOW     Flow name
+  -J JSON, --json JSON       Json file containing the flow description
+  -B BUILD_DIR, --build_dir BUILD_DIR
+                                           Block build name run directory
+  -D DESIGN, --design DESIGN
+                                           Design name. Defaults to --build_dir/-B value if not specified
+  -R RUN_DIR, --run_dir RUN_DIR
+                                           Specify block run directory. Defaults to -F value if not specified
+  -I, --info, --no-info
+                                           Print the feature information
+  -O OUTPUT, --output OUTPUT
+                                          Output directory; default ivar(fscript_dir)/../run_scripts
+Examples:
+Generate the flow files:
+global/common/flow_builder/flow_builder.py -F apr_fc -B dhm
+Print all the features available and their description:
+global/common/flow_builder/flow_builder.py -F apr_fc -B dhm -I
+Flow builder GUI:
+global/common/flow_builder/fb_gui -F apr_fc -B dhm
+global/common/flow_builder/fb_gui -F apr_fc -B dhm -J global/snps/apr_fc/apr_fc.json
+Flow Configuration
+Project/Design Class Configuration
+The project can customize the flow by adding features in " " or " " file. A line can be commented by using design_class.features.config project.features.config
+# at the beginning of the line.
+Example
+project.features.config
+dop
+csi
+# comment
+dop_cts
+User Configuration
+Similarly, the user can customize the flow at design level by adding feature names in " " file. features.config
+User can remove a feature added in design class or project by using ! in front of it.
+Below, the user added  and removed . early_cts csi
+---PAGE---
+features.config
+early_cts
+!csi
+Flow Builder Interface
+Inputs
+Basic flow definition in  format - required flow for simple designs (like ) json dhm
+Feature integration files - contain the directives to integrate the feature in the flow
+List of features to be integrated (configuration files for project and user)
+Outputs
+The output files are saved in  area $ivar(fscripts_dir)
+Stack file
+Task files - run_<task>.tcl
+Basic Flow Definition
+The basic flow is defined by a  file named  and located in the  area. json <flow>.json global/flows/
+For example, . apr_fc.json
+Content
+General section - information about the flow (vendor, command line, etc)
+"owner" - Flow owner name, if applicable
+"description" - Short flow description
+"tool" - Main tool used to run the flow (i.e., fusion_compiler)
+"vendor" - Vendor for the tool
+"command" - Unix command to run a flow stage
+"base_flow" - Specifies the base flow for a derived flow. Used to run cheetah setup that sets the search path, run directory, etc. - since 
+2025.12
+For example,  is a derived flow based on . apr_fc_physblock apr_fc
+"tech_feature" - Specifies the name of the tech feature if different than "tech" - since 2025.12
+Used for derived flows
+"packages" - List of packages used by Python implementation for base flow  - used for python based flow
+"tcl_setup" - Command used for loading the Tcl cheetah setup -  used for python based flow
+List of stages
+Description of each stage/task
+" " - Source of input data. It is translated into  in . load_from ivar(src_task)  run_<stage>.tcl
+" " - Defines the parent task. It is translated into  from flow stack file. dependencies D <parent>
+If it is not defined,  fields is used. load_from
+"exit_codes"  - Translated into " " in the stack file L <value>
+"command"  - Unix command to run the stage. Overrides the command specified in the general section.
+"inputs" - Translated into " " in the stack fileI <value>
+"outputs" - Translated into " " in the stack file O <value>
+"run_mode"  - Translated into " " in the stack file - since 2025.12 R <value>
+"steps" - Lists of steps  - the steps are executed in the order they are shown
+"language"  - Set to  if the stages uses Python. Default is Tcl (not set)"python"
+Steps can be defined as:
+TCL scripts
+Flow builder searches for the script in the search path and adds it with full path. 
+If no script is found, flow builder fails
+Example:  " " step_load.tcl
+Translated to:  iproc_source -file $ward/global/snps/apr_fc/step_load.tcl
+ivars
+In user mode, flow builder will search for the file referenced by the ivar and the file found will be added with full path.
+If no script is found, flow builder fails
+---PAGE---
+Example: " " $ivar(cts,setup_file)
+Translated to: iproc_source -file $ward/tech/1278.6/snps/apr_fc/cts_prep.tcl
+Optional TCL scripts
+Flow builder searches for the script in the search path and adds it with full path if it finds it, without  field-optional
+If the script is not found, an info message is printed and the run script will not have the step included
+Example: " " setup_for_power_mesh_user.tcl -optional
+TCL commands
+Flow builder will keep the content as is
+Example: " " or ' source $ward/global/snps/$env(flow)/setup.tcl "echo "Ended the flow"
+Python procedures - only when Python based flow is enabled
+Example
+apr_fc.json
+{
+    "owner": "johndoe",
+    "description": "This Default APR_FC Flow",
+    "vendor": "snps",
+    "tool": "fusioncompiler",
+    "command": "Ifc_shell -B $ivar(build_name) -D $ivar(design_name) -F apr_fc -output_log_file logs/fc.{task}.
+log -f run_{task}.tcl",
+    "stages": [
+        "import_design",
+        "read_upf",
+        "redefine",
+        "init_floorplan"
+    ],
+    "import_design": {
+        "load_from": "",
+        "steps": [
+            "source $ward/global/snps/$env(flow)/setup.tcl",
+            "step_create_lib.tcl",
+            "fc.app_options.rtl.tcl",
+            "step_import_design_2stage.tcl",
+            "step_elaborate.tcl",
+            "step_td_collateral.tcl",
+            "lib_cell_usage.tcl",
+            "step_close.tcl"
+        ]
+    },
+    "read_upf": {
+        "load_from" : "import_design",
+        "steps": [
+            "source $ward/global/snps/$env(flow)/setup.tcl",
+            "step_load.tcl",
+            "fc.app_options.tcl",
+            "step_read_upf.tcl",
+            "step_dsync_flop_swap.tcl",
+            "step_close.tcl"
+        ]
+    }
+}
+Feature Management
+A feature is an  advanced flow functionality which can be added to the   basicflow. If a feature is not enabled, the code will not be visible in the flow or  
+executed during the run.
+Each feature requires associated step files available in the cheetah search path.
+Feature Integration
+Feature integration is directed by a  file named  available in the search path. For example, . json <feature_name>.feature.json csi.feature.json
+The feature json file content:
+---PAGE---
+"name" - List of stages/steps to be processed.
+Can be an identifier when the step/stage needs multiple actions. "items" field must be used in this case.
+"description"  - Short description of the feature
+Json format only allows one line. Use \n if necessary.
+"wiki" - Web address for detailed documentation
+Optional item
+"target_flows"  - The feature can be applied only to specified flow - since 2025.12
+Optional item
+"language"  - Set to  in case of feature applied to Python based stage  - used for Python based stage"python"
+"packages"  - List of Python packages used by the feature  - used for Python based stage
+Each item in the name list must have a dictionary with the following fields
+"action" - shows how the item should be processed. Supported actions:  add_step_before, add_step_after, add_stage_before, 
+   add_stage_after, remove_step, remove_stage, load_from
+"stage" - stage where the step should be added if "action" is " " add_step_*
+"reference" - Step or stage used as reference for " " actionsadd_*
+"flow" - Flow where the action will be implemented. Optional entry used in case multiple flows use the feature but not all items are 
+wanted. Default (not used): all flows are enabled
+"items" - List of steps to be inserted instead of "name". All the steps in the "item" will be inserted after/before the reference in the order 
+they are listed. Only works for "add_step_*" and "remove_step" actions
+When the reference step is instantiated more than once in a stage, the instance can be chosen by using  at the end of the reference string.@n
+For example,  uses the second call of  as the reference. \@1 "reference": "step_load_post_compile_constraints.tcl@2" step_load_post_compile_constraints
+is the same as the regular usage. If the number is bigger than the number of calls in the stage, Flow Builder will print an error and ignore the item.
+An "add_stage_<>" entry can also have the following fields:
+" " - Specifies the input data source /parent stage load_from
+" " - Specifies the parent stage(s) when is different than "load_from" dependencies
+" " - Overrides the global command for the added stage.  command
+" " - List of allowed exit codes. Translated to   in the stack file. exit_codes L <exit_codes>
+"" - List of output files. Translated to  in the stack file. outputs O <outputs>
+"" - List of input files. Translated to I  in the stack file. inputs  <inputs>
+"run_mode"  - Translated into " " in the stack file - since 2025.12 R <value>
+The stage fields can be overwritten by setting "action" to the field name and 'reference" to the new value.
+Example of how to change the "load_from" value of a stage.
+tech.feature.json
+{
+    "name": [
+        "redefine",
+        "setup_timing",
+        "initial_map"
+    ],
+    "description": "RTL-based flow for moving setup timing and after read_upf",
+    "redefine": {
+        "action": "load_from",
+        "reference": "setup_timing"
+    },
+    "setup_timing": {
+        "action": "load_from",
+        "reference": "read_upf"
+    },
+    "initial_map": {
+        "action": "load_from",
+        "reference": "init_floorplan"
+    }
+}
+If/else Usage in Run File
+---PAGE---
+The ,  and  must be added as items to  field prefixed by # (no space). Flow builder will insert them in the run file and indent the related code ifelseendif items
+blocks.
+Example of if/else usage in feature json file
+tech.feature.json
+    "csi_stage_bundle": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": "",
+        "items": [
+            "source $ward/global/snps/$env(flow)/setup.tcl",
+            "step_load.tcl",
+            "fc.app_options.tcl",
+            "modes_corners_scenarios.tcl",
+            "check_modes_corners_scenarios.tcl",
+            "step_starrc_indesign_setup.tcl",
+            "#if {[info exists ivar(csi,extraction_dir)] && $ivar(csi,extraction_dir) != \"\"}",
+            "step_csi_recreate.tcl",
+            "#else",
+            "step_csi_load_spec.tcl",
+            "step_csi_checks.tcl",
+            "step_csi_insert_anchor_buffers.tcl",
+            "step_clock_ft.tcl -optional",
+            "step_csi_priority_move_cells_out.tcl",
+            "step_csi_priority_config.tcl",
+            "step_csi_priority_route.tcl",
+            "step_csi_priority_net_buffering.tcl",
+            "step_csi_tail_routing.tcl",
+            "step_csi_priority_move_cells_back.tcl",
+            "step_cfi_attributes.tcl -optional",
+            "step_csi_attributes.tcl",
+            "step_csi_extraction.tcl",
+            "#endif",
+            "step_close.tcl"
+        ]
+    }
+Process Feature
+The basic flow does not contain process specific steps. The tech layer must provide a tech feature file  that will integrate the process steps tech.feature.json
+in the flow.
+Example of tech Json config. 
+---PAGE---
+tech.feature.json
+{
+    "name": [
+        "init_floorplan_bundle",
+        "pin_name_synonym.tcl",
+        "tech_dont_touch_elevation_nets.tcl",
+    ],
+    "description": "Implements 1280 process steps",
+    "init_floorplan_bundle": {
+        "action": "add_step_after",
+        "stage": "init_floorplan",
+        "reference": "fc.app_options.tcl",
+        "items": [
+            "tech_init_floorplan_settings.tcl",
+            "step_fp_track.tcl",
+            "step_create_pg_nets.tcl",
+            "step_source_dp_collateral.tcl",
+            "step_source_dp_user_collateral.tcl",
+            "step_fp_macro_place.tcl",
+            "step_fp_pushdown.tcl"
+        ]
+    },
+     "pin_name_synonym.tcl": {
+        "action": "add_step_after",
+        "stage": "setup_timing",
+        "reference": "fc.app_options.tcl"
+    },
+    
+    "tech_dont_touch_elevation_nets.tcl": {
+        "action": "add_step_after",
+        "stage": "redefine",
+        "reference": "step_boundary_opt.tcl"
+    }
+}
+Example of Feature Json File
+---PAGE---
+csi.feature.json
+{
+    "name": [
+        "csi",
+        "source $ward/global/snps/$env(flow)/setup.tcl",
+        "step_load.tcl",
+        "fc.app_options.tcl",
+        "step_csi_load_spec.tcl",
+        "step_close.tcl"
+    ],
+    "description": "Implements anchor buffer insertion, priority route and buffering for specified nets",
+    "csi": {
+        "action": "add_stage_before",
+        "reference": "compile_initial_opto"
+    },
+    "source $ward/global/snps/$env(flow)/setup.tcl": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": ""
+    },
+    "step_load.tcl": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": "source $ward/global/snps/$env(flow)/setup.tcl"
+    },
+    "fc.app_options.tcl": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": "step_load.tcl"
+    },
+    "step_csi_load_spec.tcl": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": "fc.app_options.tcl"
+    },
+    "step_close.tcl": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": "step_csi_priority_move_cells_out.tcl"
+    }
+}
+When several steps need to be added in the same place, the "items" field can be used. Instead of using the "name", flow builder will insert all steps found 
+in the 'items" list.
+The same method can be used to insert the same step in multiple places.
+Example of bundled steps:
+---PAGE---
+csi.feature.json
+{
+    "name": [
+        "step_csi_load_spec.tcl",
+        "step_csi_load_spec.tcl_0",
+        "csi",
+        "csi_stage_bundle"
+    ],
+    "description": "Implements anchor buffer insertion, priority route and buffering for specified nets",
+    "step_csi_load_spec.tcl": {
+        "action": "add_step_after",
+        "stage": "initial_map",
+        "reference": "step_compile_map.tcl"
+    },
+    "step_csi_load_spec.tcl_0": {
+        "items": [
+            "step_csi_load_spec.tcl"
+        ],
+        "action": "add_step_after",
+        "stage": "compile_initial_opto",
+        "reference": "step_vector_swap.tcl"
+    },
+    "csi": {
+        "action": "add_stage_after",
+        "reference": "compile_initial_opto"
+    },
+    "csi_stage_bundle": {
+        "action": "add_step_after",
+        "stage": "csi",
+        "reference": "",
+        "items": [
+            "source $ward/global/snps/$env(flow)/setup.tcl",
+            "step_load.tcl",
+            "fc.app_options.tcl",
+            "modes_corners_scenarios.tcl",
+            "check_modes_corners_scenarios.tcl",
+            "step_csi_load_spec.tcl",
+            "step_csi_add_gcr_blockages.tcl",
+            "step_csi_insert_anchors.tcl"
+        ]
+    }
+}
+Example of multiple references
+          For example,  uses the third call of  as the reference. "reference": "step_load_post_compile_constraints.tcl@3" step_load_post_compile_constraints
+\@1 is the same as the regular usage. If the number is bigger than the number of calls in the stage, Flow Builder will print an error and ignore the item.
+      
+---PAGE---
+seq_clustering.feature.json
+{
+    "name": [
+        "step_create_seq_clustering.tcl",
+        "step_remove_seq_clustering.tcl"
+    ],
+    "description": "Enable sequential cell clustering optimization",
+    "step_create_seq_clustering.tcl": {
+        "action": "add_step_after",
+        "stage" : "logic_opto",
+        "reference": "step_syn_check_ctech_cells.tcl"
+    },
+    "step_remove_seq_clustering.tcl": {
+        "action": "add_step_after",
+        "stage" : "compile_initial_opto",
+        "reference": "step_load_post_compile_constraints.tcl@3"
+    }
+Example of new stage with extra fields.
+test.feature.json
+{
+    "name": [
+        "test_stage"
+    ],
+    "description": "This is a test stage for demonstration purposes.",
+    "test_stage": {
+        "command": "vw Ione_lv -use_sif -B BLOCK -D $ivar(design_name) -F lv_icv -T lvs -S finish",
+        "exit_codes": "0 5",
+        "outputs": "test_stage_outputs",
+        "inputs": "test_stage_inputs",
+        "action": "add_stage_after",
+        "reference": "finish"
+    }
+}
+Flow Configuration
+The list of features to be applied can be defined in <>.features.config files. Flow builder supports 3 levels: design_class.features.config, project.features.
+config, and features.config.
+The files are read in the order they are listed above and the content is merged. 
+2025.09.plus format
+The file contains the a list of features separated by spaces and/or new line.
+Still supported for 2025.12. If "features " is detected, the new format is assumed._
+Since 2025.12
+Syntax:
+features_<flow_name> = feature1 feature2 \
+feature3 ...
+The list of features can be extended to multiple lines by using \. 
+If a flow has no entry, no features will be applied. Empty lines and spaces are ignored.
+---PAGE---
+Example of configuration file
+features.config
+priority_apr_fc = tech rtl_based_flow mlmp mlvr tep \
+                  ir_em_analysis add_redundant_vias custom_htree
+priority_apr_fc_phys_block = feature1
+Feature Priority
+It is possible that features use the same step as reference. In this case the flow sequence depends on the order in which features are applied.
+To avoid this situation, the feature priority file ( ) must be used to specify the order to avoid non-determinism. feature_priority.config
+2025.09.plus format
+The file contains the a list of features (one per line). Flow builder will apply the features in the order they are found in the file. The features not 
+found in the file will be applied subsequently.
+Still supported for 2025.12. If "priority " is detected, the new format is assumed._
+Since 2025.12
+Syntax
+priority_<flow_name> = feature1 feature2 \
+feature3 ...
+The list of features can be extended to multiple lines by using \. The features will be applied in the order they are defined.
+If a flow has no entry, no priority list is considered. Empty lines and spaces are ignored.
+Example priority file
+feature_priority.config
+priority_apr_fc = tech rtl_based_flow mlmp mlvr tep \
+                  ir_em_analysis add_redundant_vias custom_htree
+priority_apr_fc_phys_block = feature1
+The steps of a feature with lowest priority (applied later) will be closer to the reference steps that the features with higher priority.

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowBuilder vs Chopper — Which Tool Do I Use?</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Intel-inspired light palette */
+    --bg:          #f4f5f7;
+    --surface:     #ffffff;
+    --surface-2:   #f8f9fb;
+    --border:      #e0e4ea;
+    --border-2:    #cdd3dc;
+    --text-1:      #1a1a2e;
+    --text-2:      #4a5568;
+    --text-3:      #718096;
+
+    /* Intel Blue */
+    --blue:        #0071c5;
+    --blue-dim:    #e8f2fc;
+    --blue-border: #b3d4f0;
+    --blue-dark:   #00285a;
+
+    /* Teal / Green accent */
+    --green:       #00838f;
+    --green-dim:   #e0f4f5;
+    --green-border:#a7dce0;
+    --green-dark:  #005661;
+
+    --amber:       #c77700;
+    --amber-dim:   #fff3e0;
+    --amber-border:#f5d89a;
+    --red:         #c62828;
+    --red-dim:     #fdeaea;
+    --red-border:  #f3b8b8;
+
+    --radius-lg:   16px;
+    --radius-md:   10px;
+    --radius-sm:   6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+
+  body {
+    font-family: 'Intel Clear', 'Intel One', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 24px 64px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .slide {
+    width: 100%;
+    max-width: 1200px;
+    position: relative;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    background: var(--blue-dark);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 48px 48px 42px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,113,197,0.25) 0%, transparent 50%, rgba(0,131,143,0.15) 100%);
+    pointer-events: none;
+  }
+
+  .header-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    color: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 100px;
+    padding: 6px 20px;
+    margin-bottom: 20px;
+  }
+
+  .header h1 {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    margin-bottom: 14px;
+    position: relative;
+    color: #ffffff;
+  }
+
+  .header h1 .brand-fb {
+    color: #7dc8ff;
+  }
+
+  .header h1 .brand-ch {
+    color: #5ee6d0;
+  }
+
+  .header h1 .vs-badge {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius-sm);
+    padding: 3px 12px;
+    vertical-align: middle;
+    margin: 0 12px;
+  }
+
+  .header-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 400;
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ─── Two-column grid ─── */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+
+  .col {
+    background: var(--surface);
+    padding: 32px 36px 36px;
+    position: relative;
+  }
+
+  /* vertical divider between columns */
+  .col.col-fb { border-right: 1px solid var(--border); }
+
+  .col::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+  }
+  .col.col-fb::after { background: linear-gradient(90deg, var(--blue-dark), var(--blue)); }
+  .col.col-ch::after { background: linear-gradient(90deg, var(--green-dark), var(--green)); }
+
+  /* ─── Column header ─── */
+  .col-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .tool-icon {
+    width: 56px; height: 56px;
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+  .col-fb .tool-icon {
+    background: var(--blue-dim);
+    border: 1px solid var(--blue-border);
+  }
+  .col-ch .tool-icon {
+    background: var(--green-dim);
+    border: 1px solid var(--green-border);
+  }
+
+  .tool-name {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    line-height: 1;
+  }
+  .col-fb .tool-name { color: var(--blue); }
+  .col-ch .tool-name { color: var(--green-dark); }
+
+  .tool-tagline {
+    font-size: 14px;
+    color: var(--text-2);
+    margin-top: 5px;
+    font-weight: 500;
+  }
+
+  .status-badge {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-radius: 100px;
+    padding: 5px 14px;
+    flex-shrink: 0;
+  }
+  .status-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .badge-prod  { background: var(--green-dim); color: var(--green-dark); border: 1px solid var(--green-border); }
+  .badge-prod .dot  { background: var(--green); }
+  .badge-dev   { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); }
+  .badge-dev .dot   { background: var(--amber); }
+
+  /* ─── Pipeline ─── */
+  .pipeline-box {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    margin-bottom: 24px;
+  }
+
+  .pipeline-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 12px;
+    display: block;
+    color: var(--text-3);
+  }
+
+  .pipeline-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .flow-node {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .flow-node:hover { transform: translateY(-1px); }
+
+  .col-fb .flow-node {
+    background: var(--blue-dim);
+    color: var(--blue-dark);
+    border: 1px solid var(--blue-border);
+  }
+  .col-fb .flow-node:hover { box-shadow: 0 2px 8px rgba(0,113,197,0.15); }
+  .col-ch .flow-node {
+    background: var(--green-dim);
+    color: var(--green-dark);
+    border: 1px solid var(--green-border);
+  }
+  .col-ch .flow-node:hover { box-shadow: 0 2px 8px rgba(0,131,143,0.15); }
+
+  .flow-connector {
+    color: var(--text-3);
+    font-size: 16px;
+    font-weight: 700;
+    user-select: none;
+  }
+
+  /* ─── Feature rows ─── */
+  .features { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+
+  .feature-row {
+    display: flex;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .feature-row:hover { border-color: var(--border-2); box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+
+  .feat-label {
+    width: 130px;
+    flex-shrink: 0;
+    padding: 14px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-3);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-2);
+    line-height: 1.5;
+  }
+  .feat-label-icon { font-size: 16px; flex-shrink: 0; margin-top: 0; }
+
+  .feat-val {
+    flex: 1;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--text-1);
+    line-height: 1.7;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    margin-right: 6px;
+  }
+  .chip-yes   { background: var(--green-dim); color: var(--green-dark); border: 1px solid var(--green-border); }
+  .chip-no    { background: var(--red-dim);   color: var(--red);        border: 1px solid var(--red-border); }
+  .chip-warn  { background: var(--amber-dim); color: var(--amber);     border: 1px solid var(--amber-border); }
+
+  code {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 13px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #f0f2f6;
+    border: 1px solid var(--border);
+    color: var(--blue-dark);
+    word-break: break-word;
+  }
+
+  .inline-note {
+    display: block;
+    margin-top: 8px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-2);
+  }
+  .note-amber { background: var(--amber-dim); border-left: 3px solid var(--amber); }
+  .note-blue  { background: var(--blue-dim);  border-left: 3px solid var(--blue); }
+
+  /* ─── Secondary descriptions ─── */
+  .feat-desc {
+    color: var(--text-2);
+  }
+
+  /* ─── Domains row ─── */
+  .domain-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .domain-chip {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+  }
+  .col-fb .domain-chip { background: var(--blue-dim); color: var(--blue-dark); border: 1px solid var(--blue-border); }
+  .col-ch .domain-chip { background: var(--green-dim); color: var(--green-dark); border: 1px solid var(--green-border); }
+
+  .domain-desc {
+    font-size: 13px;
+    color: var(--text-2);
+    display: block;
+    margin-top: 8px;
+  }
+
+  /* ─── Best-for card ─── */
+  .best-for {
+    border-radius: var(--radius-md);
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .col-fb .best-for { background: var(--blue-dim); border: 1px solid var(--blue-border); }
+  .col-ch .best-for { background: var(--green-dim); border: 1px solid var(--green-border); }
+
+  .bf-title {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .col-fb .bf-title { color: var(--blue); }
+  .col-ch .bf-title { color: var(--green-dark); }
+
+  .bf-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+
+  .bf-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text-1);
+    line-height: 1.7;
+  }
+
+  .bf-list li::before {
+    content: '✓';
+    font-size: 14px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .col-fb .bf-list li::before { color: var(--blue); }
+  .col-ch .bf-list li::before { color: var(--green); }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 900px) {
+    .columns { grid-template-columns: 1fr; }
+    .col.col-fb { border-right: none; border-bottom: 1px solid var(--border); }
+    .header h1 { font-size: 28px; }
+    .header-sub { font-size: 14px; }
+    .header { padding: 36px 28px 32px; }
+    .col { padding: 28px 24px 32px; }
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 20px 12px 40px; }
+    .header h1 { font-size: 22px; }
+    .header h1 .vs-badge { font-size: 12px; margin: 0 6px; padding: 2px 8px; }
+    .col-header { flex-wrap: wrap; gap: 12px; }
+    .status-badge { margin-left: 0; }
+    .feat-label { width: 100px; padding: 12px 10px; font-size: 10px; }
+    .feat-val { padding: 12px 14px; font-size: 13px; }
+    .pipeline-flow { gap: 6px; }
+    .flow-node { font-size: 11px; padding: 5px 10px; }
+  }
+
+  /* ─── Focus / accessibility ─── */
+  .feature-row:focus-within { border-color: var(--blue); outline: none; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="slide">
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="header-eyebrow">R2G Tool Selection Guide</div>
+    <h1>
+      <span class="brand-fb">FlowBuilder</span>
+      <span class="vs-badge">VS</span>
+      <span class="brand-ch">Chopper</span>
+    </h1>
+    <p class="header-sub">Both tools manage R2G flows, but they operate at fundamentally different levels. Match your domain to the right tool.</p>
+  </div>
+
+  <div class="columns">
+
+    <!-- ════════════════ FlowBuilder ════════════════ -->
+    <div class="col col-fb">
+
+      <div class="col-header">
+        <div class="tool-icon">🔧</div>
+        <div>
+          <div class="tool-name">FlowBuilder</div>
+          <div class="tool-tagline">Stitch files into run scripts</div>
+        </div>
+        <span class="status-badge badge-prod"><span class="dot"></span>Production</span>
+      </div>
+
+      <div class="pipeline-box">
+        <span class="pipeline-label">Pipeline</span>
+        <div class="pipeline-flow">
+          <span class="flow-node">flow.json</span>
+          <span class="flow-connector">+</span>
+          <span class="flow-node">features</span>
+          <span class="flow-connector">→</span>
+          <span class="flow-node">run_&lt;stage&gt;.tcl</span>
+          <span class="flow-connector">→</span>
+          <span class="flow-node">SNORT</span>
+          <span class="flow-connector">→</span>
+          <span class="flow-node">P4 template</span>
+        </div>
+      </div>
+
+      <div class="features">
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">📍</span> Domains</div>
+          <div class="feat-val">
+            <div class="domain-chips">
+              <span class="domain-chip">apr_fc</span>
+              <span class="domain-chip">rtlfp</span>
+            </div>
+            <span class="domain-desc">File-organised flows with clear stage/step separation</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">🎯</span> Scope</div>
+          <div class="feat-val">
+            <strong>File-level only.</strong> Adds or removes whole <code>.tcl</code> files.<br>
+            <span class="feat-desc">No visibility inside files — unused procs and dead code still ship.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">🧠</span> Run Script</div>
+          <div class="feat-val">
+            <span class="chip chip-yes">✓ Full</span> Semantic parsing.<br>
+            <span class="feat-desc">Classifies every command: <code>iproc_source</code>, proc call, <code>#if/#else</code>, comment. Wires them correctly into output.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">📦</span> Proc Aware</div>
+          <div class="feat-val">
+            <span class="chip chip-no">✗ None</span><br>
+            <span class="feat-desc">Knows which files are sourced — not what procs they define or call.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">📂</span> File Config</div>
+          <div class="feat-val">
+            <span class="chip chip-warn">⚠ Manual</span> Two places.
+            <span class="inline-note note-amber">Configure both <strong>flow JSON</strong> (run script) and <strong>SNORT config</strong> (P4 filter) separately.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">🐍</span> Python</div>
+          <div class="feat-val">
+            <span class="chip chip-yes">✓ Supported</span>
+            <span class="feat-desc">Stages and features can be Python-based.</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="best-for">
+        <div class="bf-title">🎯 Choose FlowBuilder when…</div>
+        <ul class="bf-list">
+          <li>Your domain is <strong>apr_fc</strong> or <strong>rtlfp</strong></li>
+          <li>Flow uses <strong>separate stage/step files</strong> sourced together</li>
+          <li>You need to <strong>add, remove, or reorder steps</strong> via JSON config</li>
+          <li>You have <strong>Python-based stages</strong> or features</li>
+          <li>You do <em>not</em> need to prune unused procs from inside files</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════ Chopper ════════════════ -->
+    <div class="col col-ch">
+
+      <div class="col-header">
+        <div class="tool-icon">✂️</div>
+        <div>
+          <div class="tool-name">Chopper</div>
+          <div class="tool-tagline">Trim domains to what you actually need</div>
+        </div>
+        <span class="status-badge badge-dev"><span class="dot"></span>In Development</span>
+      </div>
+
+      <div class="pipeline-box">
+        <span class="pipeline-label">Pipeline</span>
+        <div class="pipeline-flow">
+          <span class="flow-node">base.json</span>
+          <span class="flow-connector">+</span>
+          <span class="flow-node">features</span>
+          <span class="flow-connector">+</span>
+          <span class="flow-node">project.json</span>
+          <span class="flow-connector">→</span>
+          <span class="flow-node">analyze</span>
+          <span class="flow-connector">→</span>
+          <span class="flow-node">trim</span>
+        </div>
+      </div>
+
+      <div class="features">
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">📍</span> Domains</div>
+          <div class="feat-val">
+            <div class="domain-chips">
+              <span class="domain-chip">sta_pt</span>
+              <span class="domain-chip">fev_formality</span>
+              <span class="domain-chip">power</span>
+              <span class="domain-chip">lvs_icv</span>
+              <span class="domain-chip">…</span>
+            </div>
+            <span class="domain-desc">All signoff and analysis tool-flow domains</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">🎯</span> Scope</div>
+          <div class="feat-val">
+            <strong>File-level + proc-level.</strong> Parses inside Tcl, resolves <code>proc</code> definitions, and traces transitive calls.<br>
+            <span class="feat-desc">Removes exactly what is unused — nothing more, nothing less.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">🧠</span> Run Script</div>
+          <div class="feat-val">
+            <span class="chip chip-warn">⚠ String-based</span> F3 feature only.<br>
+            <span class="feat-desc">Writes steps as-is — does not classify commands semantically.</span>
+            <span class="inline-note note-blue">For intelligent run-script construction, use <strong style="color:var(--blue)">FlowBuilder</strong>.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">📦</span> Proc Aware</div>
+          <div class="feat-val">
+            <span class="chip chip-yes">✓ Full</span><br>
+            <span class="feat-desc">Indexes every <code>proc</code>, follows <code>iproc_source</code> chains, and builds the complete transitive call graph before trimming.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">📂</span> File Config</div>
+          <div class="feat-val">
+            <span class="chip chip-yes">✓ Native</span> One place.<br>
+            <span class="feat-desc"><code>files.include</code> / <code>files.exclude</code> are first-class. No separate tool config needed.</span>
+          </div>
+        </div>
+
+        <div class="feature-row">
+          <div class="feat-label"><span class="feat-label-icon">🐍</span> Python</div>
+          <div class="feat-val">
+            <span class="chip chip-no">✗ Not supported</span>
+            <span class="feat-desc">Tcl-only. No Python, Perl, or csh parsing.</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="best-for">
+        <div class="bf-title">🎯 Choose Chopper when…</div>
+        <ul class="bf-list">
+          <li>Your domain is a <strong>signoff or analysis tool</strong> (STA, FEV, Power, LVS…)</li>
+          <li>Domain is <strong>large and bloated</strong> — ships far more than you need</li>
+          <li>You need to <strong>remove unused Tcl procs</strong> from inside shared library files</li>
+          <li>You have <strong>files that must survive trimming</strong> even if not in any run script</li>
+          <li>You want a <strong>single JSON config</strong> — no separate SNORT setup</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>

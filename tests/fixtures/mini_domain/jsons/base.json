@@ -1,0 +1,23 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "mini_domain",
+  "description": "Minimal valid domain for testing — F1 + F2 combined",
+  "files": {
+    "include": [
+      "vars.tcl",
+      "utils.pl"
+    ]
+  },
+  "procedures": {
+    "include": [
+      {
+        "file": "main_flow.tcl",
+        "procs": ["setup_flow", "run_main"]
+      },
+      {
+        "file": "helper_procs.tcl",
+        "procs": ["read_libs"]
+      }
+    ]
+  }
+}

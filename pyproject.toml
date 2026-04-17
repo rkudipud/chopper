@@ -1,0 +1,61 @@
+[project]
+name = "chopper"
+version = "0.1.0"
+description = "EDA TFM trimming tool for Cheetah R2G flows"
+requires-python = ">=3.9,<3.14"
+license = {text = "Intel Proprietary"}
+authors = [
+    {name = "rkudipud"},
+]
+
+dependencies = [
+    "structlog>=24.1.0,<25",
+    "jsonschema>=4.0,<5",
+]
+
+[project.optional-dependencies]
+rich = [
+    "rich>=13.0",
+]
+dev = [
+    "pytest>=7.0,<9",
+    "pytest-cov>=4.0,<6",
+    "pytest-benchmark>=4.0,<5",
+    "pytest-regressions>=0.5",
+    "hypothesis>=6.0,<7",
+    "mypy>=1.0,<2",
+    "ruff>=0.4,<1",
+]
+
+[project.scripts]
+chopper = "chopper.cli.main:main"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-under=78"
+
+[tool.hypothesis]
+max_examples = 500
+print_blob = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

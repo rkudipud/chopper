@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/base/v1",
+  "title": "Chopper Base JSON",
+  "description": "Bare-minimum flow definition for a tool domain. Defines the files, procs, and stages that constitute the minimal viable flow.",
+  "type": "object",
+  "required": ["$schema", "domain"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "chopper/base/v1"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Domain directory name (e.g., fev_formality, sta_pt, power)"
+    },
+    "_draft": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set by scan operation to mark output as machine-generated draft (not yet curated by domain owner). Scan-generated base.json MUST carry _draft=true."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this base flow covers"
+    },
+    "options": {
+      "type": "object",
+      "description": "Domain-level options for this base configuration",
+      "properties": {
+        "cross_validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to cross-validate F3 output against F1/F2 results"
+        },
+        "template_script": {
+          "type": "string",
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)[^\\\\]*$",
+          "description": "Domain-relative path to a script under the selected domain root. Chopper executes it once at the end of a successful trim run. Must not contain '..' traversal. Python-level validation (V-26) also resolves the real path via Path.resolve() and asserts it stays within the domain root to prevent symlink escape."
+        }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "description": "Files or glob patterns to include (domain-relative, forward slashes, no '..', no '//', no absolute paths). Supports *, ?, and ** glob patterns."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "description": "Files or glob patterns to exclude"
+        }
+      }
+    },
+    "procedures": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "description": "Proc-level includes: file + proc name pairs"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "description": "Proc-level excludes used to prune trace-derived proc candidates. Does not remove explicit procedures.include entries."
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stageDefinition"
+      },
+      "description": "Ordered list of stage definitions for F3 run-file generation"
+    }
+  },
+  "$defs": {
+    "procEntry": {
+      "type": "object",
+      "required": ["file", "procs"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative Tcl file path. Must not contain '..' traversal or double slashes."
+        },
+        "procs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Proc names to include/exclude from this file. MUST NOT be empty — use files.include for whole-file inclusion."
+        }
+      }
+    },
+    "stageDefinition": {
+      "type": "object",
+      "required": ["name", "load_from", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique stage name"
+        },
+        "load_from": {
+          "type": "string",
+          "description": "Name of predecessor stage whose data is loaded"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tool invocation command (e.g., fm_shell -f run_setup.tcl)"
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Input artifact markers"
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Output artifact markers"
+        },
+        "run_mode": {
+          "type": "string",
+          "enum": ["serial", "parallel"],
+          "default": "serial",
+          "description": "Execution mode: serial or parallel"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Ordered list of step strings (filenames, source commands, conditionals, etc.)"
+        }
+      }
+    }
+  }
+}

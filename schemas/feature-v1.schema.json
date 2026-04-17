@@ -1,0 +1,367 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/feature/v1",
+  "title": "Chopper Feature JSON",
+  "description": "Extension that injects, overrides, or removes procs/files/stages from the base flow. Features are layered on top of the base in selected order.",
+  "type": "object",
+  "required": ["$schema", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "chopper/feature/v1"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Feature identifier (e.g., dft, power, scan)"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional: domain this feature is intended for (e.g., fev_formality). If present and the selected base declares a different domain, Python-level validation V-19 emits a WARNING: 'Feature domain mismatch'. Features without this field are domain-agnostic and can be applied to any domain without a warning."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this feature provides"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional informational metadata. Chopper never evaluates these fields — they are documentation only. Preserved in audit artifacts and scan output.",
+      "properties": {
+        "related_ivars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Documentation-only: ivar references related to this feature"
+        },
+        "related_appvars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Documentation-only: appvar references related to this feature"
+        },
+        "wiki": {
+          "type": "string",
+          "description": "URL to wiki page or documentation for this feature"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Team or individual responsible for this feature"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags for feature catalog filtering (e.g., signoff, dft, power)"
+        }
+      },
+      "additionalProperties": true
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "description": "Files or glob patterns to include. Supports *, ?, and ** glob patterns. Must not contain '..', '//', or absolute paths."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "description": "Files or glob patterns to exclude from wildcard-expanded include candidates. Does not remove literal files.include entries."
+        }
+      }
+    },
+    "procedures": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "description": "Additional proc-level includes from this feature"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "description": "Proc-level excludes from this feature, used to prune trace-derived proc candidates. Does not remove explicit procedures.include entries."
+        }
+      }
+    },
+    "flow_actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flowAction"
+      },
+      "description": "Ordered list of flow actions applied top-to-bottom during compilation"
+    }
+  },
+  "$defs": {
+    "procEntry": {
+      "type": "object",
+      "required": ["file", "procs"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative Tcl file path. Must not contain '..' traversal or double slashes."
+        },
+        "procs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Proc names. MUST NOT be empty."
+        }
+      }
+    },
+    "flowAction": {
+      "type": "object",
+      "required": ["action"],
+      "oneOf": [
+        { "$ref": "#/$defs/addStepAction" },
+        { "$ref": "#/$defs/addStageAction" },
+        { "$ref": "#/$defs/removeStepAction" },
+        { "$ref": "#/$defs/removeStageAction" },
+        { "$ref": "#/$defs/loadFromAction" },
+        { "$ref": "#/$defs/replaceStepAction" },
+        { "$ref": "#/$defs/replaceStageAction" }
+      ]
+    },
+    "addStepAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["add_step_before", "add_step_after"]
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage name"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^@]+(@[1-9][0-9]*)?$",
+          "description": "Reference step string to insert before/after. Supports @n instance targeting (e.g., step.tcl@2)."
+        },
+        "items": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Step strings to insert"
+        }
+      }
+    },
+    "addStageAction": {
+      "type": "object",
+      "required": ["action", "name", "reference", "load_from", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["add_stage_before", "add_stage_after"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the new stage"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reference stage name to insert before/after"
+        },
+        "load_from": {
+          "type": "string",
+          "description": "Predecessor stage for data loading"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tool invocation command"
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "run_mode": {
+          "type": "string",
+          "enum": ["serial", "parallel"],
+          "default": "serial"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    },
+    "removeStepAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "remove_step"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage name"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^@]+(@[1-9][0-9]*)?$",
+          "description": "Step string to remove. Use @n for instance targeting (e.g., step.tcl@2)."
+        }
+      }
+    },
+    "removeStageAction": {
+      "type": "object",
+      "required": ["action", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "remove_stage"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stage name to remove"
+        }
+      }
+    },
+    "loadFromAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "load_from"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage to modify"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "New predecessor stage name"
+        }
+      }
+    },
+    "replaceStepAction": {
+      "type": "object",
+      "required": ["action", "stage", "replace", "with"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "replace_step"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage name"
+        },
+        "replace": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^@]+(@[1-9][0-9]*)?$",
+          "description": "Step string to replace. Use @n for instance targeting (e.g., step.tcl@2)."
+        },
+        "with": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Replacement step string"
+        }
+      }
+    },
+    "replaceStageAction": {
+      "type": "object",
+      "required": ["action", "replace", "with"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "replace_stage"
+        },
+        "replace": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stage name to replace"
+        },
+        "with": {
+          "$ref": "#/$defs/stageDefinition",
+          "description": "Replacement stage definition"
+        }
+      }
+    },
+    "stageDefinition": {
+      "type": "object",
+      "required": ["name", "load_from", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "load_from": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "run_mode": {
+          "type": "string",
+          "enum": ["serial", "parallel"],
+          "default": "serial"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}
