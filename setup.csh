@@ -1,8 +1,12 @@
 #!/usr/bin/env tcsh
-# setup.csh — Bootstrap the chopper development environment for tcsh users.
+# setup.csh — Bootstrap the chopper development environment (PRIMARY setup for Unix/Linux/macOS).
+# Platform: Unix/Linux/macOS
+# Shell: tcsh/csh (PRIMARY - bash is NOT available on this system)
+# Auto-activate: source this script at startup (add to ~/.tcshrc or ~/.cshrc)
+#   echo "source ~/.chopper_venv.csh" >> ~/.tcshrc
 # Usage: source setup.csh
 
-set script_dir = "$cwd"
+set script_dir = `pwd`
 
 if ( ! -f "$script_dir/pyproject.toml" ) then
     echo "setup.csh expects to be sourced from the repository root."
@@ -14,7 +18,8 @@ set venv_dir = "$script_dir/.venv"
 set python_cmd = "python3"
 set proxy = "http://proxy-dmz.intel.com:912"
 
-echo "=== Chopper Dev Environment Setup (tcsh) ==="
+echo "=== Chopper Dev Environment Setup ==="
+echo "Platform: Unix/Linux/macOS (PRIMARY: tcsh - bash/zsh NOT available)"
 
 if ( ! -d "$venv_dir" ) then
     echo "[1/4] Creating virtual environment..."
@@ -36,10 +41,19 @@ pip install -e ".[dev]" --quiet
 
 echo ""
 echo "=== Setup complete ==="
-echo "  Python : `python3 --version`"
-echo "  Venv   : $venv_dir"
-echo "  tcsh   : source setup.csh"
-echo "  Bash   : source setup.sh"
-echo "  Run    : chopper --help"
-echo "  Test   : pytest"
+echo "  Platform : Unix/Linux/macOS (PRIMARY: tcsh)"
+echo "  Python   : `python3 --version`"
+echo "  Venv     : $venv_dir"
+echo "  Shell    : tcsh/csh (PRIMARY - bash/zsh NOT available)"
+echo ""
+echo "To auto-activate on terminal startup:"
+echo "  echo 'source $script_dir/setup.csh' >> ~/.tcshrc"
+echo ""
+echo "For other platforms:"
+echo "  Windows PowerShell : . setup.ps1"
+echo "  Windows cmd.exe    : setup.bat"
+echo "  bash/zsh (if available - fallback only) : source setup.sh"
+echo ""
+echo "Run: chopper --help"
+echo "Test: pytest"
 

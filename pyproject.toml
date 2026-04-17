@@ -2,7 +2,7 @@
 name = "chopper"
 version = "0.1.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.9"
 license = {text = "Intel Proprietary"}
 authors = [
     {name = "rkudipud"},

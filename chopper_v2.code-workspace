@@ -1,0 +1,90 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "chopper_v2"
+    }
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "python.formatting.provider": "black",
+    "[python]": {
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+      }
+    },
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/*.pyc": true,
+      "**/.pytest_cache": true,
+      "**/.mypy_cache": true,
+      "**/.ruff_cache": true,
+      "**/.venv": false
+    },
+    "search.exclude": {
+      "**/.venv": true,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true
+    }
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Python: pytest",
+        "type": "python",
+        "request": "launch",
+        "module": "pytest",
+        "args": [
+          "tests/",
+          "-v"
+        ],
+        "justMyCode": true,
+        "console": "integratedTerminal"
+      },
+      {
+        "name": "Python: Current File",
+        "type": "python",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal",
+        "justMyCode": true
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "make check",
+        "type": "shell",
+        "command": "make",
+        "args": ["check"],
+        "problemMatcher": [],
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "make ci",
+        "type": "shell",
+        "command": "make",
+        "args": ["ci"],
+        "problemMatcher": [],
+        "group": "test"
+      },
+      {
+        "label": "make test",
+        "type": "shell",
+        "command": "make",
+        "args": ["test"],
+        "problemMatcher": [],
+        "group": "test"
+      }
+    ]
+  }
+}
