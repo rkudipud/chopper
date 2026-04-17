@@ -34,7 +34,7 @@ Here the args word is double-quoted (not brace-delimited). The parser must corre
 
 Support optional `depends_on` field in Feature JSON to declare inter-feature dependencies. When Feature B depends on Feature A, Chopper could validate that A is included whenever B is selected.
 
-**Deferred because:** ARCHITECTURE.md §2.2 explicitly places hard-enforce feature dependency graphs out of scope for v1. Informational warnings are sufficient.
+**Status:** Implemented at schema level for declarative authoring. Full semantic enforcement remains a validator responsibility.
 
 ### FD-03: Conditional Feature Selection
 

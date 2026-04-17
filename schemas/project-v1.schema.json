@@ -42,7 +42,7 @@
         "minLength": 1,
         "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
       },
-      "description": "Ordered list of feature JSON paths relative to the current working directory / domain root (forward slashes only, no '..', no '//', no absolute paths). Order is authoritative — later features see the results of earlier ones."
+      "description": "Ordered list of feature JSON paths relative to the current working directory / domain root (forward slashes only, no '..', no '//', no absolute paths). Order is authoritative - later features see the results of earlier ones. If a feature declares depends_on in its Feature JSON, each prerequisite feature should also be selected here and must appear earlier in this list."
     },
     "notes": {
       "type": "array",

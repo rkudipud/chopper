@@ -446,6 +446,8 @@ This example intentionally uses the file include/exclude feature, the procedure 
     {
       "name": "verify",
       "load_from": "setup",
+      "dependencies": ["setup"],
+      "exit_codes": [0, 3, 5],
       "command": "fm_shell -f run_verify.tcl",
       "inputs": ["setup.done"],
       "outputs": ["verify.done"],
@@ -465,6 +467,7 @@ What this example demonstrates:
 - `procedures.include` declares the explicit Tcl entry procedures that must survive.
 - `procedures.exclude` gives you a place to prune conservative trace extras if they appear.
 - `stages` define the ordered build/run script structure.
+- In generated stack files, `name` maps to `N`, `command` maps to `J`, `exit_codes` maps to `L`, and `dependencies` maps to `D`.
 - `options.template_script` is a path to a domain-local post-trim generator, not an arbitrary shell command.
 
 ### 8.6 When to add `files.exclude` in the base
@@ -1427,7 +1430,9 @@ No. Procedure-level selection is Tcl-only. Non-Tcl files are whole-file only.
 
 ### 16.4 Simple stage definition template
 
-Required fields: `name`, `load_from`, `steps`. Optional fields: `command`, `inputs`, `outputs`, `run_mode`.
+Required fields: `name`, `load_from`, `steps`. Optional fields: `dependencies`, `exit_codes`, `command`, `inputs`, `outputs`, `run_mode`, `language`.
+
+`name` becomes the stack-file `N` line, `command` becomes `J`, `exit_codes` becomes `L`, and `dependencies` becomes `D`. `load_from` is still important, but it feeds the generated run script rather than the stack dependency graph line.
 
 ```json
 {
@@ -1448,7 +1453,7 @@ With all optional fields:
   "name": "setup",
   "load_from": "",
   "command": "tool_shell -f run_setup.tcl",
-  "inputs": [],
+  "exit_codes": [0],
   "outputs": ["setup.done"],
   "run_mode": "serial",
   "steps": [

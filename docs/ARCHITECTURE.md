@@ -76,7 +76,7 @@ Chopper is not intended to do the following in v1:
 - Evaluate runtime Tcl semantics completely. Chopper performs static analysis and tracing based on the source code, but it does not attempt to fully resolve dynamic Tcl patterns such as `eval`, `uplevel`, or runtime-generated proc/file names. Such patterns are logged as warnings and require explicit owner input.
 - Execute or simulate tool flows to infer feature selections
 - Partially trim non-Tcl languages at subroutine level
-- Hard-enforce feature dependency graphs beyond informational warnings
+- Infer undeclared feature dependency graphs automatically. Feature JSON may declare `depends_on`, but semantic enforcement is handled by validation rather than by schema alone.
 - Support `!feature` negation syntax — the project JSON with ordered feature selection covers the use case; the owner simply omits unwanted features from the list
 
 ### 2.3 Roles
@@ -1039,7 +1039,9 @@ This base example intentionally shows:
 - Proc-level include and exclude shapes
 - Two fully defined stages
 - Raw `source` usage, normal step files, and optional step references
-- Stage-level `load_from` (required), optional `command`, `inputs`, `outputs`, and `run_mode`
+- Stage-level `load_from` (required), optional `dependencies`, `exit_codes`, `command`, `inputs`, `outputs`, `language`, and `run_mode`
+
+For generated stack files, the intended mapping is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`.
 
 **Validation rule:** an entry in `procedures.include` with an empty `procs` array (`"procs": []`) is a **hard error**. If the author intended to keep the whole file, the correct action is to move the file into `files.include`. Chopper rejects this during validation and dry-run, with an actionable error message directing the author to use `files.include` instead.
 
