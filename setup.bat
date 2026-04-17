@@ -35,14 +35,7 @@ call "%venvDir%\Scripts\activate.bat"
 echo [3/4] Configuring pip and Git proxy...
 pip config set global.proxy "%proxy%" --quiet 2>nul
 pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>nul
-REM Configure Git proxy
-git config --global http.proxy "%proxy%" 2>nul
-git config --global https.proxy "%proxy%" 2>nul
-git config --global http.proxyStrictSSL false 2>nul
-git config --global core.noProxy "intel.com,.intel.com,127.0.0.1,.devtools.intel.com" 2>nul
-git config --global http.postBuffer 524288000 2>nul
-git config --global http.lowSpeedLimit 0 2>nul
-git config --global http.lowSpeedTime 999999 2>nul
+
 
 echo [4/4] Installing dependencies...
 pip install --upgrade pip --quiet
