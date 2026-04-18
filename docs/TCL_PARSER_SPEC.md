@@ -216,9 +216,11 @@ For each line in the file:
      When brace_depth returns to entered_at_depth, pop both stacks
 
   4. If the line matches a control-flow keyword (if, for, foreach,
-     while, switch, catch, eval) followed by a body `{`:
+     foreach_in_collection, while, switch, catch, eval) followed by a body `{`:
      Push (CONTROL_FLOW, current_brace_depth) onto context_stack
      When brace_depth returns to entered_at_depth, pop the stack
+     Note: `foreach_in_collection` is a Synopsys EDA iterator — handle
+     identically to `foreach`; see §7.14 and Pitfall P-36.
 ```
 
 **Worked example — proc inside `if` inside `namespace eval`:**
@@ -478,8 +480,8 @@ Call extraction produces textual proc-call tokens. The tracer resolves those tok
 1. Evaluate candidate qualified names in order.
 2. For a given candidate qualified name, search the selected-domain proc index for canonical procs whose `qualified_name` exactly matches that candidate.
 3. If exactly one canonical proc matches, resolve the call to that proc and stop.
-4. If more than one canonical proc matches the same candidate qualified name, emit `TRACE-AMBIG-01` and stop unresolved.
-5. If no candidate qualified name resolves inside the selected domain, emit `TRACE-CROSS-DOMAIN-01` and stop unresolved.
+4. If more than one canonical proc matches the same candidate qualified name, emit `TW-01` and stop unresolved.
+5. If no candidate qualified name resolves inside the selected domain, emit `TW-02` and stop unresolved.
 
 **Out of scope for v1:**
 
@@ -489,7 +491,7 @@ Call extraction produces textual proc-call tokens. The tracer resolves those tok
 - runtime aliasing / `interp alias`
 - runtime redefinition order across sourced files
 
-These are not guessed. Dynamic or syntactically unresolvable call forms still emit `TRACE-UNRESOLV-01`.
+These are not guessed. Dynamic or syntactically unresolvable call forms still emit `TW-03`.
 
 ### 5.4 Source/iproc_source Extraction
 
@@ -549,7 +551,7 @@ iproc_msg -info "[read_rtl_2stage $args]"       # KEEP — embedded bracket call
 **`foreach_in_collection` structural handling:**
 `foreach_in_collection` is a Synopsys Formality/DC EDA iterator. Treat it exactly like `foreach` for the context stack: push `CONTROL_FLOW` when its body `{` is encountered; parse the body for calls; do NOT emit a traced call for `foreach_in_collection` itself (it is a Synopsys built-in, not a user proc).
 
-**Synopsys/Cadence EDA flow control commands** (appear as first words of commands in proc bodies; they are NOT user procs and will produce `TRACE-CROSS-DOMAIN-01` at trace time — this is expected and correct behavior, not an error):
+**Synopsys/Cadence EDA flow control commands** (appear as first words of commands in proc bodies; they are NOT user procs and will produce `TW-02` at trace time — this is expected and correct behavior, not an error):
 
 ```python
 EDA_FLOW_COMMANDS: frozenset[str] = frozenset({
@@ -563,7 +565,7 @@ EDA_FLOW_COMMANDS: frozenset[str] = frozenset({
 })
 ```
 
-These commands can appear at any nesting level (not just top-level). They have no special brace-counting behaviour — they are ordinary Tcl commands for structural purposes. At call-extraction time they produce `TRACE-CROSS-DOMAIN-01` because they are not in the domain's user proc index. This is expected output; the domain owner is informed but the trim proceeds.
+These commands can appear at any nesting level (not just top-level). They have no special brace-counting behaviour — they are ordinary Tcl commands for structural purposes. At call-extraction time they produce `TW-02` because they are not in the domain's user proc index. This is expected output; the domain owner is informed but the trim proceeds.
 
 **`redirect -variable varname "command string"`:** The double-quoted string argument is data passed to `redirect`. The string may contain EDA command names (e.g., `"report_unmapped_points -extra"`). Because these names appear inside a string argument — not as the first word of a command — they are NOT extracted as call candidates. Chopper's call extractor only traces the first word of a command, not the contents of string arguments.
 
@@ -588,6 +590,8 @@ Each detected proc produces one `ProcEntry` record:
 | `dpa_end_line` | `Optional[int]` | Last line of the `define_proc_attributes` block immediately following this proc (`None` if absent) |
 | `comment_start_line` | `Optional[int]` | First line of the structured doc-comment block immediately preceding this proc (`None` if absent) |
 | `comment_end_line` | `Optional[int]` | Last line of the structured doc-comment block immediately preceding this proc (`None` if absent) |
+| `calls` | `tuple[str, ...]` | Raw proc-call tokens extracted from the proc body after false-positive filtering (§5.5); empty tuple if none found or body is empty. These are unresolved textual tokens — the tracer resolves them using §5.3.1 and the caller's `namespace_path`. |
+| `source_refs` | `tuple[str, ...]` | Literal file paths extracted from `source` and `iproc_source` calls in the proc body (§5.4); empty tuple if none found. Computed paths (`source $var`) are excluded and produce `PW-09`. |
 
 ### 6.1 Invariants
 
@@ -595,6 +599,8 @@ Each detected proc produces one `ProcEntry` record:
 2. `canonical_name` is unique within the proc index for one domain. Duplicate canonical names are an ERROR.
 3. `short_name` is unique within the same source file. Duplicate short names in the same file are an ERROR.
 4. If the same short name is defined twice in the same file, the **last definition wins** for index materialization so downstream tooling has one deterministic span to report, but Chopper emits an ERROR diagnostic and the file is invalid for trim/trace work until fixed.
+5. `calls` contains only syntactically literal call tokens — no `$` variables, no `[...]` wrappers (stripped at extraction per §5.3). Tokens are deduplicated and sorted lexicographically within each `ProcEntry`.
+6. `source_refs` contains only domain-relative POSIX path strings. Paths computed at runtime are excluded; paths from `-use_hooks` calls are included as plain paths (hook-file discovery is an analysis concern, not a field variant).
 
 ### 6.2 Boundary Definitions for `body_start_line` / `body_end_line`
 
@@ -843,20 +849,7 @@ The parser is purely CPU-bound string processing. No external dependencies requi
 
 The parser does **not** return diagnostics in its return value. Instead, it emits them via the optional `on_diagnostic` callback (`DiagnosticCollector = Callable[[Diagnostic], None]`), defined in `core/protocols.py`.
 
-**Parser diagnostic codes and their emission points:**
-
-> All codes below are registered in [`docs/DIAGNOSTIC_CODES.md`](../docs/DIAGNOSTIC_CODES.md). Implementation must use constants defined there; do not introduce new codes without first registering them in that file.
-
-| Code | Severity | When Emitted |
-|------|----------|--------------|
-| `PE-01` | ERROR | After parsing a file, duplicate `short_name` detected within the same file (§6.3) |
-| `PW-01` | WARNING | During proc detection, computed/dynamic proc name encountered (§4.3) |
-| `PW-02` | WARNING | During file read, UTF-8 decode failed, fell back to Latin-1 (§2) |
-| `PE-02` | ERROR | After parsing, brace depth did not return to 0 (unbalanced braces) |
-| `PW-03` | WARNING | During proc detection, proc body could not be delimited (non-brace body) |
-| `PW-04` | WARNING | During namespace eval detection, computed namespace name encountered |
-| `PW-11` | WARNING | DPA proc name does not match the preceding proc's `qualified_name` (§4.6) |
-| `PI-04` | INFO | `define_proc_attributes` found with no associated preceding proc in file (§4.6) |
+All parser diagnostic codes (`PE-*`, `PW-*`, `PI-*`) — including severity, description, recovery hints, and the exact algorithm section where each fires — are defined exclusively in [`docs/DIAGNOSTIC_CODES.md`](../docs/DIAGNOSTIC_CODES.md) (sections 5–7). Implementation must use constants from `src/chopper/core/diagnostics.py` derived from that registry; do not introduce new codes without first registering them there.
 
 **Emission pattern:**
 ```python
@@ -888,6 +881,77 @@ diags: list[Diagnostic] = []
 entries = parse_file(domain, file, on_diagnostic=diags.append)
 assert any(d.code == "PE-01" for d in diags)
 ```
+
+---
+
+### 8.5 Parser-to-Pipeline Integration
+
+The parser is Phase 2 of Chopper's 7-phase pipeline. `list[ProcEntry]` is its sole typed output contract. Two downstream consumers use it for different purposes.
+
+#### 8.5.1 Fields Used by the Trimmer (Phase 5)
+
+The trimmer operates per-file: it reconstructs each proc-trimmed file by keeping or removing line ranges.
+
+| Field | Trimmer Use |
+|---|---|
+| `source_file` | Identifies which file to operate on |
+| `start_line` / `end_line` | Core proc span |
+| `dpa_start_line` / `dpa_end_line` | Atomic drop with proc when excluded (Pitfall P-33) |
+| `comment_start_line` / `comment_end_line` | Atomic drop with proc when excluded (Pitfall P-34) |
+| `body_start_line` / `body_end_line` | Boundary for `TrimStats.loc_removed` counting |
+
+**Full atomic unit per proc** — the trimmer handles each `ProcEntry` as one indivisible block:
+
+- **Keep:** preserve lines `comment_start_line` (or `start_line` if `None`) through `dpa_end_line` (or `end_line` if `None`) inclusive.
+- **Drop:** remove that same contiguous range.
+
+The trimmer sorts all proc decisions for a file by `comment_start_line` (falling back to `start_line`) before processing, then reassembles the file from surviving line ranges in source order.
+
+#### 8.5.2 Fields Used by the Compiler / Tracer (Phases 3–4)
+
+The compiler builds two in-memory structures from `list[ProcEntry]`:
+
+**Proc index** — maps canonical names to entries for JSON validation and trace-time resolution:
+
+```python
+proc_index: dict[str, ProcEntry] = {e.canonical_name: e for e in all_entries}
+```
+
+**Call graph edges** — directed edges for BFS trace expansion (see ARCHITECTURE.md §4.3). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
+
+```python
+# Edge: caller canonical_name → unresolved call token
+# Tracer resolves tokens via §5.3.1 using e.namespace_path
+call_edges: list[tuple[str, str]] = [
+    (e.canonical_name, token)
+    for e in all_entries
+    for token in e.calls
+]
+```
+
+**File dependency edges** — for `source` / `iproc_source` file-level dependencies:
+
+```python
+source_edges: list[tuple[str, str]] = [
+    (e.canonical_name, ref)
+    for e in all_entries
+    for ref in e.source_refs
+]
+```
+
+Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism (ARCHITECTURE.md Decision 3), and collects all reachable `ProcEntry` records as additional keeps.
+
+#### 8.5.3 Fields Used by `chopper scan` (dependency_graph.json)
+
+`chopper scan` materialises the complete dependency graph from parser output without any extra file reads:
+
+| `dependency_graph.json` edge type | `ProcEntry` field | Example |
+|---|---|---|
+| Proc-call edge | `calls` | `fev_formality/procs.tcl::read_libs` → `read_db_files` |
+| File-source edge | `source_refs` | `fev_formality/procs.tcl::read_libs` → `shared/db_helper.tcl` |
+| Proc location node | `canonical_name`, `source_file`, `start_line`, `end_line` | node at lines 10–25 |
+
+Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) and every `source_refs` path is a directed edge. Unresolved tokens appear as `TW-02` or `TW-03` diagnostics in `scan_report.json`.
 
 ---
 
@@ -936,12 +1000,13 @@ assert any(d.code == "PE-01" for d in diags)
 | 2026-04-04 | **Rev 1:** Created parser spec from architecture review GAP-09. Covers tokenization (brace matching, continuations, quotes, comments), proc detection, namespace handling, call extraction, edge cases, and test strategy. Based on Tcl 8.6 Dodekalogue and official `proc`/`namespace` documentation. |
 | 2026-04-05 | **Rev 2:** Aligned duplicate-proc semantics with the source architecture: duplicate short names in the same file are deterministic for indexing purposes but are ERRORs for trim/trace validation, not warnings. |
 | 2026-04-05 | **Rev 3:** Corrected quote-handling guidance to match Tcl Rule 6. Quotes inside brace-delimited proc bodies are literal text and do not suppress brace matching; unescaped braces there are parse errors. |
-| 2026-04-05 | **Rev 4:** Added a deterministic proc name resolution contract for trace expansion. Bare and relative qualified calls now resolve by caller namespace first, then global namespace, while absolute qualified calls resolve exactly. Ambiguous matches emit `TRACE-AMBIG-01`; unresolved literal calls emit `TRACE-CROSS-DOMAIN-01`; dynamic forms emit `TRACE-UNRESOLV-01`. |
+| 2026-04-05 | **Rev 4:** Added a deterministic proc name resolution contract for trace expansion. Bare and relative qualified calls now resolve by caller namespace first, then global namespace, while absolute qualified calls resolve exactly. Ambiguous matches emit `TW-01`; unresolved literal calls emit `TW-02`; dynamic forms emit `TW-03`. |
 | 2026-04-05 | **Rev 5:** Resolved pre-coding review blockers B-01 through B-04 and HIGH issues H-01, H-02, M-02. Replaced ambiguous "at this depth" detection rule with explicit context-type stack (`FILE_ROOT`, `NAMESPACE_EVAL`, `CONTROL_FLOW`, `PROC_BODY`). Operationally defined `body_start_line` / `body_end_line` boundaries with edge-case table (§6.2). Specified args-word skip algorithm ("scan forward to unescaped `{` at current depth"). Added namespace stack pop-timing worked example (§4.5.1). Separated quote handling into Pre-Body Rule (§3.3.1) and In-Body Rule (§3.3.2). Added call extraction scope statement to §4.4. Revised performance target from <1s to <2s primary. |
 | 2026-04-05 | **Rev 6:** Added §6.3 (Duplicate Proc Validation Timing) and §5.3.1 cross-reference to ARCHITECTURE §4.3 trace resolution. Resolves E-02, E-11 from production review. |
 | 2026-04-05 | **Rev 7:** Added §2.1 (Public Function Signature) and §8.4 (Diagnostic Emission Contract). Resolves parser return type ambiguity: `parse_file()` returns `list[ProcEntry]`, emits diagnostics via optional `on_diagnostic: DiagnosticCollector` callback. Aligns with `ProgressSink.on_diagnostic` pattern used by service layer. |
 | 2026-04-19 | **Rev 8:** Supercharged with real-world EDA patterns from `default_fm_procs.tcl` and SNORT algorithm intelligence. Added §4.6 (`define_proc_attributes` detection with SNORT-derived name extraction), §4.7 (structured doc-comment block detection), §5.5 (SNORT-inspired call false-positive filter with `iproc_msg`/`puts`/`echo` suppression). Extended `ProcEntry` with `dpa_start_line`, `dpa_end_line`, `comment_start_line`, `comment_end_line`. Fixed §2.1 signature (added `on_diagnostic`). Updated §4.2 algorithm with steps h and i. Added §5.2 EDA false-positive rows. New edge cases §7.11–§7.14 covering args-with-defaults, DPA association, comment banners, and `foreach_in_collection`. Extended §8.2 state machine and §8.4 with `PW-11` (DPA mismatch) / `PI-04` (DPA orphan); all parser diagnostic codes aligned to authoritative registry in `docs/DIAGNOSTIC_CODES.md`. Real-world coverage anchored to Intel/Synopsys FEV formality flows (`default_fm_procs.tcl`). |
 | 2026-04-19 | **Rev 9:** Replaced all ad-hoc parser diagnostic code strings (`PARSER-DUP-01`, `PARSE-DYNA-01`, `PARSE-ENCODING-01`, `PARSE-UNBRACE-01`, `PARSE-NOBODY-01`, `PARSE-COMPNS-01`, `PARSE-DPA-MISMATCH-01`, `PARSE-DPA-ORPHAN-01`) with authoritative registry codes (`PE-01`, `PW-01`, `PW-02`, `PE-02`, `PW-03`, `PW-04`, `PW-11`, `PI-04`). Registered `PW-11` and `PI-04` in `docs/DIAGNOSTIC_CODES.md`. Added cross-reference note in §8.4 directing implementors to the registry. |
+| 2026-04-19 | **Rev 10:** Production integration review. Added `calls` and `source_refs` fields to `ProcEntry` (§6) — the typed channel from parser to tracer and dependency graph. Added invariants 5–6 for these fields (§6.1). Added §8.5 (Parser-to-Pipeline Integration) mapping every `ProcEntry` field to its trimmer, compiler/tracer, and scan consumer with concrete code examples. Added `foreach_in_collection` to §4.2 step 4 control-flow keyword set with note to §7.14/P-36. Added `PW-05`, `PI-01`, `PI-02`, `PI-03` rows to §8.4 emission table. Replaced remaining ad-hoc trace codes (`TRACE-AMBIG-01` → `TW-01`, `TRACE-CROSS-DOMAIN-01` → `TW-02`, `TRACE-UNRESOLV-01` → `TW-03`) in §5.3.1, §5.5 (×2), and Rev 4 history. |
 
 ---
 

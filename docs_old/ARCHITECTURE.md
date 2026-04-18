@@ -1,7 +1,6 @@
 # Chopper — EDA TFM Trimming Tool
 
-> **Status:** Draft — Consolidated Architecture Baseline (Rev 22)  
-> **Last Updated:** 2026-04-05 (Rev 22)  
+> **Status:** Draft — Consolidated Architecture Baseline 
 > **Author:** rkudipud  
 
 ---
@@ -48,6 +47,7 @@ Chopper is currently in a **docs-first architecture phase**.
 | **Implementation state** | Core trim engine is not yet production-implemented |
 | **Repository reality** | The repo currently contains package/framework scaffolding plus architecture and analysis docs |
 | **Primary source of truth** | This architecture document |
+| **Supporting document** | per component spec docs are available | 
 | **Implication** | Design clarity must come before feature implementation |
 
 This document therefore describes the **intended architecture**, the **resolved design decisions**, the **current open questions**, and the **implementation work queue** required to turn the framework into a working product.
@@ -62,64 +62,84 @@ Chopper is in scope for:
 - Per-domain trimming only
 - Whole-file include/exclude
 - Tcl proc-level trimming
-- Transitive proc dependency tracing
-- Optional run-file generation
-- Backup and re-trim lifecycle management
+- Transitive proc dependency tracing only for logging
+- run-file generation
 - Audit trail and reproducibility
-- Draft JSON generation via scan
+
+System is classified into three broad features:
+
+**F1:** File-level granularity; users can choose which files to include and which to remove.
+**F2:** Proc-level granularity; users can choose which procs to include from which file and which procs to remove from which file.
+**F3:** Stage-level granularity; users can use the stage/step section to define run files and these scripts "<stage>.tcl" files will be generated.
+
+**NOTE:** Users have complete freedom to choose any one or combination of all three feature sets, and JSON ensures that at least one of these feature keys is always present.
 
 ### 2.2 Out of Scope
 
-Chopper is not intended to do the following in v1:
-- Trim the directories outside the selected domain path. The domain owner is responsible for ensuring that the domain path is properly scoped to contain all relevant files and procs.
-- Perform repo-wide global trimming across all domains in one dependency graph
+Chopper is not intended to do the following:
+- Trim directories outside the selected domain path. The domain owner is responsible for ensuring that the domain path is properly scoped to contain all relevant files and procs.
+- Perform repo-wide global trimming across all domains in one dependency graph.
 - Evaluate runtime Tcl semantics completely. Chopper performs static analysis and tracing based on the source code, but it does not attempt to fully resolve dynamic Tcl patterns such as `eval`, `uplevel`, or runtime-generated proc/file names. Such patterns are logged as warnings and require explicit owner input.
-- Execute or simulate tool flows to infer feature selections
-- Partially trim non-Tcl languages at subroutine level
+- Automatically include traced proc call trees in the final proc-included section; users read trace logs and modify JSONs accordingly.
+- Execute or simulate tool flows to infer feature selections.
+- Partially trim non-Tcl languages at subroutine level.
 - Infer undeclared feature dependency graphs automatically. Feature JSON may declare `depends_on`, but semantic enforcement is handled by validation rather than by schema alone.
-- Support `!feature` negation syntax — the project JSON with ordered feature selection covers the use case; the owner simply omits unwanted features from the list
 
 ### 2.3 Roles
 
 | Role | Responsibility |
 |---|---|
 | **Global Flow Owner** | Owns the full mainline flow code for a domain and authors base/features JSONs for that domain. |
-| **Domain Deployment Owner** | Chooses project-specific features, maintains JSON combinations, runs Chopper, reviews output, and commits trimmed domain results. |
 | **Project Lead / Release Manager** | Creates the project branch, coordinates the trim window, and drives final cleanup and branch readiness. |
+| **Domain Deployment Owner** | Chooses project-specific features, maintains JSON combinations, runs Chopper, reviews output, and commits trimmed domain results. |
 
 ### 2.4 Repo Layout — Actual CTH R2G Structure
 
-The TFM repo has this top-level structure under `global/snps/`:
+The TFM repo has this top-level structure under `global/`:
 
 ```
-global/snps/
-├── common/                    ◄── INFRASTRUCTURE (never trimmed)
-│   ├── setup.tcl
-│   ├── snps_procs.tcl
-│   ├── infra_procs.tcl
-│   ├── app_var_logger.tcl
-│   ├── vars.tcl
-│   ├── packages/
-│   └── ...
-│
-├── fev_formality/             ◄── DOMAIN (trimmable)
-├── sta_pt/                    ◄── DOMAIN (trimmable)
-├── power/                     ◄── DOMAIN (trimmable)
-├── apr_fc/                    ◄── DOMAIN (trimmable)
-├── dft_fc/                    ◄── DOMAIN (trimmable)
-├── extraction/                ◄── DOMAIN (trimmable)
-├── hc/                        ◄── DOMAIN (trimmable)
-├── lv_icv/                    ◄── DOMAIN (trimmable)
-├── intel_caliber/             ◄── DOMAIN (trimmable)
-├── hv_openrail/               ◄── DOMAIN (trimmable)
-├── assembly/                  ◄── DOMAIN (trimmable)
-├── contourgen/                ◄── DOMAIN (trimmable)
-├── caliber_eco/               ◄── DOMAIN (trimmable)
-├── ... (30 domains total)
-└── ...
+global/
+├── snps/
+│   ├── common/                ◄── INFRASTRUCTURE (never trimmed)
+│   │   ├── setup.tcl
+│   │   ├── snps_procs.tcl
+│   │   ├── infra_procs.tcl
+│   │   └── ...
+│   ├── fev_formality/         ◄── DOMAIN (trimmable)
+│   ├── sta_pt/                ◄── DOMAIN (trimmable)
+│   ├── power/                 ◄── DOMAIN (trimmable)
+│   ├── apr_fc/                ◄── DOMAIN (trimmable)
+│   ├── dft_fc/                ◄── DOMAIN (trimmable)
+│   ├── extraction/            ◄── DOMAIN (trimmable)
+│   ├── hc/                    ◄── DOMAIN (trimmable)
+│   ├── lv_icv/                ◄── DOMAIN (trimmable)
+│   ├── intel_caliber/         ◄── DOMAIN (trimmable)
+│   ├── hv_openrail/           ◄── DOMAIN (trimmable)
+│   ├── assembly/              ◄── DOMAIN (trimmable)
+│   ├── contourgen/            ◄── DOMAIN (trimmable)
+│   └── caliber_eco/           ◄── DOMAIN (trimmable)
+└── cdns/
+    ├── common/                ◄── INFRASTRUCTURE (never trimmed)
+    │   ├── setup.tcl
+    │   ├── cdns_procs.tcl
+    │   ├── infra_procs.tcl
+    │   └── ...
+    ├── fev_formality/         ◄── DOMAIN (trimmable)
+    ├── sta_pt/                ◄── DOMAIN (trimmable)
+    ├── power/                 ◄── DOMAIN (trimmable)
+    ├── apr_fc/                ◄── DOMAIN (trimmable)
+    ├── dft_fc/                ◄── DOMAIN (trimmable)
+    ├── extraction/            ◄── DOMAIN (trimmable)
+    ├── hc/                    ◄── DOMAIN (trimmable)
+    ├── lv_icv/                ◄── DOMAIN (trimmable)
+    ├── intel_caliber/         ◄── DOMAIN (trimmable)
+    ├── hv_openrail/           ◄── DOMAIN (trimmable)
+    ├── assembly/              ◄── DOMAIN (trimmable)
+    ├── contourgen/            ◄── DOMAIN (trimmable)
+    └── caliber_eco/           ◄── DOMAIN (trimmable)
 ```
 
-**Key rule: `common/` is infrastructure and is NEVER trimmed.**
+**Key rule: anything outside the domains's boundary is considered "DO NOT TOUCH ZONE" and is NEVER trimmed.**
 
 ### 2.5 Per-Domain Structure (Actual)
 
@@ -144,7 +164,7 @@ domain_X/
 
 Owner-curated base and feature JSONs are expected by default under the domain-local `jsons/` directory:
 - `<domain>/jsons/base.json`
-- `<domain>/jsons/features/<feature>.json`
+- `<domain>/jsons/features/<feature>.feature.json`
 
 Project JSON does not have a fixed default location. The user provides its path explicitly via `--project <path>`.
 
@@ -172,7 +192,7 @@ main branch (full TFM, all domains, all features)
 |---|---|---|
 | **Tcl** | Primary flow language | File-level and proc-level |
 | **Perl** | Utility and support scripts | File-level only |
-| **Python** | Utility and reporting scripts | File-level only |
+| **Python** | Utility and reporting scripts and primary sometimes | File-level only |
 | **tcsh / csh** | Shell wrappers and environment setup | File-level only |
 
 ### 2.8 Backup and Re-trim Strategy
@@ -198,7 +218,7 @@ FINAL CLEANUP:
 
 **Operational rule:** Backups stay in the project branch during the trim window and are deleted during final cleanup.
 
-**Partial-failure recovery:** if Chopper crashes mid-trim after creating `_backup` but before completing output, the recovery is to re-run Chopper. The second run detects `_backup` and treats the invocation as a re-trim, rebuilding the domain from the intact backup.
+**Partial-failure or re-run recovery:** if Chopper crashes mid-trim after creating `_backup` but before completing output or users want to rerun the trim after making changes to the JSON, the action is to re-run Chopper. The second run detects `_backup` and treats the invocation as a re-trim, rebuilding the domain from the intact backup.
 
 ### 2.8.1 Domain Lifecycle State Machine
 

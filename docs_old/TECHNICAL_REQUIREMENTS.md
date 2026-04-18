@@ -818,6 +818,14 @@ class ProcEntry:
     body_start_line: int
     body_end_line: int
     namespace_path: str
+    # --- Span extensions (TCL_PARSER_SPEC §4.6–§4.7) ---
+    dpa_start_line: int | None = None      # define_proc_attributes block start
+    dpa_end_line: int | None = None        # define_proc_attributes block end
+    comment_start_line: int | None = None  # doc-comment banner start
+    comment_end_line: int | None = None    # doc-comment banner end
+    # --- Call graph data (TCL_PARSER_SPEC §5.3–§5.4) ---
+    calls: tuple[str, ...] = ()            # raw call tokens, deduplicated + sorted
+    source_refs: tuple[str, ...] = ()      # literal source/iproc_source paths
 
 
 @dataclass(frozen=True)

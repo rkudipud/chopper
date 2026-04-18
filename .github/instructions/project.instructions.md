@@ -17,6 +17,23 @@ Authoritative conventions and guardrails for working in this codebase. Read this
 
 - All other documentation and implementation code **must reference codes by their identifier** (e.g., `VE-06`), never by their prose description.
 - If a description changes, the identifier stays stable — all cross-references remain accurate automatically.
+- No other file may define, duplicate, or restate code metadata such as severity, phase, source, exit behavior, slug, description, or recovery hint.
+- Diagnostic code tables outside `docs/DIAGNOSTIC_CODES.md` are not allowed.
+
+### Reference Style (Required Outside the Registry)
+
+When any file outside `docs/DIAGNOSTIC_CODES.md` mentions diagnostics:
+
+- Use the exact code token only (for example: `PE-01`, `PW-11`, `TW-02`).
+- Link or refer to the registry using a workspace-relative path: `docs/DIAGNOSTIC_CODES.md`.
+- Use section-level references when needed (for example: "see `docs/DIAGNOSTIC_CODES.md`, Parse Warnings").
+- Keep wording behavioral and local (for example: "emit `PW-11` in this branch"), not definitional.
+
+Forbidden outside the registry:
+
+- Rewriting what a code means (description, severity, hint, exit code, slug, etc.).
+- Recreating code catalogs, mapping tables, or expanded code glossaries.
+- Introducing aliases or ad-hoc variants (for example: `TRACE-AMBIG-01`).
 
 ### Adding a New Code
 

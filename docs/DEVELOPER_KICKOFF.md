@@ -1,8 +1,6 @@
 # Chopper — Developer Kickoff Guide
 
 > **Status:** Pre-Implementation Reference
-> **Last Updated:** 2026-04-05
-> **Resolves:** E-09 (FINAL_PRODUCTION_REVIEW.md)
 > **Audience:** AI agents and developers starting implementation
 
 ---
@@ -11,12 +9,12 @@
 
 Before writing any code for a module, the agent or developer MUST:
 
-- [ ] Read `docs/ARCHITECTURE.md` (Rev 22) — product behavior and decisions
-- [ ] Read `docs/TECHNICAL_REQUIREMENTS.md` (Rev 11) — implementation contracts
+- [ ] Read `docs_old/ARCHITECTURE.md` (Rev 22) — product behavior and decisions
+- [ ] Read `docs_old/TECHNICAL_REQUIREMENTS.md` (Rev 11) — implementation contracts
 - [ ] Read `docs/DIAGNOSTIC_CODES.md` — authoritative code registry
 - [ ] Read the module-specific spec section (see Module Reference below)
 - [ ] Read `docs/IMPLEMENTATION_PITFALLS_GUIDE.md` — common mistakes to avoid
-- [ ] Verify `src/chopper/core/models.py` exists with shared dataclasses before starting
+- [ ] Create `src/chopper/core/models.py` with shared dataclasses (Day 0 task — not yet implemented)
 
 ---
 
@@ -24,29 +22,31 @@ Before writing any code for a module, the agent or developer MUST:
 
 | Module | Primary Spec | Pitfalls | Key Sections |
 |---|---|---|---|
-| **Core/Foundation** | TECHNICAL_REQUIREMENTS.md §3, §4, §5 | — | Models, errors, serialization, protocols |
-| **Parser** | TCL_PARSER_SPEC.md (full document) | P-01 through P-07 | Tokenizer §3, Proc detection §4, Call extraction §5 |
-| **Compiler** | TECHNICAL_REQUIREMENTS.md §7.1.1 | P-08, P-09, P-10, P-11, P-12 | Compilation algorithm (7 phases) |
-| **Tracer** | ARCHITECTURE.md §4.3 | P-08 | Trace expansion, namespace resolution |
-| **Trimmer** | ARCHITECTURE.md §2.8, TRQ §7.3, §7.4 | P-13, P-14, P-15 | State machine, staging, proc deletion |
-| **Validator** | TECHNICAL_REQUIREMENTS.md §8.3 | P-16 | Phase 1 + Phase 2 check matrices |
-| **Audit** | TECHNICAL_REQUIREMENTS.md §7.2 | — | Artifact contracts, field requirements |
-| **CLI** | TECHNICAL_REQUIREMENTS.md §9.1 | — | Argparse, service layer, renderers |
-| **Scanner** | ARCHITECTURE.md §3.7, §5.6 | — | Scan pipeline, draft generation |
+| **Core/Foundation** | docs_old/TECHNICAL_REQUIREMENTS.md §3, §4, §5 | — | Models, errors, serialization, protocols |
+| **Parser** | docs/TCL_PARSER_SPEC.md (full document) | P-01 through P-07 | Tokenizer §3, Proc detection §4, Call extraction §5 |
+| **Compiler** | docs_old/TECHNICAL_REQUIREMENTS.md §7.1.1 | P-08, P-09, P-10, P-11, P-12 | Compilation algorithm (7 phases) |
+| **Tracer** | docs_old/ARCHITECTURE.md §4.3 | P-08 | Trace expansion, namespace resolution |
+| **Trimmer** | docs_old/ARCHITECTURE.md §2.8, TRQ §7.3, §7.4 | P-13, P-14, P-15 | State machine, staging, proc deletion |
+| **Validator** | docs_old/TECHNICAL_REQUIREMENTS.md §8.3 | P-16 | Phase 1 + Phase 2 check matrices |
+| **Audit** | docs_old/TECHNICAL_REQUIREMENTS.md §7.2 | — | Artifact contracts, field requirements |
+| **CLI** | docs_old/TECHNICAL_REQUIREMENTS.md §9.1 | — | Argparse, service layer, renderers |
+| **Scanner** | docs_old/ARCHITECTURE.md §3.7, §5.6 | — | Scan pipeline, draft generation |
 
 ---
 
 ## 3. Shared Data Models — DO NOT DUPLICATE
 
+> **Status:** Day 0 task — `src/chopper/core/` does not yet exist. The Day 0 agent must create all files below before any other module begins.
+
 These files are the single source of truth. All modules import from them:
 
-| File | Contents |
-|---|---|
-| `src/chopper/core/models.py` | ALL frozen dataclasses: `ProcEntry`, `FileEntry`, `CompiledManifest`, `Diagnostic`, `StageDefinition`, `TrimStats`, `RunSelection`, enums (`ExitCode`, `FileTreatment`, `KeepReason`, `Severity`, `DiagnosticSource`, `TrimMode`) |
-| `src/chopper/core/errors.py` | `ChopperError` hierarchy with exit codes |
-| `src/chopper/core/diagnostics.py` | Diagnostic code constants (V-xx, TRACE-xx, PARSER-xx) |
-| `src/chopper/core/protocols.py` | Protocol interfaces: `ProgressSink`, `ProgressEvent`, `TableRenderer`, `DiagnosticRenderer` |
-| `src/chopper/core/serialization.py` | `ChopperEncoder`, `serialize()` function |
+| File | Status | Contents |
+|---|---|---|
+| `src/chopper/core/models.py` | **Pending** | ALL frozen dataclasses: `ProcEntry`, `FileEntry`, `CompiledManifest`, `Diagnostic`, `StageDefinition`, `TrimStats`, `RunSelection`, enums (`ExitCode`, `FileTreatment`, `KeepReason`, `Severity`, `DiagnosticSource`, `TrimMode`) |
+| `src/chopper/core/errors.py` | **Pending** | `ChopperError` hierarchy with exit codes |
+| `src/chopper/core/diagnostics.py` | **Pending** | Diagnostic code constants (V-xx, TRACE-xx, PARSER-xx) |
+| `src/chopper/core/protocols.py` | **Pending** | Protocol interfaces: `ProgressSink`, `ProgressEvent`, `TableRenderer`, `DiagnosticRenderer` |
+| `src/chopper/core/serialization.py` | **Pending** | `ChopperEncoder`, `serialize()` function |
 
 **Rule:** NEVER create a local copy of these models. If a model needs a new field, update the shared file and coordinate.
 
@@ -85,9 +85,11 @@ Every commit must pass:
 
 ## 6. Test Execution Order — Critical Path
 
+> **Current state:** Only smoke tests exist (`tests/unit/test_package_smoke.py`, `tests/integration/test_smoke.py`, `tests/property/test_smoke.py`). All test cases below are targets to be written as modules are implemented. Fixtures in `tests/fixtures/` are in place and ready.
+
 ### CRITICAL (Must pass before module is considered done)
 
-**Parser (Day 1):**
+**Parser:**
 - `parser_basic_single_proc.tcl` — baseline
 - `parser_basic_multiple_procs.tcl` — no overlapping spans
 - `parser_empty_file.tcl` — empty index, no error
@@ -95,18 +97,16 @@ Every commit must pass:
 - `parser_namespace_reset_after_block.tcl` — stack pop timing
 - `parser_comment_with_braces_ignored.tcl` — brace tracking in comments
 
-**Compiler (Day 2):**
+**Compiler:**
 - Decision 5: explicit include wins over exclude
 - Feature ordering: later features see earlier results
 - Glob expansion + deduplication + sorting
 - Trace expansion: deterministic breadth-first sorted frontier
 
-**Trimmer (Day 3):**
-- State machine: VIRGIN → BACKUP_CREATED → STAGING → TRIMMED
-- Crash recovery: restore pre-run state on failure
+**Trimmer:**
 - Proc deletion: surrounding code preserved, comments associated
 
-**Integration (Day 4):**
+**Integration :**
 - `chopper trim --dry-run` does not modify any files
 - `chopper validate` returns exit 0/1 correctly
 - `chopper trim` end-to-end on mini_domain
@@ -160,33 +160,33 @@ Every commit must pass:
 
 ## 8. Package Entry Points
 
-After Day 0, every module should be importable:
+> **Status:** Target API — no submodules are implemented yet. `src/chopper/` currently contains only `__init__.py`. After Day 0 these imports should become valid:
 
 ```python
-# Core (Day 0)
+# Core
 from chopper.core.models import ProcEntry, CompiledManifest, Diagnostic
 from chopper.core.errors import ChopperError, ParseError, CompilationError
 from chopper.core.diagnostics import DiagnosticCodes
 
-# Parser (Day 1)
+# Parser
 from chopper.parser.tcl_parser import parse_file  # (domain_path, file_path, on_diagnostic?) -> list[ProcEntry]
 
-# Compiler (Day 2)
+# Compiler
 from chopper.compiler.compiler import compile_selection  # (base, features, domain, proc_index) -> CompiledManifest
 from chopper.compiler.tracer import trace_expand  # (seeds, proc_index) -> traced_set
 
-# Trimmer (Day 3)
+# Trimmer
 from chopper.trimmer.trimmer import TrimService  # .execute(TrimRequest) -> TrimResult
 from chopper.trimmer.lifecycle import detect_domain_state  # (domain_path) -> DomainState
 
-# Validator (Day 4)
+# Validator
 from chopper.validator.phase1 import validate_phase1  # (inputs) -> list[Diagnostic]
 from chopper.validator.phase2 import validate_phase2  # (domain, manifest) -> list[Diagnostic]
 
-# CLI (Day 4)
+# CLI
 from chopper.cli.main import main  # CLI entry point
 
-# Scanner (Day 5)
+# Scanner
 from chopper.generators.scanner import ScanService  # .execute(ScanRequest) -> ScanResult
 ```
 
@@ -221,3 +221,85 @@ Required dev dependencies (in `pyproject.toml`):
 - `structlog >= 24.1.0`
 - `jsonschema >= 4.0`
 - `rich >= 13.0` (optional, for TTY rendering)
+
+---
+
+## 10. Current Repo Layout (April 2026)
+
+> This reflects the actual directory state. Modules listed as **Pending** do not yet exist and are Day 0 deliverables.
+
+```
+chopper_v2/
+├── AGENTS.md                         # Agent instructions (authoritative)
+├── Makefile                          # make check / make ci / make test
+├── pyproject.toml                    # Package metadata + dev dependencies
+├── setup.csh / setup.sh / setup.ps1  # Environment setup scripts
+│
+├── docs/                             # ACTIVE specification documents
+│   ├── CLI_HELP_TEXT_REFERENCE.md
+│   ├── DIAGNOSTIC_CODES.md           # Authoritative diagnostic code registry
+│   ├── FUTURE_PLANNED_DEVELOPMENTS.md
+│   ├── IMPLEMENTATION_PITFALLS_GUIDE.md
+│   ├── SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md
+│   └── TCL_PARSER_SPEC.md
+│
+├── docs_old/                         # ARCHIVED pre-implementation specs
+│   ├── ARCHITECTURE.md               # Rev 22 — primary design reference
+│   ├── DEVELOPER_KICKOFF.md          # This file
+│   ├── ENGINEERING_HANDOFF_CHECKLIST.md
+│   ├── TECHNICAL_REQUIREMENTS.md     # Rev 11 — phase contracts
+│   ├── TECHNICAL_PRESENTATION_DECK.md
+│   └── USER_REFERENCE_MANUAL.md
+│
+├── schemas/                          # JSON schemas (root-level, authoritative)
+│   ├── base-v1.schema.json
+│   ├── feature-v1.schema.json
+│   └── project-v1.schema.json
+│
+├── chopper_json_kit/                 # JSON authoring aid and examples
+│   ├── AGENTS.md
+│   ├── README.md
+│   ├── schemas/                      # Mirror of root schemas
+│   └── examples/                     # 11 annotated JSON examples (01–11)
+│
+├── src/chopper/                      # IMPLEMENTATION ROOT
+│   └── __init__.py                   # Package stub only — all below are PENDING
+│   # core/        ← Pending: models, errors, diagnostics, protocols, serialization
+│   # parser/      ← Pending: tcl_parser, tokenizer
+│   # compiler/    ← Pending: merge, trace, compiler
+│   # trimmer/     ← Pending: trimmer, lifecycle
+│   # validator/   ← Pending: phase1, phase2
+│   # audit/       ← Pending: audit
+│   # generators/  ← Pending: run_file, scanner
+│   # cli/         ← Pending: main, commands, render
+│
+└── tests/
+    ├── unit/
+    │   ├── test_package_smoke.py     # Package import smoke test only
+    │   └── __init__.py
+    ├── integration/
+    │   ├── test_smoke.py             # Smoke test only
+    │   ├── crash_harness.py
+    │   └── __init__.py
+    ├── property/
+    │   ├── test_smoke.py             # Smoke test only
+    │   └── __init__.py
+    ├── fixtures/
+    │   ├── mini_domain/              # 3 procs, 2 files, 1 feature
+    │   ├── namespace_domain/         # Namespace resolution test case
+    │   ├── tracing_domain/           # BFS trace validation
+    │   └── edge_cases/               # 14 adversarial Tcl inputs
+    └── golden/                       # Output regression snapshots (empty)
+```
+
+### Documentation Navigation
+
+| Need | Location |
+|---|---|
+| Architecture decisions (D-1 to D-9) | `docs_old/ARCHITECTURE.md` |
+| Phase-by-phase implementation contracts | `docs_old/TECHNICAL_REQUIREMENTS.md` |
+| Tcl grammar and parser edge cases | `docs/TCL_PARSER_SPEC.md` |
+| All known pitfalls by module | `docs/IMPLEMENTATION_PITFALLS_GUIDE.md` |
+| Diagnostic code registry | `docs/DIAGNOSTIC_CODES.md` |
+| JSON authoring reference | `chopper_json_kit/docs/JSON_AUTHORING_GUIDE.md` |
+| CLI flags and help text | `docs/CLI_HELP_TEXT_REFERENCE.md` |

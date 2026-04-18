@@ -278,7 +278,7 @@ proc register_all_attrs {} {
 }
 ```
 
-During call extraction for `register_all_attrs`, the call extractor applies "first word of command = candidate call". It correctly extracts `define_proc_attributes` as the command (which produces `TRACE-CROSS-DOMAIN-01` at trace time — expected). A naïve extractor then also inspects `read_libs` and `read_rtl_2stage` as apparent "tokens on the same line" and traces them as proc dependencies of `register_all_attrs`. This injects false dependency edges that cause `read_libs` and `read_rtl_2stage` to be kept whenever `register_all_attrs` is kept, even if they were explicitly excluded.
+During call extraction for `register_all_attrs`, the call extractor applies "first word of command = candidate call". It correctly extracts `define_proc_attributes` as the command (which produces `TW-02` at trace time — expected). A naïve extractor then also inspects `read_libs` and `read_rtl_2stage` as apparent "tokens on the same line" and traces them as proc dependencies of `register_all_attrs`. This injects false dependency edges that cause `read_libs` and `read_rtl_2stage` to be kept whenever `register_all_attrs` is kept, even if they were explicitly excluded.
 
 **Correct Behavior:** Call extraction extracts **only the first word** of a command as the candidate call. Subsequent tokens are arguments — never extracted as call candidates. The Level 2c suppression rule in §5.5 of TCL_PARSER_SPEC.md provides a belt-and-suspenders guard: any token in the `define_proc_attributes <token>` second-argument position is explicitly suppressed even if a future code path scans later tokens.
 
@@ -347,14 +347,14 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 - Bare token `helper`: try `caller_namespace::helper`, then global `helper`
 - Relative qualified token `pkg::helper`: try `caller_namespace::pkg::helper`, then global `pkg::helper`
 - Absolute token `::pkg::helper`: try only `pkg::helper`
-- If a candidate qualified name maps to multiple canonical procs, log WARNING `TRACE-AMBIG-01`
-- If no candidate resolves inside the selected domain, log WARNING `TRACE-CROSS-DOMAIN-01`
-- Dynamic or syntactically unresolvable call forms still log WARNING `TRACE-UNRESOLV-01`
+- If a candidate qualified name maps to multiple canonical procs, log WARNING `TW-01`
+- If no candidate resolves inside the selected domain, log WARNING `TW-02`
+- Dynamic or syntactically unresolvable call forms still log WARNING `TW-03`
 - Do NOT auto-resolve ambiguous or cross-domain calls
 
 **Why It Matters:** Non-deterministic trimming breaks reproducibility.
 
-**Test:** Scenario: caller namespace `flow::setup` invokes `helper`; tracer must try `flow::setup::helper` before global `helper`. Scenario: two canonical procs match the same candidate qualified name; log `TRACE-AMBIG-01`.
+**Test:** Scenario: caller namespace `flow::setup` invokes `helper`; tracer must try `flow::setup::helper` before global `helper`. Scenario: two canonical procs match the same candidate qualified name; log `TW-01`.
 
 ---
 
@@ -569,8 +569,8 @@ set y 2
 ```
 
 **Correct Behavior:** When tracing discovers a proc call that doesn't resolve:
-- Log literal unresolved calls as WARNING `TRACE-CROSS-DOMAIN-01`
-- Log dynamic or otherwise unmodelable call forms as WARNING `TRACE-UNRESOLV-01`
+- Log literal unresolved calls as WARNING `TW-02`
+- Log dynamic or otherwise unmodelable call forms as WARNING `TW-03`
 - Include location (file + line) in diagnostic
 - Suggest owner review
 

@@ -112,11 +112,11 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 > Parse errors (exit 1) block the file from being fully indexed. The file is skipped or yields partial results.
 
-| Code | Slug | Source | Exit | Description | Recovery Hint |
-| --- | --- | --- | --- | --- | --- |
-| PE-01 | `duplicate-proc-definition` | parser | 1 | Duplicate proc definition in the same source file; last definition wins for index | Remove one definition or rename the proc to avoid silent shadowing |
-| PE-02 | `unbalanced-braces` | parser | 1 | Unbalanced braces in file; proc boundaries cannot be reliably determined | Fix brace matching in the Tcl source file; use an editor brace-matching tool |
-| — | — | — | — | **PE-03 through PE-10 reserved** | — |
+| Code | Slug | Source | Exit | Description | Recovery Hint | Parser spec § |
+| --- | --- | --- | --- | --- | --- | --- |
+| PE-01 | `duplicate-proc-definition` | parser | 1 | Duplicate proc definition in the same source file; last definition wins for index | Remove one definition or rename the proc to avoid silent shadowing | §6.3 |
+| PE-02 | `unbalanced-braces` | parser | 1 | Unbalanced braces in file; proc boundaries cannot be reliably determined | Fix brace matching in the Tcl source file; use an editor brace-matching tool | §3 |
+| — | — | — | — | **PE-03 through PE-10 reserved** | — | — |
 
 ---
 
@@ -124,20 +124,20 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 > Construct was seen but could not be fully indexed or traced. Exit 0.
 
-| Code | Slug | Source | Exit | Description | Recovery Hint |
-| --- | --- | --- | --- | --- | --- |
-| PW-01 | `computed-proc-name` | parser | 0 | Computed proc name (contains `$`, `[`, etc.) — skipped from index | Cannot be indexed statically; rename to literal proc name if needed for dependency tracing |
-| PW-02 | `utf8-decode-failure` | parser | 0 | UTF-8 decode failed on file; fell back to Latin-1 encoding | Convert file to UTF-8 if possible; may cause character misinterpretation in comments |
-| PW-03 | `non-brace-body` | parser | 0 | Proc with non-brace body (e.g., quoted body `proc foo "..."`) — skipped | Rewrite proc with brace-delimited body `proc foo {...}`; provides better scoping |
-| PW-04 | `computed-namespace-name` | parser | 0 | `namespace eval` with computed name (contains `$`); body NOT parsed for procs | Use literal namespace name if procs inside need static indexing; dynamic namespaces are skipped |
-| PW-05 | `backslash-continuation` | parser | 0 | Multi-line definition with backslash continuation (e.g., `define_proc_attributes ...\\`) detected | Line counts may be offset at continuation points; file still parsed correctly |
-| PW-06 | `multi-value-set` | parser | 0 | Variable assignment contains multiple space-separated values (preprocessor-like `set list "VAL1 VAL2"`) | Stored as single string value; if dynamic expansion needed, verify list structure in code |
-| PW-07 | `dynamic-array-index` | parser | 0 | Array element assignment with dynamic index (e.g., `set arr($var) value`) — index not resolvable at parse time | If index is computed at runtime, key may be missed; use static indices for critical lookups |
-| PW-08 | `deep-nesting` | parser | 0 | Deeply nested scopes detected (depth > 8 levels); parser state machine complexity increased | Proc likely still indexed; review if body contains nested proc definitions (unsupported in Tcl) |
-| PW-09 | `dynamic-variable-ref` | parser | 0 | Dynamic variable reference (e.g., `$var`, `$array($key)`) inside proc body — reference not resolvable at parse time | If variable controls critical call flow, add explicit dependencies to `procedures.include` |
-| PW-10 | `proc-call-in-string` | parser | 0 | Proc call in string context (e.g., `"[proc_name ...]"` or `"$proc_name"`) — not traced as dependency | If dynamic proc invocation is intended, add explicit include or use a literal proc name |
-| PW-11 | `dpa-name-mismatch` | parser | 0 | `define_proc_attributes` proc name does not match the immediately preceding proc's `qualified_name`; DPA block not associated | Verify that the `define_proc_attributes` line names the correct proc; fix the proc name or reorder the file |
-| — | — | — | — | **PW-12 through PW-20 reserved** | — |
+| Code | Slug | Source | Exit | Description | Recovery Hint | Parser spec § |
+| --- | --- | --- | --- | --- | --- | --- |
+| PW-01 | `computed-proc-name` | parser | 0 | Computed proc name (contains `$`, `[`, etc.) — skipped from index | Cannot be indexed statically; rename to literal proc name if needed for dependency tracing | §4.3 |
+| PW-02 | `utf8-decode-failure` | parser | 0 | UTF-8 decode failed on file; fell back to Latin-1 encoding | Convert file to UTF-8 if possible; may cause character misinterpretation in comments | §2 |
+| PW-03 | `non-brace-body` | parser | 0 | Proc with non-brace body (e.g., quoted body `proc foo "..."`) — skipped | Rewrite proc with brace-delimited body `proc foo {...}`; provides better scoping | §4.3 |
+| PW-04 | `computed-namespace-name` | parser | 0 | `namespace eval` with computed name (contains `$`); body NOT parsed for procs | Use literal namespace name if procs inside need static indexing; dynamic namespaces are skipped | §4.2 step 3 |
+| PW-05 | `backslash-continuation` | parser | 0 | Multi-line definition with backslash continuation (e.g., `define_proc_attributes ...\\`) detected | Line counts may be offset at continuation points; file still parsed correctly | §3.2 |
+| PW-06 | `multi-value-set` | parser | 0 | Variable assignment contains multiple space-separated values (preprocessor-like `set list "VAL1 VAL2"`) | Stored as single string value; if dynamic expansion needed, verify list structure in code | — |
+| PW-07 | `dynamic-array-index` | parser | 0 | Array element assignment with dynamic index (e.g., `set arr($var) value`) — index not resolvable at parse time | If index is computed at runtime, key may be missed; use static indices for critical lookups | — |
+| PW-08 | `deep-nesting` | parser | 0 | Deeply nested scopes detected (depth > 8 levels); parser state machine complexity increased | Proc likely still indexed; review if body contains nested proc definitions (unsupported in Tcl) | — |
+| PW-09 | `dynamic-variable-ref` | parser | 0 | Dynamic variable reference (e.g., `$var`, `$array($key)`) inside proc body — reference not resolvable at parse time | If variable controls critical call flow, add explicit dependencies to `procedures.include` | — |
+| PW-10 | `proc-call-in-string` | parser | 0 | Proc call in string context (e.g., `"[proc_name ...]"` or `"$proc_name"`) — not traced as dependency | If dynamic proc invocation is intended, add explicit include or use a literal proc name | — |
+| PW-11 | `dpa-name-mismatch` | parser | 0 | `define_proc_attributes` proc name does not match the immediately preceding proc's `qualified_name`; DPA block not associated | Verify that the `define_proc_attributes` line names the correct proc; fix the proc name or reorder the file | §4.6 |
+| — | — | — | — | **PW-12 through PW-20 reserved** | — | — |
 
 ---
 
@@ -145,13 +145,13 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 > Purely observational (exit 0); the construct was recognized and handled normally.
 
-| Code | Slug | Source | Exit | Description | Recovery Hint |
-| --- | --- | --- | --- | --- | --- |
-| PI-01 | `structured-comment-block` | parser | 0 | Structured comment block found before proc definition (`#proc`, `#purpose`, `#usage` fields) | Treated as metadata documentation; no action needed; enables doc extraction |
-| PI-02 | `command-substitution-indexed` | parser | 0 | Bracketed command substitution `[cmd ...]` found in proc body; command name indexed when statically resolvable | Does not affect proc definition; influences dependency tracing only |
-| PI-03 | `comment-separator-block` | parser | 0 | Structured comment block with separator lines recognized (e.g., `####...####`) | Treated as section header; supports indexed documentation extraction |
-| PI-04 | `dpa-orphan` | parser | 0 | `define_proc_attributes` (or `define_proc_arguments`) found with no associated preceding proc in the file; block skipped | Informational only; common when a DPA block follows a comment or non-proc construct; no action required |
-| — | — | — | — | **PI-05 through PI-10 reserved** | — |
+| Code | Slug | Source | Exit | Description | Recovery Hint | Parser spec § |
+| --- | --- | --- | --- | --- | --- | --- |
+| PI-01 | `structured-comment-block` | parser | 0 | Structured comment block found before proc definition (`#proc`, `#purpose`, `#usage` fields) | Treated as metadata documentation; no action needed; enables doc extraction | §4.7 |
+| PI-02 | `command-substitution-indexed` | parser | 0 | Bracketed command substitution `[cmd ...]` found in proc body; command name indexed when statically resolvable | Does not affect proc definition; influences dependency tracing only | §5.3 |
+| PI-03 | `comment-separator-block` | parser | 0 | Structured comment block with separator lines recognized (e.g., `####...####`) | Treated as section header; supports indexed documentation extraction | §4.7 |
+| PI-04 | `dpa-orphan` | parser | 0 | `define_proc_attributes` (or `define_proc_arguments`) found with no associated preceding proc in the file; block skipped | Informational only; common when a DPA block follows a comment or non-proc construct; no action required | §4.6 |
+| — | — | — | — | **PI-05 through PI-10 reserved** | — | — |
 
 ---
 
