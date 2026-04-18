@@ -1,0 +1,364 @@
+#!/usr/intel/bin/perl5.40.1
+####################################################################################################
+#Intel Legal compliant copyright header
+####################################################################################################
+#
+#-- INTEL CONFIDENTIAL
+#-- Copyright (c) 2020 Intel Corporation
+#                                                                     
+# This software and the related documents are Intel copyrighted materials, and your use of them 
+# is governed by the express license under which they were provided to you ("License"). Unless the 
+# License provides otherwise,you may not use,modify, copy, publish, distribute, disclose or transmit
+# this software or the related documents without Intel's prior written permission.
+#
+# This software and the related documents are provided as is, with no express or implied warranties,
+# other than those that are expressly stated in the License.
+#
+####################################################################################################
+
+
+###########################################################################
+# File Author:  Michael McCurdy
+# Created:      Mon Jun 29 08:51:20 2015
+# Modified:     
+#
+# Description: Tool to compare a specific proc in two files 
+#
+###########################################################################
+
+# Bring in the local perl lib files if required.
+#use vars qw ($HOME $WARD);
+#use Env  qw ( HOME  WARD);
+
+use Cwd 'realpath';
+use strict;
+use warnings;
+use IO::File;
+use IO::Dir;
+use File::Find;
+use File::Basename;
+use Getopt::Long;
+
+sub PrintUsage;
+sub ProcDiff;
+sub CurlyCount;
+sub QuoteCount;
+
+our $ignore_whitespace = 0;
+my $arg1;
+my $arg2;
+my $arg3;
+my $file1;
+my $file2;
+my $proc;
+my $open_count      = 0; 
+
+#-----------------------------------------------------------------------------
+# Check options.
+#-----------------------------------------------------------------------------
+my $help    = 0;
+my %long_opts = (
+  "help"        => \$help,
+  "w"           => \$ignore_whitespace,
+);
+   
+ # Get the options from the user
+use Getopt::Long;
+$Getopt::Long::ignorecase = 1;
+$Getopt::Long::autoabbrev = 1;
+$Getopt::Long::bundling = 0; 
+
+if (!&GetOptions(%long_opts)) { # Set variables from cmd line options.
+  &PrintUsage();
+  exit(1);
+}
+
+my $num_args  = (scalar @ARGV);
+  
+if (scalar @ARGV > 0) {$arg1 = shift;}
+if (scalar @ARGV > 0) {$arg2 = shift;}
+if (scalar @ARGV > 0) {$arg3 = shift;}
+
+
+#Expected usage: $0 [-h] <proc> <file1> <file2>
+$proc   = $arg1;
+$file1  = $arg2;
+$file2  = $arg3;
+
+if (defined $arg1 && (-f $arg1) && defined($arg3) && !(-f $arg3)) {
+  #Alternative usage: $0 [-h] <file1> <file2> <proc>
+  $file1  = $arg1;
+  $file2  = $arg2;
+  $proc   = $arg3;
+}  
+
+if ($help) {
+  exec ("perldoc $0");
+  exit(0);
+}
+
+if ($num_args < 3) {
+  print STDERR "Error: There are missing arguments.\n";
+  PrintUsage();
+  exit(1);
+} 
+if ($num_args > 3) {
+  print STDERR "Error: There are too many arguments.\n";
+  PrintUsage();
+  exit(1);
+} 
+if (!(-f $file1)) {
+  print STDERR "Error: File1 '$file1' is invalid.\n"; 
+  exit(1);
+}
+if (!(-f $file2)) {
+  print STDERR "Error: File2 '$file2' is invalid.\n"; 
+  exit(1);
+}
+if (length($proc || "") == 0) {
+  print STDERR "Error: No procedure specified.\n";
+  exit(1);
+}
+
+#-----------------------------------------------------------------------------
+# Main
+#-----------------------------------------------------------------------------
+sub CurlyCount($) {
+  my $line        = shift;
+  my $line0       = $line;
+
+  my $delta_count = 0;
+  #Remove open braces, prefixed by backslashes, that shouldn't be counted.
+  while ($line =~ /\{\\\{/) {
+    $line =~s/\{\\\{/\{/;
+  }
+  while ($line =~ /([^\\])\\\{/) {
+    $line =~s/([^\\])\\\{/$1/;
+  } 
+  while ($line =~ /\{/) {
+    $delta_count++;
+    $line =~s/^[^\{]*\{//;
+  }
+
+  #Remove closing braces, prefixed by backslashes, that shouldn't be counted.
+  while ($line0 =~ /\}\\\}/) {
+    $line0 =~s/\}\\\}/\}/;
+  } 
+  while ($line0 =~ /[^\\]\\\}/) {
+    $line0 =~s/([^\\])\\\}/$1/;
+  } 
+  while ($line0 =~ /\}/) {
+    $delta_count--;
+    $line0 =~s/^[^\}]*\}//;
+  }
+
+  return $delta_count;
+}
+
+sub QuoteCount($) {
+  my $line  = shift;
+
+  #Performance optimization.
+  if (!$line =~/\"/) {
+    return  0;
+  }
+
+  #Ignore quotes embedded in obvious comment lines.
+  $line =~s/^\s*#.*//;
+  $line =~s/;\s*#.*/;/;
+
+  #Don't count escaped quotes, but do count \\" combinations where a line extension (\) is included at the end of a string.
+  while ($line =~/[^\\]\\\"/) {
+    $line =~s/([^\\])\\\"/$1/;
+  }
+
+  my $quote_count = 0;
+  while ($line =~/\"/) {
+    $quote_count++;
+    $line =~s/^[^\"]*\"//;
+  }
+  return  $quote_count;
+}
+
+ProcDiff($file1,$file2,$proc);
+exit(0);
+
+sub ProcDiff {
+  my ($filename0, $filename1, $procname) = @_;
+  if (!(-d "/tmp/procdiff.$ENV{USER}")) {
+    system("mkdir /tmp/procdiff.$ENV{USER}");
+  }
+  my $abbrev0 = basename($filename0);
+  my $abbrev1 = basename($filename1);
+
+  my $comments = "";
+  my $start = "proc ";
+  my $end = "}";
+  my $fullstart = $start . "$procname";
+  my $fullstartc;
+  my $defineattr = "define_proc_attributes ";
+  my $fullprocstart = $defineattr . "$procname";
+  my $parseopt = "parseOpt::cmdSpec "; 
+  my $parseoptstart = $parseopt . "$procname"; 
+  my $parseoptstartc;
+  my $fullprocstartc;
+  my $curly_delta;
+  my $def_func;
+  my $open_count= 0;
+  my $proccount;
+  my $procattrcount;
+  my $procparseoptcount;
+  my $countingfile = 0;
+  my $procfile = "";
+  my $curly_count;
+  my $quote_count;
+  my $printout;
+
+  if ((substr $procname, 0, 2) eq "::") {  
+    $fullstartc = $start . substr $procname, 2;
+    $fullprocstartc = $defineattr . substr $procname, 2;
+    $parseoptstartc = $parseopt . substr $procname, 2;
+  } else {
+    $fullstartc = $start . "::" . $procname;
+    $fullprocstartc = $defineattr . "::" . $procname;
+    $parseoptstartc = $parseopt . "::" . $procname;
+  }
+ 
+  my $found = 0;
+  # $$ or $PID adds the Process ID to the name of the temp file
+  #adding the PID allows the code to run many times quickly without overwriting the other temporary files
+  my $procfile0 = "/tmp/procdiff.$ENV{USER}/${abbrev0}_0.$$";
+  my $procfile1 = "/tmp/procdiff.$ENV{USER}/${abbrev1}_1.$$";
+
+  #Process files.
+  my @files = ($filename0 , $filename1); 
+  foreach  (@files) {
+    my ($FOUT, $FIN, $line);
+    $curly_count = 0;
+    $quote_count = 0;
+    $proccount = 0;
+    $procattrcount = 0;
+    $procparseoptcount = 0;
+    $curly_count = 0;
+    $quote_count = 0;
+    $printout = 0;
+    
+    if ($countingfile == 0) {
+        $procfile = $procfile0;  
+    } else {
+        $procfile = $procfile1; 
+    }
+    
+    open($FOUT, '>', $procfile) or die "Error: Can't open file '$procfile' for writing!\n";
+    open($FIN, '<', $_) or die "Error: Can't open file '$_' for reading!\n";
+  
+   
+    while ($line = $FIN->getline()) {
+         
+      #This outputs the proc that you declared
+      if ($line =~ m/^$start/) {
+        if (($line =~ m/^\s*(::)?$fullstart\s+/) || ($line =~ m/^\s*(::)?$fullstartc\s+/))  {
+          $found = 1;
+          $proccount += 1;
+          $printout = 1;
+        } else {
+        $comments = "";
+        } 
+      } 
+
+      #This section is to check if there is a define_proc_attributes of parseOpt::cmdSpec in the file and output it
+      if (($line =~ m/^\s*(::)?$fullprocstartc\s+/) || ($line =~ m/^\s*(::)?$fullprocstart\s+/) ||  ($line =~ m/^\s*(::)?$parseoptstart\s+/) || ($line =~ m/^\s*(::)?$parseoptstartc\s+/)  ) { 
+         $procattrcount += 1;
+         $printout = 1;
+         print $FOUT "\n";
+      }
+
+      if ($printout == 1) {
+         print $FOUT $line;
+         $curly_count = &CurlyCount($line);
+         $quote_count = &QuoteCount($line);
+         while ( ( ($line=~/\s*\\|\{\s*$/) || ($curly_count > 0)   || ($quote_count % 2 != 0))  && ($line = <$FIN>)) {
+            $curly_count  += &CurlyCount($line);
+            $quote_count  += &QuoteCount($line);
+            print $FOUT $line;
+         }
+         $printout = 0;
+      } 
+    
+      #This checks if there are multiple definitions of the proc, define_proc_attributes or ParseOpt::cmdSpec
+      if ($procattrcount > 1) {
+         print STDERR "Error: $procname has multiple define_proc_attribute or parseOpt::cmdSpec definitions in $_!\n";
+         $procattrcount = 1;
+      }
+      if ($proccount > 1) {
+         print STDERR  "Error: $procname declared multiple times in $_!\n";
+         $proccount = 1;
+      }
+    }
+    close $FOUT;
+    close $FIN;
+  
+    $found || die "Error: Can't find definition for procedure '$proc' in file '$_'!\n";
+    $found = 0; 
+    $countingfile +=1; 
+  }
+
+  #Workaround for tkdiff not being installed in SLES15.
+  my $tkdiff_cmd = (`sysname` =~/SLES15/) ? "/p/dt/sde/tools/em64t_SLES15/syslibs/for_sles15/bin/tkdiff" : "tkdiff";
+
+  if ($::ignore_whitespace) {
+    system("$tkdiff_cmd -w $procfile0 $procfile1 > /dev/null &");
+  } else {
+    system("$tkdiff_cmd $procfile0 $procfile1 > /dev/null &");
+  }
+}
+    
+#-----------------------------------------------------------------------------
+# Usage statement
+#-----------------------------------------------------------------------------
+sub PrintUsage {
+  my $msg = shift;
+  if ($msg) {
+	  print STDERR "Error: $0: $msg\n";
+  }
+  print STDERR "Usage: $0 [-help] <procedure> <file1> <file2>\n";
+  print STDERR "Usage: $0 [-help] <file1> <file2> <procedure>\n";
+  exit 0;
+}
+
+__END__
+
+=head1 NAME
+
+procdiff -- Visualization tool for two different Tcl procedure implementations.
+
+=head1 SYNOPSIS
+
+procdiff [-help] [-w] <procedure> <file1> <file2>
+
+procdiff [-help] [-w] <file1> <file2> <procedure>
+
+=head1 DESCRIPTION
+
+Given a Tcl procedure name and two files containing implementations of that procedure, procdiff allows you to compare and visualize both implementations in isolation.
+
+=head1 OPTIONS
+
+=over
+
+=item B<-h>
+
+Print the command's usage string or this man page
+
+=item B<-w>
+
+Ignore whitespace differences
+
+
+=back
+
+=head1 AUTHOR
+
+Michael McCurdy <michael.mccurdy@intel.com>
+
+=cut
