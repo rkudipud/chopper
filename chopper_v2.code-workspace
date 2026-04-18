@@ -7,6 +7,10 @@
   ],
   "settings": {
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "git.path": "C:/Program Files/Git/cmd/git.exe",
+    "terminal.integrated.env.windows": {
+      "PATH": "${env:Path};C:/Program Files/Git/cmd;C:/Program Files/GitHub CLI"
+    },
     "python.linting.enabled": true,
     "python.linting.ruffEnabled": true,
     "python.formatting.provider": "black",
