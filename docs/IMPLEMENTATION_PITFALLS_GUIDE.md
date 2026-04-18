@@ -1,5 +1,4 @@
 # Chopper — Technical Implementation Pitfalls Guide
-**Created:** April 5, 2026  
 **Purpose:** Identify common mistakes to avoid during implementation  
 **Audience:** Engineering team  
 
@@ -107,7 +106,7 @@ Chopper CANNOT statically determine the proc name. It must log a WARNING and ski
 
 **Implementation Requirement:**
 - Check if proc name contains `$`, `[`, or other substitution markers
-- If yes: log WARNING with code "PARSE-DYNA-01"
+- If yes: log WARNING with code `PW-01` (see `docs/DIAGNOSTIC_CODES.md`)
 - Skip proc definition (do not add to index)
 
 **Why It Matters:** Attempting to index dynamic names causes non-deterministic output.
@@ -129,7 +128,7 @@ proc read_data {} { return "v2" }
 **Implementation Requirement:**
 - Detect duplicate `short_name` within the same source file
 - Use LAST definition's span for the proc index entry (matches Tcl)
-- Emit ERROR diagnostic (not warning) with code "PARSER-DUP-01"
+- Emit ERROR diagnostic (not warning) with code `PE-01` (see `docs/DIAGNOSTIC_CODES.md`)
 - Mark file as having errors; parser should still complete but report failure
 
 **Why It Matters:** Duplicates indicate authoring mistakes. Silently accepting them hides bugs.
@@ -179,6 +178,155 @@ proc tricky {args} {
 **Why It Matters:** Without this, comments with braces corrupt the proc boundaries.
 
 **Test:** Fixture `comment_with_braces_ignored` must parse correctly.
+
+---
+
+### Pitfall P-32: Proc Args with Nested Brace Defaults Trigger Premature Body Detection
+
+**THE TRAP:**
+```tcl
+proc read_rtl_2stage { rtlfile root_module { container "r" } { ctech_type "ADD" } } {
+    iproc_source -file rtl_setup.tcl
+    ...
+}
+```
+
+A parser that scans for the first `}` after the opening `{` of the args word will see `}` from `{ container "r" }` and conclude the args word is closed. The next `{` appears to open the proc body — but it is actually the start of `{ ctech_type "ADD" }`, the next default-value arg descriptor. The parser opens the proc body at the wrong `{` and corrupts all subsequent proc boundary detection in the file.
+
+**Correct Behavior:** The args specification is a **single brace-balanced word**. The parser must track brace depth through the entire args word. The body `{` is only the `{` that arrives after all nested default-value braces have balanced back to the depth present before the args word opened.
+
+**Implementation Requirement:**
+- Implement Step b of the §4.2 detection algorithm in TCL_PARSER_SPEC.md: "scan forward to next unescaped `{` at the original depth (before args word opened)"
+- Do NOT exit the args scan on the first `}` — track depth and continue until the args word closes completely
+- Body `{` = first `{` encountered at the same brace depth as before the args word started
+
+**Why It Matters:** This is the most common EDA proc signature. `default_fm_procs.tcl` uses nested default values throughout (`read_rtl_2stage`, `report_verify_results`). Every such proc will have a corrupted `body_start_line` if this is not handled correctly, breaking all subsequent proc boundaries in the file.
+
+**Test:** Fixture `proc_args_nested_defaults` — proc with multiple default-value arg descriptors; assert `body_start_line` is on the correct line immediately after the `{` that follows the fully closed args specification.
+
+---
+
+### Pitfall P-33: DPA Block Not Dropped Atomically With Its Proc
+
+**THE TRAP:**
+```tcl
+proc read_libs {} {
+    read_db_files
+}
+define_proc_attributes read_libs \
+   -info "Reads Synopsys .db technology libraries"
+```
+
+Parser records `ProcEntry(start_line=1, end_line=3, dpa_start_line=None, dpa_end_line=None)`. Trimmer drops lines 1–3 when `read_libs` is excluded but leaves lines 4–5 in the output. Downstream Synopsys tools encounter `define_proc_attributes read_libs` for a proc that does not exist and abort.
+
+**Correct Behavior:** The DPA lookahead (§4.6 of TCL_PARSER_SPEC.md) must execute after every proc body closes. `dpa_start_line`/`dpa_end_line` must be set on the `ProcEntry`. The trimmer must treat these lines as part of the proc's atomic keep/drop unit.
+
+**Implementation Requirement:**
+- After recording `end_line` for a proc, peek forward through up to 3 blank lines (skip blank lines only — a comment line between `}` and the DPA line breaks the association)
+- If the peeked line matches `^\s*define_proc_(attributes|arguments)\s+`, associate it and follow `\` continuation lines to find `dpa_end_line`
+- In the trimmer: `drop_range = range(start_line, end_line + 1) ∪ range(dpa_start_line, dpa_end_line + 1)` when the proc is excluded; keep both ranges together when included
+- Emit `PW-11` when DPA proc name does not match `qualified_name` and skip the association
+
+**Why It Matters:** In `default_fm_procs.tcl` and every real-world Intel/Synopsys EDA file, 100% of procs have a DPA block. Dropping the proc without its DPA block leaves orphaned metadata in every trimmed file, causing Synopsys tool errors.
+
+**Test:** Fixture `proc_with_dpa_dropped_atomically` — verify trimmed output contains neither `proc read_libs` lines nor `define_proc_attributes read_libs` lines when `read_libs` is excluded.
+
+---
+
+### Pitfall P-34: Structured Comment Banner Left as Orphan After Proc Drop
+
+**THE TRAP:**
+```tcl
+########################################################################
+#proc       : read_libs
+#purpose    : Reads technology libraries for LP and Non-LP runs
+#usage      : read_libs
+########################################################################
+proc read_libs {} {
+    ...
+}
+define_proc_attributes read_libs \
+   -info "..."
+```
+
+Parser records `ProcEntry(start_line=6, comment_start_line=None)`. Trimmer drops the proc (lines 6–8) and DPA block (lines 9–10) but leaves lines 1–5 (the `########` banner) in the output. The trimmed file now has floating banner blocks between kept procs, degrading readability and confusing documentation tools.
+
+**Correct Behavior:** The backward comment scan (§4.7 of TCL_PARSER_SPEC.md) must execute when each `proc` keyword is detected. Scan backward through already-parsed lines, counting contiguous `^\s*#` lines (any comment content). Stop at the first blank line or non-comment line. Assign `comment_start_line`–`comment_end_line = start_line - 1` to the `ProcEntry`.
+
+**Implementation Requirement:**
+- On detecting `proc` at `start_line`, scan backward through the accumulated line buffer
+- Count contiguous `^\s*#` lines regardless of comment content (`########`, `#field: value`, etc.)
+- Stop at first blank line or non-comment line; set `comment_start_line` = earliest qualifying line
+- In the trimmer: `drop_range = range(comment_start_line, dpa_end_line + 1)` covers the full unit: banner + proc + DPA
+- The backward scan is purely textual — it must **not** alter the forward brace-tracking state machine; braces in comments are always inert (see P-07)
+
+**Why It Matters:** In `default_fm_procs.tcl`, 100% of procs have a `########...########` banner. Leaving orphaned banners is the most visible cosmetic failure in trimmed output and degrades trustworthiness of the tool.
+
+**Test:** Fixture `proc_with_comment_banner_dropped_atomically` — verify trimmed output contains none of the `####` lines, proc lines, or DPA lines when the proc is excluded. Verify all three components survive together when the proc is included.
+
+---
+
+### Pitfall P-35: DPA Proc Name Argument Extracted as False Call Dependency
+
+**THE TRAP:**
+```tcl
+proc register_all_attrs {} {
+    define_proc_attributes read_libs \
+       -info "Reads technology libraries"
+    define_proc_attributes read_rtl_2stage \
+       -info "Reads RTL files in two stages"
+}
+```
+
+During call extraction for `register_all_attrs`, the call extractor applies "first word of command = candidate call". It correctly extracts `define_proc_attributes` as the command (which produces `TRACE-CROSS-DOMAIN-01` at trace time — expected). A naïve extractor then also inspects `read_libs` and `read_rtl_2stage` as apparent "tokens on the same line" and traces them as proc dependencies of `register_all_attrs`. This injects false dependency edges that cause `read_libs` and `read_rtl_2stage` to be kept whenever `register_all_attrs` is kept, even if they were explicitly excluded.
+
+**Correct Behavior:** Call extraction extracts **only the first word** of a command as the candidate call. Subsequent tokens are arguments — never extracted as call candidates. The Level 2c suppression rule in §5.5 of TCL_PARSER_SPEC.md provides a belt-and-suspenders guard: any token in the `define_proc_attributes <token>` second-argument position is explicitly suppressed even if a future code path scans later tokens.
+
+**Implementation Requirement:**
+- Call extractor emits exactly one candidate per command: the first word after command-position whitespace or semicolon
+- Do NOT scan second or later tokens for call candidates under any condition
+- Level 2c guard: suppress tokens matched by `define_proc_(attributes|arguments)\s+<token>` pattern
+
+**Why It Matters:** Every proc in `default_fm_procs.tcl` has a DPA block. If DPA proc-name tokens are traced as dependencies, the entire call graph is falsely interconnected and surgical trimming becomes impossible.
+
+**Test:** Fixture `call_extraction_dpa_no_false_dependency` — proc body containing two `define_proc_attributes` lines; assert neither `read_libs` nor `read_rtl_2stage` appear in the extracted call list for the outer proc.
+
+---
+
+### Pitfall P-36: `foreach_in_collection` Must Push CONTROL_FLOW Context
+
+**THE TRAP:**
+```tcl
+proc get_hier_summary { design } {
+    foreach_in_collection cell [get_cells *] {
+        set name [get_attribute $cell full_name]
+        puts $name
+    }
+}
+```
+
+If `foreach_in_collection` is not in the recognized control-flow keyword set, the parser does not push `CONTROL_FLOW` context when the iterator body `{` is entered. Depending on the current stack state:
+
+- A `proc` keyword inside the body is incorrectly indexed as a top-level or namespace-level definition, or
+- The brace tracking for the containing proc body is corrupted when the iterator's closing `}` is encountered.
+
+**Correct Behavior:** `foreach_in_collection` is a Synopsys Formality/DC EDA iterator command. Handle it identically to `foreach`: push `CONTROL_FLOW` when its body `{` opens, pop when the matching `}` closes. Extract calls from its body normally. Do NOT index any `proc` definitions found inside the body (§5.5, §7.14 of TCL_PARSER_SPEC.md).
+
+**Implementation Requirement:**
+- Include `foreach_in_collection` in the control-flow keyword set:
+  ```python
+  CONTROL_FLOW_KEYWORDS: frozenset[str] = frozenset({
+      'if', 'else', 'elseif', 'for', 'foreach', 'foreach_in_collection',
+      'while', 'switch', 'catch', 'try',
+  })
+  ```
+- The parser looks for the body `{` after `foreach_in_collection <varname> <collection-expr>`; the `[get_cells *]` bracketed expression before `{` is parsed transparently (brackets are irrelevant to brace depth tracking)
+- Push `CONTROL_FLOW` on that `{`; pop on the matching `}`
+- Any `proc` keyword encountered inside this context is skipped (debug-level log)
+
+**Why It Matters:** `foreach_in_collection` appears throughout Synopsys DC and Formality flows (`get_hier_summary` in `default_fm_procs.tcl` is a concrete example). Missing this keyword causes context stack corruption or false proc indexing in every file that uses it.
+
+**Test:** Fixture `foreach_in_collection_not_proc_context` — proc body containing `foreach_in_collection` with a `proc` keyword inside the iterator body; assert the inner `proc` is NOT indexed.
 
 ---
 
@@ -830,6 +978,13 @@ Result: Major bugs discovered late in implementation
 | **Parser** | Quotes inside braced bodies treated as structural shields | Follow Tcl Rule 6: quotes are literal inside braced words (P-01) |
 | **Parser** | Line continuation corrupts line numbers | Don't physically join lines (P-02) |
 | **Parser** | Namespace context resets incorrectly | LIFO stack management (P-03) |
+| **Parser** | Computed proc names not skipped | Log `PW-01`, skip proc (P-04) |
+| **Parser** | Duplicate proc not flagged | Log `PE-01`, use last span (P-05) |
+| **Parser** | Args nested defaults cause premature body detection | Track full brace depth through args word; body `{` only at original depth (P-32) |
+| **Parser** | DPA block left as orphan after proc drop | Record `dpa_start_line`/`dpa_end_line`; drop atomically with proc (P-33) |
+| **Parser** | Comment banner orphaned after proc drop | Record `comment_start_line`/`comment_end_line`; drop atomically with proc (P-34) |
+| **Parser** | DPA proc name extracted as false call dependency | Extract first word only; Level 2c suppression filter (P-35) |
+| **Parser** | `foreach_in_collection` not in control-flow keywords | Add to `CONTROL_FLOW_KEYWORDS`; push `CONTROL_FLOW` context (P-36) |
 | **Compiler** | Trace expansion is non-deterministic | Require exact match, not ambiguous (P-08) |
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |
 | **Compiler** | Glob results include duplicates | Normalize + deduplicate (P-11) |

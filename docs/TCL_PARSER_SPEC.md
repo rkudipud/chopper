@@ -1,9 +1,8 @@
 # Chopper — Tcl Parser Specification
 
-> **Status:** Draft — Parser Engineering Baseline (Rev 7)  
-> **Last Updated:** 2026-04-05  
+> **Status:** Draft — Parser Engineering Baseline
 > **Author:** Architecture review  
-> **Implements:** AI-01 (Tcl parser / lexer prototype)
+> **Implements:** AI-01 (Tcl parser / lexer prototype) with intelligence from SNORT
 
 ---
 
@@ -11,7 +10,7 @@
 
 This document specifies the tokenization, parsing, and indexing rules for Chopper's Tcl parser. The parser is the foundation of F2 (proc-level trimming) and transitive tracing. Every rule here is derived from the Tcl 8.6 Dodekalogue (the twelve rules that define Tcl syntax and semantics) and adapted for Chopper's static analysis context.
 
-**Non-goal:** Chopper does not execute or interpret Tcl. It performs structural analysis only — finding proc boundaries, extracting namespace context, and identifying static call references.
+**Non-goal:** Chopper does not execute or interpret Tcl. It performs structural analysis only — finding proc boundaries, extracting namespace context, and identifying static call references. find the line numbers for the proc definition in the file.
 
 ---
 
@@ -23,9 +22,8 @@ This document specifies the tokenization, parsing, and indexing rules for Choppe
 | **Encoding** | Attempt UTF-8 first; on decode failure, fall back to Latin-1 and log a WARNING diagnostic |
 | **Line endings** | Normalize all line endings to `\n` on read (strip `\r`) |
 | **Line indexing** | 1-indexed. Line 1 is the first line of the file |
-| **Span convention** | Inclusive: `start_line=5, end_line=10` means lines 5, 6, 7, 8, 9, 10 |
+| **Span convention** | Inclusive: `start_line=5, end_line=10` means lines 5, 6, 7, 8, 9, 10 ; internal markers for initial comments, proc body and set_proc_Attributes (if available)|
 | **Output** | A list of `ProcEntry` records (see §6) |
-| **Diagnostics** | Emitted via optional `on_diagnostic: DiagnosticCollector` callback (see §8.4) |
 
 ### 2.1 Public Function Signature
 
@@ -41,7 +39,7 @@ def parse_file(
         domain_path: Absolute path to the domain root directory.
         file_path: Absolute path to the Tcl file to parse.
         on_diagnostic: Optional callback for emitting Diagnostic records
-            (PARSER-DUP-01, PARSE-DYNA-01, PARSE-ENCODING-01, etc.).
+            (PE-01, PW-01, PW-02, etc. — see docs/DIAGNOSTIC_CODES.md).
             When None, diagnostics are silently discarded.
 
     Returns:
@@ -50,9 +48,6 @@ def parse_file(
 ```
 
 **Design rationale:** The parser is an internal utility module, not a top-level service endpoint. It returns `list[ProcEntry]` (not a result dataclass) because:
-1. It is called by the compiler during Phase 2.4 — the compiler owns diagnostic aggregation.
-2. The `DiagnosticCollector` callback pattern matches `ProgressSink.on_diagnostic`, allowing the compiler to bridge the two by passing `progress.on_diagnostic`.
-3. Unit tests can call `parse_file()` with `on_diagnostic=None` for simplicity, or with a `list.append` callback to capture diagnostics.
 
 ---
 
@@ -209,6 +204,11 @@ For each line in the file:
                   end_line   = line with closing `}`
                   body_start_line = line immediately after the opening `{`
                   body_end_line   = line immediately before the closing `}`
+       h. Scan ahead from end_line for a DPA block (§4.6). If found within
+          3 blank lines, record dpa_start_line / dpa_end_line and advance
+          the line cursor past the DPA block so the main loop skips it.
+       i. Scan backward from start_line for a contiguous comment block (§4.7).
+          Record comment_start_line / comment_end_line.
 
   3. If the line matches: ^\s*(namespace)\s+(eval)\s+(\S+)\s*\{
      Push (NAMESPACE_EVAL, current_brace_depth) onto context_stack
@@ -309,6 +309,95 @@ namespace eval b {            # Line 6
 
 ---
 
+### 4.6 define_proc_attributes (DPA) Detection
+
+In Intel/Synopsys VLSI EDA codebases, virtually every user proc is immediately followed by a `define_proc_attributes` (or `define_proc_arguments`) block — a Synopsys Tcl convention for annotating proc metadata and argument specifications. In production files like `default_fm_procs.tcl`, this pattern appears on **100% of proc definitions**:
+
+```tcl
+proc read_libs {} {
+    ...
+}
+define_proc_attributes read_libs \
+   -info "To read Synopsys .db designs or technology libraries for LP and Non-LP runs"
+```
+
+**Detection rules:**
+
+1. After recording the proc's closing `}` at `end_line`, peek ahead.
+2. Skip blank lines only (up to 3). Do NOT skip comment lines — a comment between `}` and the DPA line breaks the association.
+3. If the next non-blank line matches `^\s*define_proc_(attributes|arguments)\s+`:
+   a. Extract the proc name using the algorithm below.
+   b. Validate: the extracted DPA name must match `qualified_name` of the proc just closed. Mismatch → emit `PW-11` and do NOT associate.
+   c. Collect continuation lines: while the current DPA line ends with `\`, advance and include the next line.
+   d. Record `dpa_start_line` and `dpa_end_line` on the `ProcEntry`.
+4. No DPA found within the lookahead window → `dpa_start_line = dpa_end_line = None`.
+
+**DPA proc name extraction** (adapted from SNORT's `_GetDefineProcAttributesProcName`):
+
+```python
+import re
+
+def extract_dpa_proc_name(line: str) -> str:
+    """Extract the proc name from a define_proc_attributes line.
+
+    Adapted from SNORT's _GetDefineProcAttributesProcName() (Perl, Intel 2009+).
+    """
+    # Strip the define_proc_attributes/arguments keyword prefix
+    name = re.sub(r'^.*define_proc_(attributes|arguments)\s+', '', line)
+    # Strip boolean flags that appear before the proc name
+    for flag in ('-permanent', '-hide_body', '-hidden', '-dont_abbrev', '-obsolete', '-deprecated'):
+        name = name.replace(flag, '')
+    # Strip non-boolean args with quoted, brace-delimited, or bare values
+    for arg in ('-info', '-define_args', '-define_arg_groups', '-command_group', '-return'):
+        name = re.sub(rf'{re.escape(arg)}\s+"[^"]*"', '', name)
+        name = re.sub(rf'{re.escape(arg)}\s+\{{[^}}]*\}}', '', name)
+        name = re.sub(rf'{re.escape(arg)}\s+\S+', '', name)
+    # Strip CR, trailing continuation backslash, trailing whitespace
+    return name.rstrip('\\\r\n').strip()
+```
+
+**New diagnostic codes for DPA:**
+
+| Code | Severity | When Emitted |
+|------|----------|--------------|
+| `PW-11` | WARNING | DPA proc name does not match the preceding proc's `qualified_name` |
+| `PI-04` | INFO | `define_proc_attributes` found with no associated preceding proc in the file |
+
+**Why it matters:** The trimmer must atomically drop the DPA block together with its proc when excluded, and keep both when included. Without DPA span tracking, trimmed files contain orphaned `define_proc_attributes` metadata that confuse downstream Synopsys tooling.
+
+---
+
+### 4.7 Structured Doc-Comment Block Detection
+
+In Intel/Synopsys EDA Tcl files, proc definitions are preceded by a structured banner comment block. This pattern is present on **100% of procs** in `default_fm_procs.tcl`. The banner can have any number of `#field: value` lines — the backward scan is field-agnostic:
+
+```tcl
+########################################################################
+#proc       : del_seq_rpt
+#purpose    : proc called in fevlite to dump out del_seq.xml
+#usage      : del_seq_rpt design
+#Owner      : global various
+#BU         : global
+#CTH release: global
+#HSD        : global
+########################################################################
+proc del_seq_rpt { design } {
+```
+
+**Detection rules:**
+
+1. When a `proc` keyword is found at `start_line`, scan backward through contiguous comment-only lines.
+2. A line qualifies if it matches `^\s*#` (comment line, regardless of content).
+3. Stop scanning backward at a blank line or any non-comment line.
+4. Record `comment_start_line` (earliest comment line found) and `comment_end_line = start_line - 1`.
+5. No preceding comment → `comment_start_line = comment_end_line = None`.
+
+**Constraint:** Braces inside comment lines are completely inert (Pitfall P-07). The backward scan runs on already-parsed line data and does not affect the forward brace-tracking state machine.
+
+**Why it matters:** The trimmer must drop the comment banner together with its associated proc (SNORT sticky-bit concept adapted to Chopper). Without comment span tracking, trimmed output leaves orphaned `########` banner blocks floating between kept procs.
+
+---
+
 ## 5. Call Extraction (For Tracing)
 
 Call extraction identifies proc calls within a proc body for transitive dependency tracing.
@@ -335,6 +424,10 @@ From each proc body, Chopper extracts:
 | String in quotes | `set x "helper_proc"` | Data, not a call |
 | Interp alias | `interp alias {} foo {} bar` | Dynamic alias — unresolvable |
 | Apply lambda | `apply {args { helper_proc }}` | Lambda body — too dynamic |
+| Name in log string | `iproc_msg -info "read_libs invoked"` | String arg to log proc — proc name is data |
+| Name in print label | `echo "read_libs : done"` | Print label position — data, not a call |
+| Proc name as option-flag arg | `set_app_var search_path ""` | Argument to a `-flag` option |
+| EDA vendor command | `report_failing_points`, `read_verilog`, `set_top` | Synopsys/Cadence built-in — not a user proc |
 
 All unresolvable patterns produce structured diagnostics with reason codes.
 
@@ -411,6 +504,68 @@ File dependencies are extracted separately from proc calls:
 | `iproc_source -file <path> -use_hooks` | File dependency + hook-file discovery only; hook files must be explicitly listed in JSON to be copied |
 | `iproc_source -file <path> -quiet` | File dependency (quiet is flow-level, not Chopper-level) |
 | `source $var` or `iproc_source -file $var` | Unresolvable — log WARNING |
+| `source -echo -verbose <path>` | File dependency (strip option flags first, then extract path token) |
+
+---
+
+### 5.5 Call Detection False-Positive Filter
+
+Real EDA Tcl code (e.g., `default_fm_procs.tcl`) is dense with patterns where a proc name appears on a line but is **not** a call — it is mentioned in a log string, assigned to a variable, or used as a metadata annotation. Chopper's call extractor must suppress these false positives.
+
+Adapted from SNORT's production-proven `_IsProcFoundInLine()` 4-level cascading filter (15+ years on Intel EDA codebases).
+
+**Suppression rules — suppress a candidate token if ANY level matches:**
+
+| Level | Condition | Example suppressed |
+|-------|-----------|-------------------|
+| 2a | Line is a comment (`^\s*#`) | `# read_libs is invoked here` |
+| 2b | Token appears as a variable ref (`\$<token>`) | `puts $read_libs` |
+| 2c | Token in `define_proc_attributes` position | `define_proc_attributes read_libs` |
+| 2d | Token in `[gs]et_app_var` argument | `get_app_var search_path` |
+| 2e | Token in proc argument-list position (`\{<token>[\s\}]`) | `proc foo {read_libs} { }` |
+| 2f | Token in `set PROC`/`set self` assignment | `set PROC read_libs` |
+| 2g | Token in `info exists` expression | `info exists read_libs` |
+| 3 | Token appears **only** inside a string arg to a known log proc | `iproc_msg -info "read_libs is invoked"` |
+| 4 | Token used as a print label in `echo`/`puts` | `echo "read_libs : phase done"` |
+
+**Known log procedures** (proc names appearing only in their string arguments are suppressed at Level 3):
+
+```python
+LOG_PROC_NAMES: frozenset[str] = frozenset({
+    'iproc_msg', 'puts', 'echo',
+    'print_info', 'print_warning', 'print_error', 'print_fatal',
+    'rdt_print_info', 'rdt_print_warn', 'rdt_print_error',
+    'log_message', 'printvar', 'time_stamp',
+})
+```
+
+**Level 3 exception — embedded bracket calls are real:** If the proc name appears inside `[...]` within a log string, that is a genuine embedded call and must NOT be suppressed:
+
+```tcl
+iproc_msg -info "read_rtl_2stage invoked"       # SUPPRESS — name in string only
+iproc_msg -info "[read_rtl_2stage $args]"       # KEEP — embedded bracket call
+```
+
+**`foreach_in_collection` structural handling:**
+`foreach_in_collection` is a Synopsys Formality/DC EDA iterator. Treat it exactly like `foreach` for the context stack: push `CONTROL_FLOW` when its body `{` is encountered; parse the body for calls; do NOT emit a traced call for `foreach_in_collection` itself (it is a Synopsys built-in, not a user proc).
+
+**Synopsys/Cadence EDA flow control commands** (appear as first words of commands in proc bodies; they are NOT user procs and will produce `TRACE-CROSS-DOMAIN-01` at trace time — this is expected and correct behavior, not an error):
+
+```python
+EDA_FLOW_COMMANDS: frozenset[str] = frozenset({
+    # Cadence LEC
+    'vpx', 'vpxmode', 'tclmode',
+    # Synopsys Formality / DC
+    'redirect', 'tcl_set_command_name_echo', 'echo',
+    'annotate_trace', 'current_design', 'current_container',
+    'set_top', 'read_verilog', 'read_sverilog', 'read_db',
+    'set_app_var', 'get_app_var',
+})
+```
+
+These commands can appear at any nesting level (not just top-level). They have no special brace-counting behaviour — they are ordinary Tcl commands for structural purposes. At call-extraction time they produce `TRACE-CROSS-DOMAIN-01` because they are not in the domain's user proc index. This is expected output; the domain owner is informed but the trim proceeds.
+
+**`redirect -variable varname "command string"`:** The double-quoted string argument is data passed to `redirect`. The string may contain EDA command names (e.g., `"report_unmapped_points -extra"`). Because these names appear inside a string argument — not as the first word of a command — they are NOT extracted as call candidates. Chopper's call extractor only traces the first word of a command, not the contents of string arguments.
 
 ---
 
@@ -429,6 +584,10 @@ Each detected proc produces one `ProcEntry` record:
 | `body_start_line` | `int` | Line immediately after the opening `{` of the proc body (see §4.2 step 2g) |
 | `body_end_line` | `int` | Line immediately before the closing `}` of the proc body (see §4.2 step 2g) |
 | `namespace_path` | `str` | Namespace context from enclosing `namespace eval` (empty string if at file root) |
+| `dpa_start_line` | `Optional[int]` | First line of the `define_proc_attributes` block immediately following this proc (`None` if absent) |
+| `dpa_end_line` | `Optional[int]` | Last line of the `define_proc_attributes` block immediately following this proc (`None` if absent) |
+| `comment_start_line` | `Optional[int]` | First line of the structured doc-comment block immediately preceding this proc (`None` if absent) |
+| `comment_end_line` | `Optional[int]` | Last line of the structured doc-comment block immediately preceding this proc (`None` if absent) |
 
 ### 6.1 Invariants
 
@@ -579,6 +738,67 @@ proc read_data {} {
 
 ---
 
+### 7.11 Proc Args with Default Values Containing Nested Braces
+
+```tcl
+proc read_rtl_2stage { rtlfile root_module { container "r" } { ctech_type "ADD" } } {
+    ...
+}
+```
+
+**Handling:** The args specification is a single brace-delimited word. Inside it, `{ container "r" }` is a Tcl argument descriptor with a default value. Brace depth trace for the relevant tokens on the proc line:
+
+| Token | depth delta | cumulative |
+|-------|-------------|------------|
+| `{` (args open) | +1 | 1 |
+| `{` (container default open) | +1 | 2 |
+| `}` (container default close) | -1 | 1 |
+| `{` (ctech_type default open) | +1 | 2 |
+| `}` (ctech_type default close) | -1 | 1 |
+| `}` (args close) | -1 | 0 |
+| `{` (body open) | +1 | 1 ← body |
+
+The §4.2 step b algorithm correctly finds the body `{` because it scans for an unescaped `{` at the **original** depth (0), which is only reached after the entire args word closes. The args word is a single complete brace-balanced token.
+
+**Why it matters:** This is one of the most common proc signatures in VLSI EDA Tcl (`default_fm_procs.tcl` uses it throughout). Prematurely treating a default-value `}` as the proc body close corrupts all subsequent proc boundaries in the file.
+
+### 7.12 define_proc_attributes Immediately After Proc Closing Brace
+
+```tcl
+proc read_libs {} {
+    ...
+}
+define_proc_attributes read_libs \
+   -info "To read Synopsys .db designs or technology libraries for LP and Non-LP runs"
+```
+
+**Handling:** The DPA block starts on the line immediately after the proc's closing `}`. The parser captures it per §4.6, setting `dpa_start_line` to the `define_proc_attributes` line and `dpa_end_line` to the last continuation line (the one without a trailing `\`). The trimmer must drop this block whenever `read_libs` is excluded, and keep it whenever `read_libs` is kept.
+
+### 7.13 Structured Comment Banner Before Proc
+
+```tcl
+################################################################################
+#proc      : read_libs
+#purpose   : To read Synopsys .db designs or technology libraries for LP and Non-LP runs
+#usage     : read_libs
+################################################################################
+proc read_libs {} {
+```
+
+**Handling:** The parser detects the contiguous comment block per §4.7 and stores `comment_start_line` to `comment_end_line = start_line - 1` on the `ProcEntry`. The 6 comment lines (including the `####` delimiters) are captured as a single unit. Braces inside comments (e.g., a future `#usage: foo {args}` line) are completely inert and never affect brace depth.
+
+### 7.14 foreach_in_collection (Synopsys EDA Iterator)
+
+```tcl
+foreach_in_collection item [all_clock_gating_latches] {
+    puts $item [get_attribute $item full_name]
+}
+```
+
+**Handling:** `foreach_in_collection` is a Synopsys Formality/DC EDA iterator command. Push `CONTROL_FLOW` context when its body `{` is encountered (same as `foreach`). Parse the body for call candidates. Apply the §5.5 false-positive filter — `get_attribute` and similar EDA vendor calls inside will be suppressed. Do NOT emit a traced call for `foreach_in_collection` itself (it is a Synopsys built-in, not a user proc).
+
+---
+
 ## 8. Parser Architecture
 
 ### 8.1 Two-Phase Design
@@ -608,6 +828,8 @@ The structure detector tracks:
 | `continuation` | `bool` | Whether previous line ended with `\` |
 | `current_proc` | `Optional[ProcBuilder]` | Partial proc being accumulated |
 | `expecting_body` | `bool` | Whether we've seen `proc name args` and are waiting for `{` |
+| `awaiting_dpa` | `bool` | Whether the main loop just closed a proc body and should peek ahead for DPA (§4.6) |
+| `pending_comment_start` | `Optional[int]` | Start line of the accumulated comment block preceding the current candidate proc (§4.7) |
 
 ### 8.3 Performance Target
 
@@ -623,14 +845,18 @@ The parser does **not** return diagnostics in its return value. Instead, it emit
 
 **Parser diagnostic codes and their emission points:**
 
+> All codes below are registered in [`docs/DIAGNOSTIC_CODES.md`](../docs/DIAGNOSTIC_CODES.md). Implementation must use constants defined there; do not introduce new codes without first registering them in that file.
+
 | Code | Severity | When Emitted |
 |------|----------|--------------|
-| `PARSER-DUP-01` | ERROR | After parsing a file, duplicate `short_name` detected within the same file (§6.3) |
-| `PARSE-DYNA-01` | WARNING | During proc detection, computed/dynamic proc name encountered (§4.3) |
-| `PARSE-ENCODING-01` | WARNING | During file read, UTF-8 decode failed, fell back to Latin-1 (§2) |
-| `PARSE-UNBRACE-01` | ERROR | After parsing, brace depth did not return to 0 (unbalanced braces) |
-| `PARSE-NOBODY-01` | WARNING | During proc detection, proc body could not be delimited |
-| `PARSE-COMPNS-01` | WARNING | During namespace eval detection, computed namespace name encountered |
+| `PE-01` | ERROR | After parsing a file, duplicate `short_name` detected within the same file (§6.3) |
+| `PW-01` | WARNING | During proc detection, computed/dynamic proc name encountered (§4.3) |
+| `PW-02` | WARNING | During file read, UTF-8 decode failed, fell back to Latin-1 (§2) |
+| `PE-02` | ERROR | After parsing, brace depth did not return to 0 (unbalanced braces) |
+| `PW-03` | WARNING | During proc detection, proc body could not be delimited (non-brace body) |
+| `PW-04` | WARNING | During namespace eval detection, computed namespace name encountered |
+| `PW-11` | WARNING | DPA proc name does not match the preceding proc's `qualified_name` (§4.6) |
+| `PI-04` | INFO | `define_proc_attributes` found with no associated preceding proc in file (§4.6) |
 
 **Emission pattern:**
 ```python
@@ -638,7 +864,7 @@ The parser does **not** return diagnostics in its return value. Instead, it emit
 if on_diagnostic is not None:
     on_diagnostic(Diagnostic(
         severity=Severity.ERROR,
-        code="PARSER-DUP-01",
+        code="PE-01",
         message=f"Duplicate proc definition for '{short_name}' in '{rel_path}'",
         location=f"{rel_path}:{start_line}",
         hint="Remove one definition or rename the proc.",
@@ -660,7 +886,7 @@ entries = parse_file(domain, file)
 # Test with diagnostic capture
 diags: list[Diagnostic] = []
 entries = parse_file(domain, file, on_diagnostic=diags.append)
-assert any(d.code == "PARSER-DUP-01" for d in diags)
+assert any(d.code == "PE-01" for d in diags)
 ```
 
 ---
@@ -714,6 +940,8 @@ assert any(d.code == "PARSER-DUP-01" for d in diags)
 | 2026-04-05 | **Rev 5:** Resolved pre-coding review blockers B-01 through B-04 and HIGH issues H-01, H-02, M-02. Replaced ambiguous "at this depth" detection rule with explicit context-type stack (`FILE_ROOT`, `NAMESPACE_EVAL`, `CONTROL_FLOW`, `PROC_BODY`). Operationally defined `body_start_line` / `body_end_line` boundaries with edge-case table (§6.2). Specified args-word skip algorithm ("scan forward to unescaped `{` at current depth"). Added namespace stack pop-timing worked example (§4.5.1). Separated quote handling into Pre-Body Rule (§3.3.1) and In-Body Rule (§3.3.2). Added call extraction scope statement to §4.4. Revised performance target from <1s to <2s primary. |
 | 2026-04-05 | **Rev 6:** Added §6.3 (Duplicate Proc Validation Timing) and §5.3.1 cross-reference to ARCHITECTURE §4.3 trace resolution. Resolves E-02, E-11 from production review. |
 | 2026-04-05 | **Rev 7:** Added §2.1 (Public Function Signature) and §8.4 (Diagnostic Emission Contract). Resolves parser return type ambiguity: `parse_file()` returns `list[ProcEntry]`, emits diagnostics via optional `on_diagnostic: DiagnosticCollector` callback. Aligns with `ProgressSink.on_diagnostic` pattern used by service layer. |
+| 2026-04-19 | **Rev 8:** Supercharged with real-world EDA patterns from `default_fm_procs.tcl` and SNORT algorithm intelligence. Added §4.6 (`define_proc_attributes` detection with SNORT-derived name extraction), §4.7 (structured doc-comment block detection), §5.5 (SNORT-inspired call false-positive filter with `iproc_msg`/`puts`/`echo` suppression). Extended `ProcEntry` with `dpa_start_line`, `dpa_end_line`, `comment_start_line`, `comment_end_line`. Fixed §2.1 signature (added `on_diagnostic`). Updated §4.2 algorithm with steps h and i. Added §5.2 EDA false-positive rows. New edge cases §7.11–§7.14 covering args-with-defaults, DPA association, comment banners, and `foreach_in_collection`. Extended §8.2 state machine and §8.4 with `PW-11` (DPA mismatch) / `PI-04` (DPA orphan); all parser diagnostic codes aligned to authoritative registry in `docs/DIAGNOSTIC_CODES.md`. Real-world coverage anchored to Intel/Synopsys FEV formality flows (`default_fm_procs.tcl`). |
+| 2026-04-19 | **Rev 9:** Replaced all ad-hoc parser diagnostic code strings (`PARSER-DUP-01`, `PARSE-DYNA-01`, `PARSE-ENCODING-01`, `PARSE-UNBRACE-01`, `PARSE-NOBODY-01`, `PARSE-COMPNS-01`, `PARSE-DPA-MISMATCH-01`, `PARSE-DPA-ORPHAN-01`) with authoritative registry codes (`PE-01`, `PW-01`, `PW-02`, `PE-02`, `PW-03`, `PW-04`, `PW-11`, `PI-04`). Registered `PW-11` and `PI-04` in `docs/DIAGNOSTIC_CODES.md`. Added cross-reference note in §8.4 directing implementors to the registry. |
 
 ---
 
@@ -721,13 +949,13 @@ assert any(d.code == "PARSER-DUP-01" for d in diags)
 
 ### A.1 Duplicate Proc Validation Timing (E-02)
 
-`PARSER-DUP-01` is checked at the end of parsing **each source file**, not after all files in the domain are parsed. The check compares `short_name` values within a single file's proc index.
+`PE-01` is checked at the end of parsing **each source file**, not after all files in the domain are parsed. The check compares `short_name` values within a single file's proc index.
 
 **Timing:** After the parser finishes processing all lines of a single file and has produced its list of `ProcEntry` records, scan for duplicate `short_name` values within that list.
 
 **Error message format:**
 ```
-PARSER-DUP-01 (ERROR): Duplicate proc definition for '<short_name>' in '<source_file>'
+PE-01 (ERROR): Duplicate proc definition for '<short_name>' in '<source_file>'
   First definition: line <first_start_line>
   Last definition:  line <last_start_line> (used for index)
   Hint: Remove one definition or rename the proc.
@@ -735,7 +963,7 @@ PARSER-DUP-01 (ERROR): Duplicate proc definition for '<short_name>' in '<source_
 
 **Location field:** `<source_file>:<first_start_line>`
 
-Cross-file `canonical_name` uniqueness is checked later during domain-wide proc index assembly. That is a separate check and uses a different diagnostic code if needed (implementation may merge into PARSER-DUP-01 with an extended message).
+Cross-file `canonical_name` uniqueness is checked later during domain-wide proc index assembly. That is a separate check and uses a different diagnostic code if needed (implementation may merge into `PE-01` with an extended message).
 
 ### A.2 Namespace Resolution Cross-Reference (E-11)
 

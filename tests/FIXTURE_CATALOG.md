@@ -27,6 +27,8 @@ This file enumerates all parser test fixtures required for Sprint 1 acceptance. 
 | 13 | `parser_empty_proc_body_forms.tcl` | B-02 | §6.1 | Three fixtures: one-line, empty-multiline, whitespace-only; correct `body_start_line`/`body_end_line` for each |
 | 14 | `parser_call_extraction.tcl` | — | §5.1 | Call extraction returns both direct and bracketed proc call tokens |
 | 15 | `parser_encoding_latin1_fallback.tcl` | — | §2, §7.7 | Parses successfully with WARNING for Latin-1 fallback |
+| 16 | `parser_eda_complex_del_seq_rpt.tcl` | — | §3.1, §3.2, §4.4, §4.6, §4.7, §7.14 | One `ProcEntry`; correct DPA + comment spans; no parse errors despite regexp `{pattern}` and multi-line `lappend` backslash continuation |
+| 17 | `parser_eda_complex_get_hier_summary.tcl` | — | §4.6, §4.7, §5.2, §5.5 | One `ProcEntry`; `puts`/`echo`/EDA commands suppressed; `redirect -variable` string content not extracted; no parse errors |
 
 ---
 
@@ -245,8 +247,81 @@ proc legacy_proc {} {
 
 ---
 
+### 16 — `parser_eda_complex_del_seq_rpt.tcl`
+
+Representative Intel/Synopsys FEV-domain proc exercising the most challenging real-world patterns. Anchored to `tests/fev_formality/default_fm_procs.tcl` and the production `del_seq_rpt` proc.
+
+**Patterns covered:**
+
+| Pattern | Spec Section |
+|---|---|
+| 8-field comment banner (#proc, #purpose, #usage, #Owner, #BU, #CTH release, #HSD) | §4.7 |
+| `while { [gets ...] >= 0 }` body (CONTROL_FLOW context) | §4.4 |
+| `if { [regexp {\pattern} ...] }` — `{pattern}` braces balanced, `\(` `\)` are escaped parens not braces | §3.1, §4.2 |
+| `lappend` with backslash multi-line string continuation — no `{`/`}` in string content, brace depth unaffected | §3.2 |
+| `foreach_in_collection inst_t $instances { ... }` — Synopsys EDA iterator, CONTROL_FLOW | §7.14 |
+| `define_proc_attributes` DPA block with backslash continuation `\` | §4.6 |
+
+**Expected:**
+
+```
+ProcEntry(
+    canonical_name  = "parser_eda_complex_del_seq_rpt.tcl::del_seq_rpt",
+    qualified_name  = "del_seq_rpt",
+    start_line      = 10,           # proc keyword line
+    end_line        = 57,           # closing }
+    body_start_line = 11,
+    body_end_line   = 56,
+    comment_start_line = 1,
+    comment_end_line   = 9,
+    dpa_start_line  = 58,
+    dpa_end_line    = 59,
+)
+```
+
+No diagnostics expected. `iproc_msg`, `find_cfm`, `get_attribute`, `foreach_in_collection` are EDA/log calls and are not traced as user procs.
+
+---
+
+### 17 — `parser_eda_complex_get_hier_summary.tcl`
+
+Representative proc for `puts`/`echo`-heavy result reporting with Synopsys/Cadence EDA commands.
+
+**Patterns covered:**
+
+| Pattern | Spec Section |
+|---|---|
+| 8-field comment banner | §4.7 |
+| `tcl_set_command_name_echo off/on` — Synopsys EDA command, not a user proc | §5.5 |
+| `redirect -variable varname "command string"` — string content NOT extracted as call | §5.1, §5.2 |
+| Nested `if + foreach line [split $var "\n"]` — CONTROL_FLOW contexts | §4.4 |
+| `vpxmode`, `vpx`, `tclmode` — Cadence LEC EDA commands; TRACE-CROSS-DOMAIN-01 at trace time | §5.3.1 |
+| `puts "..."`, `echo "..." >> fev_results.log` — §5.5 Level 3/4 suppression; `>>` is inert argument | §5.5 |
+| `define_proc_attributes` DPA block with backslash continuation | §4.6 |
+
+**Expected:**
+
+```
+ProcEntry(
+    canonical_name  = "parser_eda_complex_get_hier_summary.tcl::get_hier_summary",
+    qualified_name  = "get_hier_summary",
+    start_line      = 10,
+    end_line        = 55,
+    body_start_line = 11,
+    body_end_line   = 54,
+    comment_start_line = 1,
+    comment_end_line   = 9,
+    dpa_start_line  = 56,
+    dpa_end_line    = 57,
+)
+```
+
+No parse error diagnostics. `vpx`, `vpxmode`, `tclmode` produce `TRACE-CROSS-DOMAIN-01` at trace-expansion time (not parse time — brace structure is clean).
+
+---
+
 ## Coverage Requirements
 
-All 15 fixtures must pass before Sprint 1 sign-off. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
+All 17 fixtures must pass before Sprint 1 sign-off. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
 
 Parser fixture Tcl files live in `tests/fixtures/edge_cases/`. The binary Latin-1 fixture (fixture 15) is generated into that directory by `tests/fixtures/create_latin1_fixture.py`.
