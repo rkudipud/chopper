@@ -211,7 +211,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Parent task names for the stack dependency graph. Become the `D` line in the generated stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
         },
         "exit_codes": {
           "type": "array",
@@ -228,19 +228,19 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Input artifact markers. Become one or more `I` lines in the generated stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Output artifact markers. Become one or more `O` lines in the generated stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
         },
         "run_mode": {
           "type": "string",
           "enum": ["serial", "parallel"],
           "default": "serial",
-          "description": "Optional execution mode (serial or parallel). Translated into `R <value>` in a manually-created stack file. Since 2025.12."
+          "description": "Optional: Execution mode (serial or parallel). Translated into R <value> in the stack file. Since 2025.12."
         },
         "language": {
           "type": "string",
@@ -380,7 +380,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Parent task names for the stack dependency graph. Become the `D` line in the generated stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
         },
         "exit_codes": {
           "type": "array",
@@ -397,13 +397,13 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Input artifact markers. Become one or more `I` lines in the generated stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Output artifact markers. Become one or more `O` lines in the generated stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
         },
         "run_mode": {
           "type": "string",

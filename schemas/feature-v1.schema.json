@@ -19,7 +19,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Optional: domain this feature is intended for (e.g., fev_formality). If present and the selected base declares a different domain, Python-level validation V-19 emits a WARNING: 'Feature domain mismatch'. Features without this field are domain-agnostic and can be applied to any domain without a warning."
+      "description": "Optional: domain this feature is intended for (e.g., my_domain). If present and the selected base declares a different domain, Python-level validation V-19 emits a WARNING: 'Feature domain mismatch'. Features without this field are domain-agnostic and can be applied to any domain without a warning."
     },
     "description": {
       "type": "string",

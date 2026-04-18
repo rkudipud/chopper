@@ -1,7 +1,6 @@
 # Chopper — CLI Help Text Reference
 
 > **Status:** Implementation Reference
-> **Last Updated:** 2026-04-05
 > **Resolves:** E-10 (FINAL_PRODUCTION_REVIEW.md)
 > **Purpose:** Canonical help text phrasing for all CLI subcommands. Implement `argparse` help strings from this file for consistency.
 
@@ -20,9 +19,8 @@ configuration. Supports whole-file (F1), proc-level (F2), and run-file
 generation (F3) capabilities.
 
 positional arguments:
-  {scan,validate,trim,cleanup}
-    scan                Scan a domain and generate draft JSONs for owner curation
-    validate            Validate JSON inputs against domain structure (Phase 1 only)
+  {validate,trim,cleanup}
+    validate            Validate JSON inputs against domain structure
     trim                Execute the full trim pipeline
     cleanup             Remove domain backup after the trim window
 
@@ -38,21 +36,6 @@ options:
 
 ---
 
-## `chopper scan`
-
-```
-usage: chopper scan [--domain PATH] [--output DIR] [global options]
-
-Scan a domain to discover files, procs, and dependencies. Produces draft
-base JSON, inventories, and dependency graphs for domain owner curation.
-Does not modify domain files.
-
-options:
-  --domain PATH   Domain root path (default: current directory)
-  --output DIR    Output directory for scan artifacts (default: scan_output/)
-```
-
----
 
 ## `chopper validate`
 
@@ -61,7 +44,7 @@ usage: chopper validate [--domain PATH]
                         (--base PATH [--features PATHS] | --project PATH)
                         [global options]
 
-Run Phase 1 structural validation against JSON inputs. Checks schema
+Run structural validation against JSON inputs. Checks schema
 compliance, required fields, file/proc existence, and action targets.
 Does not build a proc index, run tracing, or modify files.
 
@@ -79,14 +62,14 @@ options:
 ```
 usage: chopper trim [--domain PATH]
                     (--base PATH [--features PATHS] | --project PATH)
-                    [--dry-run] [--force] [global options]
+                    [--dry-run] [global options]
 
 Execute the full trim pipeline: compile selections, trace proc dependencies,
 build trimmed output, validate results, and emit audit trail.
 
 First trim:  renames domain/ to domain_backup/, builds trimmed domain/.
 Re-trim:     rebuilds domain/ from existing domain_backup/.
-On failure:  restores pre-run state automatically.
+On failure:  remove half cooked domain/ and replace domain_backup/ as domain/.
 
 options:
   --domain PATH       Domain root path (default: current directory)
@@ -94,7 +77,6 @@ options:
   --features PATHS    Comma-separated ordered list of feature JSON paths
   --project PATH      Path to project JSON (mutually exclusive with --base/--features)
   --dry-run           Simulate the full pipeline without writing files
-  --force             Clean up abandoned lock metadata (never breaks active locks)
 ```
 
 ---
@@ -102,7 +84,7 @@ options:
 ## `chopper cleanup`
 
 ```
-usage: chopper cleanup [--domain PATH] --confirm [--force] [global options]
+usage: chopper cleanup [--domain PATH] --confirm [global options]
 
 Remove domain_backup/ permanently after the trim window is complete.
 This operation is irreversible. Requires --confirm flag.
@@ -110,7 +92,6 @@ This operation is irreversible. Requires --confirm flag.
 options:
   --domain PATH   Domain root path (default: current directory)
   --confirm       Required confirmation flag (cleanup refuses to run without it)
-  --force         Clean up abandoned lock metadata (never breaks active locks)
 ```
 
 ---

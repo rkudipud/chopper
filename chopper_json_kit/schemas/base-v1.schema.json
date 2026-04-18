@@ -110,7 +110,7 @@
         "$ref": "#/$defs/stageDefinition"
       },
       "minItems": 1,
-      "description": "Ordered list of stage definitions for F3 run-file generation. Each stage can produce one stack-file node where `name` maps to `N`, `command` maps to `J`, `exit_codes` maps to `L`, and `dependencies` maps to `D`. MUST NOT be empty if stages is present."
+      "description": "Optional ordered list of stage definitions for F3 run-file generation. Stages are optional; users who want to generate `<stage>.tcl` run scripts from JSON can define stages here. Each stage produces one run script file where `name` becomes the script filename. Stack files are optional and can be created manually. For users not using stages, omit this section; Chopper will still perform F1 (file trimming) and F2 (proc trimming). MUST NOT be empty if stages is present."
     }
   },
   "anyOf": [
@@ -149,46 +149,46 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique stage name. Becomes `N <name>` in the generated stack file."
+          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
         },
         "load_from": {
           "type": "string",
-          "description": "Predecessor stage for data loading inside the generated run_<stage>.tcl, typically via ivar(src_task). This is separate from the stack-file `D` dependency graph line."
+          "description": "Predecessor stage for data loading inside the generated `<stage>.tcl` script, typically via ivar(src_task). This is separate from the optional stack-file `D` dependency graph line."
         },
         "dependencies": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Parent task names for the stack dependency graph. Becomes the `D` line in the generated stack file (for example `D setup`). Use this when the graph dependency should be explicit in the stack output."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
         },
         "exit_codes": {
           "type": "array",
           "items": { "type": "integer" },
           "minItems": 1,
-          "description": "Legal exit codes for the stage. Becomes the `L` line in the generated stack file (for example `L 0 3 5`)."
+          "description": "Optional legal exit codes for the stage. Becomes the `L` line in a manually-created stack file (for example `L 0 3 5`)."
         },
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Execution command for the stage. Becomes the `J` line in the generated stack file (for example `J -tool run_script -B BLOCK -T stage_name`)."
+          "description": "Optional execution command for the stage. Becomes the `J` line in a manually-created stack file (for example `J -xt vw Ifev_fm_shell -B BLOCK -T fev_fm_lite`)."
         },
         "inputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Input artifact markers. Become one or more `I` lines in the generated stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Output artifact markers. Become one or more `O` lines in the generated stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
         },
         "run_mode": {
           "type": "string",
           "enum": ["serial", "parallel"],
           "default": "serial",
-          "description": "Execution mode: serial or parallel. Translated into R <value> in the stack file. Since 2025.12."
+          "description": "Optional execution mode (serial or parallel). Translated into `R <value>` in a manually-created stack file. Since 2025.12."
         },
         "language": {
           "type": "string",
@@ -200,7 +200,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Ordered list of step strings that Chopper writes into the generated run_<stage>.tcl or stage script. These are not stack-file lines themselves; they define the body executed by the stage command."
+          "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` script. These are not stack-file lines themselves; they define the body executed by the stage command."
         }
       }
     }

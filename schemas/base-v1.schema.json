@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/base/v1",
   "title": "Chopper Base JSON v1",
-  "description": "Bare-minimum flow definition for a tool domain. Defines the files, procs, and optional stages that constitute the minimal viable flow. At least one of files, procedures, or stages must be present. Stages are optional: users who want to generate run scripts can define stages where fields map to stack entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs). Users who do not use stages can manage stack files and run scripts manually. When stages are used, Chopper generates `<stage>.tcl` run scripts. Generated stack files are optional; users may also create them manually.",
+  "description": "Bare-minimum flow definition for a tool domain. Defines the files, procs, and stages that constitute the minimal viable flow. At least one of files, procedures, or stages must be present. When stages are used, Chopper can generate run scripts and stack files where stage fields map directly to stack entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs).",
   "type": "object",
   "required": ["$schema", "domain"],
   "additionalProperties": false,
@@ -14,7 +14,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Domain directory name (e.g., fev_formality, sta_pt, power)"
+      "description": "Domain directory name (e.g., my_domain, sta_pt, power)"
     },
     "owner": {
       "type": "string",

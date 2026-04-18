@@ -1,7 +1,6 @@
 # Chopper — Diagnostic Codes Registry
 
 > **Status:** Authoritative Source of Truth
-> **Last Updated:** 2026-04-05
 > **Resolves:** E-01 (FINAL_PRODUCTION_REVIEW.md)
 
 All diagnostic codes used by Chopper are registered here. Implementation code MUST use constants from `src/chopper/core/diagnostics.py` derived from this registry. Adding a new code requires updating this file first.
