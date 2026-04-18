@@ -6,6 +6,8 @@
     }
   ],
   "settings": {
+    "http.proxy": "http://proxy-chain.intel.com:912",
+    "https.proxy": "http://proxy-chain.intel.com:912",
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "git.path": "C:/Program Files/Git/cmd/git.exe",
     "terminal.integrated.env.windows": {
