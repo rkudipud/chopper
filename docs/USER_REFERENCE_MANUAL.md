@@ -287,6 +287,29 @@ Chopper supports:
 - `?`
 - `**`
 
+### 7.3.1 Glob Pattern Reference
+
+**What each pattern does:**
+
+| Pattern | Matches | Example | Matches | Does NOT match |
+|---------|---------|---------|---------|----------------|
+| `*` | Any characters at one directory level (no `/` crossing) | `procs/*.tcl` | `procs/core.tcl`, `procs/rules.tcl` | `procs/sub/deep.tcl` |
+| `?` | Exactly one character at one directory level | `step_?.tcl` | `step_a.tcl`, `step_1.tcl` | `step_ab.tcl`, `step_.tcl` |
+| `**` | Any number of directories and subdirectories (recursive) | `rules/**/*.fm.tcl` | `rules/r.fm.tcl`, `rules/sub/r.fm.tcl`, `rules/a/b/r.fm.tcl` | `r.fm.tcl` (outside `rules/`) |
+
+**Common use cases:**
+
+| Need | Pattern | Location | Reason |
+|------|---------|----------|--------|
+| Include all Tcl procs in one directory | `procs/*.tcl` | `files.include` | `*` matches all `.tcl` files directly under `procs/` |
+| Include config files with a naming pattern | `default_*.csv` | `files.include` | `*` matches the variable part of the filename |
+| Include all files in a nested report tree | `reports/**` | `files.include` | `**` matches files at any depth under `reports/` |
+| Exclude debug utilities in a subdirectory | `utils/debug/**` | `files.exclude` | `**` removes everything under `debug/` |
+| Include rules files with specific extension anywhere | `**/*.fm.tcl` | `files.include` | `**` finds `.fm.tcl` files at any directory level |
+| Exclude old versions of files | `*_old.tcl` | `files.exclude` | `*` matches old-versioned files at domain root |
+
+**Important:** Patterns are applied to discover files. Literal paths always survive even if they match an exclude pattern, but wildcard-expanded paths are pruned by exclude patterns.
+
 Use globs when a feature or base should include a family of files. Use `files.exclude` only to prune results from wildcard-style includes.
 
 ### 7.4 Include wins over exclude
@@ -669,14 +692,14 @@ Supported `action` values are:
 | `add_step_before` | `action`, `stage`, `reference`, `items` |
 | `add_step_after` | `action`, `stage`, `reference`, `items` |
 | `remove_step` | `action`, `stage`, `reference` |
-| `replace_step` | `action`, `stage`, `replace`, `with` |
+| `replace_step` | `action`, `stage`, `reference`, `with` |
 | `add_stage_before` | `action`, `name`, `reference`, `load_from`, `steps` |
 | `add_stage_after` | `action`, `name`, `reference`, `load_from`, `steps` |
 | `remove_stage` | `action`, `reference` |
-| `replace_stage` | `action`, `replace`, `with` |
+| `replace_stage` | `action`, `reference`, `with` |
 | `load_from` | `action`, `stage`, `reference` |
 
-> Authoring note: For replacement actions, the schema-valid target key is `replace`. Do not use `reference` for `replace_step` or `replace_stage`.
+> Authoring note: For replacement actions, the target key is `reference`, consistent with all other action types.
 
 ### 9.8 Simple flow-action examples
 
@@ -700,7 +723,7 @@ Replace one step:
 {
   "action": "replace_step",
   "stage": "verify",
-  "replace": "fev_fm_rtl2gate.tcl",
+  "reference": "fev_fm_rtl2gate.tcl",
   "with": "fev_fm_rtl2gate_v2.tcl"
 }
 ```
@@ -734,7 +757,7 @@ Example:
 {
   "action": "replace_step",
   "stage": "compile_initial_opto",
-  "replace": "step_load_post_compile_constraints.tcl@2",
+  "reference": "step_load_post_compile_constraints.tcl@2",
   "with": "step_load_constraints_v2.tcl"
 }
 ```
@@ -1470,7 +1493,7 @@ With all optional fields:
 {
   "action": "replace_step",
   "stage": "verify",
-  "replace": "old_step.tcl",
+  "reference": "old_step.tcl",
   "with": "new_step.tcl"
 }
 ```

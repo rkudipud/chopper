@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/feature/v1",
   "title": "Chopper Feature JSON v1",
-  "description": "Extension that injects, overrides, or removes procs/files/stages from the base flow. Features are layered on top of the base in selected order. When features add or replace stages, the stage fields map directly to generated stack-file entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs).",
+  "description": "Optional extension that injects, overrides, or removes procs/files/stages from the base flow. Features are layered on top of the base in selected order. Stages are optional; when used, stage fields map directly to generated run script files and optionally to stack entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs). Stack file generation is optional; users can create stack files manually or use Chopper's optional generated output.",
   "type": "object",
   "required": ["$schema", "name"],
   "additionalProperties": false,
@@ -74,17 +74,17 @@
             "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
           },
           "minItems": 1,
-          "description": "Files or glob patterns to include. Supports *, ?, and ** glob patterns. Must not contain '..', '//', or absolute paths. MUST NOT be empty if files.include is present."
+          "description": "Files or glob patterns to include (domain-relative, forward slashes). Glob patterns: '*' (any chars except /), '?' (one char except /), '**' (any dirs/subdirs). Examples: 'procs/*.tcl', 'reports/**', 'setup.tcl'. MUST NOT be empty if files.include is present."
         },
         "exclude": {
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1,
-            "pattern": "^(?!\\\\.\\\\.)(?!/)(?!.*\\\\.\\\\./)(?!.*//)[^\\\\]*$"
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
           },
           "minItems": 1,
-          "description": "Files or glob patterns to exclude from wildcard-expanded include candidates. Does not remove literal files.include entries. MUST NOT be empty if files.exclude is present."
+          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include. Excludes only prune wildcard-expanded candidates; literal include paths survive. MUST NOT be empty if files.exclude is present."
         }
       }
     },
@@ -196,7 +196,7 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Name of the new stage. Becomes `N <name>` in the generated stack file."
+          "description": "Name of the new stage. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
         },
         "reference": {
           "type": "string",
@@ -205,36 +205,36 @@
         },
         "load_from": {
           "type": "string",
-          "description": "Predecessor stage for data loading inside the generated run_<stage>.tcl, typically via ivar(src_task). This is separate from the stack-file `D` dependency graph line."
+          "description": "Predecessor stage for data loading inside the generated `<stage>.tcl` script, typically via ivar(src_task). This is separate from the optional stack-file `D` dependency graph line."
         },
         "dependencies": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Parent task names for the stack dependency graph. Become the `D` line in the generated stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
         },
         "exit_codes": {
           "type": "array",
           "items": { "type": "integer" },
           "minItems": 1,
-          "description": "Optional: Legal exit codes for the added stage. Become the `L` line in the generated stack file."
+          "description": "Optional legal exit codes for the added stage. Become the `L` line in a manually-created stack file."
         },
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional: Execution command for the added stage. Becomes the `J` line in the generated stack file."
+          "description": "Optional execution command for the added stage. Becomes the `J` line in a manually-created stack file."
         },
         "inputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Input artifact markers. Become one or more `I` lines in the generated stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Output artifact markers. Become one or more `O` lines in the generated stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
         },
         "run_mode": {
           "type": "string",
@@ -252,7 +252,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Ordered list of step strings that Chopper writes into the generated run_<stage>.tcl or stage script."
+          "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
         }
       }
     },
@@ -317,7 +317,7 @@
     },
     "replaceStepAction": {
       "type": "object",
-      "required": ["action", "stage", "replace", "with"],
+      "required": ["action", "stage", "reference", "with"],
       "additionalProperties": false,
       "properties": {
         "action": {
@@ -329,7 +329,7 @@
           "minLength": 1,
           "description": "Target stage name"
         },
-        "replace": {
+        "reference": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[^@]+(@[1-9][0-9]*)?$",
@@ -344,14 +344,14 @@
     },
     "replaceStageAction": {
       "type": "object",
-      "required": ["action", "replace", "with"],
+      "required": ["action", "reference", "with"],
       "additionalProperties": false,
       "properties": {
         "action": {
           "type": "string",
           "const": "replace_stage"
         },
-        "replace": {
+        "reference": {
           "type": "string",
           "minLength": 1,
           "description": "Stage name to replace"
@@ -370,40 +370,40 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique stage name. Becomes `N <name>` in the generated stack file."
+          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
         },
         "load_from": {
           "type": "string",
-          "description": "Predecessor stage for data loading inside the generated run_<stage>.tcl. This is separate from the stack-file `D` dependency graph line."
+          "description": "Predecessor stage for data loading inside the generated `<stage>.tcl` script. This is separate from the optional stack-file `D` dependency graph line."
         },
         "dependencies": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Parent task names for the stack dependency graph. Become the `D` line in the generated stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
         },
         "exit_codes": {
           "type": "array",
           "items": { "type": "integer" },
           "minItems": 1,
-          "description": "Optional: Legal exit codes. Become the `L` line in the generated stack file."
+          "description": "Optional legal exit codes. Become the `L` line in a manually-created stack file."
         },
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional: Execution command. Becomes the `J` line in the generated stack file."
+          "description": "Optional execution command. Becomes the `J` line in a manually-created stack file."
         },
         "inputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Input artifact markers. Become one or more `I` lines in the generated stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional: Output artifact markers. Become one or more `O` lines in the generated stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
         },
         "run_mode": {
           "type": "string",
@@ -421,7 +421,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Ordered list of step strings that Chopper writes into the generated run_<stage>.tcl or stage script."
+          "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
         }
       }
     }

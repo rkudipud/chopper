@@ -334,17 +334,17 @@ F2 performs Tcl proc-level trimming.
 | **Output unit** | Original file copied, unwanted proc definitions deleted |
 | **Best for** | `*_procs.tcl`, shared utility proc files, rule libraries |
 
-### 3.6 F3 — Run-File Generation
+### 3.6 F3 — Run-File Generation (Optional)
 
-F3 generates stage-based run files and optional stack output.
+F3 generates stage-based run files from JSON definitions. **Stages are optional.** Users who want to generate run scripts from JSON can define stages; others can create stack files manually or skip this feature entirely.
 
 | Behavior | Description |
 |---|---|
 | **Input unit** | Ordered stages and steps |
-| **Output unit** | `<stage>.tcl`, optional stack files, optional template-generated files |
-| **Purpose** | Build clean project-facing run orchestration for domains that need generated run files |
+| **Output unit** | `<stage>.tcl` (when stages are defined), optional manually-created stack files |
+| **Purpose** | Build clean project-facing run orchestration for domains that want generated run scripts with injectable step sequences |
 
-**F3 is a required capability of Chopper.** Chopper ships F1/F2/F3 as first-class capabilities; domain owners choose which capabilities to use per domain/project.
+**F3 is an optional capability of Chopper.** Chopper ships F1/F2/F3 as first-class capabilities; domain owners choose which capabilities to use per domain/project. Users without stages still get F1 and F2 (file and proc trimming). Users with stages get generated `<stage>.tcl` run scripts for fine-grained step control.
 
 ### 3.7 Supporting Capability — `chopper scan`
 
@@ -946,7 +946,65 @@ Every Chopper JSON carries a schema version.
 
 ### 6.3.1 Path and Glob Semantics
 
-Paths in JSON are domain-relative and use forward slashes. Full normalization, glob expansion, deduplication, and manifest-emission rules are defined in `docs/TECHNICAL_REQUIREMENTS.md`.
+**Paths in JSON are domain-relative and use forward slashes.** All paths resolve relative to the current working directory (domain root) where Chopper is invoked.
+
+**Path rules:**
+- Always use forward slashes: `procs/core_procs.tcl` (not `procs\core_procs.tcl`)
+- Never use `..` traversal: `../../other_domain/file.tcl` is rejected
+- Never use absolute paths: `/home/user/file.tcl` is rejected
+- Never use double slashes: `procs//core.tcl` is rejected
+
+**Glob patterns in `files.include` and `files.exclude`:**
+
+Glob patterns support three special characters to match multiple files:
+
+| Pattern | Matches | Scope |
+|---------|---------|-------|
+| `*` | Any number of characters | Single directory level (does not cross `/` boundaries) |
+| `?` | Exactly one character | Single directory level (does not cross `/` boundaries) |
+| `**` | Any number of directories and subdirectories | Multiple levels and nested directories |
+
+**Examples:**
+
+| Pattern | Matches | Does NOT match |
+|---------|---------|----------------|
+| `procs/*.tcl` | `procs/core_procs.tcl`, `procs/rules.tcl` | `procs/sub/file.tcl` (in subdirectory) |
+| `procs/??.tcl` | `procs/ab.tcl`, `procs/xy.tcl` | `procs/abc.tcl` (more than one char) |
+| `reports/**` | `reports/base.txt`, `reports/sub/detail.txt`, `reports/a/b/c/file.txt` | (matches all files at any depth) |
+| `rules/**/*.fm.tcl` | `rules/r1.fm.tcl`, `rules/sub/r2.fm.tcl` | `rules/r1.tcl` (different extension) |
+| `*_procs.tcl` | `core_procs.tcl`, `dft_procs.tcl` (at domain root) | `procs/core_procs.tcl` (in subdirectory) |
+
+**Glob expansion rules:**
+- Glob patterns work with `files.include` and `files.exclude` only. Proc-level includes/excludes use exact file paths and proc names, not patterns.
+- When a glob pattern expands to zero files, it is silently ignored (no error).
+- All glob pattern expansions are normalized, deduplicated, and sorted in lexicographic order before compilation.
+- Patterns are **case-sensitive**.
+- Literal file paths (no special characters) refer to exact single files and take precedence over glob patterns per Decision 5.
+
+**Decision 5 Application to Glob Patterns:**
+- Literal paths in `files.include` **always survive**, even if they match an `files.exclude` pattern.
+- Wildcard-expanded `files.include` candidates **are pruned** by matching `files.exclude` patterns (normal set subtraction).
+- Glob expansion happens **before** Decision 5 rules are applied, so the conflict resolution operates on the fully expanded sets.
+
+**Mixing literal and glob in one `files` block:**
+```json
+{
+  "files": {
+    "include": [
+      "vars.tcl",                    // Literal: exact file must exist
+      "procs/*.tcl",                 // Glob: all .tcl files directly under procs/
+      "rules/**/*.fm.tcl",           // Glob: all .fm.tcl files anywhere under rules/
+      "templates/base/**"            // Glob: all files anywhere under templates/base/
+    ],
+    "exclude": [
+      "procs/debug/*.tcl",           // Glob: exclude debug Tcl files in procs/
+      "rules/**/obsolete/**"         // Glob: exclude any obsolete subdirectories under rules/
+    ]
+  }
+}
+```
+
+Full normalization, glob expansion, deduplication, and manifest-emission rules are defined in `docs/TECHNICAL_REQUIREMENTS.md`.
 
 By default, owner-curated configuration JSONs live under the selected domain at `jsons/base.json` and `jsons/features/*.json`.
 
@@ -1041,7 +1099,7 @@ This base example intentionally shows:
 - Raw `source` usage, normal step files, and optional step references
 - Stage-level `load_from` (required), optional `dependencies`, `exit_codes`, `command`, `inputs`, `outputs`, `language`, and `run_mode`
 
-For generated stack files, the intended mapping is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`.
+For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Stack files themselves are optional; users can create them manually or use Chopper's generated scripts as is.
 
 **Validation rule:** an entry in `procedures.include` with an empty `procs` array (`"procs": []`) is a **hard error**. If the author intended to keep the whole file, the correct action is to move the file into `files.include`. Chopper rejects this during validation and dry-run, with an actionable error message directing the author to use `files.include` instead.
 
@@ -1311,7 +1369,7 @@ Real domains may contain duplicate steps within a stage (e.g., `step_load_post_c
 {
   "action": "replace_step",
   "stage": "compile_initial_opto",
-  "replace": "step_load_post_compile_constraints.tcl@2",
+  "reference": "step_load_post_compile_constraints.tcl@2",
   "with": "step_load_constraints_v2.tcl"
 }
 ```
@@ -1325,7 +1383,7 @@ Real domains may contain duplicate steps within a stage (e.g., `step_load_post_c
 Action application contract:
 - Features are applied in selected order.
 - Within one feature, actions are applied top-to-bottom.
-- `reference`, `replace`, and `stage` matching is exact (with optional `@n` instance targeting for steps).
+- `reference` and `stage` matching is exact (with optional `@n` instance targeting for steps).
 - If a stage contains the same step string multiple times, `replace_step` and `remove_step` use `@n` targeting to resolve ambiguity. Without `@n`, duplicate step strings are a validation error.
 - `replace_stage` removes the target stage, inserts the replacement stage at the same position, and rewrites existing `load_from` references to the new stage name before later actions run.
 - Removing a stage or step that is still referenced elsewhere is a validation error until repaired by subsequent actions in the same ordered compile pass.

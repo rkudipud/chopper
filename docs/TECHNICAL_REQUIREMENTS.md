@@ -593,29 +593,46 @@ Moved from the architecture document.
 
 Hard rules:
 - Paths in JSON are relative to the domain root, which in normal v1 operation is the current working directory.
-- Paths use forward slashes as its a unix only OS.
+- Paths use forward slashes (Unix/POSIX style).
 - Absolute paths and `..` traversal outside the domain root are validation errors.
-- Matches are collected, normalized, deduplicated, and sorted before compilation.
+- Matches are collected, normalized, deduplicated, and sorted in lexicographic order before compilation.
 - Final manifests store concrete files, not unresolved globs.
 
 #### 6.4.1 Supported Glob Pattern Syntax
 
-| Pattern | Meaning |
-|---|---|
-| `*` | Match any number of characters except path separator `/` |
-| `?` | Match exactly one character except path separator `/` |
-| `**` | Match any number of directories and subdirectories (recursive) |
+Three special characters support glob expansion in `files.include` and `files.exclude`:
 
-Examples:
+| Pattern | Scope | Matches | Does NOT Match |
+|---------|-------|---------|----------------|
+| `*` | Single directory level (does not cross `/`) | Any number of characters within one directory | Characters in subdirectories |
+| `?` | Single directory level (does not cross `/`) | Exactly one character within one directory | Multiple characters or characters in subdirectories |
+| `**` | Multiple levels and nested directories (recursive) | Any number of directories and subdirectories | Nothing — always matches all depths |
 
-| Pattern | Matches | Does Not Match |
-|---|---|---|
-| `*.tcl` | `foo.tcl`, `bar.tcl` | `sub/foo.tcl` |
-| `utils/*.py` | `utils/helper.py` | `utils/sub/deep.py` |
-| `reports/**` | `reports/a.txt`, `reports/sub/b.csv` | `other/a.txt` |
-| `**/*.tcl` | `a.tcl`, `sub/b.tcl`, `a/b/c.tcl` | `a.py` |
-| `pre_*.tcl` | `pre_setup.tcl`, `pre_load.tcl` | `setup.tcl` |
-| `step_?.tcl` | `step_a.tcl`, `step_1.tcl` | `step_ab.tcl` |
+**Examples:**
+
+| Pattern | Matches | Does Not Match | Explanation |
+|---------|---------|----------------|-------------|
+| `*.tcl` | `foo.tcl`, `bar.tcl` | `sub/foo.tcl` | `*` stays within domain root (no `/`) |
+| `procs/*.tcl` | `procs/core.tcl`, `procs/rules.tcl` | `procs/sub/deep.tcl` | `*` stops at first `/` boundary |
+| `utils/*.py` | `utils/helper.py` | `utils/sub/deep.py` | `*` does not cross subdirectories |
+| `reports/**` | `reports/a.txt`, `reports/sub/b.csv`, `reports/a/b/c.txt` | `other/a.txt` | `**` matches at any depth within `reports/` |
+| `**/*.tcl` | `a.tcl`, `sub/b.tcl`, `a/b/c.tcl` | `a.py` | `**` combined with `*` finds `.tcl` files at any depth |
+| `procs/**/*.tcl` | `procs/a.tcl`, `procs/sub/b.tcl`, `procs/a/b/c.tcl` | `rules/a.tcl` | `**` finds nested `.tcl` files under `procs/` only |
+| `pre_*.tcl` | `pre_setup.tcl`, `pre_load.tcl` (at domain root) | `setup.tcl`, `procs/pre_setup.tcl` | `*` matches filename pattern, not path separators |
+| `step_?.tcl` | `step_a.tcl`, `step_1.tcl` | `step_ab.tcl`, `step__.tcl` | `?` matches exactly one character |
+| `rule?.fm.tcl` | `rule1.fm.tcl`, `rule2.fm.tcl`, `rulex.fm.tcl` | `rule12.fm.tcl`, `rule.fm.tcl` | `?` matches any single char (no multiple or none) |
+
+**Implementation details:**
+- Glob expansion uses `pathlib.Path.glob()` with POSIX-path normalization.
+- The `**` pattern requires `pathlib.Path.glob("**/...")` semantics.
+- Patterns are **case-sensitive**.
+- When a glob pattern expands to zero files, it is silently ignored (no error raised).
+- Glob expansion happens **before** Decision 5 (include-wins) rules are applied.
+
+**Decision 5 interaction with glob patterns:**
+- Literal file paths in `files.include` (no special characters) **always survive**, even if they match `files.exclude` patterns.
+- Wildcard-expanded `files.include` candidates **are pruned** by matching `files.exclude` patterns (standard set subtraction).
+- Both literal and wildcard expansions are normalized and deduplicated before this rule is applied.
 
 Glob expansion uses `pathlib.Path.glob()` with POSIX-path normalization. The `**` pattern requires `pathlib.Path.glob("**/...")` semantics.
 
