@@ -1,0 +1,29 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "dft",
+  "domain": "my_domain",
+  "description": "DFT feature: scan-chain related procs and a dedicated dft_check stage. No dependency on other features.",
+  "metadata": {
+    "owner": "dft-team",
+    "tags": ["dft", "scan"]
+  },
+  "files": {
+    "include": ["procs/dft_procs.tcl"]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "dft_check",
+      "reference": "main",
+      "load_from": "main",
+      "command": "-xt vw Imy_shell -B BLOCK -T dft_check",
+      "exit_codes": [0, 3],
+      "dependencies": ["main"],
+      "steps": [
+        "source procs/dft_procs.tcl",
+        "setup_scan_chains",
+        "verify_scan"
+      ]
+    }
+  ]
+}

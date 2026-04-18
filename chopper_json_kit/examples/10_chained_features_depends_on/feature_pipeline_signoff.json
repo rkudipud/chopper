@@ -1,0 +1,32 @@
+{
+  "$schema": "chopper/feature/v1",
+  "name": "pipeline_signoff",
+  "domain": "my_domain",
+  "description": "Pipeline signoff feature. Requires both dft_support and power_analysis — it aggregates DFT scan results and power reports into a combined signoff report. Must be applied last.",
+  "depends_on": ["dft_support", "power_analysis"],
+  "metadata": {
+    "owner": "signoff-team",
+    "tags": ["signoff", "pipeline", "final"]
+  },
+  "files": {
+    "include": ["procs/signoff_procs.tcl"]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "pipeline_signoff",
+      "reference": "power_check",
+      "load_from": "power_check",
+      "command": "-xt vw Imy_shell -B BLOCK -T pipeline_signoff",
+      "exit_codes": [0],
+      "dependencies": ["power_check"],
+      "outputs": ["$ward/runs/BLOCK/TECH/my_domain/outputs/signoff_summary.rpt"],
+      "steps": [
+        "source procs/signoff_procs.tcl",
+        "aggregate_dft_results",
+        "aggregate_power_results",
+        "generate_signoff_report"
+      ]
+    }
+  ]
+}

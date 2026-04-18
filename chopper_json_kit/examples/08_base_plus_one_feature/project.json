@@ -1,0 +1,13 @@
+{
+  "$schema": "chopper/project/v1",
+  "project": "PROJECT_ABC",
+  "domain": "my_domain",
+  "owner": "integration-team",
+  "base": "chopper/base.json",
+  "features": [
+    "chopper/features/dft.json"
+  ],
+  "notes": [
+    "DFT feature adds scan chain verification stage after main"
+  ]
+}

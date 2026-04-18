@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/project/v1",
+  "title": "Chopper Project JSON",
+  "description": "Reproducible project-specific selection file. Captures the exact base, features, and ordering used for a trim run.",
+  "type": "object",
+  "required": ["$schema", "project", "domain", "base"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "chopper/project/v1"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project identifier (e.g., PROJECT_ABC)"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Domain identifier. In v1 operators are expected to invoke Chopper from the domain root, so this field is a consistency and audit identifier that must match the current working directory basename."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Domain deployment owner for this project"
+    },
+    "release_branch": {
+      "type": "string",
+      "description": "Git branch name for this project trim"
+    },
+    "base": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+      "description": "Path to the base JSON file relative to the current working directory / domain root (forward slashes only, no '..', no '//', no absolute paths)."
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+      },
+      "description": "Ordered list of feature JSON paths relative to the current working directory / domain root (forward slashes only, no '..', no '//', no absolute paths). Order is authoritative - later features see the results of earlier ones. If a feature declares depends_on in its Feature JSON, each prerequisite feature should also be selected here and must appear earlier in this list."
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Human-readable notes explaining feature ordering or selection rationale"
+    }
+  }
+}

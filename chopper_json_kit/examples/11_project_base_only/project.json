@@ -1,0 +1,11 @@
+{
+  "$schema": "chopper/project/v1",
+  "project": "PROJECT_BASELINE",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "base": "chopper/base.json",
+  "notes": [
+    "Base-only trim: no features selected.",
+    "Use this as a regression baseline before applying feature layers."
+  ]
+}
