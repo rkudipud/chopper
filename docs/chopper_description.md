@@ -85,6 +85,17 @@ Chopper is not intended to do the following:
 - Partially trim non-Tcl languages at subroutine level.
 - Infer undeclared feature dependency graphs automatically. Feature JSON may declare `depends_on`, but semantic enforcement is handled by validation rather than by schema alone.
 
+### 2.2.1 Permanently Excluded Items
+
+The following items have been evaluated and **permanently excluded**. They will not be implemented in any version of Chopper.
+
+| ID | Item | Rationale |
+|---|---|---|
+| OOS-01 | Non-Tcl subroutine-level trimming | Non-Tcl files (Perl, Python, shell) are file-level only by design. Subroutine-level parsing for non-Tcl languages is not a requirement. |
+| OOS-02 | Computed proc name extraction | Procs with dynamic names (`proc ${prefix}_helper`) are skipped with `PW-01`. Heuristic resolution adds complexity with no practical value. |
+| OOS-03 | Pipeline checkpointing | No domain exceeds 200 MB. Full restart from Phase 1 is acceptable. |
+| OOS-04 | Auto-draft JSON / scan mode | Scan mode was explicitly removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
+
 ### 2.3 Roles
 
 | Role | Responsibility |
@@ -257,23 +268,68 @@ This includes:
 
 ## 3. Core Concepts and Capability Model
 
+> **Canonical JSON reference:** All schemas, examples (11 progressive scenarios), and the full authoring guide live in `json_kit/`. That package is self-contained and shippable before the Chopper runtime. The examples below are sourced from it.
+
 ### 3.1 Base JSON
 
 The **Base JSON** defines the minimum viable flow for a domain.
-It is defined by the schema stored at `schemas/base-v1.schema.json`
+Schema: `json_kit/schemas/base-v1.schema.json`
 It may contain any subset of the F1, F2, and F3 sections. Omitted capability blocks are treated as empty.
 
 By default, the curated base JSON is stored at `jsons/base.json` under the selected domain.
 
-**Minimal valid example:**
+**Minimal valid example** (from `json_kit/examples/01_base_files_only/base.json`):
 
 ```json
 {
   "$schema": "chopper/base/v1",
   "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base with file-level includes only.",
   "files": {
-    "include": ["setup.tcl"]
+    "include": [
+      "setup.tcl",
+      "utils/*.tcl",
+      "procs/core_procs.tcl"
+    ],
+    "exclude": [
+      "procs/legacy_procs.tcl"
+    ]
   }
+}
+```
+
+**Full example with all three sections** (from `json_kit/examples/07_base_full/base.json`):
+
+```json
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "vendor": "synopsys",
+  "tool": "my_tool",
+  "description": "Full base with files, procedures, and stages.",
+  "files": {
+    "include": ["setup.tcl", "vars.tcl", "procs/**/*.tcl", "milestone.tcl"],
+    "exclude": ["procs/legacy/*.tcl"]
+  },
+  "procedures": {
+    "include": [
+      { "file": "procs/core_procs.tcl", "procs": ["run_setup", "load_design", "verify_netlist", "report_summary"] }
+    ],
+    "exclude": [
+      { "file": "procs/core_procs.tcl", "procs": ["debug_dump", "old_verify_netlist"] }
+    ]
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": ["source setup.tcl", "source vars.tcl", "run_setup"]
+    }
+  ]
 }
 ```
 
@@ -305,20 +361,44 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 ### 3.2 Feature JSON
 
 The **Feature JSON** expresses optional behavior layered on top of the base.
-It is defined by the schema stored at `schemas/feature-v1.schema.json`
+Schema: `json_kit/schemas/feature-v1.schema.json`
 It may contain any subset of the F1, F2, and F3 sections. Omitted capability blocks are treated as empty.
 
 By default, curated feature JSONs are stored under `jsons/features/` under the selected domain.
 
-**Minimal valid example:**
+**Example** (from `json_kit/examples/08_base_plus_one_feature/feature_dft.json`):
 
 ```json
 {
   "$schema": "chopper/feature/v1",
   "name": "dft",
+  "domain": "my_domain",
+  "description": "DFT feature: adds scan-chain related procs and a dedicated dft_check stage.",
+  "metadata": {
+    "owner": "dft-team",
+    "tags": ["dft", "scan", "signoff"],
+    "wiki": "https://wiki.example.com/dft-feature"
+  },
   "files": {
     "include": ["procs/dft_procs.tcl"]
-  }
+  },
+  "procedures": {
+    "include": [
+      { "file": "procs/dft_procs.tcl", "procs": ["setup_scan_chains", "verify_scan", "report_dft_coverage"] }
+    ]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "dft_check",
+      "reference": "main",
+      "load_from": "main",
+      "command": "-xt vw Imy_shell -B BLOCK -T dft_check",
+      "exit_codes": [0, 3],
+      "dependencies": ["main"],
+      "steps": ["source procs/dft_procs.tcl", "setup_scan_chains", "verify_scan", "report_dft_coverage"]
+    }
+  ]
 }
 ```
 
@@ -351,16 +431,23 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 ### 3.3 Project JSON
 
 The **Project JSON** is the reproducible project-specific selection file.
-It is defined by the schema stored at `schemas/project-v1.schema.json`
+Schema: `json_kit/schemas/project-v1.schema.json`
 
-**Minimal valid example:**
+**Example** (from `json_kit/examples/08_base_plus_one_feature/project.json`):
 
 ```json
 {
   "$schema": "chopper/project/v1",
   "project": "PROJECT_ABC",
   "domain": "my_domain",
-  "base": "jsons/base.json"
+  "owner": "integration-team",
+  "base": "chopper/base.json",
+  "features": [
+    "chopper/features/dft.json"
+  ],
+  "notes": [
+    "DFT feature adds scan chain verification stage after main"
+  ]
 }
 ```
 
@@ -1615,6 +1702,9 @@ By default, owner-curated configuration JSONs live under the selected domain at 
 
 ### 6.4 Base JSON Structure
 
+> Schema: `json_kit/schemas/base-v1.schema.json`
+> Progressive examples: `json_kit/examples/01_base_files_only/` through `07_base_full/`
+
 ```json
 {
   "$schema": "chopper/base/v1",
@@ -1711,6 +1801,9 @@ For users who define stages, the optional mapping to stack files is direct: `nam
 **Template script rule:** `options.template_script` keeps the proposal's field name for continuity. In Chopper v1 it is a domain-relative path to a script that already exists under the selected domain directory. Chopper resolves it relative to the domain root, treats it as a required kept file, and executes it once at the end of a successful `trim` run before the process exits. It is a path, not a general command string, and it must not point outside the domain.
 
 ### 6.5 Feature JSON Structure
+
+> Schema: `json_kit/schemas/feature-v1.schema.json`
+> Examples: `json_kit/examples/08_base_plus_one_feature/`, `09_base_plus_multiple_features/`, `10_chained_features_depends_on/`
 
 ```json
 {
@@ -1865,6 +1958,9 @@ This feature example intentionally covers all major reader-facing cases:
 In real domains, a feature JSON will usually use only the subset of actions it actually needs.
 
 ### 6.6 Project JSON Structure
+
+> Schema: `json_kit/schemas/project-v1.schema.json`
+> Examples: `json_kit/examples/08_base_plus_one_feature/project.json`, `11_project_base_only/`
 
 The **Project JSON** is the single-file packaging form for reproducible, auditable trim runs. It bundles the complete selection — base path, ordered feature paths, project metadata, and selection rationale — into one file that can be version-controlled, shared across team members, and used in CI pipelines.
 
@@ -2140,23 +2236,7 @@ post_read_constraints.tcl
 | `*.stack` | File-level |
 | `*.pl`, `*.py`, `*.csh` | File-level |
 
-### 8.3 FEV Formality Domain Notes
 
-- Medium complexity and a good proc-trimming candidate
-- Contains meaningful shared proc libraries and rule libraries
-- Good representative domain for validating F1 + F2 + F3 together
-
-### 8.4 STA/PT Domain Notes
-
-- High sourcing density
-- Heavy use of hooks and conditional sourcing
-- Strong validation target for `iproc_source`, hooks, and F2 + F3 alignment
-
-### 8.5 Power Domain Notes
-
-- Highest structural complexity of the three sampled domains
-- Deepest subdirectory use
-- Strong future validation domain once core parser and dry-run/report pipeline are stable
 
 ### 8.6 Key Observations
 
@@ -2172,114 +2252,15 @@ post_read_constraints.tcl
 
 ## 9. Technical Challenges and Risk Handling
 
-### TC-01: Tcl Proc Boundary Detection
-
-Chopper must correctly find proc boundaries even with nested braces and namespace constructs.
-
-**Risk:** without a reliable parser, F2 is not viable.
-
-### TC-02: Canonical Proc Naming
-
-This is resolved to **file + proc name**, with namespace-qualified synthesis where needed.
-
-**Canonical form:** `file.tcl::proc_name`
-
-**Namespace rules:**
-- A proc defined as `proc foo {...} {...}` in `bar.tcl` is canonicalized as `bar.tcl::foo`.
-- A proc defined as `proc ::ns::foo {...} {...}` in `bar.tcl` is canonicalized as `bar.tcl::ns::foo` (leading `::` stripped).
-- A proc defined inside `namespace eval ns { proc foo {...} {...} }` in `bar.tcl` is canonicalized as `bar.tcl::ns::foo`.
-- JSON authoring uses the short proc name (e.g., `foo`) in the `procs` array; Chopper resolves the canonical form internally.
-
-**Risk:** incorrect canonicalization breaks JSON stability and traceability.
-
-### TC-03: Transitive Proc Tracing
-
-This is the center of the product.
-
-**Main challenge areas:**
-- Correct static call extraction
-- Conservative behavior for dynamic Tcl
-- Cross-file proc mapping within the domain boundary, based on a per-run proc index built by parsing all Tcl files in the domain (source of truth)
-- Clear warnings when trace cannot prove correctness
-
-**Per-run proc index:** the proc index contract is defined in R3 and must exist before F2 trimming or trace expansion runs.
-
-### TC-04: Copy-and-Delete Correctness
-
-F2 depends on preserving top-level Tcl while deleting only unwanted proc definitions.
-
-Deletion contract:
-- Chopper deletes only recorded proc spans from the proc index; it never deletes ad hoc text ranges.
-- Text between surviving spans is preserved byte-for-byte except for newline normalization chosen by the writer.
-- If a proc-trimmed file has no surviving proc definitions and no non-comment, non-whitespace top-level Tcl, the file still survives as the remaining blank/comment-only stub and Chopper emits `VW-08`.
-- If top-level Tcl remains, the file survives even if all proc definitions were removed.
-
-**Risk:** malformed deletion breaks Tcl syntax or leaves dangling structure.
-
-### TC-05: File Dependency Detection
-
-Chopper must correctly capture `source` and `iproc_source` references, including flags and hooks.
-
-**Implementation contract:** required vs optional references and `-use_hooks` behavior must follow R3 exactly and must be reflected in diagnostics and manifests.
-
-### TC-06: Non-Tcl Handling
-
-Non-Tcl files are intentionally file-level only.
-
-**Risk:** attempting to over-interpret non-Tcl files adds cost without strong product value.
-
-### TC-07: Validation Quality
-
-Validation must catch the failures users actually care about:
-- Broken Tcl syntax
-- Obvious missing files
-- Proc references that cannot be justified
-- F3 output pointing to trimmed-away content
-
-**Implementation contract:** validation diagnostics must use stable IDs, severities, and actionable hints so CI, text reports, and future UIs all consume the same signal.
-
-### TC-08: Override and Ordering Semantics
-
-Multiple selected features may touch the same proc or stage.
-
-**Current rule:** selected input order governs last-wins behavior where explicit `replace_step` or `replace_stage` actions conflict, while R1 governs include/exclude survival. Within one feature, action order is top-to-bottom and later actions see the results of earlier ones.
-
-### TC-09: Template Generation
-
-Some domains may need template-generated artifacts.
-
-**Architectural rule:** generation is supported through an optional domain-relative `template_script` executed once at the end of a successful trim run; domain-specific generation logic stays outside the Chopper core.
-
-### TC-10: Boundary Discipline
-
-Chopper must never accidentally reach and trim outside the domain trim scope.
+> Merged into [`docs/RISKS_AND_PITFALLS.md`](../docs/RISKS_AND_PITFALLS.md).
+> Contains TC-01 through TC-10 risk statements, P-01 through P-36 implementation
+> pitfalls organized by module, and the process analysis / operational assessment.
 
 ---
 
-## 10. Process Analysis and Operational Optimizations
+## 10. Question Ledger
 
-### 10.1 Current Process Assessment
-
-| Strength | Why It Matters |
-|---|---|
-| **Clear ownership** | Each domain owner owns one bounded slice of work |
-| **Time-boxed trim window** | Creates delivery pressure and prioritization |
-| **Per-domain isolation** | Keeps the product scope realistic |
-| **Backup strategy** | Makes re-trim operationally safe |
-
-| Risk | Why It Matters |
-|---|---|
-| **Authoring overhead** | JSON authoring requires domain knowledge; dry-run provides the iteration feedback loop |
-| **Tracing correctness** | Incorrect tracing breaks F2 output |
-| **Validation late discovery** | Runtime failures are expensive during deployment windows |
-| **Branch drift** | Long-lived project branches may miss fixes from mainline |
-
-
----
-
-## 11. Question Ledger
-
-### 11.1 Resolved Questions
+### 10.1 Resolved Questions
 
 | ID | Question | Status | Resolution |
 |---|---|---|---|
@@ -2304,7 +2285,7 @@ Chopper must never accidentally reach and trim outside the domain trim scope.
 | Q19 | How is feature ordering interpreted? | **Resolved** | Selected feature order is authoritative; actions within a feature are top-to-bottom. |
 | Q20 | How are warnings and errors represented? | **Resolved** | Stable machine-readable diagnostics with severity, code, location, and hint. |
 
-### 11.2 Open Questions
+### 10.2 Open Questions
 
 | ID | Question | Status |
 |---|---|---|
@@ -2314,9 +2295,9 @@ Chopper must never accidentally reach and trim outside the domain trim scope.
 
 ---
 
-## 12. FAQ and Corner Cases
+## 11. FAQ and Corner Cases
 
-### 12.1 General FAQ
+### 11.1 General FAQ
 
 **Q: What is Chopper in one sentence?**  
 Chopper is a per-domain trimming tool that keeps only the files, procs, and generated run artifacts needed for a project-specific flow.
@@ -2330,7 +2311,7 @@ The primary user is the domain deployment owner.
 **Q: What does Chopper replace conceptually?**  
 It replaces manual trimming and parts of the FlowBuilder/SNORT/template-generation workflow for signoff domains where file-level trim/build is not feasible.
 
-### 12.2 Trimming FAQ
+### 11.2 Trimming FAQ
 
 **Q: What gets trimmed?**  
 Domain-local files and Tcl proc definitions that are not required by the selected base and features.
@@ -2350,7 +2331,7 @@ The full-file include wins only if some selected JSON explicitly requested the f
 **Q: Can tracing alone force a full file to survive?**  
 No. Tracing can justify proc survival, not implicit file-level promotion.
 
-### 12.3 Tracing FAQ
+### 11.3 Tracing FAQ
 
 **Q: Why is tracing so important?**  
 Because without tracing, proc-level trimming collapses back into manual dependency bookkeeping, which destroys the main product value.
@@ -2370,7 +2351,7 @@ No. `common/` is treated as external infrastructure.
 **Q: Can tracing be turned off globally?**  
 Not in the current architecture baseline. Default-on tracing is a core product rule.
 
-### 12.4 F3 FAQ
+### 11.4 F3 FAQ
 
 **Q: Why are F3 steps plain strings instead of structured objects?**  
 Because the real step vocabulary is heterogeneous: filenames, raw Tcl commands, ivar expressions, conditionals, and optional flags all coexist. Plain strings keep the model practical.
@@ -2384,7 +2365,7 @@ Because forcing a deeply typed model for all step content would make the tool mo
 **Q: How is that risk controlled?**  
 By validation, optional cross-validation, trace reporting, and domain-owner review.
 
-### 12.5 Backup and Re-trim FAQ
+### 11.5 Backup and Re-trim FAQ
 
 **Q: Why keep backups in the branch at all?**  
 Because the trim window requires safe re-trim capability without depending on manual restore work.
@@ -2395,7 +2376,7 @@ Because requirements can change during the trim window and owners need determini
 **Q: When are backups deleted?**  
 On the last day during final cleanup.
 
-### 12.6 Corner Case FAQ
+### 11.6 Corner Case FAQ
 
 **Q: What if two features disagree about a proc?**  
 If one includes it and another excludes it, the proc survives.
@@ -2426,7 +2407,7 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 
 ---
 
-## 13. Reference Documents and External Inputs
+## 12. Reference Documents and External Inputs
 
 | Document | Purpose |
 |---|---|
@@ -2439,9 +2420,9 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 
 ---
 
-## 14. Implementation Work Queue
+## 13. Implementation Work Queue
 
-### 14.1 Priority Work Items
+### 13.1 Priority Work Items
 
 | ID | Action | Priority | Status |
 |---|---|---|---|
@@ -2458,7 +2439,7 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | **AI-11** | Implement `chopper cleanup` and the explicit last-day backup removal workflow | **P1** | Not started |
 | **AI-12** | Implement CLI logging setup and module-scoped diagnostic plumbing | **P1** | Not started |
 
-### 14.2 Operational Follow-Ups
+### 13.2 Operational Follow-Ups
 
 | ID | Action | Priority | Status |
 |---|---|---|---|
@@ -2466,7 +2447,7 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | **OP-02** | Approve operational ownership and timing for executing `chopper cleanup` on the last day | **P1** | Open |
 | **OP-03** | Establish domain-owner feature catalog conventions: naming standard, central registry, and review expectations | **P2** | Open |
 
-### 14.3 Near-Term Business Priorities (1-Week Horizon)
+### 13.3 Near-Term Business Priorities (1-Week Horizon)
 
 | ID | Item | Description |
 |---|---|---|
@@ -2475,7 +2456,7 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | **BP-03** | Complete adoption risk assessment | Authoring overhead and learning-curve during 2-week window |
 | **BP-04** | Define feature catalog convention | Naming standard, central registry, and review expectations |
 
-### 14.4 Deferred Until Spec Finalization
+### 13.4 Deferred Until Spec Finalization
 
 | ID | Item | Rationale |
 |---|---|---|
@@ -2485,29 +2466,8 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 
 ---
 
-## 15. Revision History
+## 14. Revision History
 
 | Date | Change |
 |---|---|
-| 2026-04-03 | Initial draft — problem statement, terminology, roles, high-level workflow, requirements. |
-| 2026-04-03 | Rev 2 — corrected scope to per-domain trimming; added project branch lifecycle and process analysis. |
-| 2026-04-04 | Rev 4 — proc-level trimming model, compilation model, audit trail design, technical challenges deep dive. |
-| 2026-04-04 | Rev 5 — real codebase analysis for FEV, STA/PT, and Power; common exclusion; `iproc_source` handling; non-Tcl decision. |
-| 2026-04-04 | Rev 6 — FlowBuilder and Proposal 1 analysis; three-feature architecture; JSON design principles. |
-| 2026-04-04 | Rev 7 — default-on tracing, backup strategy, include-wins semantics, and cross-validation concepts refined. |
-| 2026-04-04 | Rev 8 — canonical proc naming, copy-and-delete model, hook handling, trim stats, VCS-agnostic manifest, action items. |
-| 2026-04-04 | **Rev 9 — consolidated rewrite:** deduplicated repeated content, normalized resolved/open question state, fixed Decision 5 ambiguity, made default exclude final, limited file-level promotion to explicit file requests only, elevated scan into the architecture, clarified that the product is still framework-stage, expanded tracing rationale, and added FAQ/corner-case coverage. |
-| 2026-04-04 | **Rev 10:** added `replace_step` (F3 step replacement) and `replace_stage` (F3 stage replacement) as new action keywords (9 total); defined `procs: []` as hard error with actionable fix guidance; removed `depends`, `related_ivars`, and `exit_codes` from Feature JSON schema; added scan pipeline diagram; expanded canonical proc naming rules with namespace examples; file with zero surviving procs is deleted; idempotency guarantee added; partial-failure recovery model defined; EXPERIMENTAL-TRACE graduation criteria added; dry-run made mandatory; near-term business priorities and deferred items tracked. |
-| 2026-04-04 | **Rev 11:** added Section 5.7 Validation Model with three formal phases: Phase 1 (pre-trim JSON quality, 12 checks), Phase 2 (post-trim output correctness, 6 checks), Phase 3 (dry-run full pipeline simulation). Standalone `chopper validate` command specified. AI-07 and AI-09 promoted to P0. FR-28 and FR-29 added. |
-| 2026-04-05 | **Rev 12:** formalized trace expansion and proc index contracts; defined `source` / `iproc_source` / hook semantics; added immutable compilation, audit artifact, determinism, staging, restore, CLI, diagnostics, exit-code, and Python implementation guidance; defined path/glob semantics and action ordering; added layered test strategy; corrected FlowBuilder reference paths; expanded implementation work queue. |
-| 2026-04-05 | **Rev 13:** split implementation-level guidance into `docs_old/TECHNICAL_REQUIREMENTS.md`; moved detailed runtime, validation, CLI, Python, and testing requirements out of the architecture document so this document stays architecture-focused. |
-| 2026-04-04 | **Rev 14:** Closed 28 architecture review gaps. Added §2.8.1 Domain Lifecycle State Machine (GAP-02). Expanded §3.7 scan-to-trim workflow (GAP-03). Added `@n` instance targeting to §6.7 (GAP-04). Added optional `metadata` block to Feature JSON §6.5 (GAP-05). Added `!feature` negation to Out of Scope §2.2 — permanently removed, no V2 (GAP-08). Removed `replace_proc` action entirely — action count now 9 (GAP-13). Proc-level control uses `procedures.include`/`procedures.exclude` with tracing. Created `docs/TCL_PARSER_SPEC.md` (GAP-09). Created JSON Schema files under `schemas/` (GAP-12). Glob patterns now support `*`, `?`, `**` (GAP-10). |
-| 2026-04-05 | **Rev 15:** Added per-domain advisory locking for mutating commands during the shared-branch trim window. |
-| 2026-04-05 | **Rev 16:** Corrected `options.template_script` semantics: it is a domain-relative script path under the selected domain, preserved as required output, and executed once at the end of a successful `trim` run before Chopper exits. |
-| 2026-04-05 | **Rev 17:** Tightened the source-of-truth scan contract by delegating exact artifact field contracts for all scan artifacts to `docs_old/TECHNICAL_REQUIREMENTS.md`, and clarified that advisory-lock stale/orphan cleanup never breaks a live `flock()` lock. |
-| 2026-04-05 | **Rev 18:** Added full project JSON input mode coverage. Added §5.1 Input Modes (base-only, base+features, project JSON) with mutual exclusivity rules. Expanded §6.6 Project JSON Structure with required/optional fields, path resolution rules, CLI usage examples, and audit traceability. Updated §5.1.1 invocations, §5.3 compilation model, §5.8 CLI contract stub, and scan-to-trim workflow to include project JSON paths. Added FR-35 (accept project JSON) and FR-36 (mutual exclusivity). Updated acceptance criteria. Updated hook semantics in §4.1, §4.3 to match explicit-JSON-inclusion rule. |
-| 2026-04-05 | **Rev 19:** Corrected the parser contract to match Tcl Rule 6 for quotes inside braced proc bodies. Clarified that omitted F1/F2/F3 capability blocks are treated as empty. Made project JSON mode explicitly semantics-equivalent to direct `--base`/`--features` mode, requiring the same effective domain when both `--project` and `--domain` are provided. Removed formal schema-ID wording for runtime artifacts and aligned audit wording around saved inputs and documented field contracts. |
-| 2026-04-05 | **Rev 20:** Standardized the default owner-curated JSON layout under each domain to `jsons/base.json` and `jsons/features/*.json`. Updated per-domain structure, scan-to-trim workflow, CLI examples, project JSON examples, and path-resolution wording to reflect the `jsons/` convention. Clarified that project JSON itself has no fixed default location and is always supplied explicitly via `--project <path>`. |
-| 2026-04-05 | **Rev 21:** Clarified that normal v1 operation runs Chopper from the domain root and resolves project `base`/`features` paths from the current working directory rather than the project JSON location. Reworked Decision 5 so excludes remain meaningful by pruning only wildcard-expanded file candidates and trace-derived proc candidates while explicit includes still win. Added a deterministic namespace lookup contract for trace resolution, normalized cross-domain trace diagnostics to `TW-02`, aligned `@n` overflow to `VE-10`, and changed empty F2 output to survive with `VW-08` instead of deleting the file. |
-| 2026-04-05 | **Rev 22:** Resolved pre-coding review items B-06, B-08, H-19. Made trace expansion explicitly breadth-first with lexicographically sorted frontier (B-08). Added `TW-04` diagnostic for circular proc call graphs (H-19). Added explicit FE∩PI+ → PROC_TRIM file treatment derivation rule and its accompanying warning (`VW-02`) to Decision 5 implications (B-06). Added file treatment derivation algorithm (FULL_COPY / PROC_TRIM / GENERATED / REMOVE). |
-| 2026-04-19 | **Rev 23:** Removed formal state machine model (VIRGIN/BACKUP_CREATED/STAGING/TRIMMED/CLEANED) from §2.8.1 for simplicity. Replaced with lightweight backup detection logic: check if `domain_backup/` exists, rebuild from it if present (re-trim), otherwise create new backup (first trim). Users can manually restore backup if needed; no advisory locking required. Removed §2.8.2 Domain Coordination and Advisory Locking entirely. Updated ACTION_PLAN.md and IMPLEMENTATION_PITFALLS_GUIDE.md to remove state machine and advisory locking task assignments and P-14 pitfall. Simplified P-20 to focus on backup detection and manual recovery. |
+| 2024-06-01 | Initial draft |

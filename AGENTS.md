@@ -126,7 +126,7 @@ Before implementing, consult these in order:
 2. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Product behavior, 7 phases, design decisions (Decisions 1–9)
 3. **[docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md)** — Phase-by-phase implementation contracts, error boundaries, assumptions
 4. **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline; Tcl grammar rules, edge cases, tokenizer state machine
-5. **[docs/IMPLEMENTATION_PITFALLS_GUIDE.md](docs/IMPLEMENTATION_PITFALLS_GUIDE.md)** — All known traps mapped to modules and test fixtures
+5. **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures
 
 Other key docs:
 - [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md) — Authoritative diagnostic code registry
@@ -192,7 +192,7 @@ Pre-trim (F1) and post-trim (F6) validation.
 ### **Config** (`src/chopper/config/`)
 JSON/TOML schema loading.
 - Uses `jsonschema` library
-- Schemas defined in `schemas/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`
+- Schemas defined in `json_kit/schemas/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`
 
 ## Testing Strategy
 
@@ -244,14 +244,14 @@ Full details in [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md).
 
 **New Implementation Task:**
 1. **Read specification** from [docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md) for your phase
-2. **Check IMPLEMENTATION_PITFALLS_GUIDE.md** for your module's pitfalls
+2. **Check RISKS_AND_PITFALLS.md** for your module's risks and pitfalls
 3. **Write tests first** in `tests/unit/<module>/` or `tests/integration/`
 4. **Reference shared models** from `src/chopper/core/models.py` only
 5. **Register diagnostics** in [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md) before use
 6. **Run `make check`** before commit; pre-submit checklist in [docs/ENGINEERING_HANDOFF_CHECKLIST.md](docs/ENGINEERING_HANDOFF_CHECKLIST.md)
 
 **When Stuck:**
-- Check [docs/IMPLEMENTATION_PITFALLS_GUIDE.md](docs/IMPLEMENTATION_PITFALLS_GUIDE.md) for your module
+- Check [docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md) for your module
 - Review test fixtures in `tests/fixtures/` — they exemplify expected behavior
 - Consult [docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md) phase contract
 - Search test files for similar patterns: `grep -r "your_function" tests/`

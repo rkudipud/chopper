@@ -1,16 +1,27 @@
-# Chopper — Technical Implementation Pitfalls Guide
-**Purpose:** Identify common mistakes to avoid during implementation  
-**Audience:** Engineering team  
+# Chopper — Technical Risks and Implementation Pitfalls
+
+**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-36) that prevent those risks from being realized.
+**Audience:** Engineering team
+**Replaces:** `docs_old/TECHNICAL_CHALLENGES.md` and the former `docs/IMPLEMENTATION_PITFALLS_GUIDE.md`
 
 ---
 
 ## Overview
 
-This guide documents architectural decisions, subtle requirements, and common pitfalls derived from the documentation. Every item here represents either a decision boundary or a likely source of bugs if overlooked.
+This guide merges two previously separate documents:
+
+- **Technical Challenges (TC-01 – TC-10)** — High-level risk areas identified during architecture. Each TC names a category of failure that would compromise trim correctness, reproducibility, or safety.
+- **Implementation Pitfalls (P-01 – P-36)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
+
+The document is organized by module. Each module section opens with the relevant TC risk statements, followed by the detailed pitfalls that guard against them.
 
 ---
 
 ## PARSER MODULE — Highest Risk Area
+
+**TC-01 — Tcl Proc Boundary Detection:** Chopper must correctly find proc boundaries even with nested braces and namespace constructs. Without a reliable parser, F2 (proc-level trimming) is not viable.
+
+**TC-02 — Canonical Proc Naming:** Resolved to **file + proc name** with namespace-qualified synthesis. Canonical form: `file.tcl::proc_name`. Incorrect canonicalization breaks JSON stability and traceability. JSON authoring uses the short proc name; Chopper resolves the canonical form internally.
 
 ### Pitfall P-01: Brace Tracking Invents Quote Context Inside Braced Bodies
 
@@ -332,6 +343,10 @@ If `foreach_in_collection` is not in the recognized control-flow keyword set, th
 
 ## COMPILER MODULE — Risk: Non-Determinism
 
+**TC-03 — Transitive Proc Tracing:** The center of the product. Requires correct static call extraction, conservative behavior for dynamic Tcl, cross-file proc mapping within the domain boundary based on the per-run proc index, and clear warnings when trace cannot prove correctness. The proc index contract is defined in R3 and must exist before F2 trimming or trace expansion runs.
+
+**TC-08 — Override and Ordering Semantics:** Multiple selected features may touch the same proc or stage. Selected input order governs last-wins behavior for explicit `replace_step`/`replace_stage` conflicts; R1 governs include/exclude survival. Within one feature, action order is top-to-bottom and later actions see results of earlier ones.
+
 ### Pitfall P-08: Trace Expansion Must Be Deterministic
 
 **THE TRAP:**
@@ -449,6 +464,8 @@ patterns = ["**/*.tcl", "sub/../file.tcl"]  # Unnormalized
 
 ## TRIMMER MODULE — Risk: Incomplete Writes
 
+**TC-04 — Copy-and-Delete Correctness:** F2 depends on preserving top-level Tcl while deleting only unwanted proc definitions. Chopper deletes only recorded proc spans; text between surviving spans is preserved byte-for-byte. If a proc-trimmed file has no surviving procs and no non-comment top-level Tcl, it survives as a stub with `VW-08`. Malformed deletion breaks Tcl syntax or leaves dangling structure.
+
 ### Pitfall P-13: Backup Creation and Staging Must Be Atomic or Fail Cleanly
 
 **THE TRAP:**
@@ -504,6 +521,8 @@ set y 2
 ---
 
 ## VALIDATOR MODULE — Risk: Silent Failures
+
+**TC-07 — Validation Quality:** Validation must catch broken Tcl syntax, missing files, unjustifiable proc references, and F3 output pointing to trimmed-away content. Diagnostics must use stable IDs, severities, and actionable hints so CI, text reports, and future UIs all consume the same signal.
 
 ### Pitfall P-16: Cross-Validation of Proc References
 
@@ -641,6 +660,8 @@ else:
 ---
 
 ## CONFIGURATION & PATHS — Risk: Platform-Specific Bugs
+
+**TC-10 — Boundary Discipline:** Chopper must never accidentally reach and trim outside the domain trim scope. Path validation is the primary enforcement mechanism.
 
 ### Pitfall P-21: Always Normalize Paths to POSIX Forward Slashes
 
@@ -825,6 +846,8 @@ chopper cleanup
 
 ## HOOK FILES — Risk: Silent Bloat or Missing Files
 
+**TC-05 — File Dependency Detection:** Chopper must correctly capture `source` and `iproc_source` references, including flags and hooks. Required vs optional references and `-use_hooks` behavior must follow R3 exactly and be reflected in diagnostics and manifests.
+
 ### Pitfall P-29: Hook Files from `-use_hooks` Are Discovery-Only
 
 **THE TRAP:**
@@ -974,6 +997,40 @@ Result: Major bugs discovered late in implementation
 
 ---
 
-**End of Pitfalls Guide**
+## STANDALONE RISK ITEMS
+
+These technical challenges have no dedicated pitfall entries but remain important architectural constraints.
+
+### TC-06: Non-Tcl Handling
+
+Non-Tcl files are intentionally file-level only. Attempting to over-interpret non-Tcl files adds cost without strong product value.
+
+### TC-09: Template Generation
+
+Some domains may need template-generated artifacts. Generation is supported through an optional domain-relative `template_script` executed once at the end of a successful trim run; domain-specific generation logic stays outside the Chopper core.
+
+---
+
+## PROCESS ANALYSIS AND OPERATIONAL ASSESSMENT
+
+### Current Process Assessment
+
+| Strength | Why It Matters |
+|---|---|
+| **Clear ownership** | Each domain owner owns one bounded slice of work |
+| **Time-boxed trim window** | Creates delivery pressure and prioritization |
+| **Per-domain isolation** | Keeps the product scope realistic |
+| **Backup strategy** | Makes re-trim operationally safe |
+
+| Risk | Why It Matters |
+|---|---|
+| **Authoring overhead** | JSON authoring requires domain knowledge; dry-run provides the iteration feedback loop |
+| **Tracing correctness** | Incorrect tracing breaks F2 output |
+| **Validation late discovery** | Runtime failures are expensive during deployment windows |
+| **Branch drift** | Long-lived project branches may miss fixes from mainline |
+
+---
+
+**End of Risks and Pitfalls Guide**
 
 This guide should be referenced during code review. Each pitfall has a corresponding test case or scenario that should be validated.

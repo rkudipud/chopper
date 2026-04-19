@@ -44,14 +44,14 @@ These files must exist before Day 1 coding begins:
 | `docs/ARCHITECTURE.md` (Rev 22) | ✅ Done | Product behavior source of truth |
 | `docs/TECHNICAL_REQUIREMENTS.md` (Rev 11) | ✅ Done | Implementation contracts + integrated clarification updates |
 | `docs/TCL_PARSER_SPEC.md` (Rev 6) | ✅ Done | Parser engineering baseline + Addendum A |
-| `docs/IMPLEMENTATION_PITFALLS_GUIDE.md` | ✅ Done | Common mistakes to avoid |
+| `docs/RISKS_AND_PITFALLS.md` | ✅ Done | Technical risks and implementation pitfalls |
 | `docs/DIAGNOSTIC_CODES.md` | ✅ Done | Authoritative code registry |
 | `docs/DEVELOPER_KICKOFF.md` | ✅ Done | Test order, acceptance criteria, agent sync |
 | `docs/CLI_HELP_TEXT_REFERENCE.md` | ✅ Done | Canonical help text phrasing |
 | `docs/FINAL_PRODUCTION_REVIEW.md` | ✅ Done | Go/no-go verdict + findings |
-| `schemas/base-v1.schema.json` | ✅ Done | Base JSON schema |
-| `schemas/feature-v1.schema.json` | ✅ Done | Feature JSON schema |
-| `schemas/project-v1.schema.json` | ✅ Done | Project JSON schema |
+| `json_kit/schemas/base-v1.schema.json` | ✅ Done | Base JSON schema |
+| `json_kit/schemas/feature-v1.schema.json` | ✅ Done | Feature JSON schema |
+| `json_kit/schemas/project-v1.schema.json` | ✅ Done | Project JSON schema |
 | `tests/fixtures/mini_domain/` | ✅ Done | F1+F2 test domain with base.json + feature_a.json |
 | `tests/fixtures/namespace_domain/` | ✅ Done | Namespace stress tests (nested, sequential, absolute, control flow) |
 | `tests/fixtures/tracing_domain/` | ✅ Done | Trace scenarios (chain, diamond, cycle, dynamic, cross-file, ns-calls) |
@@ -329,12 +329,12 @@ mypy src/chopper/core/
 | Architecture spec | `docs/ARCHITECTURE.md` |
 | Technical requirements | `docs/TECHNICAL_REQUIREMENTS.md` |
 | Parser spec | `docs/TCL_PARSER_SPEC.md` |
-| Pitfalls guide | `docs/IMPLEMENTATION_PITFALLS_GUIDE.md` |
+| Risks and pitfalls | `docs/RISKS_AND_PITFALLS.md` |
 | Diagnostic codes | `docs/DIAGNOSTIC_CODES.md` |
 | Developer kickoff | `docs/DEVELOPER_KICKOFF.md` |
 | CLI help text | `docs/CLI_HELP_TEXT_REFERENCE.md` |
 | Production review | `docs/FINAL_PRODUCTION_REVIEW.md` |
-| JSON schemas | `schemas/*.schema.json` |
+| JSON schemas | `json_kit/schemas/*.schema.json` |
 | Shared models | `src/chopper/core/models.py` |
 | Test fixtures | `tests/fixtures/` |
 | Fixture catalog | `tests/FIXTURE_CATALOG.md` |

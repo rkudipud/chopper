@@ -1,45 +1,98 @@
 # Chopper — Future Planned Developments
 
-> **Status:** Living Document  
-> **Purpose:** Track potential improvements, enhancements, and deferred work items for future releases  
+> **Status:** Living Document
+> **Purpose:** Consolidated registry of deferred work items and permanently excluded scope items
+
+---
+
+## Permanently Out of Scope
+
+These items have been evaluated and **permanently excluded**. They will not be implemented in any version of Chopper. Do not plan, design, or prototype any of these.
+
+| ID | Item | Rationale |
+|---|---|---|
+| OOS-01 | Non-Tcl subroutine-level trimming | Non-Tcl files (Perl, Python, shell) are file-level only by design. Subroutine-level parsing for non-Tcl languages is not a requirement. |
+| OOS-02 | Computed proc name extraction | Procs with dynamic names (`proc ${prefix}_helper`) are skipped with `PW-01`. Heuristic resolution adds complexity with no practical value. |
+| OOS-03 | Pipeline checkpointing | No domain exceeds 200 MB. Full restart from Phase 1 is acceptable. The `compiled_plan.json` resumption idea is unnecessary. |
+| OOS-04 | Auto-draft JSON / scan mode | Scan mode was considered and explicitly removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
 
 ---
 
 ## Parser Enhancements
 
-### FD-01: Quote Context Tracking at Depth > 0 (Extended Analysis)
+### FD-01: Advanced Namespace Resolution
 
-**Origin:** Final Review Finding F-03
+The following Tcl namespace features are out of scope for v1 and are never guessed. They emit `TW-03` (unresolvable call form) when encountered:
 
-Inside a brace-delimited proc body (depth > 0), Tcl Rule 6 suppresses all substitution processing — meaning `"` characters are literal text and do not create quoted-string contexts. The current parser spec (TCL_PARSER_SPEC.md §3.3) has an implementation clarification that `in_quote` is not toggled inside brace-delimited blocks.
+- `namespace import`
+- Command path lookup (`namespace path`)
+- `namespace unknown` handlers
+- Runtime aliasing / `interp alias`
+- Runtime redefinition order across sourced files
 
-However, there is a subtle edge case at depth 0 where `proc` arguments are being parsed before the body brace opens. Consider:
-
-```tcl
-proc foo "arg1 arg2" {
-    set x 1
-}
-```
-
-Here the args word is double-quoted (not brace-delimited). The parser must correctly identify the body opening brace `{` that follows the quoted args, without being confused by any braces that might appear inside the quoted args.
-
-**Future Enhancement:** If real-world domains contain quoted proc argument lists (extremely rare), extend the parser to handle this case. For v1, the spec correctly notes that Chopper only recognizes brace-delimited bodies and logs a WARNING for non-brace bodies.
+**Source:** `docs/TCL_PARSER_SPEC.md` §6.3, `docs/chopper_description.md` §4.6
 
 ---
 
+## Compiler / Pipeline Enhancements
+
+### FD-02: Cross-Domain Dependency Awareness
+
+v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-02` (unresolved) but never traced. A future version could optionally accept a multi-domain manifest for read-only cross-domain call validation (not trimming).
+
+**Source:** `docs/chopper_description.md` §2.2, Q1
+
+---
 
 ## CLI / UX Enhancements
 
-### FD-06: Interactive Feature Selection TUI
+### FD-03: Interactive Feature Selection TUI
 
 Provide a terminal-based interactive UI for browsing available features, previewing their effects, and composing a project JSON.
 
-**Deferred because:** CLI-first approach is correct for v1. The service-layer and renderer-adapter architecture (TECHNICAL_REQUIREMENTS.md §5) enables this without engine changes.
+**Deferred because:** CLI-first approach is correct for v1. The service-layer and renderer-adapter architecture (`docs_old/TECHNICAL_REQUIREMENTS.md` §5) enables this without engine changes.
 
-### FD-07: GUI Client
+### FD-04: GUI Client
 
-JSON-over-stdio wire protocol (TECHNICAL_REQUIREMENTS.md §5.2) enables a future GUI. Not implemented in v1 but architecturally enabled.
+JSON-over-stdio wire protocol (`docs_old/TECHNICAL_REQUIREMENTS.md` §5.2) enables a future GUI. The Chopper engine will accept a `TrimRequest` as JSON on stdin and emit a `TrimResult` as JSON on stdout. Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer and serialization contracts.
 
 ---
 
+## Documentation Enhancements
 
+### FD-05: Quick-Start Guide
+
+Add a quick-start section to the architecture doc with a minimal end-to-end walkthrough.
+
+**Source:** `docs/chopper_description.md` §13.4, DF-01
+
+### FD-06: Example Diagnostic Messages
+
+Add concrete example error/warning messages to the architecture doc for every diagnostic code.
+
+**Source:** `docs/chopper_description.md` §13.4, DF-02
+
+### FD-07: Terminology Glossary
+
+Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON" (a JSON file that extends the base).
+
+**Source:** `docs/chopper_description.md` §13.4, DF-03
+
+---
+
+## Summary
+
+| ID | Category | Item | Status |
+|---|---|---|---|
+| FD-01 | Parser | Advanced namespace resolution | Out of scope for v1 |
+| FD-02 | Pipeline | Cross-domain dependency awareness | Out of scope for v1 |
+| FD-03 | CLI/UX | Interactive feature selection TUI | Architecturally enabled, deferred |
+| FD-04 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred |
+| FD-05 | Docs | Quick-start guide | Deferred until spec final |
+| FD-06 | Docs | Example diagnostic messages | Deferred until spec final |
+| FD-07 | Docs | Terminology glossary | Deferred until spec final |
+| FD-07 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred |
+| FD-08 | CLI/UX | Auto-draft JSON from domain analysis | Explicitly removed, possible v2 |
+| FD-09 | Docs | Quick-start guide | Deferred until spec final |
+| FD-10 | Docs | Example diagnostic messages | Deferred until spec final |
+| FD-11 | Docs | Terminology glossary | Deferred until spec final |

@@ -267,7 +267,7 @@ chopper/
 
 Notes:
 - `bin/` is for wrappers or convenience launchers, not core logic.
-- `schemas/` should be first-class rather than embedded ad hoc in Python strings.
+- `json_kit/schemas/` should be first-class rather than embedded ad hoc in Python strings.
 - `tests/fixtures/` should contain curated Tcl mini-domains and expected outputs.
 - `ui/` or `cli/render.py` should be the only place that knows about colors, glyphs, terminal width, or tables.
 

@@ -348,7 +348,7 @@ For full details, see [AGENTS.md](AGENTS.md) and [docs/ARCHITECTURE.md](docs/ARC
 - **[docs/DEVELOPER_KICKOFF.md](docs/DEVELOPER_KICKOFF.md)** — Developer onboarding guide
 - **[docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md)** — Phase-by-phase implementation contracts
 - **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Tcl parser engineering baseline
-- **[docs/IMPLEMENTATION_PITFALLS_GUIDE.md](docs/IMPLEMENTATION_PITFALLS_GUIDE.md)** — Known traps and pitfalls
+- **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks and implementation pitfalls
 - **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
 - **[tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md)** — Testing framework overview
 - **[AGENTS.md](AGENTS.md)** — AI agent instructions for the codebase

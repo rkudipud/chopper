@@ -566,7 +566,7 @@ Validate using Python:
 import json
 import jsonschema
 
-with open("schemas/base-v1.schema.json") as sf:
+with open("json_kit/schemas/base-v1.schema.json") as sf:
     schema = json.load(sf)
 with open("my_domain/chopper/base.json") as f:
     instance = json.load(f)

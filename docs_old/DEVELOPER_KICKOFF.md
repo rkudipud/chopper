@@ -13,7 +13,7 @@ Before writing any code for a module, the agent or developer MUST:
 - [ ] Read `docs_old/TECHNICAL_REQUIREMENTS.md` (Rev 11) — implementation contracts
 - [ ] Read `docs/DIAGNOSTIC_CODES.md` — authoritative code registry
 - [ ] Read the module-specific spec section (see Module Reference below)
-- [ ] Read `docs/IMPLEMENTATION_PITFALLS_GUIDE.md` — common mistakes to avoid
+- [ ] Read `docs/RISKS_AND_PITFALLS.md` — technical risks and common mistakes to avoid
 - [ ] Create `src/chopper/core/models.py` with shared dataclasses (Day 0 task — not yet implemented)
 
 ---
@@ -239,7 +239,7 @@ chopper_v2/
 │   ├── CLI_HELP_TEXT_REFERENCE.md
 │   ├── DIAGNOSTIC_CODES.md           # Authoritative diagnostic code registry
 │   ├── FUTURE_PLANNED_DEVELOPMENTS.md
-│   ├── IMPLEMENTATION_PITFALLS_GUIDE.md
+│   ├── RISKS_AND_PITFALLS.md
 │   ├── SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md
 │   └── TCL_PARSER_SPEC.md
 │
@@ -251,15 +251,13 @@ chopper_v2/
 │   ├── TECHNICAL_PRESENTATION_DECK.md
 │   └── USER_REFERENCE_MANUAL.md
 │
-├── schemas/                          # JSON schemas (root-level, authoritative)
-│   ├── base-v1.schema.json
-│   ├── feature-v1.schema.json
-│   └── project-v1.schema.json
-│
-├── chopper_json_kit/                 # JSON authoring aid and examples
+├── json_kit/                         # JSON schemas, authoring guide, and examples (standalone)
 │   ├── AGENTS.md
 │   ├── README.md
-│   ├── schemas/                      # Mirror of root schemas
+│   ├── schemas/                      # Authoritative JSON Schema files (Draft-07)
+│   │   ├── base-v1.schema.json
+│   │   ├── feature-v1.schema.json
+│   │   └── project-v1.schema.json
 │   └── examples/                     # 11 annotated JSON examples (01–11)
 │
 ├── src/chopper/                      # IMPLEMENTATION ROOT
@@ -299,7 +297,7 @@ chopper_v2/
 | Architecture decisions (D-1 to D-9) | `docs_old/ARCHITECTURE.md` |
 | Phase-by-phase implementation contracts | `docs_old/TECHNICAL_REQUIREMENTS.md` |
 | Tcl grammar and parser edge cases | `docs/TCL_PARSER_SPEC.md` |
-| All known pitfalls by module | `docs/IMPLEMENTATION_PITFALLS_GUIDE.md` |
+| All known risks and pitfalls by module | `docs/RISKS_AND_PITFALLS.md` |
 | Diagnostic code registry | `docs/DIAGNOSTIC_CODES.md` |
-| JSON authoring reference | `chopper_json_kit/docs/JSON_AUTHORING_GUIDE.md` |
+| JSON authoring reference | `json_kit/docs/JSON_AUTHORING_GUIDE.md` |
 | CLI flags and help text | `docs/CLI_HELP_TEXT_REFERENCE.md` |

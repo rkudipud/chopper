@@ -64,7 +64,7 @@ When content changes in one document, scan for all documents that reference or d
 This applies to:
 
 - Diagnostic code descriptions (registry → implementation constants → test assertions → docs)
-- Architecture decisions (design doc → technical requirements → pitfalls guide)
+- Architecture decisions (design doc → technical requirements → risks and pitfalls guide)
 - CLI flag names or schema fields (spec → help text → user reference manual)
 
 ### Targeted, In-Place Edits

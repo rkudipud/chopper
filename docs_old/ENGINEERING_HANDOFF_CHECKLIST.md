@@ -15,7 +15,7 @@
 - [x] TECHNICAL_REQUIREMENTS.md reviewed (Rev 10 — all constraints understood) ✅
 - [x] JSON schemas validation (base-v1, feature-v1, project-v1 — all aligned with arch docs) ✅
 - [x] FINAL_PRODUCTION_REVIEW.md reviewed (GO verdict, 0 blockers) ✅
-- [x] IMPLEMENTATION_PITFALLS_GUIDE.md distributed and understood (P-01 through P-31 reviewed) ✅
+- [x] RISKS_AND_PITFALLS.md distributed and understood (TC-01–TC-10, P-01–P-36 reviewed) ✅
 
 ### Architecture Clarifications Completed
 
@@ -132,7 +132,7 @@ chopper/
 │   ├── TCL_PARSER_SPEC.md
 │   ├── TECHNICAL_REQUIREMENTS.md
 │   ├── FINAL_PRODUCTION_REVIEW.md
-│   └── IMPLEMENTATION_PITFALLS_GUIDE.md   # NEW
+│   └── RISKS_AND_PITFALLS.md            # Merged from IMPLEMENTATION_PITFALLS_GUIDE + TECHNICAL_CHALLENGES
 ├── pyproject.toml
 ├── Makefile
 ├── README.md
