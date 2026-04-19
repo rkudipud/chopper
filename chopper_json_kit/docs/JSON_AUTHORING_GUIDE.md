@@ -436,7 +436,7 @@ Glob patterns support three special characters to match multiple files:
 **Important:**
 - Literal paths in `files.include` survive even if they match an `files.exclude` pattern.
 - Wildcarded includes in `files.include` are pruned by matching `files.exclude` patterns (normal set subtraction).
-- Glob expansion happens **before** Decision 5 rules are applied.
+- Glob expansion happens **before** conflict rules are applied.
 
 
 ### Arrays
@@ -459,11 +459,46 @@ Glob patterns support three special characters to match multiple files:
 "dependencies": []
 ```
 
-### Merge semantics (when Chopper runs)
+### Merge and conflict semantics (when Chopper runs)
 
-1. Explicit `include` always overrides `exclude`
+1. Explicit `include` always overrides `exclude` at the same granularity
 2. Later features override earlier ones for the same element
 3. `depends_on` ordering is validated but does not auto-sort features
+
+**Per-file input interaction matrix:**
+
+Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`), PI (`procedures.include`), PE (`procedures.exclude`). Authors must choose one proc-selection model per file:
+
+| Model | Input | Meaning | Surviving procs |
+|---|---|---|---|
+| **Additive** | PI | "Keep only these procs" | PI procs from this file |
+| **Subtractive** | PE | "Keep the file but remove these procs" | All procs minus PE procs |
+
+| # | FI | FE | PI | PE | Treatment | Surviving procs | Warning |
+|---|---|---|---|---|---|---|---|
+| 1 | — | — | — | — | `REMOVE` | — | — |
+| 2 | ✓ | — | — | — | `FULL_COPY` | all | — |
+| 3 | — | ✓ | — | — | `REMOVE` | — | — |
+| 4 | ✓ | ✓ | — | — | `FULL_COPY` (literal) / `REMOVE` (glob) | all / — | — |
+| 5 | — | — | ✓ | — | `PROC_TRIM` | PI only | — |
+| 6 | — | — | — | ✓ | `PROC_TRIM` | all − PE | — |
+| 7 | — | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 8 | ✓ | — | ✓ | — | `FULL_COPY` | all (PI redundant) | `VW-09` |
+| 9 | ✓ | — | — | ✓ | `PROC_TRIM` | all − PE | — |
+| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 11 | — | ✓ | ✓ | — | `PROC_TRIM` | PI only (FE overridden) | — |
+| 12 | — | ✓ | — | ✓ | `REMOVE` | — | `VW-11` |
+| 13 | — | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
+| 14 | ✓ | ✓ | ✓ | — | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
+| 15 | ✓ | ✓ | — | ✓ | `PROC_TRIM` (literal) / `REMOVE` (glob) | all − PE / — | — |
+| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only | `VW-12` |
+
+**Key rules:**
+- **PE downgrades FULL_COPY:** FI + PE → `PROC_TRIM` (case 9). 100 procs minus 4 PE = 96 survive.
+- **FE + PE = both remove:** neither says "keep" → file removed (case 12). Use PE alone to keep the file.
+- **PI wins over PE:** same file in both → PI takes precedence (cases 7, 10, 13, 16).
+- **PI overrides FE:** PI forces file survival regardless of FE (cases 11, 13).
+- **FI + PI (no PE) stays FULL_COPY:** PI is additive and redundant on a fully included file (cases 8, 14).
 
 ### Stage naming
 

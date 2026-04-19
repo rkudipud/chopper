@@ -229,7 +229,7 @@ Use this section when deciding whether content belongs in `files.include`, `file
 | Keep an entire file exactly as-is | `files.include` | simplest and safest |
 | Remove a few files from a broad include glob | `files.exclude` | prunes only wildcard-expanded file candidates |
 | Keep only selected Tcl procedures from a library-style file | `procedures.include` | avoids copying unused procs |
-| Prune a helper proc that was pulled in only by conservative tracing | `procedures.exclude` | removes trace-derived extras without overriding explicit includes |
+| Prune a helper proc that was pulled in only by conservative tracing | `procedures.exclude` | keeps the file but removes specified procs (see §7.4 matrix) |
 | Keep a non-Tcl script | `files.include` | non-Tcl is not trimmed at subroutine level |
 | Keep a hook file discovered through `-use_hooks` | `files.include` | hook discovery alone does not copy the file |
 | Add optional project behavior | feature JSON | keeps base minimal and reusable |
@@ -312,14 +312,56 @@ Chopper supports:
 
 Use globs when a feature or base should include a family of files. Use `files.exclude` only to prune results from wildcard-style includes.
 
-### 7.4 Include wins over exclude
+### 7.4 Input interaction rules
 
-Explicit includes are authoritative.
+Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`), PI (`procedures.include`), PE (`procedures.exclude`). Mixing them can create ambiguity — Chopper resolves all combinations deterministically and warns when inputs contradict each other.
 
-- A literal file in `files.include` stays.
-- A proc explicitly named in `procedures.include` stays.
-- `files.exclude` is mainly for pruning wildcard-expanded file candidates.
-- `procedures.exclude` is mainly for pruning trace-derived proc candidates.
+#### Proc-selection models
+
+Choose **one** model per file. Do not mix PI and PE for the same file.
+
+| Model | Input | Meaning | Surviving procs |
+|---|---|---|---|
+| **Additive** | `procedures.include` | "Keep only these procs" | PI procs from this file |
+| **Subtractive** | `procedures.exclude` | "Keep the file but remove these procs" | All procs in file minus PE procs |
+
+#### Per-file interaction matrix
+
+| # | FI | FE | PI | PE | Treatment | Surviving procs | Warning |
+|---|---|---|---|---|---|---|---|
+| 1 | — | — | — | — | `REMOVE` | — | — |
+| 2 | ✓ | — | — | — | `FULL_COPY` | all | — |
+| 3 | — | ✓ | — | — | `REMOVE` | — | — |
+| 4 | ✓ | ✓ | — | — | `FULL_COPY` (literal) / `REMOVE` (glob) | all / — | — |
+| 5 | — | — | ✓ | — | `PROC_TRIM` | PI only | — |
+| 6 | — | — | — | ✓ | `PROC_TRIM` | all − PE | — |
+| 7 | — | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 8 | ✓ | — | ✓ | — | `FULL_COPY` | all (PI redundant) | `VW-09` |
+| 9 | ✓ | — | — | ✓ | `PROC_TRIM` | all − PE | — |
+| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 11 | — | ✓ | ✓ | — | `PROC_TRIM` | PI only (FE overridden) | — |
+| 12 | — | ✓ | — | ✓ | `REMOVE` | — | `VW-11` |
+| 13 | — | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
+| 14 | ✓ | ✓ | ✓ | — | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
+| 15 | ✓ | ✓ | — | ✓ | `PROC_TRIM` (literal) / `REMOVE` (glob) | all − PE / — | — |
+| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only | `VW-12` |
+
+#### Key rules
+
+- **PE downgrades FULL_COPY:** if you include a file via `files.include` but also exclude procs via `procedures.exclude`, the file becomes `PROC_TRIM` with those procs removed (case 9). Example: 100 procs minus 4 PE = 96 survive.
+- **FE + PE = both remove:** `files.exclude` and `procedures.exclude` are both removal signals — neither says "keep." The file is removed entirely (case 12). If you want to keep the file with specific procs removed, use `procedures.exclude` alone without `files.exclude`.
+- **PI wins over PE:** if the same file has procs in both `procedures.include` and `procedures.exclude`, only PI procs survive; PE entries are ignored with a warning (cases 7, 10, 13, 16).
+- **PI overrides FE:** `procedures.include` forces file survival regardless of `files.exclude` (cases 11, 13).
+- **FI + PI (no PE) stays FULL_COPY:** `procedures.include` is additive and redundant when the whole file is already included (cases 8, 14).
+
+#### Warnings Chopper emits
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `VW-09` | File is in `files.include` and `procedures.include` — PI is redundant | Remove from one list |
+| `VW-11` | File is in `files.exclude` and `procedures.exclude` — both say remove | Remove from `files.exclude` if you want to keep the file |
+| `VW-12` | File has procs in both PI and PE — PI wins, PE ignored | Choose one model per file |
+| `VW-13` | PE removes all procs from a file — file survives as blank | Use `files.exclude` to remove the whole file instead |
 
 ### 7.5 Do not use empty proc lists
 

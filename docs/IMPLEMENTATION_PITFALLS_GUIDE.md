@@ -449,7 +449,7 @@ patterns = ["**/*.tcl", "sub/../file.tcl"]  # Unnormalized
 
 ## TRIMMER MODULE — Risk: Incomplete Writes
 
-### Pitfall P-13: State Machine Transitions Must Be Atomic or Fail Cleanly
+### Pitfall P-13: Backup Creation and Staging Must Be Atomic or Fail Cleanly
 
 **THE TRAP:**
 ```python
@@ -459,50 +459,20 @@ write_trimmed_output(domain)      # Step 2: CRASH here
 # Result: domain/ doesn't exist, domain_backup/ exists, but trim is incomplete
 ```
 
-**Correct Behavior:** All state transitions happen in atomic operation or re-run is safe.
+**Correct Behavior:** Backup creation and staging transitions are atomic or can be safely re-run.
 
 **Implementation Requirement:**
-- VIRGIN → BACKUP_CREATED: Atomic rename or use tempfile + atomic move
-- BACKUP_CREATED → STAGING: Write to temp directory, not final location
-- STAGING → TRIMMED: Atomic move/rename from staging to domain/
-- If crash: domain/ and domain_backup/ must always be recoverable to a consistent state
+- Backup creation: Use atomic `os.rename(domain, domain_backup)` or tempfile + atomic move
+- Staging: Write to temporary staging directory, never to final domain/ location
+- Promotion: Atomic `os.replace(staging, domain)` from staging directory to final location
+- If crash: On re-run, detect backup and rebuild from it cleanly without re-backing-up
 
 **Why It Matters:** Trim must be re-runnable without manual intervention.
 
-**Test:** Scenario: Simulate crash at each transition; verify re-run recovers cleanly.
+**Test:** Scenario: Simulate crash at backup/staging/promotion stages; verify re-run recovers cleanly.
 
 ---
 
-### Pitfall P-14: Advisory Lock Must Not Block on Stale Locks
-
-**THE TRAP:**
-```python
-lock_path = "domain.chopper.lock"
-# If lock file exists from crashed process 1 hour ago:
-# WRONG: wait indefinitely
-with open(lock_path, 'r+') as lock_file:
-    fcntl.flock(lock_file, fcntl.LOCK_EX)  # Waits forever if stale
-```
-
-**Correct Behavior:** Acquire `flock()` in non-blocking mode. If acquisition fails, treat the lock as active and fail fast. Stale-age handling applies only to recovered abandoned metadata after Chopper has already proven no active advisory lock is held.
-
-**Implementation Requirement:**
-- Open lock file with `O_CREAT` (create if doesn't exist)
-- Try to acquire `flock(..., fcntl.LOCK_EX | fcntl.LOCK_NB)` (non-blocking)
-- *Mitigation Note (Stale Locks):* The developer does *not* need to check the lock file's modification timestamp to see if it is "stale." Because `fcntl.flock` is released directly by the OS on process death (even `SIGKILL`), just attempt the `flock` call. If it succeeds, the previous owner is gone; rewrite over the abandoned metadata and proceed. 
-- If lock acquisition fails with `EACCES` or `EAGAIN`: another process holds the advisory lock; fail fast with a diagnostic
-- Never bypass a live advisory lock, including with `--force`
-- If lock acquisition succeeds on a pre-existing lock path: treat it as abandoned metadata/orphaned file, rewrite metadata, and continue
-- Apply `stale_timeout_seconds` only to recovered abandoned metadata after successful lock acquisition
-- Keep the file descriptor open for the command lifetime; release lock and remove lock file in `finally`
-
-**Why It Matters:** Crashes leave stale lock files; tool must recover without manual cleanup.
-
-**Test:**
-- Active lock held by another process: command fails fast and does not wait indefinitely
-- Abandoned/orphaned lock path with no active lock: command acquires lock, rewrites metadata, and proceeds
-
----
 
 ### Pitfall P-15: Proc Trimming Must Preserve Surrounding Context
 
@@ -641,32 +611,32 @@ for key in sorted_keys:
 
 ---
 
-## STATE MACHINE — Risk: Illegal Transitions
+## BACKUP & RECOVERY — Risk: Lost Work or Incomplete Cleanup
 
-### Pitfall P-20: State Validation on Entry
+### Pitfall P-20: Backup Detection and Manual Recovery
 
 **THE TRAP:**
 ```python
-# Use case: `chopper cleanup` on a domain that's already CLEANED
-# WRONG: silently do nothing
-# CORRECT: emit error or warning
+# WRONG: Always create a backup, even if one already exists
+os.rename(domain, domain_backup)  # Overwrites any existing _backup!
 
-if domain_state == DomainState.CLEANED:
-        # Already cleaned; emit an informational diagnostic and leave files untouched
-        log.info("Domain already cleaned, nothing to do")
-    return ExitCode.SUCCESS
+# CORRECT: Detect backup, decide action
+if domain_backup_exists():
+    rebuild_from_backup()  # Re-trim scenario
+else:
+    os.rename(domain, domain_backup)  # First trim
 ```
 
 **Implementation Requirement:**
-- Each command validates domain state before proceeding:
-  - `trim`: expects VIRGIN or TRIMMED; rejects CLEANED
-  - `validate`: read-only, any state OK
-    - `cleanup`: succeeds for TRIMMED, no-ops with INFO for CLEANED, rejects VIRGIN / BACKUP_CREATED / STAGING
-- Emit appropriate diagnostic (INFO or ERROR) based on expected state
+- Before trim, check if `domain_backup/` exists
+- If it exists: rebuild the trimmed domain from the backup (re-trim scenario)
+- If it doesn't exist: create the backup by renaming `domain/` to `domain_backup/`
+- Users can manually restore a domain by renaming `domain_backup/` back to `domain/` if desired
+- `cleanup` removes the `domain_backup/` directory when the trim window is complete (requires `--confirm`)
 
-**Why It Matters:** Prevents user error (trimming an already-cleaned domain).
+**Why It Matters:** Enables re-trim without loss of work, and supports manual recovery if needed.
 
-**Test:** Scenario: Try `cleanup` on already-CLEANED domain. Should emit diagnostic + skip.
+**Test:** Scenario 1: First trim creates backup and builds trimmed domain. Scenario 2: Re-run detects backup and rebuilds from it without duplicating. Scenario 3: User can manually rename backup to restore domain.
 
 ---
 
@@ -989,7 +959,7 @@ Result: Major bugs discovered late in implementation
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |
 | **Compiler** | Glob results include duplicates | Normalize + deduplicate (P-11) |
 | **Trimmer** | Crash leaves domain corrupted | Atomic transitions or safe re-run (P-13) |
-| **Trimmer** | Stale locks block forever | Non-blocking advisory lock + abandoned-metadata recovery (P-14) |
+| **Trimmer** | Lost work on re-trim | Detect existing backup and rebuild from it (P-20) |
 | **Validator** | Typos in JSON go unnoticed | Validate JSON references exist (P-16) |
 | **Audit** | Diagnostics lack context | Include location in every diagnostic (P-18) |
 | **Config** | Paths break on different OS | Always use forward slashes (P-21) |

@@ -26,7 +26,7 @@ Before writing any code for a module, the agent or developer MUST:
 | **Parser** | docs/TCL_PARSER_SPEC.md (full document) | P-01 through P-07 | Tokenizer §3, Proc detection §4, Call extraction §5 |
 | **Compiler** | docs_old/TECHNICAL_REQUIREMENTS.md §7.1.1 | P-08, P-09, P-10, P-11, P-12 | Compilation algorithm (7 phases) |
 | **Tracer** | docs_old/ARCHITECTURE.md §4.3 | P-08 | Trace expansion, namespace resolution |
-| **Trimmer** | docs_old/ARCHITECTURE.md §2.8, TRQ §7.3, §7.4 | P-13, P-14, P-15 | State machine, staging, proc deletion |
+| **Trimmer** | docs_old/ARCHITECTURE.md §2.8, TRQ §7.3, §7.4 | P-13, P-15, P-20 | Backup detection, staging, proc deletion |
 | **Validator** | docs_old/TECHNICAL_REQUIREMENTS.md §8.3 | P-16 | Phase 1 + Phase 2 check matrices |
 | **Audit** | docs_old/TECHNICAL_REQUIREMENTS.md §7.2 | — | Artifact contracts, field requirements |
 | **CLI** | docs_old/TECHNICAL_REQUIREMENTS.md §9.1 | — | Argparse, service layer, renderers |
@@ -177,7 +177,7 @@ from chopper.compiler.tracer import trace_expand  # (seeds, proc_index) -> trace
 
 # Trimmer
 from chopper.trimmer.trimmer import TrimService  # .execute(TrimRequest) -> TrimResult
-from chopper.trimmer.lifecycle import detect_domain_state  # (domain_path) -> DomainState
+from chopper.trimmer.backup import detect_backup_exists  # (domain_path) -> bool
 
 # Validator
 from chopper.validator.phase1 import validate_phase1  # (inputs) -> list[Diagnostic]

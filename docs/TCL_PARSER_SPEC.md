@@ -510,6 +510,47 @@ File dependencies are extracted separately from proc calls:
 
 ---
 
+### 5.4.1 Trace Diagnostic and Call-Tree Alignment Contract
+
+Parser extraction, tracer resolution, and architecture artifacts must share one diagnostic and edge vocabulary.
+
+**Trace warning mapping (from `docs/DIAGNOSTIC_CODES.md`):**
+
+| Scenario | Code |
+|---|---|
+| Ambiguous proc match after namespace resolution | `TW-01` |
+| No in-domain match after namespace resolution (external/cross-domain) | `TW-02` |
+| Dynamic or syntactically unresolvable call form (`$cmd`, `eval`, `uplevel`) | `TW-03` |
+| Cycle in resolved proc call graph | `TW-04` |
+
+**Division of responsibility:**
+
+- Parser emits candidate call tokens and file-dependency candidates with line context.
+- Tracer resolves candidates to canonical in-domain procs and emits `TW-*` warnings when unresolved/ambiguous/dynamic/cyclic.
+- Compiler writes resolved results into `dependency_graph.json` and `trim_report.json`.
+
+**Shared edge record shape (for `dependency_graph.json`):**
+
+| Field | Meaning |
+|---|---|
+| `edge_type` | `proc_call`, `source`, or `iproc_source` |
+| `from` | Caller canonical proc or source-file context |
+| `to` | Resolved callee canonical proc or file path |
+| `status` | `resolved`, `ambiguous`, `unresolved`, or `dynamic` |
+| `diagnostic_code` | Optional `TW-*` code for warning edges |
+| `line` | Source line where the edge was discovered |
+
+**Structured log event pattern (optional JSON lines):**
+
+```json
+{"phase":"trace","event":"edge_resolved","edge_type":"proc_call","from":"a.tcl::p1","to":"b.tcl::p2","line":42}
+{"phase":"trace","event":"edge_unresolved","edge_type":"proc_call","from":"a.tcl::p1","token":"$cmd","diagnostic_code":"TW-03","line":57}
+```
+
+Parser debug logs may still exist for engineering visibility, but machine-readable diagnostics and edge records are the authoritative trace contract.
+
+---
+
 ### 5.5 Call Detection False-Positive Filter
 
 Real EDA Tcl code (e.g., `default_fm_procs.tcl`) is dense with patterns where a proc name appears on a line but is **not** a call — it is mentioned in a log string, assigned to a variable, or used as a metadata annotation. Chopper's call extractor must suppress these false positives.
@@ -941,9 +982,9 @@ source_edges: list[tuple[str, str]] = [
 
 Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism (ARCHITECTURE.md Decision 3), and collects all reachable `ProcEntry` records as additional keeps.
 
-#### 8.5.3 Fields Used by `chopper scan` (dependency_graph.json)
+#### 8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)
 
-`chopper scan` materialises the complete dependency graph from parser output without any extra file reads:
+`chopper trim --dry-run` materialises the complete dependency graph from parser output without any extra file reads:
 
 | `dependency_graph.json` edge type | `ProcEntry` field | Example |
 |---|---|---|
@@ -951,7 +992,7 @@ Trace expansion starts BFS from the seed proc set (explicit `procedures.include`
 | File-source edge | `source_refs` | `fev_formality/procs.tcl::read_libs` → `shared/db_helper.tcl` |
 | Proc location node | `canonical_name`, `source_file`, `start_line`, `end_line` | node at lines 10–25 |
 
-Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) and every `source_refs` path is a directed edge. Unresolved tokens appear as `TW-02` or `TW-03` diagnostics in `scan_report.json`.
+Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) and every `source_refs` path is a directed edge. Unresolved tokens appear as `TW-02` or `TW-03` diagnostics in `trim_report.json` and the optional JSON-lines log stream.
 
 ---
 

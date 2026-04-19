@@ -150,6 +150,49 @@ Paths in `project.json` are relative to the domain root (where Chopper will be i
 
 ---
 
+## Input Interaction Matrix
+
+Chopper has four input sets per file. Mixing them creates ambiguity — this matrix resolves all 16 combinations.
+
+**Inputs:** FI = `files.include`, FE = `files.exclude`, PI = `procedures.include`, PE = `procedures.exclude`
+
+**Proc-selection models (choose one per file):**
+
+| Model | Input | Meaning | Surviving procs |
+|---|---|---|---|
+| **Additive** | PI | "Keep only these procs" | PI procs from this file |
+| **Subtractive** | PE | "Keep the file but remove these procs" | All procs minus PE procs |
+
+**Per-file interaction matrix:**
+
+| # | FI | FE | PI | PE | Treatment | Surviving procs | Warning |
+|---|---|---|---|---|---|---|---|
+| 1 | — | — | — | — | `REMOVE` | — | — |
+| 2 | ✓ | — | — | — | `FULL_COPY` | all | — |
+| 3 | — | ✓ | — | — | `REMOVE` | — | — |
+| 4 | ✓ | ✓ | — | — | `FULL_COPY` (literal) / `REMOVE` (glob) | all / — | — |
+| 5 | — | — | ✓ | — | `PROC_TRIM` | PI only | — |
+| 6 | — | — | — | ✓ | `PROC_TRIM` | all − PE | — |
+| 7 | — | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 8 | ✓ | — | ✓ | — | `FULL_COPY` | all (PI redundant) | `VW-09` |
+| 9 | ✓ | — | — | ✓ | `PROC_TRIM` | all − PE | — |
+| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 11 | — | ✓ | ✓ | — | `PROC_TRIM` | PI only (FE overridden) | — |
+| 12 | — | ✓ | — | ✓ | `REMOVE` | — | `VW-11` |
+| 13 | — | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
+| 14 | ✓ | ✓ | ✓ | — | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
+| 15 | ✓ | ✓ | — | ✓ | `PROC_TRIM` (literal) / `REMOVE` (glob) | all − PE / — | — |
+| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only | `VW-12` |
+
+**Key rules:**
+- **PE downgrades FULL_COPY:** FI + PE → `PROC_TRIM` (case 9). A file with 100 procs and 4 in PE → 96 survive.
+- **FE + PE = both remove:** neither says "keep" → file is removed (case 12). Use PE alone if you want to keep the file.
+- **PI wins over PE:** if both reference the same file, PI takes precedence (cases 7, 10, 13, 16).
+- **PI overrides FE:** PI forces file survival regardless of FE (cases 11, 13).
+- **FI + PI (no PE) stays FULL_COPY:** PI is additive and redundant on a fully included file (cases 8, 14).
+
+---
+
 ## Getting Help
 
 - `docs/JSON_AUTHORING_GUIDE.md` — full field reference, all rules, decision flowchart

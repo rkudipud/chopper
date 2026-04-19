@@ -26,7 +26,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-25 | 18 | 7 | 25 | Schema, path, action, ordering failures — block output |
-| `VW` Validation Warnings | VW-01–VW-15 | 8 | 7 | 15 | Soft mismatches, overlaps, stale globs |
+| `VW` Validation Warnings | VW-01–VW-15 | 12 | 2 | 15 | Soft mismatches, overlaps, stale globs |
 | `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 3) |
 | `PE` Parse Errors | PE-01–PE-10 | 2 | 8 | 10 | Fatal parse failures; file skipped or partial |
@@ -78,7 +78,11 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-06 | `source-file-removed` | 2 | validator | 0 | `iproc_source`/`source` references a file that was removed | Add missing file to `files.include` or remove the sourcing call |
 | VW-07 | `run-file-step-trimmed` | 2 | validator | 0 | F3-generated run file references a step file that was trimmed away | Add step file to `files.include` or remove the step from stage |
 | VW-08 | `file-empty-after-trim` | 2 | trimmer | 0 | File survived trim but lost all proc definitions; exists as blank/comment-only | Expected if only top-level code mattered; review if file should be in `files.include` |
-| — | — | — | — | — | **VW-09 through VW-15 reserved** | — |
+| VW-09 | `fi-pi-overlap` | 1 | compiler | 0 | File is in `files.include` and also has procs in `procedures.include`; PI entries are redundant on FULL_COPY files | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include` |
+| VW-10 | `fi-pe-overlap` | — | — | — | **Retired.** FI+PE is now a valid combination (PE downgrades FULL_COPY to PROC_TRIM). No longer emitted. | — |
+| VW-11 | `fe-pe-conflict` | 1 | compiler | 0 | File is in `files.exclude` and `procedures.exclude` (no PI) — both are removal signals; file is removed entirely; PE entries have no effect | Remove from `files.exclude` and use PE alone if you want to keep the file with specific procs removed |
+| VW-12 | `pi-pe-same-file` | 1 | compiler | 0 | Same file has procs in both `procedures.include` and `procedures.exclude`; PI takes precedence, PE ignored for this file | Choose one model per file: additive (PI) or subtractive (PE), not both |
+| VW-13 | `pe-removes-all-procs` | 1 | compiler | 0 | All procs excluded from file via `procedures.exclude`; file survives as comment/blank-only | Consider using `files.exclude` to remove the entire file instead |
 
 ---
 

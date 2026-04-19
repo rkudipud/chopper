@@ -71,8 +71,8 @@ These files must exist before Day 1 coding begins:
 | # | Task | File | Description |
 |---|---|---|---|
 | 0.1 | Package scaffolding | `src/chopper/` tree | Create all `__init__.py` files for: `core/`, `cli/`, `parser/`, `compiler/`, `trimmer/`, `validator/`, `audit/`, `generators/`, `ui/`, `config/` |
-| 0.2 | Core models | `src/chopper/core/models.py` | ALL frozen dataclasses from TRQ §7.1.2: `ProcEntry`, `FileEntry`, `ProcDecision`, `CompiledManifest`, `Diagnostic`, `StageDefinition`, `TrimStats`, `RunSelection`, `TrimRequest`, `TrimResult` + ALL enums: `ExitCode`, `FileTreatment`, `KeepReason`, `Severity`, `DiagnosticSource`, `TrimMode`, `DomainState` |
-| 0.3 | Error hierarchy | `src/chopper/core/errors.py` | `ChopperError` base + `SchemaValidationError`, `CompilationError`, `ParseError`, `TrimWriteError`, `DomainStateError` — each with exit code |
+| 0.2 | Core models | `src/chopper/core/models.py` | ALL frozen dataclasses from TRQ §7.1.2: `ProcEntry`, `FileEntry`, `ProcDecision`, `CompiledManifest`, `Diagnostic`, `StageDefinition`, `TrimStats`, `RunSelection`, `TrimRequest`, `TrimResult` + ALL enums: `ExitCode`, `FileTreatment`, `KeepReason`, `Severity`, `DiagnosticSource`, `TrimMode` |
+| 0.3 | Error hierarchy | `src/chopper/core/errors.py` | `ChopperError` base + `SchemaValidationError`, `CompilationError`, `ParseError`, `TrimWriteError` — each with exit code |
 | 0.4 | Diagnostic constants | `src/chopper/core/diagnostics.py` | All codes from `docs/DIAGNOSTIC_CODES.md` as string constants |
 | 0.5 | Protocols | `src/chopper/core/protocols.py` | `ProgressSink`, `ProgressEvent`, `TableRenderer`, `DiagnosticRenderer`, `OutputFormatter`, `CustomValidator` |
 | 0.6 | Serialization | `src/chopper/core/serialization.py` | `ChopperEncoder`, `serialize()` function per TRQ §5.2 |
@@ -185,18 +185,17 @@ mypy src/chopper/core/
 
 | # | Task | File | Spec Reference |
 |---|---|---|---|
-| 3A.1 | Domain state detection | `src/chopper/trimmer/lifecycle.py` | ARCH §2.8.1 (VIRGIN/BACKUP_CREATED/TRIMMED/CLEANED) |
-| 3A.2 | Backup creation (VIRGIN→BACKUP_CREATED) | same | `os.rename(domain, domain_backup)` |
+| 3A.1 | Backup detection | `src/chopper/trimmer/backup.py` | ARCH §2.8.1: detect if `domain_backup/` exists, rebuild from it if present |
+| 3A.2 | Backup creation (first trim) | same | `os.rename(domain, domain_backup)` |
 | 3A.3 | Staging directory creation | `src/chopper/trimmer/staging.py` | TRQ §7.3 (`domain_staging/`) |
 | 3A.4 | File FULL_COPY from backup | `src/chopper/trimmer/writer.py` | Byte-for-byte copy |
 | 3A.5 | File PROC_TRIM: proc deletion | same | TRQ §7.4 (comment association, blank-line collapse) |
 | 3A.6 | File GENERATED: F3 run-file output | `src/chopper/generators/f3_generator.py` | ARCH §3.6, stages→run files |
 | 3A.7 | Atomic promotion (staging→domain) | `src/chopper/trimmer/staging.py` | TRQ §7.3.1 (`os.replace()`) |
 | 3A.8 | Failure recovery | same | Restore pre-run state on crash |
-| 3A.9 | Advisory locking | `src/chopper/trimmer/locking.py` | TRQ §7.3.2, Addendum A.5 |
-| 3A.10 | TrimService.execute() | `src/chopper/trimmer/trimmer.py` | TRQ §5.3 |
+| 3A.9 | TrimService.execute() | `src/chopper/trimmer/trimmer.py` | TRQ §5.3 |
 
-**Key pitfalls:** P-13 (atomic transitions), P-14 (non-blocking flock), P-15 (preserve surrounding context)
+**Key pitfalls:** P-13 (atomic transitions), P-15 (preserve surrounding context)
 
 ### Agent B: Audit Trail
 
@@ -215,7 +214,8 @@ mypy src/chopper/core/
 
 ### Sync: End of Day 3
 
-- [ ] Full trim lifecycle: VIRGIN → BACKUP → STAGING → TRIMMED
+- [ ] Backup detection and re-trim from backup works
+- [ ] Staging and atomic promotion complete successfully
 - [ ] Proc deletion preserves surrounding code
 - [ ] All audit artifacts written correctly
 - [ ] `pytest tests/unit/test_trimmer.py tests/unit/test_audit.py` all green
