@@ -50,11 +50,13 @@ v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-0
 
 Provide a terminal-based interactive UI for browsing available features, previewing their effects, and composing a project JSON.
 
-**Deferred because:** CLI-first approach is correct for v1. The service-layer and renderer-adapter architecture (`docs_old/TECHNICAL_REQUIREMENTS.md` §5) enables this without engine changes.
+**Deferred because:** CLI-first approach is correct for v1. The service-layer and renderer-adapter architecture (`docs/chopper_description.md` §5.11) enables this without engine changes.
 
 ### FD-04: GUI Client
 
-JSON-over-stdio wire protocol (`docs_old/TECHNICAL_REQUIREMENTS.md` §5.2) enables a future GUI. The Chopper engine will accept a `TrimRequest` as JSON on stdin and emit a `TrimResult` as JSON on stdout. Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer and serialization contracts.
+JSON-over-stdio wire protocol is now documented in `docs/chopper_description.md` §5.11.3. The Chopper engine will accept a `TrimRequest` as JSON on stdin and emit a `TrimResult` as JSON on stdout. Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
+
+GUI-relevant data surfaces (file selection, proc selection, dependency graph, trim stats, JSON viewing, diagnostics) are enumerated in §5.11.5. No additional data models or artifacts are needed — the v1 pipeline already produces everything a GUI would consume.
 
 ---
 
@@ -87,12 +89,7 @@ Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON
 | FD-01 | Parser | Advanced namespace resolution | Out of scope for v1 |
 | FD-02 | Pipeline | Cross-domain dependency awareness | Out of scope for v1 |
 | FD-03 | CLI/UX | Interactive feature selection TUI | Architecturally enabled, deferred |
-| FD-04 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred |
+| FD-04 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred (§5.11) |
 | FD-05 | Docs | Quick-start guide | Deferred until spec final |
 | FD-06 | Docs | Example diagnostic messages | Deferred until spec final |
 | FD-07 | Docs | Terminology glossary | Deferred until spec final |
-| FD-07 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred |
-| FD-08 | CLI/UX | Auto-draft JSON from domain analysis | Explicitly removed, possible v2 |
-| FD-09 | Docs | Quick-start guide | Deferred until spec final |
-| FD-10 | Docs | Example diagnostic messages | Deferred until spec final |
-| FD-11 | Docs | Terminology glossary | Deferred until spec final |

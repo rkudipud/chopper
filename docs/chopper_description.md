@@ -1598,6 +1598,130 @@ Detailed CLI behavior, diagnostics fields, exit codes, presentation constraints,
 
 Python coding standards, repository structure, package boundaries, configuration policy, logging policy, and future GUI-readiness are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
 
+### 5.11 GUI Readiness and Wire Protocol
+
+Chopper v1 is CLI-only. However, the architecture **must** enable a future GUI without rewriting the engine. This section defines the provisions that v1 implementation must satisfy so that GUI-based file selection, proc selection, trim statistics, JSON viewing, dependency-graph visualization, and diagnostic browsing can be layered on top later.
+
+#### 5.11.1 Architectural Requirements for GUI Enablement
+
+The following rules are **non-negotiable in v1** even though no GUI ships:
+
+1. **Typed result objects.** Every command handler returns a frozen dataclass result (e.g., `TrimResult`, `ValidateResult`), never a pre-rendered string. The CLI layer formats; the service layer produces data.
+2. **Structured progress events.** Progress is emitted as `ProgressEvent` records with phase, current, total, and message fields. The CLI renders these as progress bars; a GUI would render them as status panels.
+3. **Structured diagnostics.** Every diagnostic is a `Diagnostic` record with severity, code, message, location, and hint. No ad-hoc `print()` or unstructured error messages in library code.
+4. **JSON-serializable models.** Every frozen dataclass in `src/chopper/core/models.py` must be serializable via the standard `ChopperEncoder`. This includes `CompiledManifest`, `TrimStats`, `ProcEntry`, `FileEntry`, `StageDefinition`, and all diagnostic records.
+5. **Renderer adapters.** All CLI presentation goes through `TableRenderer`, `DiagnosticRenderer`, and `ProgressRenderer` protocols in `src/chopper/ui/protocols.py`. Service code never imports from `ui/`. A GUI implements the same protocols with its own widgets.
+6. **No presentation in core logic.** The compiler, parser, trimmer, and validator must never import terminal-rendering libraries, emit ANSI escape codes, or format output for human consumption. That is exclusively the presentation layer's job.
+7. **`--json` flag.** The CLI must support a `--json` flag on all subcommands that emits the raw typed result as JSON to stdout using `ChopperEncoder`. This is the same data a GUI would consume.
+
+#### 5.11.2 Service Layer Contract
+
+The service layer is the boundary between presentation (CLI/TUI/GUI) and domain logic. Each Chopper subcommand maps to one service class with a single `execute` method:
+
+```python
+@dataclass(frozen=True)
+class TrimRequest:
+    domain_path: Path
+    base_json: Path
+    feature_jsons: tuple[Path, ...]
+    project_json: Path | None = None
+    project_name: str = ""
+    project_owner: str = ""
+    release_branch: str = ""
+    project_notes: tuple[str, ...] = ()
+    dry_run: bool = False
+    mode: TrimMode = TrimMode.TRIM
+
+@dataclass(frozen=True)
+class TrimResult:
+    run_id: str
+    exit_code: ExitCode
+    compiled_manifest: CompiledManifest
+    diagnostics: tuple[Diagnostic, ...]
+    trim_stats: TrimStats
+    audit_artifacts: dict[str, Path]
+
+class TrimService(Protocol):
+    def execute(self, request: TrimRequest, progress: ProgressSink | None = None) -> TrimResult: ...
+```
+
+Equivalent request/result pairs exist for `ValidateService` and `CleanupService`. CLI, GUI, and test harnesses all program against these contracts.
+
+**Rules:**
+
+- Services accept typed request objects and return typed result objects.
+- Services never print to stdout/stderr directly.
+- Services accept an optional `ProgressSink` for streaming progress.
+- Services raise `ChopperError` subclasses for expected errors.
+
+#### 5.11.3 JSON-over-stdio Wire Protocol (Future GUI)
+
+When a GUI is implemented, it will communicate with the Chopper engine via **JSON-over-stdio**:
+
+| Channel | Direction | Content |
+|---|---|---|
+| **stdin** | GUI → Engine | `TrimRequest` (or `ValidateRequest`, `CleanupRequest`) as a single JSON object |
+| **stdout** | Engine → GUI | `TrimResult` (or equivalent) as a single JSON object on completion |
+| **stderr** | Engine → GUI | Streaming `ProgressEvent` and `Diagnostic` records as JSON lines during execution |
+
+This protocol is **not implemented in v1** but is architecturally enabled by the service-layer and serialization contracts above. No v1 code needs to parse stdin JSON or emit to stderr in this format — the protocol exists as a documented contract for future implementation.
+
+#### 5.11.4 Serialization Contract
+
+Every frozen dataclass in the core models must be JSON-serializable via a standard encoder:
+
+```python
+# src/chopper/core/serialization.py
+class ChopperEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        if isinstance(o, PurePosixPath):
+            return str(o)
+        if isinstance(o, Enum):
+            return o.value
+        return super().default(o)
+```
+
+- CLI `--json` flag uses this serializer for machine-readable output.
+- Audit artifacts (`.chopper/` directory) use the same serializer.
+- A future GUI reads the same JSON format — no translation layer needed.
+
+#### 5.11.5 GUI-Relevant Data Surfaces
+
+The following data is already produced by the v1 pipeline and available as typed, serializable models. A future GUI would consume these directly:
+
+| GUI Feature | Data Source | v1 Artifact |
+|---|---|---|
+| **File selection browser** | `CompiledManifest.files` — per-file treatment, reason, input sources | `compiled_manifest.json` |
+| **Proc selection browser** | `CompiledManifest.procs` — per-proc decision, source file, keep reason | `compiled_manifest.json` |
+| **Dependency graph viewer** | Call-tree edges, PI+, unresolved tokens | `dependency_graph.json` |
+| **Trim statistics dashboard** | `TrimStats` — files/procs/SLOC before/after, trim ratios | `trim_stats.json` |
+| **JSON viewer / editor** | Base, feature, and project JSON schemas + validation diagnostics | `input_base.json`, `input_features/`, `input_project.json` |
+| **Diagnostic browser** | `Diagnostic` records with severity, code, location, hint, phase | `diagnostics.json` |
+| **Stage/flow viewer** | `CompiledManifest.flow_stages` — resolved stage sequence after flow actions | `compiled_manifest.json` |
+| **Audit trail viewer** | `chopper_run.json` — run metadata, timestamps, exit code | `chopper_run.json` |
+
+**No additional artifacts or data models are needed for GUI enablement.** The v1 pipeline already produces everything a GUI would need. The only future work is the presentation layer itself.
+
+#### 5.11.6 Extension Points for GUI
+
+Three protocol-based extension points enable GUI-specific behavior without modifying core code:
+
+| Extension Point | Protocol | Purpose |
+|---|---|---|
+| `ProgressSink` | `on_progress()`, `on_diagnostic()` | GUI progress panels and live diagnostic feeds |
+| `OutputFormatter` | `format_report()`, `format_diagnostics()` | GUI-specific rendering of results |
+| `TableRenderer` | `render_table()` | GUI table widgets instead of terminal tables |
+
+#### 5.11.7 What v1 Must NOT Do
+
+- Must NOT embed terminal-specific formatting (ANSI codes, Rich markup) in any module outside `src/chopper/ui/` and `src/chopper/cli/`.
+- Must NOT return pre-formatted strings from service methods.
+- Must NOT use `print()` in library code (`src/chopper/compiler/`, `src/chopper/parser/`, `src/chopper/trimmer/`, `src/chopper/validator/`, `src/chopper/core/`).
+- Must NOT require a TTY for correct operation — headless and piped invocations must work.
+- Must NOT couple diagnostic emission to console rendering — diagnostics are data, not output.
+
 ---
 
 ## 6. JSON Design Principles and Schema Model
