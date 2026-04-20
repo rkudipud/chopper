@@ -1,9 +1,5 @@
 # Chopper — Tcl Parser Specification
 
-> **Status:** Draft — Parser Engineering Baseline
-> **Author:** Architecture review  
-> **Implements:** AI-01 (Tcl parser / lexer prototype) with intelligence from SNORT
-
 ---
 
 ## 1. Purpose
@@ -660,6 +656,25 @@ These fields are defined operationally as follows:
 
 For the empty multi-line body case, `body_start_line > body_end_line` signals an empty body. Consumers must check for `body_start_line > body_end_line` before iterating body lines and treat it as zero lines of content.
 
+### 6.3 Duplicate Proc Validation Timing and Emission
+
+`PE-01 duplicate-proc-definition` is checked at the end of parsing **each source file**, not after all files in the domain are parsed. The check compares `short_name` values within a single file's `ProcEntry` list. This keeps the parser's per-file invariant local and side-effect-free.
+
+**Timing:** After the parser finishes processing all lines of one file and has produced its list of `ProcEntry` records, scan for duplicate `short_name` values within that list. Emit `PE-01` for each duplicate group; the **last definition wins** for index materialization (per Invariant 4 in §6.1) so downstream tooling has one deterministic span to report, but the file is marked invalid for trim/trace until the duplicates are resolved.
+
+**Error-message format:**
+
+```
+PE-01 (ERROR): Duplicate proc definition for '<short_name>' in '<source_file>'
+  First definition: line <first_start_line>
+  Last definition:  line <last_start_line> (used for index)
+  Hint: Remove one definition or rename the proc.
+```
+
+**Location field:** `<source_file>:<first_start_line>`.
+
+**Cross-file `canonical_name` uniqueness** (Invariant 2) is a separate check performed later during domain-wide proc index assembly by the compiler, not by the parser. It may reuse `PE-01` with an extended message or register its own code; the parser itself only enforces the per-file check.
+
 ---
 
 ## 7. Edge Cases and Adversarial Inputs
@@ -1036,6 +1051,8 @@ Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) 
 
 ## 11. Revision History
 
+This log records the conscious design decisions that shaped this specification.
+
 | Date | Change |
 |---|---|
 | 2026-04-04 | **Rev 1:** Created parser spec from architecture review GAP-09. Covers tokenization (brace matching, continuations, quotes, comments), proc detection, namespace handling, call extraction, edge cases, and test strategy. Based on Tcl 8.6 Dodekalogue and official `proc`/`namespace` documentation. |
@@ -1043,34 +1060,9 @@ Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) 
 | 2026-04-05 | **Rev 3:** Corrected quote-handling guidance to match Tcl Rule 6. Quotes inside brace-delimited proc bodies are literal text and do not suppress brace matching; unescaped braces there are parse errors. |
 | 2026-04-05 | **Rev 4:** Added a deterministic proc name resolution contract for trace expansion. Bare and relative qualified calls now resolve by caller namespace first, then global namespace, while absolute qualified calls resolve exactly. Ambiguous matches emit `TW-01`; unresolved literal calls emit `TW-02`; dynamic forms emit `TW-03`. |
 | 2026-04-05 | **Rev 5:** Resolved pre-coding review blockers B-01 through B-04 and HIGH issues H-01, H-02, M-02. Replaced ambiguous "at this depth" detection rule with explicit context-type stack (`FILE_ROOT`, `NAMESPACE_EVAL`, `CONTROL_FLOW`, `PROC_BODY`). Operationally defined `body_start_line` / `body_end_line` boundaries with edge-case table (§6.2). Specified args-word skip algorithm ("scan forward to unescaped `{` at current depth"). Added namespace stack pop-timing worked example (§4.5.1). Separated quote handling into Pre-Body Rule (§3.3.1) and In-Body Rule (§3.3.2). Added call extraction scope statement to §4.4. Revised performance target from <1s to <2s primary. |
-| 2026-04-05 | **Rev 6:** Added §6.3 (Duplicate Proc Validation Timing) and §5.3.1 cross-reference to ARCHITECTURE §4.3 trace resolution. Resolves E-02, E-11 from production review. |
+| 2026-04-05 | **Rev 6:** Added §6.3 (Duplicate Proc Validation Timing) and §5.3.1 cross-reference to architecture trace resolution. Resolves E-02, E-11 from production review. |
 | 2026-04-05 | **Rev 7:** Added §2.1 (Public Function Signature) and §8.4 (Diagnostic Emission Contract). Resolves parser return type ambiguity: `parse_file()` returns `list[ProcEntry]`, emits diagnostics via optional `on_diagnostic: DiagnosticCollector` callback. Aligns with `ProgressSink.on_diagnostic` pattern used by service layer. |
 | 2026-04-19 | **Rev 8:** Supercharged with real-world EDA patterns from `default_fm_procs.tcl` and SNORT algorithm intelligence. Added §4.6 (`define_proc_attributes` detection with SNORT-derived name extraction), §4.7 (structured doc-comment block detection), §5.5 (SNORT-inspired call false-positive filter with `iproc_msg`/`puts`/`echo` suppression). Extended `ProcEntry` with `dpa_start_line`, `dpa_end_line`, `comment_start_line`, `comment_end_line`. Fixed §2.1 signature (added `on_diagnostic`). Updated §4.2 algorithm with steps h and i. Added §5.2 EDA false-positive rows. New edge cases §7.11–§7.14 covering args-with-defaults, DPA association, comment banners, and `foreach_in_collection`. Extended §8.2 state machine and §8.4 with `PW-11` (DPA mismatch) / `PI-04` (DPA orphan); all parser diagnostic codes aligned to authoritative registry in `docs/DIAGNOSTIC_CODES.md`. Real-world coverage anchored to Intel/Synopsys FEV formality flows (`default_fm_procs.tcl`). |
 | 2026-04-19 | **Rev 9:** Replaced all ad-hoc parser diagnostic code strings (`PARSER-DUP-01`, `PARSE-DYNA-01`, `PARSE-ENCODING-01`, `PARSE-UNBRACE-01`, `PARSE-NOBODY-01`, `PARSE-COMPNS-01`, `PARSE-DPA-MISMATCH-01`, `PARSE-DPA-ORPHAN-01`) with authoritative registry codes (`PE-01`, `PW-01`, `PW-02`, `PE-02`, `PW-03`, `PW-04`, `PW-11`, `PI-04`). Registered `PW-11` and `PI-04` in `docs/DIAGNOSTIC_CODES.md`. Added cross-reference note in §8.4 directing implementors to the registry. |
-| 2026-04-19 | **Rev 10:** Production integration review. Added `calls` and `source_refs` fields to `ProcEntry` (§6) — the typed channel from parser to tracer and dependency graph. Added invariants 5–6 for these fields (§6.1). Added §8.5 (Parser-to-Pipeline Integration) mapping every `ProcEntry` field to its trimmer, compiler/tracer, and scan consumer with concrete code examples. Added `foreach_in_collection` to §4.2 step 4 control-flow keyword set with note to §7.14/P-36. Added `PW-05`, `PI-01`, `PI-02`, `PI-03` rows to §8.4 emission table. Replaced remaining ad-hoc trace codes (`TRACE-AMBIG-01` → `TW-01`, `TRACE-CROSS-DOMAIN-01` → `TW-02`, `TRACE-UNRESOLV-01` → `TW-03`) in §5.3.1, §5.5 (×2), and Rev 4 history. |
-
----
-
-## Addendum A: Clarifications from Production Review
-
-### A.1 Duplicate Proc Validation Timing (E-02)
-
-`PE-01` is checked at the end of parsing **each source file**, not after all files in the domain are parsed. The check compares `short_name` values within a single file's proc index.
-
-**Timing:** After the parser finishes processing all lines of a single file and has produced its list of `ProcEntry` records, scan for duplicate `short_name` values within that list.
-
-**Error message format:**
-```
-PE-01 (ERROR): Duplicate proc definition for '<short_name>' in '<source_file>'
-  First definition: line <first_start_line>
-  Last definition:  line <last_start_line> (used for index)
-  Hint: Remove one definition or rename the proc.
-```
-
-**Location field:** `<source_file>:<first_start_line>`
-
-Cross-file `canonical_name` uniqueness is checked later during domain-wide proc index assembly. That is a separate check and uses a different diagnostic code if needed (implementation may merge into `PE-01` with an extended message).
-
-### A.2 Namespace Resolution Cross-Reference (E-11)
-
-The parser captures `namespace_path` for each proc (e.g., `"a::b::c"`). During trace expansion (see [chopper_description.md](chopper_description.md) §5.4 and the P4 trace phase contract), the tracer uses this namespace context to resolve proc calls deterministically via the namespace resolution contract defined in [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §5.3.1.
+| 2026-04-19 | **Rev 10:** Production integration review. Added `calls` and `source_refs` fields to `ProcEntry` (§6) — the typed channel from parser to tracer and dependency graph. Added invariants 5–6 for these fields (§6.1). Added §8.5 (Parser-to-Pipeline Integration) mapping every `ProcEntry` field to its trimmer, compiler/tracer, and dry-run consumer with concrete code examples. Added `foreach_in_collection` to §4.2 step 4 control-flow keyword set with note to §7.14/P-36. Added `PW-05`, `PI-01`, `PI-02`, `PI-03` rows to §8.4 emission table. Replaced remaining ad-hoc trace codes (`TRACE-AMBIG-01` → `TW-01`, `TRACE-CROSS-DOMAIN-01` → `TW-02`, `TRACE-UNRESOLV-01` → `TW-03`) in §5.3.1, §5.5 (×2), and Rev 4 history. |
+| 2026-04-20 | **Rev 11:** Folded §11 "Addendum A: Clarifications from Production Review" into the main body. A.1 (PE-01 timing and error-message format) became new §6.3 so readers encounter the timing contract alongside the §6.1 invariants that govern it. A.2 (namespace-resolution cross-reference) was dropped as redundant with §5.3.1, which already specifies the deterministic namespace lookup contract. The general rule against Addendum sections is recorded in `.github/instructions/project.instructions.md` under Documentation Conventions. |

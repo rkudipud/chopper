@@ -1,8 +1,6 @@
 # Chopper — Golden File Guide
 
-> **Resolves:** H-14 (PRE_CODING_REVIEW.md)  
-> **Applies to:** Sprint 1 onwards  
-> **Owner:** QA lead
+> **Applies to:** All stages from Stage 1 (Parser) onward.
 
 This guide defines the format, naming, comparison mechanism, and update process for all golden (expected-output) files used in Chopper regression tests.
 
@@ -143,20 +141,20 @@ Maintain an index in this file (Section 7) so engineers can find golden files wi
 
 | Golden File | Module | Fixture | Added in Sprint |
 |---|---|---|---|
-| `parser__basic_single_proc.json` | parser | Fixture 1 | Sprint 1 |
-| `parser__basic_multiple_procs.json` | parser | Fixture 2 | Sprint 1 |
-| `parser__empty_file.json` | parser | Fixture 3 | Sprint 1 |
-| `parser__brace_in_string_literal.json` | parser | Fixture 4 (error case) | Sprint 1 |
-| `parser__backslash_line_continuation.json` | parser | Fixture 5 | Sprint 1 |
-| `parser__nested_namespace_accumulates.json` | parser | Fixture 6 | Sprint 1 |
-| `parser__namespace_reset_after_block.json` | parser | Fixture 7 (B-04) | Sprint 1 |
-| `parser__computed_proc_name_skipped.json` | parser | Fixture 8 | Sprint 1 |
-| `parser__duplicate_proc_definition_error.json` | parser | Fixture 9 | Sprint 1 |
-| `parser__comment_with_braces_ignored.json` | parser | Fixture 10 | Sprint 1 |
-| `parser__proc_inside_if_block.json` | parser | Fixture 11 | Sprint 1 |
-| `parser__namespace_absolute_override.json` | parser | Fixture 12 | Sprint 1 |
-| `parser__empty_proc_body_forms.json` | parser | Fixture 13 (B-02) | Sprint 1 |
-| `parser__call_extraction.json` | parser | Fixture 14 | Sprint 1 |
-| `parser__encoding_latin1_fallback.json` | parser | Fixture 15 | Sprint 1 |
-| *(compiler golden files added in Sprint 2)* | — | — | Sprint 2 |
-| *(trimmer golden files added in Sprint 3)* | — | — | Sprint 3 |
+| `parser__basic_single_proc.json` | parser | Fixture 1 | Stage 1 |
+| `parser__basic_multiple_procs.json` | parser | Fixture 2 | Stage 1 |
+| `parser__empty_file.json` | parser | Fixture 3 | Stage 1 |
+| `parser__brace_in_string_literal.json` | parser | Fixture 4 (error case) | Stage 1 |
+| `parser__backslash_line_continuation.json` | parser | Fixture 5 | Stage 1 |
+| `parser__nested_namespace_accumulates.json` | parser | Fixture 6 | Stage 1 |
+| `parser__namespace_reset_after_block.json` | parser | Fixture 7 | Stage 1 |
+| `parser__computed_proc_name_skipped.json` | parser | Fixture 8 | Stage 1 |
+| `parser__duplicate_proc_definition_error.json` | parser | Fixture 9 | Stage 1 |
+| `parser__comment_with_braces_ignored.json` | parser | Fixture 10 | Stage 1 |
+| `parser__proc_inside_if_block.json` | parser | Fixture 11 | Stage 1 |
+| `parser__namespace_absolute_override.json` | parser | Fixture 12 | Stage 1 |
+| `parser__empty_proc_body_forms.json` | parser | Fixture 13 | Stage 1 |
+| `parser__call_extraction.json` | parser | Fixture 14 | Stage 1 |
+| `parser__encoding_latin1_fallback.json` | parser | Fixture 15 | Stage 1 |
+| *(compiler golden files added in Stage 2)* | — | — | Stage 2 |
+| *(trimmer golden files added in Stage 3)* | — | — | Stage 3 |

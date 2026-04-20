@@ -1,8 +1,7 @@
 """
 Synthetic large-domain generator for Chopper parser performance tests.
 
-Resolves: B-13 (PRE_CODING_REVIEW.md)
-Usage:    Sprint 1 acceptance — "parser < 2s on domain with 60+ Tcl files"
+Usage:    Stage 1 (Parser) acceptance — "parser < 2s on domain with 60+ Tcl files"
 
 This script generates a synthetic domain with:
   - Configurable number of Tcl files (default: 60)

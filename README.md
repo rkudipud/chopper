@@ -4,7 +4,7 @@
 
 ## Quick Links
 
-- **[AGENTS.md](AGENTS.md)** — AI agent instructions, architecture overview, design principles
+- **[.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)** — Project conventions, architecture overview, critical principles, diagnostic-code rules, editing conventions
 - **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 7-phase pipeline, R1 merge rules, requirements
 - **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
 - **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
@@ -338,7 +338,7 @@ F5 (Run File Gen)  →  F6 (Validate Post)  →  F7 (Write & Audit)
 | **audit/** | Backup, restore, audit trail artifacts | F7 |
 | **generators/** | Run file generation | F5 |
 
-For full details, see [AGENTS.md](AGENTS.md) and [docs/chopper_description.md](docs/chopper_description.md).
+For full details, see [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md) and [docs/chopper_description.md](docs/chopper_description.md).
 
 ---
 
@@ -351,9 +351,8 @@ For full details, see [AGENTS.md](AGENTS.md) and [docs/chopper_description.md](d
 - **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks and implementation pitfalls
 - **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
 - **[tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md)** — Testing framework overview
-- **[AGENTS.md](AGENTS.md)** — AI agent instructions for the codebase
+- **[.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)** — Project conventions and guardrails
 
 ---
 
-**Last Updated:** April 2026  
 **Status:** Platform-agnostic setup for all major shells and OS combinations

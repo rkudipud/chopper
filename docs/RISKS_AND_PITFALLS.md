@@ -949,19 +949,19 @@ These fields flow through to `chopper_run.json` and `compiled_manifest.json`.
 
 **THE TRAP:**
 ```
-Week 1, 2, 3: Implement parser without testing edge cases
-Week 4: Add edge case tests
-Result: Major bugs discovered late in implementation
+Stage 1: Implement parser, defer edge-case fixtures to later stages
+Stage 2 or later: Add edge case tests
+Result: Major bugs discovered after the compiler is already built on top of an untested parser, forcing cross-stage rework
 ```
 
 **Implementation Requirement:**
-- Implement parser + fixtures in WEEK 1 (parallel or sequential)
-- Test all 15 fixture categories before moving to compiler
-- Property-based tests for invariants (span consistency, no overlaps, etc.)
+- Implement parser and all fixtures together within Stage 1 — the Parser module is not complete until every fixture passes
+- All 15+ fixture categories must pass before Stage 2 (Compiler) begins
+- Property-based tests for invariants (span consistency, no overlaps, etc.) are part of Stage 1 acceptance
 
-**Why It Matters:** Parser is the critical path; failures here cascade.
+**Why It Matters:** Parser is the critical path; every later stage consumes its typed output (`list[ProcEntry]`). Failures here cascade into the compiler, trimmer, and validator.
 
-**Test:** All fixtures from TCL_PARSER_SPEC.md §9 must pass by end of Week 1.
+**Test:** All fixtures from [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §9 must pass before Stage 1 is declared complete.
 
 ---
 

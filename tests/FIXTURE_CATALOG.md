@@ -1,10 +1,8 @@
 # Chopper — Parser Test Fixture Catalog
 
-> **Resolves:** B-11 (PRE_CODING_REVIEW.md)  
-> **Status:** Sprint 1 required  
-> **Owner:** Parser lead / QA lead
+> **Scope:** Stage 1 — Parser (module `src/chopper/parser/`)
 
-This file enumerates all parser test fixtures required for Sprint 1 acceptance. Each fixture maps to a pitfall reference and the TCL spec section it exercises. Engineers must implement every fixture before Sprint 1 sign-off.
+This file enumerates all parser test fixtures required for Stage 1 acceptance. Each fixture maps to a pitfall reference and the TCL spec section it exercises. Every fixture must be implemented before the Parser module is declared complete and Stage 2 (Compiler) begins.
 
 ---
 
@@ -322,6 +320,6 @@ ProcEntry(
 
 ## Coverage Requirements
 
-All 17 fixtures must pass before Sprint 1 sign-off. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
+All 17 fixtures must pass before the Parser module (Stage 1) is declared complete and Stage 2 (Compiler) begins. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
 
 Parser fixture Tcl files live in `tests/fixtures/edge_cases/`. The binary Latin-1 fixture (fixture 15) is generated into that directory by `tests/fixtures/create_latin1_fixture.py`.

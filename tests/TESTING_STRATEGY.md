@@ -1,8 +1,19 @@
 # Chopper — Testing Strategy
 
-> **Resolves:** H-17 (property-based testing scope), H-18 (integration test harness architecture)  
-> **Status:** Sprint 1 required for §1–§3; Sprint 3 required for §4  
-> **Owner:** QA lead
+> **Scope:** §1–§3 apply from Stage 1 (Parser) onward; §4 applies from Stage 3 (Trimmer) onward.
+
+Stage boundaries used throughout this document:
+
+| Stage | Module(s) | Purpose |
+|---|---|---|
+| **Stage 0** | `core/` | Shared models, errors, diagnostics, protocols, serialization |
+| **Stage 1** | `parser/` | Tcl tokenization, proc indexing |
+| **Stage 2** | `config/`, `compiler/` | JSON schema loading, merge, BFS trace |
+| **Stage 3** | `trimmer/`, `generators/`, `audit/` | Trim state machine, domain lifecycle, crash recovery, run-file generation |
+| **Stage 4** | `validator/` | Pre- and post-trim validation, `--strict` escalation |
+| **Stage 5** | `cli/` | Command-line interface, end-to-end integration wiring |
+
+A scenario tagged with a stage must pass before that module is declared complete. Later stages may re-run earlier scenarios as regression gates.
 
 ---
 
@@ -216,34 +227,34 @@ def test_scenario_XX_description(virgin_domain: Path) -> None:
 
 Scenario numbering is stable within this document; each scenario below names the sprint it originates from.
 
-| # | Name | Sprint | Key Assertions |
+| # | Name | Stage | Key Assertions |
 |---|---|---|---|
-| 1 | Full trim from virgin | Sprint 3 | State=TRIMMED; proc count reduced; `.chopper/` created |
-| 2 | Re-trim with same selection | Sprint 3 | State=TRIMMED; output byte-identical to first trim |
-| 3 | Re-trim with different features | Sprint 3 | State=TRIMMED; new manifest differs from first |
-| 4 | Cleanup after trim | Sprint 3 | State=CLEANED; `domain_backup/` absent |
-| 5–9 | Crash at each of 5 state transitions | Sprint 3 | `assert_domain_recoverable`; re-run succeeds |
-| 10 | Dry-run produces no filesystem changes | Sprint 3 | No `domain_backup/`; no `.chopper/` |
-| 11a | `--project` path resolution is correct | Sprint 4 | Resolved base/features match expected paths |
-| 11b | `--project` trim file list matches `--base/--features` | Sprint 4 | Identical file trees |
-| 11c | `--project` audit artifact `input_project.json` present | Sprint 4 | Exact copy of project JSON |
-| 12 | Feature order preserved in manifest | Sprint 4 | `feature_json_paths` in manifest matches CLI order |
-| 13 | Include-wins enforcement | Sprint 2 | PI+ always superset of PI |
-| 14 | Trace cycle (A→B→A) | Sprint 2 | `TW-04 cycle-in-call-graph` WARNING emitted listing the cycle path; BFS terminates via visited-set; cycle procs appear in `dependency_graph.json` only when already reachable from explicit PI — they are NOT auto-copied into the trimmed domain |
-| 15 | Empty domain (no procs) | Sprint 2 | 0 procs after trim; no error |
-| 16 | NFS lock detection log | Sprint 3 | WARNING logged when lock path is on NFS mount |
-| 17 | `--strict` escalates `VW-16 step-source-missing` to ERROR | Sprint 4 | exit code 1 when F3 references trimmed step file |
-| 18 | Feature name uniqueness (`VE-14 duplicate-feature-name`) | Sprint 4 | ERROR when two features share same `name` |
-| 19 | Empty base JSON (`VI-01 empty-base-json`) | Sprint 4 | INFO diagnostic; no crash |
-| 20 | `template_script` reserved in v1 (not executed) | Sprint 4 | Field accepted by schema; no script execution; `VE-18` fires only on symlink escape |
-| 21 | Dry-run artifact set | Sprint 2 | `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt` all emitted with documented fields; no domain files written |
-| **22** | **Re-trim idempotency** (H-15) | Sprint 3 | `compiled_manifest.json` hash identical across two identical-input runs; trimmed files byte-identical |
-| 23 | Additive model — cross-source FE veto | Sprint 2 | Feature `procedures.exclude` cannot remove a base `procedures.include`; `VW-10 cross-source-fe-vetoed` warning emitted; proc retained |
-| 24 | Additive model — cross-source PE veto | Sprint 2 | Feature `procedures.exclude` cannot remove another feature's explicit `procedures.include`; `VW-18 cross-source-pe-vetoed` warning emitted; proc retained |
-| 25 | Additive model — same-source FE/PE conflict | Sprint 2 | Same feature lists a proc in both `procedures.include` and `procedures.exclude`; `VW-11 fe-pe-same-source-conflict` warning emitted; include wins |
-| 26 | F3 `flow_actions` ordering authoritative | Sprint 2 | Last feature's `flow_actions` append order is preserved in compiled manifest; reordering CLI features changes `flow_actions` but leaves F1/F2 merged sets unchanged |
-| 27 | F1/F2 merge order-independence | Sprint 2 | Swapping CLI feature order leaves `files.include`/`procedures.include` union identical (set equality) |
-| 28 | Provenance recorded in manifest | Sprint 2 | Each entry in `compiled_manifest.json` carries its origin (`base` or `feature:<name>`) for every `files.*` and `procedures.*` decision |
+| 1 | Full trim from virgin | Stage 3 | State=TRIMMED; proc count reduced; `.chopper/` created |
+| 2 | Re-trim with same selection | Stage 3 | State=TRIMMED; output byte-identical to first trim |
+| 3 | Re-trim with different features | Stage 3 | State=TRIMMED; new manifest differs from first |
+| 4 | Cleanup after trim | Stage 3 | State=CLEANED; `domain_backup/` absent |
+| 5–9 | Crash at each of 5 state transitions | Stage 3 | `assert_domain_recoverable`; re-run succeeds |
+| 10 | Dry-run produces no filesystem changes | Stage 3 | No `domain_backup/`; no `.chopper/` |
+| 11a | `--project` path resolution is correct | Stage 5 | Resolved base/features match expected paths |
+| 11b | `--project` trim file list matches `--base/--features` | Stage 5 | Identical file trees |
+| 11c | `--project` audit artifact `input_project.json` present | Stage 5 | Exact copy of project JSON |
+| 12 | Feature order preserved in manifest | Stage 5 | `feature_json_paths` in manifest matches CLI order |
+| 13 | Include-wins enforcement | Stage 2 | PI+ always superset of PI |
+| 14 | Trace cycle (A→B→A) | Stage 2 | `TW-04 cycle-in-call-graph` WARNING emitted listing the cycle path; BFS terminates via visited-set; cycle procs appear in `dependency_graph.json` only when already reachable from explicit PI — they are NOT auto-copied into the trimmed domain |
+| 15 | Empty domain (no procs) | Stage 2 | 0 procs after trim; no error |
+| 16 | NFS lock detection log | Stage 3 | WARNING logged when lock path is on NFS mount |
+| 17 | `--strict` escalates `VW-16 step-source-missing` to ERROR | Stage 4 | exit code 1 when F3 references trimmed step file |
+| 18 | Feature name uniqueness (`VE-14 duplicate-feature-name`) | Stage 4 | ERROR when two features share same `name` |
+| 19 | Empty base JSON (`VI-01 empty-base-json`) | Stage 4 | INFO diagnostic; no crash |
+| 20 | `template_script` reserved in v1 (not executed) | Stage 4 | Field accepted by schema; no script execution; `VE-18` fires only on symlink escape |
+| 21 | Dry-run artifact set | Stage 2 | `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt` all emitted with documented fields; no domain files written |
+| **22** | **Re-trim idempotency** | Stage 3 | `compiled_manifest.json` hash identical across two identical-input runs; trimmed files byte-identical |
+| 23 | Additive model — cross-source FE veto | Stage 2 | Feature `procedures.exclude` cannot remove a base `procedures.include`; `VW-10 cross-source-fe-vetoed` warning emitted; proc retained |
+| 24 | Additive model — cross-source PE veto | Stage 2 | Feature `procedures.exclude` cannot remove another feature's explicit `procedures.include`; `VW-18 cross-source-pe-vetoed` warning emitted; proc retained |
+| 25 | Additive model — same-source FE/PE conflict | Stage 2 | Same feature lists a proc in both `procedures.include` and `procedures.exclude`; `VW-11 fe-pe-same-source-conflict` warning emitted; include wins |
+| 26 | F3 `flow_actions` ordering authoritative | Stage 2 | Last feature's `flow_actions` append order is preserved in compiled manifest; reordering CLI features changes `flow_actions` but leaves F1/F2 merged sets unchanged |
+| 27 | F1/F2 merge order-independence | Stage 2 | Swapping CLI feature order leaves `files.include`/`procedures.include` union identical (set equality) |
+| 28 | Provenance recorded in manifest | Stage 2 | Each entry in `compiled_manifest.json` carries its origin (`base` or `feature:<name>`) for every `files.*` and `procedures.*` decision |
 
 ---
 

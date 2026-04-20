@@ -1,8 +1,7 @@
 """
 Crash injection harness for Chopper state-machine transition tests.
 
-Resolves: B-12 (PRE_CODING_REVIEW.md)
-Usage:    Sprint 3 integration tests for domain lifecycle crash recovery.
+Usage:    Stage 3 (Trimmer & Lifecycle) integration tests for domain lifecycle crash recovery.
 
 This module provides:
   - @inject_crash_at(transition_name) decorator: raises SystemExit(1) at a
