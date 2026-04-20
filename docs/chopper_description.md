@@ -1111,6 +1111,87 @@ chopper trim --dry-run --project configs/project_abc.json
 
 **Phase dependency rule:** each phase receives the output of the previous phase and produces a well-defined intermediate. No phase reaches back to re-run an earlier phase.
 
+### 5.2.1 End-to-End Walkthrough
+
+This walkthrough expands the pipeline diagram into the concrete data flow each phase consumes, produces, and hands off. It is the narrative companion to the boxes in §5.2.
+
+#### P0 — Detect trim state
+
+- Check for `.chopper/backup/` in the selected domain.
+  - Present → this is a **re-trim**; restore originals from the backup before any further work so P1–P7 always see the pristine domain.
+  - Absent → this is a **first trim**; originals will be backed up at P7.
+- Owner: `audit/`.
+- Output: a boolean run mode (`first_trim` vs `re_trim`) attached to the run context; no JSON artifact yet.
+
+#### P1 — Read and validate inputs
+
+- Resolve the input mode: `--project <path>` (loads a project JSON which names `base` and ordered `features`), or explicit `--base <path> [--feature <path> ...]`.
+- Schema-validate every loaded JSON against `json_kit/schemas/*.schema.json`.
+- Run Phase 1 structural checks: file existence, glob well-formedness, `feature.domain` matches `base.domain`, `depends_on` prerequisites precede dependents in the project `features` order, etc.
+- Emit `VE-*` on hard failures (non-zero exit); emit `VW-*` / `VI-*` on soft issues.
+- Owner: `config/` + `validator/` (Phase 1 validation).
+- Output: a frozen in-memory bundle of `(base_json, [feature_jsons], resolved_domain_path)` — no on-disk artifact.
+
+#### P2 — Parse domain Tcl
+
+- Walk `sorted(domain_path.rglob('*.tcl'))` so traversal order is lexicographic and deterministic.
+- For each file, call `parse_file(path, on_diagnostic=...)` which returns `list[ProcEntry]`.
+- Each `ProcEntry` carries `canonical_name`, `short_name`, `qualified_name`, `namespace_path`, body and DPA/comment spans, and the two handoff fields `calls` (raw call tokens) and `source_refs` (literal `source` / `iproc_source` targets). See [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §6 for the full field list.
+- The parser **does not resolve** `calls` — those are textual tokens. Resolution is P4's job.
+- Parser-family diagnostics (`PE-*` / `PW-*` / `PI-*`) flow through the `on_diagnostic` callback.
+- Owner: `parser/`.
+- Output: the **global proc index** — a dictionary keyed by `canonical_name` that concatenates every file's `ProcEntry` list in lex order. This single flat map is the source of truth for every later phase that needs to resolve a proc name. (See §5.4.1 for why a flat global index is required instead of per-file tables.)
+
+#### P3 — Compile selections
+
+- Consumes the JSON bundle from P1 and the proc index from P2.
+- Treats the base JSON and each selected feature JSON as a distinct *source*, and applies the three-step provenance-aware algorithm from §5.3:
+  1. Per-source partition: expand `files.include` into `FI_literal` + `FI_glob`, subtract `FE`, and compile `PI` / `PE`.
+  2. Per-source per-file classification into `NONE` / `WHOLE` / `TRIM(keep_set)` under the same-source L2 rules (emits `VW-09`, `VW-11`, `VW-12`, `VW-13`).
+  3. Cross-source aggregation under L1 + L3: any `WHOLE` wins (→ `FULL_COPY`); otherwise union of `TRIM` keep sets (→ `PROC_TRIM`); else `REMOVE` (or `GENERATED` for F3 outputs). Emits cross-source `VW-10` / `VW-18` for vetoed `FE` / `PE`.
+- Record provenance on every manifest entry: `input_sources[]`, `treatment`, `surviving_procs[]`, `vetoed_entries[]`.
+- Ordering: F1 and F2 aggregation is set-union and therefore order-independent; feature order is authoritative only in the F3 `flow_actions` pass and in P4's BFS.
+- Owner: `compiler/`.
+- Output: `CompiledManifest` (frozen in-memory object) and `.chopper/compiled_manifest.json` (identical on disk). The manifest is immutable after P3 returns.
+
+#### P4 — Trace dependencies
+
+- Seed the BFS frontier with `PI` (the explicit `procedures.include` entries validated in P1 against the proc index from P2).
+- Walk the call graph breadth-first using the deterministic lexical namespace contract from §5.4. For every popped proc, read its `calls` tokens and resolve each against the global proc index: exactly one match → resolved edge; multiple → `TW-01`; zero → `TW-02`; dynamic form → `TW-03`; cycle → `TW-04`.
+- Produce `PI+` (full transitive closure) and `PT = PI+ − PI` (traced-only set).
+- Owner: `compiler/` (`trace.py`).
+- Output: `.chopper/dependency_graph.json` and `TW-*` diagnostics.
+- **Critical contract:** `PI+` is reporting-only. P4 does not mutate the surviving files or surviving procs sets frozen by P3. See §5.4 and Critical Principle #7 in `.github/instructions/project.instructions.md`.
+
+#### P5 — Build output (skipped under `--dry-run`)
+
+- For each manifest entry:
+  - `FULL_COPY` → copy the file verbatim from the backup into the staging directory.
+  - `PROC_TRIM` → read the file, delete the line spans of every proc not in `surviving_procs(F)`, rewrite into staging.
+  - `GENERATED` → run the F3 generator (`flow_actions` is authoritative for ordering here).
+  - `REMOVE` → record the omission; do not write.
+- Write `.chopper/trim_report.json` and `trim_report.txt` describing every file and proc operation and the diagnostics correlated with each.
+- Owner: `trimmer/` + `generators/`.
+- Output: a complete staging directory tree plus the trim-report artifacts.
+
+#### P6 — Post-trim validate
+
+- Phase 2 validation runs against the staging output (or, under `--dry-run`, against the synthetic trim plan):
+  - brace balance across every rewritten file,
+  - dangling proc references (every call target in a surviving file must resolve to a surviving proc or an accepted external such as a vendor/Tcl built-in),
+  - missing `source` / `iproc_source` targets (must resolve to a surviving file or an accepted external).
+- Emit `VE-*` / `VW-*`; `--strict` escalates `VW` to `VE`.
+- Owner: `validator/` (Phase 2).
+- Output: updated diagnostics log; optionally aborts the run before P7.
+
+#### P7 — Finalize and audit
+
+- Under a normal run: atomically promote staging → `domain/`, back up the originals (first trim only) to `.chopper/backup/`, release the lock.
+- Under `--dry-run`: leave the domain untouched and emit only the `.chopper/` reports.
+- Write the full audit bundle under `.chopper/`: `chopper_run.json`, `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, `diagnostics.json`, `trim_stats.json`.
+- Owner: `audit/`.
+- Output: the audit trail (see §5.5).
+
 ### 5.3 Compilation Model (P3 Detail)
 
 P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules and the proc index from P2 and produces frozen sets that drive every subsequent phase. P3 is **provenance-aware**: the base JSON and each selected feature JSON are treated as distinct contributing *sources*, and every manifest entry records which sources contributed to it.
@@ -1216,7 +1297,7 @@ When `--project` is used, Chopper resolves the base and selected feature paths f
 
 Detailed compilation data models, execution-freeze rules, and implementation contracts live alongside the core models in `src/chopper/core/models.py` and the compiler implementation in `src/chopper/compiler/`.
 
-This architecture document defines what Chopper must do; the technical requirements document defines how the implementation must structure and preserve those contracts.
+This architecture document defines what Chopper must do; the technical requirements document (see `docs/TECHNICAL_IMPLEMENTATION.md` once authored) defines how the implementation must structure and preserve those contracts.
 
 ### 5.4 Trace Phase (P4 Detail)
 
@@ -1255,6 +1336,54 @@ Outcome after a full Chopper run:
 | `TW-*` diagnostic | none unless ambiguous/dynamic/cycle | none unless ambiguous/dynamic/cycle |
 
 To make `bar` survive trimming the author must add it to `procedures.include` (or include the whole file with `files.include`). Trace expansion is a visibility tool, not a survival mechanism.
+
+### 5.4.1 Per-File Parsing to Global Call Tree
+
+The parser is strictly per-file and never reaches across file boundaries. The tracer is strictly global and relies on a single domain-wide index. This subsection makes the handoff between the two explicit.
+
+**Step 1 — Per-file parse (P2, per file).**
+`parse_file(tcl_file, on_diagnostic=...)` returns a `list[ProcEntry]` for that single file. Each entry carries its `canonical_name` (`relative/path.tcl::qualified_name`), its `namespace_path` captured from enclosing `namespace eval` blocks, the body span, and two unresolved handoff fields:
+
+- `calls: tuple[str, ...]` — raw call tokens extracted from the body after false-positive suppression. These are textual tokens such as `"helper"` or `"::foo::bar"`; the parser does not know whether they resolve and never attempts to.
+- `source_refs: tuple[str, ...]` — literal `source` / `iproc_source` file targets.
+
+At this point there is no cross-file knowledge. The parser runs file-by-file and holds no memory between files.
+
+**Step 2 — Assemble the global proc index (start of P4).**
+The compiler concatenates every file's `ProcEntry` list into **one flat dictionary keyed by `canonical_name`**:
+
+```python
+proc_index: dict[str, ProcEntry] = {}
+for tcl_file in sorted(domain_path.rglob("*.tcl")):
+    for entry in parse_file(tcl_file, on_diagnostic=sink):
+        proc_index[entry.canonical_name] = entry
+```
+
+Files are walked in lexicographic order so the index is built the same way on every run and every host. This flat map is the single lookup table the tracer consults for the entire run.
+
+> **Why a single global index, not per-file tables?** Tcl namespaces cross file boundaries. A proc defined in `a.tcl` inside `namespace eval ::foo { ... }` is callable from `b.tcl` as either `foo::proc_name` or (if the caller is in `::foo`) just `proc_name`. Only a single domain-wide index can resolve that correctly; per-file tables would force a second stitching pass that does the same work.
+
+**Step 3 — Resolve calls during the BFS walk (P4, per popped proc).**
+The tracer pops one proc off the frontier, reads its `calls` tokens, and resolves each token under the deterministic lexical namespace contract from §5.4 ("Trace expansion algorithm", step 6):
+
+- `::ns::helper` — absolute; exact match on qualified name `ns::helper`.
+- `ns::helper` — relative; try `<caller_namespace>::ns::helper`, then `ns::helper` at global scope.
+- `helper` — bare; try `<caller_namespace>::helper`, then `helper` at global scope.
+
+For each candidate qualified name, the tracer searches the proc index for exactly one match within the selected domain:
+
+- Exactly one match → resolved edge, callee queued into the frontier if unseen.
+- Multiple matches → `TW-01`, no resolution.
+- Zero matches after all candidates exhausted → `TW-02`, no resolution.
+- Dynamic / syntactically unresolvable token (`$cmd`, `[x] ...`) → `TW-03`.
+- Callee already in the traced set → cycle; `TW-04` with the cycle path, and the callee is not re-queued (BFS visited-set terminates).
+
+**Design consequences of this split:**
+
+- The parser can be tested in complete isolation. No other files are required, no index assembly, no namespace walking.
+- Trace resolution is deterministic independent of parse order because the index is built in sorted order and the frontier is always popped in lex order.
+- Adding a new file to the domain cannot change any existing `ProcEntry`; it can only add new keys to the index and new resolution candidates.
+- The parser-to-tracer handoff is the contract enforced by the `ProcEntry.calls` / `source_refs` fields and their invariants in [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §6.1. Violations of that contract are caught in parser unit tests, not in integration tests.
 
 ### 5.5 Audit Trail
 
@@ -2694,6 +2823,7 @@ This log records the conscious design decisions that shaped the current document
 | 2026-04-20 | Propagated the "trace is reporting-only" contract so the PI+/PT semantics are unmistakable at every authoring and implementation surface. Added a concrete worked example to §5.4 showing `foo` (listed in `procedures.include`) is copied while `bar` (reached only via trace) appears in `dependency_graph.json` and `trim_report.json` but is not copied. Promoted Scenario 14 in `tests/TESTING_STRATEGY.md` from a "no diagnostic" assertion to a real `TW-04 cycle-in-call-graph` assertion that also pins the no-auto-copy rule. Rewrote `docs/RISKS_AND_PITFALLS.md` Pitfall P-09 to strike the stale "`procedures.exclude` filters trace-derived proc candidates" mental model — under the additive L1/L2/L3 model, trace never adds survivors and PE is a same-source proc-trimming instruction governed by VW-09/VW-10/VW-11/VW-12/VW-18. Added Critical Principle #7 ("Trace Is Reporting-Only (Never Copies)") to `AGENTS.md`. Added a pull-quote callout to `json_kit/docs/JSON_AUTHORING_GUIDE.md` merge-semantics section. No diagnostic-registry changes were required. |
 | 2026-04-20 | Docs-hygiene pass. Reframed implementation timeline in terms of stage boundaries tied to module dependency order (Stage 0 `core/` → Stage 1 `parser/` → Stage 2 `compiler/` → Stage 3 `trimmer/` → Stage 4 `validator/` → Stage 5 `cli/`) across `AGENTS.md`, `tests/TESTING_STRATEGY.md`, `tests/FIXTURE_CATALOG.md`, `tests/GOLDEN_FILE_GUIDE.md`, `tests/fixtures/gen_large_domain.py`, and `tests/integration/crash_harness.py`, replacing the previous Day/Sprint/Week labels which implied calendar time. Removed `Status: Draft` / `Author:` / `Last Updated:` banners from the live spec set (the revision history is the living record of authorship and currency). Folded `TCL_PARSER_SPEC.md` §11 "Addendum A" into the main body: A.1 (PE-01 timing and error-message format) became new §6.3 so the timing rule sits next to the §6.1 invariants it enforces, and A.2 (namespace-resolution cross-reference) was dropped as redundant with §5.3.1. The general rule against Addendum sections in specs is recorded as a **Documentation Convention** in `AGENTS.md` (with rationale) so it is discoverable to future authors rather than buried in this log. |
 | 2026-04-20 | Consolidated `AGENTS.md` into `.github/instructions/project.instructions.md` and deleted the root `AGENTS.md`. The split between an "agent instructions" file (`AGENTS.md`) and a "project conventions" file (`.github/instructions/project.instructions.md`) had become a distinction without a difference — both held the same category of guardrail (architecture, critical principles, code style, testing standards, module guidance, diagnostic-code rules). Keeping two files meant rules drifted and contributors had to hunt. The consolidated file is the single entry point applied to every file (`applyTo: '**'`) so Copilot and humans read the same source. Updated live pointers in `README.md` and `docs/chopper_description.md` (§9.x, §11.x cross-reference table). Revision-history mentions of `AGENTS.md` in this log and in `TCL_PARSER_SPEC.md` are kept as historical references; only the active pointer in TCL_PARSER_SPEC Rev 11 was retargeted. |
+| 2026-04-20 | Embedded two narrative walkthroughs into §5 so the pipeline contract is understandable without cross-referencing code or test fixtures. Added §5.2.1 "End-to-End Walkthrough" expanding the compact P0–P7 ASCII diagram into the concrete data flow each phase consumes, produces, and hands off (run context → proc index → compiled manifest → dependency graph → staging → audit bundle). Added §5.4.1 "Per-File Parsing to Global Call Tree" making the parser-to-tracer handoff explicit: per-file `parse_file()` returns `list[ProcEntry]` with unresolved `calls` / `source_refs`; the compiler concatenates them into one flat global `dict[canonical_name, ProcEntry]` walked in lexicographic order; P4 BFS resolves call tokens against that index under the deterministic namespace contract, emitting `TW-01`/`TW-02`/`TW-03`/`TW-04` as warranted. No normative behavior changed — this is documentation of already-contracted semantics that were previously only discoverable by reading §5.4 step-by-step plus the §6 proc-index contract. A dedicated `docs/TECHNICAL_IMPLEMENTATION.md` covering service wiring, global data stores, and diagnostic routing will be authored as a separate peer document; §5.3.1 now links to it by name. |
 
 ---
 

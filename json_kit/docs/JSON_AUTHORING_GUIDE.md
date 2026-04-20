@@ -26,7 +26,7 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 | JSON Type | Schema `$id` | Purpose |
 |-----------|-------------|---------|
 | **Base** | `chopper/base/v1` | Defines the minimal viable flow for a domain. Every project needs exactly one base. |
-| **Feature** | `chopper/feature/v1` | Extends, overrides, or removes elements of the base. Zero or more features per project. |
+| **Feature** | `chopper/feature/v1` | Extends or removes elements of the base via file/proc/stage selections. Zero or more features per project. |
 | **Project** | `chopper/project/v1` | Selects and orders one base and zero or more features for a specific trim run. |
 
 **Relationship:**
@@ -34,12 +34,12 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 ```
 project.json
   └── base.json          (one, required)
-  └── feature_a.json     (optional, applied first)
-  └── feature_b.json     (optional, applied second)
-  └── feature_c.json     (optional, applied third)
+  └── feature_a.json     (optional)
+  └── feature_b.json     (optional)
+  └── feature_c.json     (optional)
 ```
 
-Features are applied in the order listed in the project file. Later features see the result of earlier ones.
+Feature order in the project file matters **only for F3 flow_actions sequencing** (each action is performed in feature order) and for **depends_on validation** (each prerequisite must appear earlier). **F1/F2 merging is order-independent:** file and proc include/exclude selections are aggregated as set unions regardless of feature order, so reordering features does not change the trimmed output — only F3 stage modifications depend on sequence.
 
 ---
 
@@ -257,7 +257,7 @@ Equivalent JSON stage definition:
 | `base` | string | Yes | Domain-relative path to the base JSON |
 | `owner` | string | No | Project owner |
 | `release_branch` | string | No | Git branch for this trim |
-| `features` | string[] | No | Ordered feature JSON paths (earlier = lower-priority) |
+| `features` | string[] | No | Feature JSON paths in the order they will be processed for F3 flow_actions and depends_on validation. F1/F2 merging is order-independent. |
 | `notes` | string[] | No | Human-readable rationale for feature order |
 
 ### Path conventions
@@ -460,10 +460,17 @@ Glob patterns support three special characters to match multiple files:
 
 ### Merge and conflict semantics (when Chopper runs)
 
-1. Explicit `include` always overrides `exclude` at the same granularity
-2. Later features override earlier ones for the same element
-3. `depends_on` ordering is validated but does not auto-sort features
+**F1/F2 (File and Proc Trimming) — Order-Independent:**
+1. Explicit `include` always overrides `exclude` at the same granularity (within a single JSON source or aggregated across sources)
+2. File and proc include/exclude selections are aggregated as **set unions** across all base and feature JSONs — feature order does not affect the result
 
+**F3 (Flow Actions) — Order-Dependent:**
+3. Feature order is authoritative: each feature's `flow_actions` are performed in the order listed, and each action sees the result of previous actions
+4. `depends_on` ordering is validated: each prerequisite feature must appear earlier in the `features` list than the dependent feature
+
+> **F1/F2 Aggregation — Set Union, Order-Independent**
+> All `files.include`, `files.exclude`, `procedures.include`, and `procedures.exclude` selections from the base and all features are merged using set-union semantics. Reordering features in the project file does not change which files or procs are included in the trimmed domain. Order is applied **only** to F3 flow_actions and `depends_on` validation.
+>
 > **Trace is logging-only — it does not copy procs.**
 > Chopper's P4 trace expansion walks your `procedures.include` set to build a call tree (`dependency_graph.json`) and emit `TW-*` warnings. Traced callees appear in the call tree and in `trim_report.json`, but **only procs explicitly listed in `procedures.include`** (or whole-file-included via `files.include`) are copied into the trimmed domain. Example: if you list `foo` and `foo` calls `bar`, `foo` is copied and `bar` is logged. To keep `bar`, list it explicitly. This is why `procedures.exclude` never needs to "hide" traced callees — they were never going to be copied.
 
