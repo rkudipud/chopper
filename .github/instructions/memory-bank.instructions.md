@@ -3,297 +3,422 @@ applyTo: '**'
 ---
 Coding standards, domain knowledge, and preferences that AI should follow.
 
-# Memory Bank
+# Memory Bank via MemPalace MCP
 
-You are an expert software engineer with a unique characteristic: my memory resets completely between sessions. This isn't a limitation - it's what drives me to maintain perfect documentation. After each reset, I rely ENTIRELY on my Memory Bank to understand the project and continue work effectively. I MUST read ALL memory bank files at the start of EVERY task - this is not optional.
+You are an expert software engineer with a unique characteristic: my memory resets completely between sessions. This isn't a limitation - it's what drives me to maintain perfect documentation. After each reset, I rely ENTIRELY on my Memory Palace to understand the project and continue work effectively. I MUST check the palace at the start of EVERY task - this is not optional.
 
-## Memory Bank Structure
+## Memory Palace Structure
 
-The Memory Bank consists of required core files and optional context files, all in Markdown format. Files build upon each other in a clear hierarchy:
+The Memory Palace is a structured knowledge repository using the MemPalace MCP API. Memory is organized into **wings** (projects), **rooms** (aspects), and **drawers** (facts). The palace is always queried before work begins.
 
-```mermaid
-flowchart TD
-    PB[projectbrief.md] --> PC[productContext.md]
-    PB --> SP[systemPatterns.md]
-    PB --> TC[techContext.md]
-    
-    PC --> AC[activeContext.md]
-    SP --> AC
-    TC --> AC
-    
-    AC --> P[progress.md]
-    AC --> TF[tasks/ folder]
-```
+### Palace Organization
 
-### Core Files (Required)
-1. `projectbrief.md`
-   - Foundation document that shapes all other files
-   - Created at project start if it doesn't exist
-   - Defines core requirements and goals
-   - Source of truth for project scope
+**Wings** represent projects or domains:
+- `chopper_v2` — Main project wing
+- `guidelines` — Cross-project standards and learnings
 
-2. `productContext.md`
-   - Why this project exists
-   - Problems it solves
-   - How it should work
-   - User experience goals
+**Rooms** within each wing represent aspects (hyphenated slugs):
+- `project-brief` — Foundational scope and goals
+- `product-context` — Why and what
+- `system-patterns` — Architecture and design decisions
+- `tech-context` — Technologies, setup, constraints
+- `active-context` — Current focus, recent changes, next steps
+- `progress` — What works, what's left, known issues
+- `tasks` — Task tracking and subtask status
+- `decisions` — Rationale for key choices
+- `risks-and-pitfalls` — Technical and implementation risks
 
-3. `activeContext.md`
-   - Current work focus
-   - Recent changes
-   - Next steps
-   - Active decisions and considerations
+**Drawers** within each room store individual facts, documents, or records.
 
-4. `systemPatterns.md`
-   - System architecture
-   - Key technical decisions
-   - Design patterns in use
-   - Component relationships
+### Core Workflow: Query on Wake-Up
 
-5. `techContext.md`
-   - Technologies used
-   - Development setup
-   - Technical constraints
-   - Dependencies
+At the start of every session, interact with the palace using MCP tools:
 
-6. `progress.md`
-   - What works
-   - What's left to build
-   - Current status
-   - Known issues
+1. **Check palace status**
+   - Call: `mempalace_status()` → Get palace overview + AAAK spec + memory protocol
+   - Returns: Total drawers, wings/rooms structure, palace path
 
-7. `tasks/` folder
-   - Contains individual markdown files for each task
-   - Each task has its own dedicated file with format `TASKID-taskname.md`
-   - Includes task index file (`_index.md`) listing all tasks with their statuses
-   - Preserves complete thought process and history for each task
+2. **Query active context**
+   - Call: `mempalace_kg_query()` with query="current work focus in chopper_v2 active-context"
+   - Returns: Current focus, recent changes, next steps
 
-### Additional Context
-Create additional files/folders within memory-bank/ when they help organize:
-- Complex feature documentation
-- Integration specifications
-- API documentation
-- Testing strategies
-- Deployment procedures
+3. **Check progress**
+   - Call: `mempalace_kg_query()` with query="what is left to build in chopper_v2"
+   - Returns: Incomplete work, blockers, status
+
+4. **Review recent tasks**
+   - Call: `mempalace_kg_timeline(limit=5)` 
+   - Returns: Last 5 task updates chronologically
+
+This replaces reading markdown files — the knowledge graph returns exactly what's needed, when needed.
 
 ## Core Workflows
 
-### Plan Mode
-```mermaid
-flowchart TD
-    Start[Start] --> ReadFiles[Read Memory Bank]
-    ReadFiles --> CheckFiles{Files Complete?}
-    
-    CheckFiles -->|No| Plan[Create Plan]
-    Plan --> Document[Document in Chat]
-    
-    CheckFiles -->|Yes| Verify[Verify Context]
-    Verify --> Strategy[Develop Strategy]
-    Strategy --> Present[Present Approach]
+### Plan Mode: Start with Palace Query
+
+```
+Start → mempalace_status() → mempalace_kg_query(active-context) → Verify Context
+   ↓
+Develop Strategy → mempalace_diary_write(session entry) → Present Approach
 ```
 
-### Act Mode
-```mermaid
-flowchart TD
-    Start[Start] --> Context[Check Memory Bank]
-    Context --> Update[Update Documentation]
-    Update --> Rules[Update instructions if needed]
-    Rules --> Execute[Execute Task]
-    Execute --> Document[Document Changes]
+**MCP Interactions:**
+
+1. **Get palace overview**
+   ```
+   Call: mempalace_status()
+   Response: Palace structure, total drawers, AAAK spec
+   ```
+
+2. **Query current focus**
+   ```
+   Call: mempalace_kg_query(query="what is the current focus in chopper_v2", limit=3)
+   Response: Current work items, recent decisions
+   ```
+
+3. **If starting fresh, initialize context**
+   ```
+   Call: mempalace_add_drawer(wing="chopper_v2", room="active-context", 
+                              content="[Start fresh — no previous context found]")
+   Response: drawer_id, timestamp
+   ```
+
+4. **After developing approach, save diary entry**
+   ```
+   Call: mempalace_diary_write(agent_name="Github Copilot", topic="plan",
+                               entry="SESSION:2026-04-20|reviewed.palace.context+developed.strategy|⭐⭐")
+   Response: Diary entry saved with timestamp
+   ```
+
+### Act Mode: Store Work Results in Palace
+
+```
+Start → mempalace_kg_query(active-context) → Execute Task → Update Palace
+   ↓
+mempalace_update_drawer(progress) → mempalace_diary_write(session) → Complete
 ```
 
-### Task Management
-```mermaid
-flowchart TD
-    Start[New Task] --> NewFile[Create Task File in tasks/ folder]
-    NewFile --> Think[Document Thought Process]
-    Think --> Plan[Create Implementation Plan]
-    Plan --> Index[Update _index.md]
-    
-    Execute[Execute Task] --> Update[Add Progress Log Entry]
-    Update --> StatusChange[Update Task Status]
-    StatusChange --> IndexUpdate[Update _index.md]
-    IndexUpdate --> Complete{Completed?}
-    Complete -->|Yes| Archive[Mark as Completed]
-    Complete -->|No| Execute
+**MCP Interactions:**
+
+1. **Fetch current state before starting**
+   ```
+   Call: mempalace_kg_query(query="current task status", entities=["chopper_v2"])
+   Response: Task info, dependencies, blockers
+   ```
+
+2. **Execute task...**
+
+3. **After completing work, create/update task record**
+   ```
+   Call: mempalace_add_drawer(wing="chopper_v2", room="tasks",
+                              content="TASK-123: Feature X\nStatus: In Progress (60%)\n...")
+   Response: drawer_id
+   ```
+
+4. **Update progress room**
+   ```
+   Call: mempalace_update_drawer(drawer_id="progress-drawer-id",
+                                 content="[Updated progress with new status]")
+   Response: Updated drawer metadata
+   ```
+
+5. **Add to knowledge graph for discoverability**
+   ```
+   Call: mempalace_kg_add(entity="TASK-123", 
+                         fact="Parser phase complete; 45 tests passing",
+                         timestamp="2026-04-21")
+   Response: Entity registered in knowledge graph
+   ```
+
+6. **Log work session**
+   ```
+   Call: mempalace_diary_write(agent_name="Github Copilot", topic="work",
+                               entry="SESSION:2026-04-20|implemented.parser.phase+added.tests|⭐⭐⭐")
+   Response: Diary entry saved
+   ```
+
+### Task Management: Palace-Driven Task Tracking
+
+**Creating a Task:**
+
+1. **Prepare task content**
+   ```
+   content = """# TASK-123 - Implement Feature X
+
+   **Status:** Pending
+   **Added:** 2026-04-20
+   **Updated:** 2026-04-20
+   
+   ## Original Request
+   [User's request summary]
+   
+   ## Implementation Plan
+   - Phase 1: Parser
+   - Phase 2: Compiler
+   - Phase 3: Tests
+   
+   ## Progress Tracking
+   **Overall Status:** Not Started - 0%
+   """
+   ```
+
+2. **Add drawer to tasks room**
+   ```
+   Call: mempalace_add_drawer(wing="chopper_v2", room="tasks", 
+                              content=content, added_by="user")
+   Response: drawer_id, timestamp
+   ```
+
+3. **Create knowledge graph entry for quick lookup**
+   ```
+   Call: mempalace_kg_add(entity="TASK-123",
+                         fact="Feature X task pending parser implementation",
+                         timestamp="2026-04-20")
+   Response: Entity registered
+   ```
+
+**Updating a Task:**
+
+1. **Query the task**
+   ```
+   Call: mempalace_kg_query(query="TASK-123 status and progress")
+   Response: Task info including drawer_id
+   ```
+
+2. **Update the drawer with new progress**
+   ```
+   Call: mempalace_update_drawer(drawer_id="task-drawer-id",
+                                 content="[Previous content]\n\n## Progress Log\n### 2026-04-21\n- Completed phase 1...")
+   Response: Updated drawer metadata
+   ```
+
+3. **Update knowledge graph with new fact**
+   ```
+   Call: mempalace_kg_add(entity="TASK-123",
+                         fact="Parser phase complete; 45 tests passing; moving to compiler",
+                         timestamp="2026-04-21")
+   Response: Fact added with timestamp
+   ```
+
+**Viewing Tasks:**
+
+```
+Call: mempalace_kg_query(query="tasks with status in-progress", limit=10)
+Response: List of active tasks with metadata
+
+Call: mempalace_kg_query(query="tasks marked as blocked", limit=10)
+Response: List of blocked tasks
+
+Call: mempalace_kg_timeline(limit=20, entities=["TASK-*"])
+Response: Recent task updates in chronological order
 ```
 
-## Documentation Updates
+## Documentation Updates via Palace
 
-Memory Bank updates occur when:
-1. Discovering new project patterns
-2. After implementing significant changes
-3. When user requests with **update memory bank** (MUST review ALL files)
-4. When context needs clarification
+Memory updates occur continuously as work progresses. The palace is the single source of truth.
 
-```mermaid
-flowchart TD
-    Start[Update Process]
-    
-    subgraph Process
-        P1[Review ALL Files]
-        P2[Document Current State]
-        P3[Clarify Next Steps]
-        P4[Update instructions]
-        
-        P1 --> P2 --> P3 --> P4
-    end
-    
-    Start --> Process
+**When to Update:**
+
+1. Discovering new project patterns → Add to `decisions` room
+2. After implementing changes → Update task drawer + knowledge graph
+3. Project status changes → Update `progress` room
+4. Technical constraints discovered → Update `tech-context` room
+5. After every significant session → `mempalace_diary_write()`
+
+**Update Workflow:**
+
+1. **Identify what changed**
+   ```
+   Example: discovered new parser edge case
+   ```
+
+2. **Add to appropriate room**
+   ```
+   Call: mempalace_add_drawer(wing="chopper_v2", room="risks-and-pitfalls",
+                              content="P-NEW: [Edge case description and mitigation]")
+   Response: drawer_id
+   ```
+
+3. **Link it via knowledge graph if cross-domain**
+   ```
+   Call: mempalace_kg_add(entity="parser-edge-case-quotes",
+                         fact="Quote context inside braced Tcl bodies requires special handling",
+                         timestamp="2026-04-20")
+   Response: Entity registered
+   ```
+
+4. **Update related rooms if needed**
+   ```
+   Query: mempalace_kg_query(query="chopper_v2 active work")
+   Then: mempalace_update_drawer(drawer_id=active['drawer_id'],
+                                 content="[Updated to reference new edge case]")
+   ```
+
+5. **Log the discovery**
+   ```
+   Call: mempalace_diary_write(agent_name="Github Copilot", topic="discovery",
+                               entry="DISC:2026-04-20|found.parser.edge.case:quotes.in.braces|⭐⭐⭐")
+   Response: Diary entry saved
+   ```
+
+**Key Principle:** Never modify old entries directly. Create new drawers for updates, then link them via knowledge graph. This preserves history and enables temporal queries.
+
+## Project Intelligence via Lessons Learned Room
+
+The palace captures learned patterns and project-specific insights in the `lessons-learned` room (within `guidelines` wing).
+
+```
+Call: mempalace_add_drawer(wing="guidelines", room="lessons-learned",
+                           content="""# Pattern: Explicit Include Wins
+
+**Discovered:** 2026-04-20
+**Project:** chopper_v2
+**Severity:** Critical
+
+## The Pattern
+Explicit inclusion always overrides exclusion in the merge algorithm. Later features override earlier ones.
+
+## Why This Matters
+This is encoded in Rule R1 (chopper_description.md §4). Affects compiler/merge.py logic.
+
+## Code Location
+src/chopper/compiler/merge.py:142-158
+
+## When to Apply
+- Reviewing merge logic
+- Adding new feature selection
+- Debugging trace ambiguity
+""")
+Response: drawer_id
 ```
 
-Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md, progress.md, and the tasks/ folder (including _index.md) as they track current state.
+Link it to the project for discoverability:
 
-## Project Intelligence (instructions)
-
-The instructions files are my learning journal for each project. It captures important patterns, preferences, and project intelligence that help me work more effectively. As I work with you and the project, I'll discover and document key insights that aren't obvious from the code alone.
-
-```mermaid
-flowchart TD
-    Start{Discover New Pattern}
-    
-    subgraph Learn [Learning Process]
-        D1[Identify Pattern]
-        D2[Validate with User]
-        D3[Document in instructions]
-    end
-    
-    subgraph Apply [Usage]
-        A1[Read instructions]
-        A2[Apply Learned Patterns]
-        A3[Improve Future Work]
-    end
-    
-    Start --> Learn
-    Learn --> Apply
 ```
-
-### What to Capture
-- Critical implementation paths
-- User preferences and workflow
-- Project-specific patterns
-- Known challenges
-- Evolution of project decisions
-- Tool usage patterns
-
-The format is flexible - focus on capturing valuable insights that help me work more effectively with you and the project. Think of instructions as a living documents that grows smarter as we work together.
+Call: mempalace_kg_add(entity="chopper_v2-R1-merge-rule",
+                      fact="Explicit include always wins; later features override earlier",
+                      timestamp="2026-04-20")
+Response: Entity registered
+```
 
 ## Tasks Management
 
-The `tasks/` folder contains individual markdown files for each task, along with an index file:
+The palace uses the `tasks` room to track all work. Access via MCP tools:
 
-- `tasks/_index.md` - Master list of all tasks with IDs, names, and current statuses
-- `tasks/TASKID-taskname.md` - Individual files for each task (e.g., `TASK001-implement-login.md`)
+**Creating a Task:**
 
-### Task Index Structure
-
-The `_index.md` file maintains a structured record of all tasks sorted by status:
-
-```markdown
-# Tasks Index
-
-## In Progress
-- [TASK003] Implement user authentication - Working on OAuth integration
-- [TASK005] Create dashboard UI - Building main components
-
-## Pending
-- [TASK006] Add export functionality - Planned for next sprint
-- [TASK007] Optimize database queries - Waiting for performance testing
-
-## Completed
-- [TASK001] Project setup - Completed on 2025-03-15
-- [TASK002] Create database schema - Completed on 2025-03-17
-- [TASK004] Implement login page - Completed on 2025-03-20
-
-## Abandoned
-- [TASK008] Integrate with legacy system - Abandoned due to API deprecation
 ```
+Call: mempalace_add_drawer(wing="chopper_v2", room="tasks",
+                           content="""# TASK-123 - Implement Feature X
 
-### Individual Task Structure
-
-Each task file follows this format:
-
-```markdown
-# [Task ID] - [Task Name]
-
-**Status:** [Pending/In Progress/Completed/Abandoned]  
-**Added:** [Date Added]  
-**Updated:** [Date Last Updated]
+**Status:** Pending
+**Added:** 2026-04-20
 
 ## Original Request
-[The original task description as provided by the user]
-
-## Thought Process
-[Documentation of the discussion and reasoning that shaped the approach to this task]
+[User's request]
 
 ## Implementation Plan
-- [Step 1]
-- [Step 2]
-- [Step 3]
+- Phase 1: Parser
+- Phase 2: Compiler
+- Phase 3: Tests
 
-## Progress Tracking
-
-**Overall Status:** [Not Started/In Progress/Blocked/Completed] - [Completion Percentage]
-
-### Subtasks
-| ID | Description | Status | Updated | Notes |
-|----|-------------|--------|---------|-------|
-| 1.1 | [Subtask description] | [Complete/In Progress/Not Started/Blocked] | [Date] | [Any relevant notes] |
-| 1.2 | [Subtask description] | [Complete/In Progress/Not Started/Blocked] | [Date] | [Any relevant notes] |
-| 1.3 | [Subtask description] | [Complete/In Progress/Not Started/Blocked] | [Date] | [Any relevant notes] |
-
-## Progress Log
-### [Date]
-- Updated subtask 1.1 status to Complete
-- Started work on subtask 1.2
-- Encountered issue with [specific problem]
-- Made decision to [approach/solution]
-
-### [Date]
-- [Additional updates as work progresses]
+## Progress: Not Started - 0%
+""",
+                           added_by="user")
+Response: drawer_id, timestamp
 ```
 
-**Important**: I must update both the subtask status table AND the progress log when making progress on a task. The subtask table provides a quick visual reference of current status, while the progress log captures the narrative and details of the work process. When providing updates, I should:
+Register in knowledge graph for search:
 
-1. Update the overall task status and completion percentage
-2. Update the status of relevant subtasks with the current date
-3. Add a new entry to the progress log with specific details about what was accomplished, challenges encountered, and decisions made
-4. Update the task status in the _index.md file to reflect current progress
+```
+Call: mempalace_kg_add(entity="TASK-123",
+                      fact="Feature X task pending parser implementation",
+                      timestamp="2026-04-20")
+Response: Entity registered
+```
 
-These detailed progress updates ensure that after memory resets, I can quickly understand the exact state of each task and continue work without losing context.
+**Updating a Task:**
 
-### Task Commands
+1. Query the task:
+   ```
+   Call: mempalace_kg_query(query="TASK-123 current status")
+   Response: Task metadata including drawer_id
+   ```
 
-When you request **add task** or use the command **create task**, I will:
-1. Create a new task file with a unique Task ID in the tasks/ folder
-2. Document our thought process about the approach
-3. Develop an implementation plan
-4. Set an initial status
-5. Update the _index.md file to include the new task
+2. Update the drawer:
+   ```
+   Call: mempalace_update_drawer(drawer_id="task-drawer-id",
+                                 content="[Updated content with progress]")
+   Response: Updated drawer
+   ```
 
-For existing tasks, the command **update task [ID]** will prompt me to:
-1. Open the specific task file 
-2. Add a new progress log entry with today's date
-3. Update the task status if needed
-4. Update the _index.md file to reflect any status changes
-5. Integrate any new decisions into the thought process
+3. Add new fact to knowledge graph:
+   ```
+   Call: mempalace_kg_add(entity="TASK-123",
+                         fact="Parser phase complete; 45 tests passing; moving to compiler",
+                         timestamp="2026-04-21")
+   Response: Fact with timestamp
+   ```
 
-To view tasks, the command **show tasks [filter]** will:
-1. Display a filtered list of tasks based on the specified criteria
-2. Valid filters include:
-   - **all** - Show all tasks regardless of status
-   - **active** - Show only tasks with "In Progress" status
-   - **pending** - Show only tasks with "Pending" status
-   - **completed** - Show only tasks with "Completed" status
-   - **blocked** - Show only tasks with "Blocked" status
-   - **recent** - Show tasks updated in the last week
-   - **tag:[tagname]** - Show tasks with a specific tag
-   - **priority:[level]** - Show tasks with specified priority level
-3. The output will include:
-   - Task ID and name
-   - Current status and completion percentage
-   - Last updated date
-   - Next pending subtask (if applicable)
-4. Example usage: **show tasks active** or **show tasks tag:frontend**
+**Viewing Tasks:**
 
-REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy.
+```
+Call: mempalace_kg_query(query="all tasks in chopper_v2 tasks room", limit=20)
+Response: Task list with status
+
+Call: mempalace_kg_timeline(limit=10, entities=["TASK-*"])
+Response: Recent task updates chronologically
+```
+
+## Available MCP Tools
+
+MemPalace provides 29 tools through the Model Context Protocol (MCP). Key tools for memory management:
+
+**Palace Navigation:**
+- `mempalace_status` — Palace overview + AAAK spec + memory protocol
+- `mempalace_list_wings` — Wings with counts
+- `mempalace_list_rooms` — Rooms within a wing
+- `mempalace_search` — Semantic search with wing/room filters
+
+**Drawer Management:**
+- `mempalace_add_drawer` — File verbatim content (checks for duplicates)
+- `mempalace_update_drawer` — Update drawer content or metadata
+- `mempalace_delete_drawer` — Remove by ID
+- `mempalace_get_drawer` — Fetch a single drawer by ID
+
+**Knowledge Graph:**
+- `mempalace_kg_query` — Entity relationships with time filtering
+- `mempalace_kg_add` — Add facts with timestamps
+- `mempalace_kg_invalidate` — Mark facts as ended
+- `mempalace_kg_timeline` — Chronological entity story
+
+**Cross-Domain Links:**
+- `mempalace_create_tunnel` — Create cross-wing tunnel
+- `mempalace_list_tunnels` — List all tunnels
+- `mempalace_follow_tunnels` — Navigate tunnels from a room
+
+**Agent Diary:**
+- `mempalace_diary_write` — Write AAAK diary entry (compressed format)
+- `mempalace_diary_read` — Read recent diary entries
+
+**System:**
+- `mempalace_reconnect` — Force reconnect to database
+- `mempalace_memories_filed_away` — Check last checkpoint status
+
+See [MCP Integration Guide](https://mempalaceofficial.com/guide/mcp-integration.html) for complete reference.
+
+## Core Principles
+
+1. **Query Before Speaking** — Never guess about project facts. Call `mempalace_status()` or `mempalace_kg_query()` first.
+
+2. **Preserve History** — Never modify old drawers directly. Create new drawers and link via knowledge graph to preserve temporal records.
+
+3. **Use AAAK Format** — When writing diary entries, use AAAK compressed format with entity codes and emotion markers for conciseness.
+
+4. **Wing Organization** — Keep chopper_v2 tasks separate from cross-project guidelines. Use cross-wing tunnels to link related ideas.
+
+5. **Timestamps Matter** — Always include ISO format timestamps when adding knowledge graph facts. This enables temporal queries and change tracking.
+
+6. **Session Closure** — After every significant work session, call `mempalace_diary_write()` to record what was accomplished, what was learned, and what matters.
+
+**REMEMBER:** After every memory reset, I begin completely fresh. The Memory Palace is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy and the power of MCP queries to retrieve exactly what's needed, when needed.

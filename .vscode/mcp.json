@@ -1,0 +1,34 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "tavily_api_key",
+      "description": "Tavily API Key",
+      "password": true
+    }
+  ],
+  "servers": {
+    "mempalace": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "-m",
+        "mempalace.mcp_server",
+        "--palace",
+        "${workspaceFolder}"
+      ]
+    },
+    "tavily": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "tavily-mcp@latest"
+      ],
+      "env": {
+        "TAVILY_API_KEY": "${input:tavily_api_key}"
+      }
+    }
+  }
+}
