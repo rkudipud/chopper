@@ -406,8 +406,8 @@ Special: Handle single-character proc names
 | **Brace counting** | Rule 6 aware (quotes literal in braced bodies) | No Rule 6 awareness |
 | **Comment handling** | Command-position only (Tcl Rule 10) | Partial (line-start heuristic) |
 | **Backslash continuation** | Preserve original lines, track line numbers | Some support, not fully spec'd |
-| **Computed proc names** | Skip with `PARSE-DYNA-01` warning | Skip with `print` warning |
-| **Duplicate procs** | Error `PARSER-DUP-01`, last-wins | Warning, both kept |
+| **Computed proc names** | Skip with `PW-01 computed-proc-name` warning | Skip with `print` warning |
+| **Duplicate procs** | Error `PE-01 duplicate-proc-definition`, last-wins | Warning, both kept |
 | **Call extraction** | Deterministic namespace resolution contract | 4-level heuristic filter |
 | **Trace algorithm** | BFS, lexicographically sorted frontier | Iterative convergence (reverse) |
 | **Merge semantics** | Explicit include always wins | Not applicable (dead code model) |

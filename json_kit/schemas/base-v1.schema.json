@@ -28,11 +28,6 @@
       "type": "string",
       "description": "Tool name (e.g., formality, primetime, innovus)"
     },
-    "_draft": {
-      "type": "boolean",
-      "default": false,
-      "description": "Set by scan operation to mark output as machine-generated draft (not yet curated by domain owner). Scan-generated base.json MUST carry _draft=true."
-    },
     "description": {
       "type": "string",
       "description": "Human-readable description of what this base flow covers"
@@ -49,7 +44,7 @@
         "template_script": {
           "type": "string",
           "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)[^\\\\]*$",
-          "description": "Domain-relative path to a script under the selected domain root. Chopper executes it once at the end of a successful trim run. Must not contain '..' traversal. Python-level validation (V-26) also resolves the real path via Path.resolve() and asserts it stays within the domain root to prevent symlink escape."
+          "description": "Reserved (v1): domain-relative path to a script under the selected domain root. The field is retained in the schema for forward compatibility but Chopper v1 does not execute it. When present, Chopper validates the path shape (forward slashes, no '..' traversal, no absolute paths) and that, after `Path.resolve()`, the real path stays within the domain root (symlink escape check, `VE-18`). Any runtime execution semantics are out of scope for v1."
         }
       },
       "additionalProperties": false
@@ -100,7 +95,7 @@
             "$ref": "#/$defs/procEntry"
           },
           "minItems": 1,
-          "description": "Proc-level excludes used to prune trace-derived proc candidates. Does not remove explicit procedures.include entries. MUST NOT be empty if procedures.exclude is present."
+          "description": "Proc-level excludes. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE). Does not remove explicit procedures.include entries from any source and does not remove whole-file includes. Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
         }
       }
     },

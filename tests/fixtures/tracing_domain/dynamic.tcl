@@ -7,13 +7,13 @@ proc caller_proc {} {
     # Bracketed call — should be traced
     set result [bracketed_helper arg1]
 
-    # Dynamic dispatch — should warn TRACE-UNRESOLV-01
+    # Dynamic dispatch — should warn TW-03 dynamic-call-form
     $cmd arg1 arg2
 
-    # Eval-based — should warn TRACE-UNRESOLV-01
+    # Eval-based — should warn TW-03 dynamic-call-form
     eval "dynamic_proc arg1"
 
-    # Uplevel — should warn TRACE-UNRESOLV-01
+    # Uplevel — should warn TW-03 dynamic-call-form
     uplevel 1 some_proc
 
     return $result

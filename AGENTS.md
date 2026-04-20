@@ -80,16 +80,18 @@ class ProcEntry:
 ```
 
 ### 2. Diagnostic Codes (Authoritative Registry)
-All diagnostic codes **must** be registered in [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md) before use:
-- **V-01 to V-26:** Validation (phases 1 & 2)
-- **TRACE-xx:** Trace expansion warnings
-- **PARSER-xx / PARSE-xx:** Parser errors/warnings
+All diagnostic codes **must** be registered in [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md) before use. Codes follow the pattern `<FAMILY><SEV>-<NN>`:
+- **`VE-NN` / `VW-NN` / `VI-NN`** — Validation errors / warnings / info (phases 1 & 2)
+- **`TW-NN`** — Trace warnings (phase 3 trace expansion)
+- **`PE-NN` / `PW-NN` / `PI-NN`** — Parser errors / warnings / info
+
+Example slots: `VE-06 file-not-in-domain`, `VW-10 cross-source-fe-vetoed`, `TW-03 dynamic-call-form`, `PE-01 duplicate-proc-definition`. The numeric code is the canonical key in Python and JSON; each code also carries a kebab-case slug used for human-facing rendering.
 
 Code example:
 ```python
 from chopper.core.diagnostics import Diagnostic
 
-diag = Diagnostic(code="V-03", severity="error", message="...", line_no=42)
+diag = Diagnostic(code="VE-06", severity="error", message="...", line_no=42)
 ```
 
 ### 3. Path Handling
@@ -116,22 +118,30 @@ This ensures reproducible output across runs.
 
 ### 6. Explicit Include Wins
 The **merge algorithm's core rule:** Explicit include **always** overrides exclude. Later features override earlier ones.
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#Decision-5) for the rationale.
+See [docs/chopper_description.md](docs/chopper_description.md) §4 (Rule R1) for the rationale.
+
+### 7. Trace Is Reporting-Only (Never Copies)
+P4 BFS trace expansion (PI → PI+) produces `dependency_graph.json`, `TW-*` diagnostics, and the traced-only (PT) set **for visibility only**. Traced callees are **never** copied into the trimmed domain. Only procs named in `procedures.include` (directly or via whole-file `files.include`) survive.
+- Example: JSON lists `foo`; `foo` calls `bar`. Trimmed output contains `foo`; `bar` appears in the call tree log and `dependency_graph.json` but is **not** copied.
+- To keep `bar`, add it explicitly to `procedures.include`.
+- Cycles emit `TW-04 cycle-in-call-graph` and terminate safely via the BFS visited-set.
+See [docs/chopper_description.md](docs/chopper_description.md) §5.4 for the authoritative contract and worked example.
 
 ## Documentation (Read These First)
 
-Before implementing, consult these in order:
+All authoritative documentation lives under [docs/](docs/). Before implementing, consult these in order:
 
-1. **[docs/DEVELOPER_KICKOFF.md](docs/DEVELOPER_KICKOFF.md)** — Onboarding checklist, module assignments, team sync agenda
-2. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Product behavior, 7 phases, design decisions (Decisions 1–9)
-3. **[docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md)** — Phase-by-phase implementation contracts, error boundaries, assumptions
-4. **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline; Tcl grammar rules, edge cases, tokenizer state machine
-5. **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures
+1. **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth for product behavior, the 7-phase pipeline, R1 merge rules, requirements (FR-xx / NFR-xx), and the revision history.
+2. **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
+3. **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
+4. **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
+5. **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples.
 
 Other key docs:
-- [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md) — Authoritative diagnostic code registry
-- [docs/TECHNICAL_PRESENTATION_DECK.md](docs/TECHNICAL_PRESENTATION_DECK.md) — High-level overview
-- [docs/ENGINEERING_HANDOFF_CHECKLIST.md](docs/ENGINEERING_HANDOFF_CHECKLIST.md) — Pre-Day-0 checklist
+- [docs/chopper-gui-readiness-plan.md](docs/chopper-gui-readiness-plan.md) — GUI-readiness plan: typed results, JSON serialization, service-layer discipline.
+- [docs/FUTURE_PLANNED_DEVELOPMENTS.md](docs/FUTURE_PLANNED_DEVELOPMENTS.md) — Roadmap items explicitly out of v1 scope.
+- [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
+- [json_kit/docs/JSON_AUTHORING_GUIDE.md](json_kit/docs/JSON_AUTHORING_GUIDE.md) and [json_kit/schemas/](json_kit/schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
 
 ## Development Conventions
 
@@ -174,7 +184,7 @@ Test fixtures: `tests/fixtures/edge_cases/` (14 adversarial Tcl inputs)
 Merge algorithm + breadth-first dependency tracing.
 - **Key constraint:** Explicit include always wins
 - **Key constraint:** Traces must be deterministically sorted
-- See [docs/ARCHITECTURE.md#Decision-5](docs/ARCHITECTURE.md) for merge semantics
+- See [docs/chopper_description.md](docs/chopper_description.md) §4 (R1) for merge semantics
 - Test fixtures: `tests/fixtures/tracing_domain/` (cyclic procs, transitive closures)
 
 ### **Trimmer** (`src/chopper/trimmer/`)
@@ -243,27 +253,27 @@ Full details in [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md).
 ## Common Workflow
 
 **New Implementation Task:**
-1. **Read specification** from [docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md) for your phase
-2. **Check RISKS_AND_PITFALLS.md** for your module's risks and pitfalls
+1. **Read specification** from [docs/chopper_description.md](docs/chopper_description.md) for your phase and R1 merge rules
+2. **Check [docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** for your module's risks and pitfalls
 3. **Write tests first** in `tests/unit/<module>/` or `tests/integration/`
 4. **Reference shared models** from `src/chopper/core/models.py` only
 5. **Register diagnostics** in [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md) before use
-6. **Run `make check`** before commit; pre-submit checklist in [docs/ENGINEERING_HANDOFF_CHECKLIST.md](docs/ENGINEERING_HANDOFF_CHECKLIST.md)
+6. **Run `make check`** before commit
 
 **When Stuck:**
 - Check [docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md) for your module
 - Review test fixtures in `tests/fixtures/` — they exemplify expected behavior
-- Consult [docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md) phase contract
+- Consult [docs/chopper_description.md](docs/chopper_description.md) for the phase contract and R1 rules
 - Search test files for similar patterns: `grep -r "your_function" tests/`
 
 ## Diagnostic Workflow
 
 When adding a new diagnostic:
-1. **Assign code** (e.g., V-27, TRACE-05, PARSER-12)
-2. **Register in [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** with severity, message template, examples
-3. **Create `Diagnostic` instance** using `src/chopper/core/diagnostics.py`
-4. **Add test** in appropriate test file (unit, integration, or golden)
-5. **Run `make ci`** to ensure coverage and linting pass
+1. **Assign code** from the correct `<FAMILY><SEV>` band using the lowest available reserved slot (e.g., `VE-24`, `VW-19`, `TW-05`, `PW-12`) — never renumber existing rows.
+2. **Register in [docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** with slug, phase, source, exit code, description, and recovery hint.
+3. **Create `Diagnostic` instance** using `src/chopper/core/diagnostics.py`.
+4. **Add test** in appropriate test file (unit, integration, or golden).
+5. **Run `make ci`** to ensure coverage and linting pass.
 
 Example:
 ```python
@@ -272,12 +282,12 @@ from chopper.core.diagnostics import Diagnostic
 
 # In tests
 def test_parser_undefined_proc():
-    diag = Diagnostic(code="PARSER-05", severity="warning", message="Undefined proc: foo", line_no=42)
-    assert diag.code == "PARSER-05"
+    diag = Diagnostic(code="PW-05", severity="warning", message="Unresolvable proc call: foo", line_no=42)
+    assert diag.code == "PW-05"
 ```
 
 ---
 
 **Last Updated:** April 2026  
 **Scope:** Implementation phase (Day 0+)  
-**Questions?** See [docs/DEVELOPER_KICKOFF.md](docs/DEVELOPER_KICKOFF.md) for team sync agenda.
+**Questions?** See [docs/chopper_description.md](docs/chopper_description.md) for the authoritative architecture.

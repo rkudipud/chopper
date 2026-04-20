@@ -5,11 +5,31 @@
 
 ---
 
+## Table of Contents
+
+1. [Problem Statement](#1-problem-statement)
+2. [Scope, Roles, and Operating Model](#2-scope-roles-and-operating-model)
+3. [Core Concepts and Capability Model](#3-core-concepts-and-capability-model)
+4. [Architecture Rules](#4-architecture-rules)
+5. [Pipeline, Compilation, and Workflow](#5-pipeline-compilation-and-workflow)
+6. [JSON Design Principles and Schema Model](#6-json-design-principles-and-schema-model)
+7. [Requirements](#7-requirements)
+8. [Codebase Analysis](#8-codebase-analysis)
+9. [Technical Challenges and Risk Handling](#9-technical-challenges-and-risk-handling)
+10. [Question Ledger](#10-question-ledger)
+11. [FAQ and Corner Cases](#11-faq-and-corner-cases)
+12. [Reference Documents and External Inputs](#12-reference-documents-and-external-inputs)
+13. [Implementation Work Queue](#13-implementation-work-queue)
+14. [Revision History](#14-revision-history)
+15. [Glossary](#15-glossary)
+
+---
+
 ## 1. Problem Statement
 
 ### 1.1 Context
 
-The **Cheetah R2G (CTH R2G)** flow FLow spans the full VLSI backend pipeline, from **Fusion Compiler** through **final signoff**, across multiple EDA tools. **CTH Tool Flow Manager (TFM)** orchestrates tool invocations, configuration, and handoff data.
+The **Cheetah R2G (CTH R2G)** flow spans the full VLSI backend pipeline, from **Fusion Compiler** through **final signoff**, across multiple EDA tools. **CTH Tool Flow Manager (TFM)** orchestrates tool invocations, configuration, and handoff data.
 
 The TFM is organized into **domains**. Each domain corresponds to one tool or one flow stage and has a designated **domain owner**. Every domain currently ships with a large amount of generalized flow code, optional behavior, legacy support, and customer-specific feature logic.
 
@@ -111,11 +131,6 @@ The TFM repo has this top-level structure under `global/`:
 ```
 global/
 ├── snps/
-│   ├── common/                ◄── INFRASTRUCTURE (never trimmed)
-│   │   ├── setup.tcl
-│   │   ├── snps_procs.tcl
-│   │   ├── infra_procs.tcl
-│   │   └── ...
 │   ├── fev_formality/         ◄── DOMAIN (trimmable)
 │   ├── sta_pt/                ◄── DOMAIN (trimmable)
 │   ├── power/                 ◄── DOMAIN (trimmable)
@@ -130,11 +145,6 @@ global/
 │   ├── contourgen/            ◄── DOMAIN (trimmable)
 │   └── caliber_eco/           ◄── DOMAIN (trimmable)
 └── cdns/
-    ├── common/                ◄── INFRASTRUCTURE (never trimmed)
-    │   ├── setup.tcl
-    │   ├── cdns_procs.tcl
-    │   ├── infra_procs.tcl
-    │   └── ...
     ├── fev_formality/         ◄── DOMAIN (trimmable)
     ├── sta_pt/                ◄── DOMAIN (trimmable)
     ├── power/                 ◄── DOMAIN (trimmable)
@@ -150,7 +160,7 @@ global/
     └── caliber_eco/           ◄── DOMAIN (trimmable)
 ```
 
-**Key rule: anything outside the domains's boundary is considered "DO NOT TOUCH ZONE" and is NEVER trimmed.**
+**Key rule: anything outside the selected domain's boundary is a “DO NOT TOUCH” zone and is NEVER trimmed.** Chopper operates strictly on the single domain directory it is invoked from; sibling domains, vendor roots, shared `global/` infrastructure, and any path that escapes the domain are never read, written, or backed up. References from domain code into external paths are surfaced as advisory diagnostics (`VW-17 external-reference`) but never cause trimming or survival decisions.
 
 ### 2.5 Per-Domain Structure (Actual)
 
@@ -208,7 +218,7 @@ main branch (full TFM, all domains, all features)
 
 ### 2.8 Backup and Re-trim Strategy
 
-Chopper uses a **backup-and-rebuild** workflow:
+Chopper uses a **backup-and-rebuild** workflow. The domain directory is the operational unit; `<domain>_backup/` is a sibling created on first trim and consumed on re-trim.
 
 ```
 BEFORE first trim:
@@ -223,26 +233,22 @@ AFTER re-trim:
   domain/                    ← rebuilt from backup
 
 FINAL CLEANUP:
-  domain_backup/             ← deleted on the last day
+  domain_backup/             ← deleted via `chopper cleanup --confirm`
   domain/                    ← final trimmed domain retained
 ```
 
-**Operational rule:** Backups stay in the project branch during the trim window and are deleted during final cleanup.
+**Edge-case behavior matrix** (evaluated at invocation, in the current working directory):
 
-**Partial-failure or re-run recovery:** if Chopper crashes mid-trim after creating `_backup` but before completing output or users want to rerun the trim after making changes to the JSON, the action is to re-run Chopper. The second run detects `_backup` and treats the invocation as a re-trim, rebuilding the domain from the intact backup.
+| # | `<domain>/` | `<domain>_backup/` | Chopper behavior |
+|---|---|---|---|
+| 1 | exists | missing | First trim. Create `<domain>_backup/` as a full copy, then build the trimmed `<domain>/` in place. |
+| 2 | exists | exists | Re-trim. Do **not** re-backup. Rebuild `<domain>/` from `<domain>_backup/` using the current JSONs. If the existing `<domain>/` contents have been hand-edited since the last run, emit `VI-03 domain-hand-edited`; local changes are discarded. |
+| 3 | missing | exists | Recovery re-trim. Restore `<domain>/` from `<domain>_backup/` and proceed as case 2. |
+| 4 | missing | missing | Fatal. Emit `VE-23 no-domain-or-backup`; exit 2. Nothing to trim. |
+| 5 | exists | exists, but `cleanup --confirm` was run previously | Case 2 still applies; the prior cleanup only deleted an older backup. |
+| 6 | any | `<domain>_backup/` exists but is unreadable / permission-denied | Fatal I/O error with the offending path; user must resolve filesystem state. |
 
-### 2.8.1 Re-trim and Manual Recovery
-
-**Chopper detects and handles existing backups automatically:**
-
-- On first trim: Chopper creates `domain_backup/` and builds the trimmed `domain/`.
-- On re-run (if `domain_backup/` exists): Chopper rebuilds from the backup instead of re-backing-up.
-- Manual recovery: Users can manually restore from backup by renaming `domain_backup/` back to `domain/` if needed.
-
-**Cleanup:**
-
-- The `chopper cleanup` command removes the `domain_backup/` directory when the trim window is complete.
-- Backup removal is permanent; use `--confirm` to proceed.
+**Operational rule:** backups stay in the project branch throughout the trim window and are removed explicitly by `chopper cleanup --confirm`. Users are expected to commit or move hand-edits before re-running; Chopper always rebuilds from `_backup` and does not attempt to merge.
 
 ### 2.9 Cross-Domain Dependencies
 
@@ -349,7 +355,6 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 | `tool` | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | No | Human-readable summary |
 | `options.cross_validate` | No | Cross-validate F3 output against F1/F2. Default: `true` |
-| `options.template_script` | No | Domain-relative path to post-trim script |
 | `files.include` | No* | Glob patterns or literal paths to include |
 | `files.exclude` | No | Glob patterns to exclude |
 | `procedures.include` | No* | Proc-level includes — array of `{ file, procs[] }` |
@@ -423,9 +428,12 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 | `procedures.exclude` | No | Proc-level excludes |
 | `flow_actions` | No | Stage modifications: add/remove/replace steps or stages (F3) |
 
-`files.exclude` and `procedures.exclude` are meaningful in v1:
-- `files.exclude` prunes files brought in by broad wildcard `files.include` patterns.
-- `procedures.exclude` means "keep the file but remove these procs" — the file survives as `PROC_TRIM` with excluded procs deleted and all other procs retained. **Exception:** if the same file is also in `files.exclude` (with no PI entries), both are removal signals and the file is removed entirely (`VW-11`). PE also downgrades `FULL_COPY` files to `PROC_TRIM` when applied to an FI file. PI and PE must not be mixed for the same file (see R1 interaction matrix).
+**Features are purely additive.** A feature's `files.exclude` and `procedures.exclude` only prune that *same feature's own* include contributions; they cannot remove content contributed by the base or by another feature. Explicit include from any source always wins over exclude from any other source. In detail:
+
+- `files.exclude` prunes glob expansions of the *same JSON's* `files.include` patterns. A feature's FE has no effect on a file contributed by the base or by another feature; when it would, the FE is discarded and `VW-10 cross-source-fe-vetoed` is emitted.
+- `procedures.exclude` means "keep the file but remove these procs" — the file survives as `PROC_TRIM` with the excluded procs dropped from *that source's* contribution. If another source (base or any feature) whole-file-includes the same file, or explicitly includes any of the PE'd procs via `procedures.include`, the PE is vetoed and `VW-18 cross-source-pe-vetoed` is emitted. Base content is never stripped by a feature.
+- Within a single JSON, mixing `procedures.include` and `procedures.exclude` on the same file is an authoring conflict: PI wins, PE is ignored for that file, and `VW-12` is emitted.
+- Within a single JSON, mixing `files.exclude` and `procedures.exclude` on the same file with no PI is redundant: both are removal-within-this-source signals, the file is not contributed by this JSON, and `VW-11` is emitted.
 - The full conflict-resolution, file-treatment, and interaction-warning rules are defined in R1.
 
 ### 3.3 Project JSON
@@ -441,9 +449,9 @@ Schema: `json_kit/schemas/project-v1.schema.json`
   "project": "PROJECT_ABC",
   "domain": "my_domain",
   "owner": "integration-team",
-  "base": "chopper/base.json",
+  "base": "jsons/base.json",
   "features": [
-    "chopper/features/dft.json"
+    "jsons/features/dft.feature.json"
   ],
   "notes": [
     "DFT feature adds scan chain verification stage after main"
@@ -467,7 +475,7 @@ Schema: `json_kit/schemas/project-v1.schema.json`
 | `base` | Yes | Domain-relative path to the base JSON file |
 | `owner` | No | Domain deployment owner for this project |
 | `release_branch` | No | Git branch name for this project trim |
-| `features` | No | Ordered list of feature JSON paths (order is authoritative) |
+| `features` | No | List of feature JSON paths (order is authoritative for F3 `flow_actions` sequencing only; F1/F2 merges are order-independent) |
 | `notes` | No | Human-readable notes explaining feature ordering or selection rationale |
 
 ### 3.4 F1 — File Chopping
@@ -558,6 +566,8 @@ F3 generates stage-based run files from JSON stage definitions.  Users who want 
 | `run_mode` | No | `R` | `"serial"` (default) or `"parallel"` |
 | `language` | No | — | `"tcl"` (default) or `"python"` |
 
+> **`run_mode` semantics.** `run_mode` is advisory metadata surfaced to the scheduler via the stack `R` line; Chopper itself does not parallelize trim execution. Its only effect is to annotate the generated stack entry. Default is `"serial"`.
+
 > **`load_from` vs `dependencies`:** `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). `dependencies` is the stack `D` line controlling scheduler execution order. They serve different purposes.
 
 Steps are stored and processed as **plain strings** — a step may be a Tcl filename, a raw `source` command, an ivar-based reference, or a conditional directive such as `#if` / `#else` / `#endif`. See R4 for the rationale.
@@ -567,9 +577,7 @@ Feature JSONs modify the base stage sequence via `flow_actions`. The full action
 
 Chopper ships F1/F2/F3 as first-class capabilities; domain owners choose which capabilities to use per domain/project. Users without stages still get F1 and F2 (file and proc trimming). Users with stages get generated `<stage>.tcl` run scripts for fine-grained step control.
 
-
-
-#### Trim Workflow
+### 3.7 Trim Workflow
 
 The trim workflow supports both direct CLI mode and project JSON mode.
 
@@ -634,158 +642,139 @@ All examples below assume Chopper is invoked from the domain root. The current w
 
 ## 4. Architecture Rules
 
+> **Vocabulary convention.** Treatment tokens appear in **kebab-case** in JSON payloads and on-disk artifacts (`full-copy`, `proc-trim`, `generated`, `remove`) and in **UPPER_SNAKE_CASE** in prose, tables, diagnostics, and diagrams (`FULL_COPY`, `PROC_TRIM`, `GENERATED`, `REMOVE`). The two forms are interchangeable; Chopper normalizes them on read.
+
 ### R1 — Conflict Resolution and File Treatment
 
-This is the single authoritative rule for all include/exclude conflicts and file treatment derivation.
+This is the single authoritative rule for all include/exclude resolution and file-treatment derivation. R1 is **provenance-aware**: it treats the base JSON and each selected feature JSON as distinct contributing *sources*, not as a merged anonymous set.
 
-#### Core principles
+#### Rule L1 — The Law of Explicit Include (cross-source)
 
-1. **Default action is exclude.** Any file or proc not explicitly kept is removed.
-2. **Explicit include wins over exclude** within the same granularity level.
-3. **Granularity is preserved.** File-level inclusion yields `FULL_COPY`; proc-level inclusion yields `PROC_TRIM`. Proc-level inclusion never promotes a file to `FULL_COPY`.
-4. **`procedures.exclude` implies file survival — unless FE also targets the file (with no PI).** Listing a proc in PE means "keep the file, remove this proc." However, if the same file is in FE and has no PI entries, FE wins and the file is removed entirely (`VW-11`). Both FE and PE are removal signals — neither says "keep."
-5. **PI and PE are mutually exclusive per file.** If a file has procs in both PI and PE, PI takes precedence and PE entries for that file are ignored (with `VW-12`). Authors must choose one model per file: additive (PI) or subtractive (PE).
-6. **PE downgrades `FULL_COPY` to `PROC_TRIM`.** When a file is in FI and also has PE entries, the file survives as `PROC_TRIM` with PE procs removed — not as `FULL_COPY`. FI + PI (no PE) remains `FULL_COPY` because PI is additive and redundant on a fully included file.
-7. **Tracing is reporting-only.** PI+ (the transitive trace expansion) populates `dependency_graph.json` and diagnostics but never adds procs or files to the surviving set.
-8. **Implicit discovery never keeps anything.** Hook files, trace-only procs, and validation-warning mentions do not cause survival.
+> **L1.** If **any** selected source contributes an include signal for a file or a proc, that item survives. Include signals are:
+>
+> 1. `files.include` literal path (the source's FI_literal),
+> 2. `files.include` glob pattern that matched the file, after the *same source's own* `files.exclude` pruning (the source's FI_glob_surviving),
+> 3. `procedures.include` entry for the proc (the source's PI),
+> 4. `procedures.exclude` entry on the file (the source's PE) — PE implies "keep the file," so it counts as a weak file-level include signal.
+>
+> An exclude signal from a different source can never remove an item that L1 keeps alive. Same-source exclude signals follow L2.
+
+#### Rule L2 — Same-source authoring conveniences
+
+> **L2.** Within a single JSON, these subtractive patterns are allowed and mean what they look like:
+>
+> 1. `files.exclude` prunes this source's own `files.include` glob expansions. Literal FI in the same source always survives.
+> 2. `procedures.exclude` on a file where the same source also has `files.include` whole-file entry qualifies this source's contribution: this source contributes the file as `PROC_TRIM` with PE procs removed (not as `FULL_COPY`).
+> 3. `procedures.exclude` on a file where the same source has no `files.include` for the file means this source contributes the file as `PROC_TRIM` with all procs except PE. This is itself an include signal under L1.
+> 4. Same file has both PI and PE in the same source → PI wins, PE is ignored for that file (`VW-12`).
+> 5. Same file has both FI (any form) and PI in the same source → PI is redundant (`VW-09`); the file's treatment is decided by whether the same source also has PE on it (L2.2).
+
+#### Rule L3 — Cross-source additivity (base inviolable)
+
+> **L3.** Across sources, contributions union. Concretely:
+>
+> 1. If **any** source's contribution treats file F as a full include with no same-source PE qualification (call this a `WHOLE` signal), F is `FULL_COPY` in the output. Any other source's PE or FE on F is vetoed and reported.
+> 2. Otherwise, if any source contributes F at all (via PI or via same-source FI+PE or same-source PE-only), F is `PROC_TRIM`. Surviving procs are the union of every contributing source's per-source kept set. A PE from one source never removes a proc that another source includes.
+> 3. If no source contributes F and F is not F3-`GENERATED`, F is `REMOVE`.
+> 4. Consequence: a feature can never remove a file or proc that the base (or any other feature) contributed. The base is inviolable; features are additive.
 
 #### Terminology
 
 | Term | Meaning |
 |---|---|
-| **FI_literal** | Literal file paths (no wildcards) from `files.include` across all selected JSONs |
-| **FI_glob** | Files matched by wildcard patterns from `files.include`, after expansion |
-| **FE** | All `files.exclude` patterns, compiled |
-| **PI** | All explicit `procedures.include` entries across all selected JSONs |
-| **PE** | All explicit `procedures.exclude` entries — **implies file survival with excluded procs removed, unless FE also targets the file (with no PI)** |
-| **PI+** | Transitive trace expansion of PI — **reporting and call-tree only; no survival effect** |
-| **PT** | Traced-only procs: PI+ − PI — **reporting only** |
+| **Source** | One JSON: the base, or any one selected feature. |
+| **FI_literal(s)** | Literal file paths in source `s`'s `files.include` |
+| **FI_glob(s)** | Files matched by wildcard patterns in source `s`'s `files.include` |
+| **FI_glob_surviving(s)** | `FI_glob(s) − FE(s)` — within-source glob pruning |
+| **FI(s)** | `FI_literal(s) ∪ FI_glob_surviving(s)` |
+| **FE(s)** | `files.exclude` patterns in source `s` |
+| **PI(s)** | `procedures.include` entries in source `s` |
+| **PE(s)** | `procedures.exclude` entries in source `s` — implies file survival per L1/L2 |
+| **Global FI** | `⋃ₛ FI(s)` — any file included by any source |
+| **Global PI** | `⋃ₛ PI(s)` — any proc included by any source |
+| **PI+** | Transitive trace expansion of Global PI — **reporting-only; no survival effect** |
+| **PT** | Traced-only procs: PI+ − Global PI — **reporting-only** |
 
-#### Proc-selection models
+#### Per-source per-file contribution model
 
-PI and PE represent two different approaches to selecting procs from a file. They must not be mixed for the same file.
+For each source `s` and each file `F` in the domain, classify `s`'s contribution to `F`:
 
-| Model | Input | Meaning | Surviving procs in file |
-|---|---|---|---|
-| **Additive (PI)** | `procedures.include` | "Keep only these procs" | PI procs from this file |
-| **Subtractive (PE)** | `procedures.exclude` | "Keep the file but remove these procs" | All procs in file minus PE procs |
+| Inputs in source `s` for file `F` | `s`'s contribution to `F` | Note |
+|---|---|---|
+| Nothing | `NONE(s, F)` | — |
+| Only FI (literal or surviving glob), no PE, no PI | `WHOLE(s, F)` | Source wants whole file. |
+| Only PI entries, no FI, no PE | `TRIM(s, F, keep = PI(s, F))` | Additive per-proc include. |
+| FI **and** PE (any combination of PI) | `TRIM(s, F, keep = all_procs(F) − PE(s, F))` | L2.2. Same-source PE qualifies same-source FI. If PI is also present, emit `VW-09` and ignore PI here (redundant with FI minus PE). |
+| PE only, no FI | `TRIM(s, F, keep = all_procs(F) − PE(s, F))` | L2.3. Source wants file survival as PROC_TRIM. |
+| FI **and** PI (no PE) | `WHOLE(s, F)` | L2.5. Emit `VW-09` (PI redundant on WHOLE). |
+| Only FE (no FI, no PI, no PE) | `NONE(s, F)`, plus candidate veto if another source contributes `F` | See cross-source aggregation below. |
+| FE **and** PE, no FI, no PI | `NONE(s, F)` (same-source contradiction) | Emit `VW-11`. Source contributes nothing for F. |
 
-If both PI and PE reference procs from the same file, PI takes precedence and PE is ignored for that file (`VW-12`).
+#### Cross-source aggregation (file treatment)
 
-#### Compilation algorithm
+Let `Signals(F) = { c(s, F) : s ∈ sources, c(s, F) ≠ NONE }` and `FE_Sources(F) = { s : F ∈ FE(s) }`.
 
-```
- 1. Partition files.include → FI_literal + FI_glob_patterns
- 2. Expand FI_glob_patterns against domain → FI_glob
- 3. Compile files.exclude patterns → FE
- 4. Compile procedures.include entries → PI
- 5. Compile procedures.exclude entries → PE
- 6. Surviving full files  = FI_literal  ∪  (FI_glob − FE)
- 7. Surviving procs (additive)    = PI
- 8. Surviving procs (subtractive) = for each file with PE entries:
-      if file has PI entries     → PE ignored (VW-12); PI model applies
-      else if file is in FE      → file removed; PE has no effect (VW-11)
-      else                       → (all procs in file) − PE
- 9. Apply PE downgrade: if file is in FI but also has PE (no PI)
-      → downgrade from FULL_COPY to PROC_TRIM (all procs − PE)
-10. Derive final file treatments per the matrix below
-11. Trace PI → PI+ for dependency_graph.json and diagnostics  (no survival effect)
-12. Emit interaction warnings (VW-09 through VW-13)
-```
+1. If **any** `c(s, F)` is `WHOLE(s, F)` → **treatment = `FULL_COPY`**, all procs survive.
+   - For every `s' ≠ s` where `c(s', F) = TRIM(s', F, keep)` and `keep ⊊ all_procs(F)`: emit `VW-18` (the excluded procs from `s'` are vetoed by `s`'s WHOLE include).
+   - For every `s'' ∈ FE_Sources(F)`: emit `VW-10` (FE from `s''` vetoed by WHOLE from `s`).
+2. Else if every non-NONE signal is `TRIM` → **treatment = `PROC_TRIM`**, surviving procs = `⋃ₛ keep(s)` over every `TRIM(s, F, keep)`.
+   - For every `s'' ∈ FE_Sources(F)`: emit `VW-10` (FE vetoed by another source's PROC_TRIM contribution).
+   - For every `TRIM(s', F, keep)` where some proc `p ∈ all_procs(F) − keep(s', F)` appears in `keep(s)` for some `s ≠ s'`: emit `VW-18` (PE of `p` by `s'` vetoed by include from `s`).
+3. Else (no signals on F) → if `F` is F3-`GENERATED`, treatment is `GENERATED`; otherwise **treatment = `REMOVE`**.
 
-#### File treatment derivation
-
-Every file in the domain receives exactly one treatment in the compiled manifest. The treatment is resolved **per file** using the following priority:
-
-| Priority | Condition | Treatment | Surviving procs |
-|---|---|---|---|
-| 1 | File is in FI **and** has PE entries (no PI) | `PROC_TRIM` | All minus PE procs (PE downgrades FULL_COPY) |
-| 2 | File is in FI, no PE, no PI | `FULL_COPY` | All |
-| 3 | File is in FI **and** has PI entries (no PE) | `FULL_COPY` | All (PI redundant, `VW-09`) |
-| 4 | File has procs in PI (additive model) | `PROC_TRIM` | PI procs only |
-| 5 | File has procs in PE, no PI, not in FE (subtractive model) | `PROC_TRIM` | All procs minus PE procs |
-| 6 | File has procs in PE, no PI, but in FE | `REMOVE` | — (FE wins, `VW-11`) |
-| 7 | File is targeted by an F3 stage generator | `GENERATED` | N/A |
-| 8 | None of the above | `REMOVE` | N/A |
-
-**Key rules from this table:**
-- PE downgrades `FULL_COPY` → `PROC_TRIM` (priority 1 vs 2).
-- FI + PI (no PE) remains `FULL_COPY` because PI is additive and redundant on a fully included file.
-- FE + PE (no PI) → file is removed because both are removal signals.
-- PI always forces file survival regardless of FE.
-
-#### Per-file interaction matrix
-
-The matrix below covers every possible combination of inputs for a single file. "FI" means the file is in `files.include` (literal or matching glob), "FE" means the file matches `files.exclude`, "PI" means the file contains procs in `procedures.include`, "PE" means the file contains procs in `procedures.exclude`.
-
-| # | FI | FE | PI | PE | Treatment | Surviving procs | Diagnostic |
-|---|---|---|---|---|---|---|---|
-| 1 | — | — | — | — | `REMOVE` | — | — |
-| 2 | ✓ | — | — | — | `FULL_COPY` | all | — |
-| 3 | — | ✓ | — | — | `REMOVE` | — | — |
-| 4 | ✓ | ✓ | — | — | `FULL_COPY` (literal) or `REMOVE` (glob-only) | all or — | — |
-| 5 | — | — | ✓ | — | `PROC_TRIM` | PI only | — |
-| 6 | — | — | — | ✓ | `PROC_TRIM` | all − PE | — |
-| 7 | — | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
-| 8 | ✓ | — | ✓ | — | `FULL_COPY` | all (PI redundant) | `VW-09` |
-| 9 | ✓ | — | — | ✓ | `PROC_TRIM` | all − PE | — |
-| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
-| 11 | — | ✓ | ✓ | — | `PROC_TRIM` | PI only (FE overridden) | — |
-| 12 | — | ✓ | — | ✓ | `REMOVE` | — | `VW-11` |
-| 13 | — | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
-| 14 | ✓ | ✓ | ✓ | — | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
-| 15 | ✓ | ✓ | — | ✓ | `PROC_TRIM` (literal) or `REMOVE` (glob-only) | all − PE or — | — |
-| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` (literal) or `PROC_TRIM` (glob, PI overrides FE) | PI only | `VW-12` |
-
-**Reading the matrix:**
-
-- **Case 9 (FI+PE):** PE downgrades `FULL_COPY` to `PROC_TRIM`. The user wants the file but not those procs — 100 procs minus 4 PE = 96 survive.
-- **Case 10 (FI+PI+PE):** PI wins over PE (`VW-12`). Only PI procs survive. The file is `PROC_TRIM`, not `FULL_COPY`.
-- **Case 12 (FE+PE):** Both are removal signals — neither says "keep." File is removed entirely. PE entries have no effect.
-- **Cases 8, 14 (FI+PI, no PE):** `FULL_COPY` is preserved because PI is additive and redundant on a fully included file.
-- **Cases 11, 13 (FE+PI):** PI forces file survival as `PROC_TRIM` regardless of FE.
+**Key invariants implied by the aggregation:**
+- Any source's literal or glob-surviving FI forces `FULL_COPY`.
+- Any source's explicit PI of a proc forces that proc to survive regardless of any PE from any other source.
+- A feature's FE can only remove files that *no other source contributes*.
+- Same-source subtractive authoring (base-internal "keep file minus X procs") is preserved and behaves exactly as before, provided no other source separately includes the file whole-file or PIs the removed procs.
 
 #### Interaction warnings
 
-These warnings detect authoring mistakes where inputs contradict each other or are redundant. All are non-fatal (exit 0) and escalate to errors in `--strict` mode.
+These warnings are non-fatal (exit 0) and escalate to errors in `--strict`.
 
-| Code | Slug | Condition | Message template | Recovery hint |
-|---|---|---|---|---|
-| `VW-09` | `fi-pi-overlap` | File in FI **and** procs from that file in PI | "File `{file}` is fully included via files.include; procedures.include entries have no additional effect." | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include`. |
-| `VW-11` | `fe-pe-conflict` | File in FE **and** procs from that file in PE (no PI) | "File `{file}` is in files.exclude and procedures.exclude — both are removal directives. File will be removed entirely. procedures.exclude entries have no effect." | Remove from `files.exclude` and use `procedures.exclude` alone if you want to keep the file with specific procs removed. |
-| `VW-12` | `pi-pe-same-file` | Same file has procs in **both** PI and PE | "File `{file}` has procs in both procedures.include and procedures.exclude. procedures.include takes precedence; procedures.exclude entries for this file are ignored." | Choose one model per file: use `procedures.include` (additive) or `procedures.exclude` (subtractive), not both. |
-| `VW-13` | `pe-removes-all-procs` | PE entries cover **all** procs in a file (none left) | "All procs excluded from file `{file}` via procedures.exclude. File survives as comment/blank-only." | Consider using `files.exclude` to remove the entire file instead. |
+| Code | Slug | Scope | Condition |
+|---|---|---|---|
+| `VW-09` | `fi-pi-overlap` | Same-source | Source `s` has file `F` in FI and also has procs of `F` in PI (no PE in `s`). PI is redundant. |
+| `VW-10` | `cross-source-fe-vetoed` | Cross-source | Source `s` has `F` in `files.exclude`, but `F` survives because another source `s' ≠ s` contributes `F` (via FI, PI, or PE). `s`'s FE entry is discarded. |
+| `VW-11` | `fe-pe-same-source-conflict` | Same-source | Source `s` has `F` in both `files.exclude` and has PE entries for `F`, with no PI in `s`. Both are removal-within-`s` signals; `s` contributes nothing for `F`. |
+| `VW-12` | `pi-pe-same-file` | Same-source | Source `s` has PI and PE entries for the same file `F`. PI wins; PE is ignored for `F` within `s`. |
+| `VW-13` | `pe-removes-all-procs` | Same-source | A source's PE set covers every proc in `F` and no PI restores any. File survives as comment/blank-only. |
+| `VW-18` | `cross-source-pe-vetoed` | Cross-source | Source `s'` has proc `p` in file `F` in PE, but `p` survives because another source `s ≠ s'` includes `F` whole-file or includes `p` via PI. `s'`'s PE entry for `p` is discarded. |
 
-**Existing related warnings:**
+**Retired codes:** `VW-10` was previously retired and is now re-assigned to `cross-source-fe-vetoed` (the old `fi-pe-overlap` semantics are dead under the additive model — FI and PE within the same source are a valid L2.2 authoring pattern, and cross-source combinations are handled by `VW-10` and `VW-18`).
 
-| Code | Slug | Condition |
-|---|---|---|
-| `VW-01` | `file-in-both-include-lists` | Same file appears in both `files.include` and `procedures.include` (overlaps with `VW-09`) |
-| `VW-02` | `proc-in-include-and-exclude` | Same proc listed in both PI and PE |
-| `VW-08` | `file-empty-after-trim` | File survived trim but lost all proc definitions |
+#### Per-file interaction matrix (single source)
 
-**Note on VW-01 vs VW-09:** `VW-01` is the existing diagnostic for file-in-both-include-lists. `VW-09` provides a more specific message explaining the consequence (PI is redundant on FULL_COPY files). Implementations may emit either or both; the key requirement is that the overlap is diagnosed.
+Retained for authoring reference. Columns describe what **one** source contributes. Cross-source vetoes (`VW-10`, `VW-18`) are applied after per-source classification and do not appear in this table.
 
-**Note on VW-10 (retired):** `VW-10` (`fi-pe-overlap`) was originally defined when FULL_COPY overrode PE. Since PE now downgrades FULL_COPY to PROC_TRIM, FI+PE is a valid combination and VW-10 is no longer emitted.
+| # | FI | FE | PI | PE | Source's contribution | Surviving procs in source's contribution | Diagnostic |
+|---|---|---|---|---|---|---|---|
+| 1 | — | — | — | — | `NONE` | — | — |
+| 2 | ✓ | — | — | — | `WHOLE` | all | — |
+| 3 | — | ✓ | — | — | `NONE` (FE alone contributes nothing; see VW-10 at aggregation) | — | — |
+| 4 | ✓ | ✓ | — | — | `WHOLE` (literal FI) or `NONE` (glob-only pruned by same-source FE) | all or — | — |
+| 5 | — | — | ✓ | — | `TRIM(keep = PI)` | PI only | — |
+| 6 | — | — | — | ✓ | `TRIM(keep = all − PE)` | all − PE | — |
+| 7 | — | — | ✓ | ✓ | `TRIM(keep = PI)` (PE ignored) | PI only | `VW-12` |
+| 8 | ✓ | — | ✓ | — | `WHOLE` (PI redundant) | all | `VW-09` |
+| 9 | ✓ | — | — | ✓ | `TRIM(keep = all − PE)` | all − PE | — |
+| 10 | ✓ | — | ✓ | ✓ | `TRIM(keep = all − PE)` (PI redundant with FI; PE qualifies it) | all − PE | `VW-09` |
+| 11 | — | ✓ | ✓ | — | `TRIM(keep = PI)` (FE is moot — PI contributes F directly) | PI only | — |
+| 12 | — | ✓ | — | ✓ | `NONE` (same-source FE+PE conflict) | — | `VW-11` |
+| 13 | — | ✓ | ✓ | ✓ | `TRIM(keep = PI)` | PI only | `VW-12` |
+| 14 | ✓ | ✓ | ✓ | — | `WHOLE` (literal FI beats same-source FE) or `NONE` (glob-only, pruned) | all or — | `VW-09` |
+| 15 | ✓ | ✓ | — | ✓ | `TRIM(keep = all − PE)` (literal FI) or `NONE` (glob-only, pruned) | all − PE or — | — |
+| 16 | ✓ | ✓ | ✓ | ✓ | `TRIM(keep = all − PE)` (literal FI) or `TRIM(keep = PI)` (glob-only) | all − PE / PI only | `VW-09` or `VW-12` |
 
-#### Conflict scenarios (precedence summary)
+**Reading the matrix under the additive model:**
 
-| Scenario | Result | Diagnostic |
-|---|---|---|
-| File listed literally in `files.include` and also in `files.exclude` | File survives as `FULL_COPY` | — |
-| File matched only by wildcard include and also excluded | File is removed | — |
-| Proc explicitly in `procedures.include` and also in `procedures.exclude` | Proc survives | `VW-02` |
-| Proc reached only by trace (in PI+ but not in PI) | Not auto-included; reported in call-tree and diagnostics | `TW-02` / `TW-03` |
-| Base explicitly includes item; feature excludes same item | Item survives | — |
-| Feature A adds file only by wildcard; Feature B excludes it | File is removed (wildcard expansion is pruned by exclude) | — |
-| File in `files.exclude` but contains proc(s) in PI | File survives as `PROC_TRIM` (PI procs only) | — |
-| File in `files.exclude` but contains proc(s) in PE (no PI) | File is removed; PE has no effect (both are removal signals) | `VW-11` |
-| File in `files.include` and procs from it in PE | File survives as `PROC_TRIM`; PE procs removed | — |
-| Hook file discovered via `-use_hooks` | Reported in diagnostics only; not copied unless explicitly in `files.include` | — |
+- Row 9 (FI+PE, one source): that source contributes the file as `PROC_TRIM` minus PE procs. If another source has a `WHOLE` signal on the same file, L3.1 lifts treatment to `FULL_COPY` and row 9's PE is vetoed with `VW-18`.
+- Row 11 (FE+PI, one source): the source contributes via PI; its own FE has no effect on its own PI contribution. If another source also FE's the same file, aggregation still keeps the file (PI wins).
+- Rows 3 and 12 (FE alone, FE+PE): these contribute nothing from this source. If another source contributes the file, the file survives and this source's FE is surfaced as `VW-10`.
 
 #### Feature safety statement
 
-Selected features cannot remove something that the base or another selected feature explicitly requested.
+Selected features cannot remove anything that the base or another selected feature contributes. A feature's `files.exclude` and `procedures.exclude` only prune that feature's own include contributions. Every cross-source veto — FE against another source's include, or PE against another source's PI or whole-file include — is reported via `VW-10` or `VW-18` so the domain owner can see which feature authoring intent was discarded and why.
 
 ### R2 — Default Action Is Exclude
 
@@ -1068,7 +1057,7 @@ When `--project` is provided, Chopper assumes it is being run from the domain ro
 
 When `--project` is provided, the project JSON `domain` field is a required identifier for audit and consistency. It must match the basename of the current working directory. If `--domain` is also provided, it must resolve to that same current working directory. Any mismatch is reported through project-validation diagnostics (for example `VE-12` / `VE-13`, as applicable).
 
-The detailed CLI reference with all arguments, flags, and per-subcommand usage is in `docs_old/TECHNICAL_REQUIREMENTS.md` §9.1.3.
+The detailed CLI reference with all arguments, flags, and per-subcommand usage is in [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md).
 
 ### 5.1.1 Example Invocations
 
@@ -1127,60 +1116,100 @@ chopper trim --dry-run --project configs/project_abc.json
 
 ### 5.3 Compilation Model (P3 Detail)
 
-P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules and the proc index from P2 and produces frozen sets that drive every subsequent phase.
+P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules and the proc index from P2 and produces frozen sets that drive every subsequent phase. P3 is **provenance-aware**: the base JSON and each selected feature JSON are treated as distinct contributing *sources*, and every manifest entry records which sources contributed to it.
 
 ```
   Inputs from P1 + P2:
-    base JSON + selected feature JSONs (ordered)
+    base JSON + selected feature JSONs (each = one source s)
     proc index (all procs in domain, from P2)
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  1. Partition files.include entries              │
-  │     → FI_literal (exact paths)                  │
-  │     → FI_glob_patterns (wildcards)              │
-  │                                                 │
-  │  2. Expand FI_glob_patterns against domain      │
-  │     → FI_glob                                   │
-  │                                                 │
-  │  3. Compile files.exclude → FE                  │
-  │                                                 │
-  │  4. Compile procedures.include → PI             │
-  │                                                 │
-  │  5. Compile procedures.exclude → PE             │
+  │  1. For each source s (base + each feature):    │
+  │     Partition files.include(s) →                │
+  │       FI_literal(s)   (exact paths)             │
+  │       FI_glob(s)      (wildcard matches)        │
+  │     FI_glob_surviving(s) = FI_glob(s) − FE(s)   │
+  │     FI(s) = FI_literal(s) ∪ FI_glob_surviving(s)│
+  │     Compile FE(s), PI(s), PE(s)                 │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  6. Surviving full files =                      │
-  │       FI_literal ∪ (FI_glob − FE)              │
-  │                                                 │
-  │  7. Per-file proc survival (R1 matrix):         │
-  │     • File in FI + PE → PROC_TRIM,             │
-  │       all procs minus PE (PE downgrades FI)     │
-  │     • File in FI, no PE → FULL_COPY            │
-  │     • File has PI procs → PROC_TRIM,           │
-  │       PI procs only (PE ignored for this file)  │
-  │     • File has PE, no PI, no FE → PROC_TRIM,   │
-  │       all procs minus PE procs                  │
-  │     • File has PE, no PI, in FE → REMOVE       │
-  │       (FE + PE = both removal signals)          │
-  │     • Otherwise → REMOVE or GENERATED           │
-  │                                                 │
-  │  8. Emit interaction warnings                   │
-  │     VW-09 through VW-13 (see R1)               │
+  │  2. Per-source per-file contribution (L2):      │
+  │     For each (s, F), classify c(s, F) as:       │
+  │       NONE(s, F)                                │
+  │       WHOLE(s, F)                               │
+  │       TRIM(s, F, keep_set)                      │
+  │     Apply same-source authoring rules:          │
+  │       • FI + PI (no PE)      → WHOLE (VW-09)    │
+  │       • FI + PE (any PI)     → TRIM(all − PE)   │
+  │                                   (VW-09 if PI) │
+  │       • PI only              → TRIM(keep = PI)  │
+  │       • PE only              → TRIM(all − PE)   │
+  │       • PI + PE (no FI)      → TRIM(PI), VW-12  │
+  │       • FE + PE only         → NONE, VW-11      │
+  │       • FE only              → NONE (candidate  │
+  │                                  cross-source   │
+  │                                  veto target)   │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  9. Derive file treatments:                     │
-  │     FULL_COPY / PROC_TRIM /                    │
-  │     GENERATED / REMOVE (see R1)                │
+  │  3. Cross-source aggregation (L1 + L3):         │
+  │     For each file F:                            │
+  │       Signals(F) = {c(s, F) : c(s, F) ≠ NONE}   │
+  │       FE_Sources(F) = {s : F ∈ FE(s)}           │
+  │                                                 │
+  │       if any c(s, F) = WHOLE:                   │
+  │         treatment(F) = FULL_COPY                │
+  │         surviving_procs(F) = all procs in F     │
+  │         for s' in FE_Sources(F): emit VW-10     │
+  │         for every TRIM(s', F, keep') where      │
+  │             keep' ⊊ all_procs(F): emit VW-18    │
+  │                                                 │
+  │       elif every non-NONE signal is TRIM:       │
+  │         treatment(F) = PROC_TRIM                │
+  │         surviving_procs(F) = ⋃ keep(s')         │
+  │                           over all TRIM(s',F,·) │
+  │         for s' in FE_Sources(F): emit VW-10     │
+  │         for each TRIM(s', F, keep') with some   │
+  │             p ∈ all_procs(F) − keep' that is in │
+  │             keep(s) for some s ≠ s':            │
+  │             emit VW-18                          │
+  │                                                 │
+  │       else (Signals(F) empty):                  │
+  │         if F is F3 generator output:            │
+  │             treatment(F) = GENERATED            │
+  │         else: treatment(F) = REMOVE             │
+  │                                                 │
+  │       input_sources(F) = sources whose          │
+  │         contribution to F was non-NONE and      │
+  │         not fully vetoed                        │
+  └─────────────────────────────────────────────────┘
+                    │
+                    ▼
+  ┌─────────────────────────────────────────────────┐
+  │  4. Emit same-source warnings VW-09, VW-11,     │
+  │     VW-12, VW-13 from step 2; cross-source      │
+  │     warnings VW-10, VW-18 from step 3.          │
+  └─────────────────────────────────────────────────┘
+                    │
+                    ▼
+  ┌─────────────────────────────────────────────────┐
+  │  5. Record provenance on every manifest entry:  │
+  │     input_sources[]   (which JSONs contributed) │
+  │     treatment         (FULL_COPY / PROC_TRIM /  │
+  │                        GENERATED / REMOVE)      │
+  │     surviving_procs[] (for PROC_TRIM only)      │
+  │     vetoed_entries[]  (FE/PE discarded here)    │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
             compiled_manifest.json
 ```
+
+**Ordering:** F1 and F2 aggregation (steps 2–3) is set-union over sources and is **order-independent** — the same base and feature selections in any order produce the same surviving files and procs. Feature order is authoritative only in P3's F3 pass (`flow_actions` sequencing) and in P4's deterministic BFS traversal.
 
 When `--project` is used, Chopper resolves the base and selected feature paths from the project JSON before entering P3. Equivalent resolved selections produce identical results regardless of input mode.
 
@@ -1188,7 +1217,7 @@ When `--project` is used, Chopper resolves the base and selected feature paths f
 
 ### 5.3.1 Internal Compilation Contract
 
-Detailed compilation data models, execution-freeze rules, and implementation contracts now live in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+Detailed compilation data models, execution-freeze rules, and implementation contracts live alongside the core models in `src/chopper/core/models.py` and the compiler implementation in `src/chopper/compiler/`.
 
 This architecture document defines what Chopper must do; the technical requirements document defines how the implementation must structure and preserve those contracts.
 
@@ -1205,9 +1234,36 @@ P4 runs the BFS trace expansion (R3) seeded by PI. Its outputs are:
 
 PI+ helps the domain owner understand what their explicit selections depend on. It never adds procs or files to the surviving set.
 
+**Worked example (trace is logging, not copying):**
+
+Given a base JSON with `procedures.include = [{"file": "utils.tcl", "procs": ["foo"]}]` and a proc body:
+
+```tcl
+proc foo {} {
+    bar
+}
+proc bar {} {
+    return "helper"
+}
+```
+
+Outcome after a full Chopper run:
+
+| Artifact | `foo` | `bar` |
+|---|---|---|
+| Copied into trimmed `utils.tcl` (P5) | ✅ yes — named in `procedures.include` | ❌ no — not in any JSON |
+| Node in `dependency_graph.json` (P4) | ✅ yes | ✅ yes (reached from `foo`) |
+| Edge `foo → bar` in `dependency_graph.json` | — | ✅ yes, `status = resolved` |
+| Row in `trim_report.json` `proc_operations` | ✅ kept | ✅ logged as traced-only (PT) |
+| `TW-*` diagnostic | none unless ambiguous/dynamic/cycle | none unless ambiguous/dynamic/cycle |
+
+To make `bar` survive trimming the author must add it to `procedures.include` (or include the whole file with `files.include`). Trace expansion is a visibility tool, not a survival mechanism.
+
 ### 5.5 Audit Trail
 
 Every Chopper run produces a `.chopper/` directory in the domain root containing machine-readable and human-readable artifacts that fully explain what happened and why. These artifacts enable reproducibility, code-review, diff tooling, and future GUI rendering.
+
+> **Version control.** `.chopper/` is a per-run audit artifact, not a tracked source. Domain owners should add `.chopper/` to `.gitignore` and are expected to clean it up manually between runs if desired. Chopper does not prune `.chopper/` automatically.
 
 #### 5.5.1 Directory layout
 
@@ -1548,7 +1604,7 @@ Chopper output must be:
 
 #### Determinism, staging, and atomic promotion
 
-Determinism and write-safety remain architectural requirements. The detailed staging, atomic-promotion, and restore rules are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+Determinism and write-safety remain architectural requirements. The detailed staging, atomic-promotion, and restore rules are implemented in `src/chopper/audit/` and `src/chopper/trimmer/`; risks are tracked in [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md).
 
 ### 5.7 Dry-Run vs Live Trim
 
@@ -1582,7 +1638,7 @@ Chopper has two validation phases that run within the pipeline:
 
 `chopper validate` is the standalone Phase 1-only command (no domain source files needed — structural checks only).
 
-The detailed validation check matrix, diagnostics contract, and exit semantics are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+The detailed validation check matrix, diagnostics contract, and exit semantics are defined in [docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
 
 ### 5.9 CLI Contract, Diagnostics, and Exit Semantics
 
@@ -1590,13 +1646,13 @@ Chopper exposes the `validate`, `trim`, and `cleanup` subcommands as first-class
 
 Chopper supports three input modes: base-only (`--base`), base-plus-features (`--base --features`), and project JSON (`--project`). Project JSON mode packages the same selection decisions into a single auditable file without changing trim semantics. `--project` is mutually exclusive with `--base`/`--features`.
 
-The complete CLI reference — including all subcommands, arguments, flags, per-mode examples, and the project JSON workflow — is defined in `docs_old/TECHNICAL_REQUIREMENTS.md` §9.1.3.
+The complete CLI reference — including all subcommands, arguments, flags, per-mode examples, and the project JSON workflow — is defined in [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md).
 
-Detailed CLI behavior, diagnostics fields, exit codes, presentation constraints, and usability requirements are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+Detailed CLI behavior, diagnostics fields, exit codes, presentation constraints, and usability requirements are defined in [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md) and [docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
 
 ### 5.10 Python Implementation Guidance
 
-Python coding standards, repository structure, package boundaries, configuration policy, logging policy, and future GUI-readiness are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+Python coding standards, repository structure, package boundaries, configuration policy, logging policy, and future GUI-readiness are defined in [AGENTS.md](../AGENTS.md) and [docs/chopper-gui-readiness-plan.md](chopper-gui-readiness-plan.md).
 
 ### 5.11 GUI Readiness and Wire Protocol
 
@@ -1820,7 +1876,7 @@ Glob patterns support three special characters to match multiple files:
 }
 ```
 
-Full normalization, glob expansion, deduplication, and manifest-emission rules are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+Full normalization, glob expansion, deduplication, and manifest-emission rules are implemented in `src/chopper/compiler/` (see also the R1 interaction matrix in §4).
 
 By default, owner-curated configuration JSONs live under the selected domain at `jsons/base.json` and `jsons/features/*.json`.
 
@@ -1835,8 +1891,7 @@ By default, owner-curated configuration JSONs live under the selected domain at 
   "domain": "fev_formality",
   "description": "Bare-minimum formality flow for rtl2gate and gate2gate verification",
   "options": {
-    "cross_validate": true,
-    "template_script": "templates/generate_fev_release_files.py"
+    "cross_validate": true
   },
   "files": {
     "include": [
@@ -1921,8 +1976,6 @@ This base example intentionally shows:
 For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Stack files themselves are optional; users can create them manually or use Chopper's generated scripts as is.
 
 **Validation rule:** an entry in `procedures.include` with an empty `procs` array (`"procs": []`) is a **hard error**. If the author intended to keep the whole file, the correct action is to move the file into `files.include`. Chopper rejects this during validation and dry-run, with an actionable error message directing the author to use `files.include` instead.
-
-**Template script rule:** `options.template_script` keeps the proposal's field name for continuity. In Chopper v1 it is a domain-relative path to a script that already exists under the selected domain directory. Chopper resolves it relative to the domain root, treats it as a required kept file, and executes it once at the end of a successful `trim` run before the process exits. It is a path, not a general command string, and it must not point outside the domain.
 
 ### 6.5 Feature JSON Structure
 
@@ -2138,7 +2191,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 |---|---|---|
 | `owner` | string | Domain deployment owner for this project |
 | `release_branch` | string | Git branch name for this project trim |
-| `features` | array of strings | Ordered list of feature JSON paths (resolved relative to the current working directory / domain root). Default expected location pattern: `jsons/features/*.json`. Order is authoritative. |
+| `features` | array of strings | List of feature JSON paths (resolved relative to the current working directory / domain root). Default expected location pattern: `jsons/features/*.json`. Order is authoritative for F3 `flow_actions` sequencing only; F1/F2 merges are order-independent. |
 | `notes` | array of strings | Human-readable notes explaining feature ordering or selection rationale |
 
 **Path resolution rules:**
@@ -2230,7 +2283,7 @@ Minimum dry-run artifact set:
 - `trim_report.json`
 - `trim_report.txt`
 
-These artifacts are part of Chopper's public data contract. Their documented structures, minimum required fields, and the rule that text reports are projections of the corresponding JSON artifact are defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+These artifacts are part of Chopper's public data contract. Their documented structures, minimum required fields, and the rule that text reports are projections of the corresponding JSON artifact live with the serialization layer in `src/chopper/core/serialization.py` and the audit module in `src/chopper/audit/`.
 
 ---
 
@@ -2247,22 +2300,20 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-05 | Produce trimmed output containing only needed files and procs. |
 | FR-06 | Copy only needed files from backup into the rebuilt domain. |
 | FR-07 | Delete only unwanted Tcl proc definitions from copied files. |
-| FR-08 | Support include, exclude, and override semantics. |
+| FR-08 | Apply additive include/exclude semantics across sources (base + features): explicit include from any source always wins; a source's excludes prune only that source's own include contributions. |
 | FR-09 | Apply R1 (conflict resolution) consistently across all selected inputs. |
 | FR-10 | Deduplicate output so each surviving proc appears once. |
 | FR-11 | Validate syntax and obvious dangling references after trimming. |
 | FR-12 | Emit `.chopper/` audit artifacts for every run. |
 | FR-13 | Support first trim and re-trim using `_backup`. |
 | FR-14 | Provide cleanup support to remove backups at project finalization. |
-| FR-15 | Treat `common/` as always-present infrastructure. |
 | FR-16 | Treat non-Tcl files at whole-file granularity only. |
 | FR-17 | Support dry-run preview mode. Dry-run is mandatory for domain owners to validate JSON files before live trim. |
 | FR-18 | Understand `iproc_source -file ...` including `-optional`, `-use_hooks`, `-quiet`, and `-required`. |
-| FR-19 | Support optional domain-relative `template_script` execution for F3-related output generation. |
 | FR-20 | Discover hook files from `-use_hooks` during trim pipeline analysis; report in diagnostics and dry-run output; copy them only when explicitly included in selected JSON. |
 | FR-21 | Support step replacement (`replace_step`) and stage replacement (`replace_stage`) as action keywords. Support `@n` instance targeting for duplicate steps. |
 | FR-22 | Emit trim statistics in JSON and text form (LOC excludes blank lines and comment-only lines). |
-| FR-23 | Emit a VCS-agnostic manifest that includes (a) file operations and (b) semantic operations (procs removed/kept, `replace_step` / `replace_stage` actions applied, auto-trace expansions). |
+| FR-23 | Emit a VCS-agnostic machine-readable audit set in `.chopper/`: `compiled_manifest.json` (file and proc treatment decisions), `dependency_graph.json` (resolved call edges plus `source` / `iproc_source` edges), `trim_report.json` (file operations and semantic operations — procs removed/kept, `replace_step` / `replace_stage` actions applied, auto-trace expansions), and `trim_report.txt` (human-readable projection of `trim_report.json`). JSON artifacts are the canonical form; text reports are derived. |
 | FR-24 | Keep F3 as a first-class required capability. |
 | FR-25 | Keep tracing default-on and conservative. |
 | FR-26 | `--dry-run` emits compiled manifest, dependency graph, and trim reports without modifying any domain files. Domain owners author JSONs manually; dry-run is the authoring iteration loop. |
@@ -2277,6 +2328,10 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-35 | Accept a project JSON (`--project`) as an alternative to `--base`/`--features`, resolving base and feature paths from it and recording project metadata in audit artifacts. |
 | FR-36 | `--project` is mutually exclusive with `--base` and `--features`; providing both emits `VE-11` (`conflicting-cli-options`, exit code 2). |
 | FR-37 | Equivalent resolved selections must produce identical compilation and trim results regardless of whether they came from direct CLI arguments or a project JSON. |
+| FR-38 | All library-layer operations return typed result objects (frozen dataclasses) — never bare prints — so a future GUI or alternate front-end can consume the same service surface the CLI uses. |
+| FR-39 | All public result objects are JSON-serializable via a single canonical serializer; round-trip (serialize → deserialize → compare) produces structurally equivalent values. |
+| FR-40 | Progress and log events are emitted through a `ProgressSink` protocol (structlog under the hood); the CLI attaches a renderer, but library code never binds to a concrete sink. |
+| FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -2301,6 +2356,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 ### 7.3 Acceptance Criteria
 
 Chopper is architecturally successful if a domain owner can:
+
 1. Author or refine base/feature JSONs for their domain.
 2. Create a project JSON bundling the selection for reproducibility.
 3. Run trim using `--base`/`--features` or `--project` and obtain a deterministic rebuilt domain.
@@ -2309,9 +2365,11 @@ Chopper is architecturally successful if a domain owner can:
 6. Generate F3 output when their domain requires it.
 7. Use the same project JSON in CI for automated, reproducible trim runs.
 
+**Measurable gate (byte-identical determinism):** running `chopper trim` twice against the reference fixture `tests/fixtures/mini_domain/` with the same project JSON produces two rebuilt domains whose trimmed file contents and `.chopper/` JSON artifacts are byte-identical (modulo ISO-8601 timestamps isolated in a single documented `run.meta.json` field). This is enforced by a golden-file regression test under `tests/golden/`.
+
 ### 7.4 Test and Quality Strategy
 
-The implementation must follow the layered testing and release-quality gates defined in `docs_old/TECHNICAL_REQUIREMENTS.md`.
+The implementation must follow the layered testing and release-quality gates described in [AGENTS.md](../AGENTS.md) and the test-suite layout under `tests/`.
 
 ---
 
@@ -2362,6 +2420,28 @@ post_read_constraints.tcl
 
 
 
+### 8.3 GUI-Readiness Implications
+
+The GUI-readiness plan is defined in full in [docs/chopper-gui-readiness-plan.md](chopper-gui-readiness-plan.md). At the architecture level the relevant invariants are:
+
+- **Service layer first.** Every CLI subcommand (`validate`, `trim`, `cleanup`) is a thin adapter over a callable service returning a typed result object. A future GUI invokes the same service without re-implementing logic.
+- **No `print()` in library code.** All user-visible output is emitted through a `ProgressSink` / structlog pipeline; the CLI attaches a text renderer, a GUI would attach a widget renderer.
+- **JSON-first artifacts.** Every textual report is a projection of a JSON artifact; GUIs consume the JSON form directly.
+- **Diagnostics are structured.** `(code, severity, message, location, hint)` tuples enable rich GUI surfaces (filterable lists, jump-to-source actions) without additional parsing.
+
+### 8.4 Future Extensibility Hooks
+
+- **Alternate front-ends.** The typed service surface (FR-38–FR-40) is the extension point for a future GUI, language-server integration, or CI dashboard. No additional abstraction is required.
+- **Out-of-v1 roadmap.** Planned but non-v1 capabilities are tracked in [docs/FUTURE_PLANNED_DEVELOPMENTS.md](FUTURE_PLANNED_DEVELOPMENTS.md). Nothing in this document commits v1 to those items.
+
+### 8.5 Cross-Cutting References
+
+- Parser engineering baseline: [docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md).
+- Diagnostic code registry: [docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
+- Risk and pitfall ledger: [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md).
+- CLI surface: [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md).
+- SNORT comparison and absorbed guardrails: [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md).
+
 ### 8.6 Key Observations
 
 1. Domains are mostly flat or shallow.
@@ -2400,13 +2480,13 @@ post_read_constraints.tcl
 | Q10 | How are procs identified? | **Resolved** | File + canonical proc name. |
 | Q11 | How is top-level Tcl outside procs handled? | **Resolved** | Copy-and-delete model. |
 | Q12 | How are hook files handled? | **Resolved** | Hook files discovered through `-use_hooks` during the trim pipeline are reported in diagnostics; they are copied only if explicitly included in selected JSON; otherwise they are ignored during trim. |
-| Q13 | What does override mean? | **Resolved** | Step replacement (`replace_step`); stage replacement (`replace_stage`). Proc-level control uses `procedures.include` / `procedures.exclude` with tracing. |
+| Q13 | What does "override" mean in Chopper? | **Resolved** | There is no override in F1/F2 — features are purely additive and include-wins is the sole conflict rule. "Override"-style behavior exists only in F3 via `replace_step` and `replace_stage` action keywords. Proc-level control uses `procedures.include` / `procedures.exclude` with tracing. |
 | Q14 | Are backups deleted? | **Resolved** | Yes, on the last day during cleanup. |
 | Q15 | Is scan a Chopper subcommand? | **Resolved** | No. Scan mode has been removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
 | Q16 | Is default action configurable? | **Resolved** | No. Default exclude is fixed. |
 | Q17 | Is product implemented already? | **Resolved** | No. It is currently framework/scaffold plus architecture work. |
 | Q18 | How is live trim made write-safe? | **Resolved** | Staging plus same-filesystem atomic promotion and restore rules. |
-| Q19 | How is feature ordering interpreted? | **Resolved** | Selected feature order is authoritative; actions within a feature are top-to-bottom. |
+| Q19 | How is feature ordering interpreted? | **Resolved** | Feature order is authoritative for F3 `flow_actions` sequencing only (earlier features' stage/step insertions are visible to later features). F1 and F2 merges (files and procedures) are purely additive and order-independent. Within a feature, `flow_actions` apply top-to-bottom. |
 | Q20 | How are warnings and errors represented? | **Resolved** | Stable machine-readable diagnostics with severity, code, location, and hint. |
 
 ### 10.2 Open Questions
@@ -2441,7 +2521,7 @@ It replaces manual trimming and parts of the FlowBuilder/SNORT/template-generati
 Domain-local files and Tcl proc definitions that are not required by the selected base and features.
 
 **Q: What never gets trimmed?**  
-Anything outside the selected domain trim scope, including `common/` infrastructure.
+Anything outside the selected domain trim scope. Chopper operates only on the domain directory it is invoked from; sibling domains, shared infrastructure, and external paths are never read or written.
 
 **Q: Does Chopper edit proc bodies?**  
 No. It keeps or removes whole proc definitions only.
@@ -2469,8 +2549,8 @@ That is dynamic dispatch. Chopper warns conservatively and does not invent a dep
 **Q: What if tracing needs a proc from a file that the JSON never mentioned?**  
 Chopper warns. Because default exclude is fixed, the owner must explicitly add the missing file or proc.
 
-**Q: Does Chopper trace into `common/`?**  
-No. `common/` is treated as external infrastructure.
+**Q: Does Chopper trace outside the domain boundary?**  
+No. Tracing is strictly bounded to the selected domain path. Out-of-domain references are logged via `VW-17 external-reference` for awareness but are never auto-included or followed.
 
 **Q: Can tracing be turned off globally?**  
 Not in the current architecture baseline. Default-on tracing is a core product rule.
@@ -2517,6 +2597,12 @@ Hook discovery is not permission for silent bloat. Hook files stay out unless th
 **Q: What if a feature excludes a base item?**  
 It does not win. The selected base still includes it, so the item survives.
 
+**Q: What if feature A includes a file and feature B excludes it?**  
+The file survives. Explicit include from any source wins over exclude from any other source. Feature B's `files.exclude` entry is surfaced as `VW-10 cross-source-fe-vetoed` so the authoring conflict is visible in the audit trail.
+
+**Q: What if the base includes a whole file and a feature excludes a proc inside it via `procedures.exclude`?**  
+The file survives as `FULL_COPY`, including the proc the feature tried to exclude. The feature's PE entry is surfaced as `VW-18 cross-source-pe-vetoed`. Features cannot strip procs from a file that the base contributed whole.
+
 **Q: What if a proc is defined twice in one file?**  
 The last definition wins, matching Tcl runtime behavior.
 
@@ -2535,7 +2621,14 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 
 | Document | Purpose |
 |---|---|
-| `docs_old/TECHNICAL_REQUIREMENTS.md` | Defines implementation standards, runtime contracts, CLI engineering behavior, and test gates |
+| [AGENTS.md](../AGENTS.md) | Agent-facing implementation standards, runtime contracts, CLI engineering behavior, and test gates |
+| [docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md) | Authoritative diagnostic code registry (VE / VW / VI / TW / PE / PW / PI families) |
+| [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md) | Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples |
+| [docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) | Tcl parser engineering baseline: tokenizer, namespace resolution, edge cases |
+| [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md) | Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) |
+| [docs/chopper-gui-readiness-plan.md](chopper-gui-readiness-plan.md) | GUI-readiness plan: typed results, JSON serialization, service-layer discipline |
+| [docs/FUTURE_PLANNED_DEVELOPMENTS.md](FUTURE_PLANNED_DEVELOPMENTS.md) | Roadmap items explicitly out of v1 scope |
+| [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) | SNORT comparison and absorbed proc-extraction guardrails |
 | Python logging cookbook | Confirms that library code should not configure global logging handlers |
 | Python `argparse` docs | Confirms subcommand-oriented CLI structure for `validate`, `trim`, and `cleanup` |
 | Python `pathlib`, `tempfile`, and `os.replace` docs | Support deterministic path handling, safe temp writes, and atomic promotion |
@@ -2548,20 +2641,20 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 
 ### 13.1 Priority Work Items
 
-| ID | Action | Priority | Status |
-|---|---|---|---|
-| **AI-01** | Build and validate the Tcl parser / lexer prototype, proc index, and brace-aware structure checker against real domain files | **P0** | Not started |
-| **AI-02** | Implement dry-run reporting: compiled manifest, dependency graph, and trim report emission without domain file writes | **P0** | Not started |
-| **AI-03** | Implement compiler logic for FI / FE / PI / PE, ordered feature application, and R1 conflict resolution | **P0** | Not started |
-| **AI-04** | Implement F2 copy-and-delete trimming engine plus staging writer and promote/restore flow | **P0** | Not started |
-| **AI-05** | Implement audit trail generation under `.chopper/` with the artifact contracts in Section 5.4 | **P1** | Not started |
-| **AI-06** | Ship JSON Schema files and semantic validators for base, feature, and project JSONs | **P1** | Not started |
-| **AI-07** | Implement validation (Phase 1 + Phase 2), diagnostics, exit codes, and standalone `chopper validate` command | **P0** | Not started |
-| **AI-08** | Implement F3 generation and template hook integration behind a narrow generator interface | **P1** | Not started |
-| **AI-09** | Implement dry-run mode (full pipeline simulation without file writes) | **P0** | Not started |
-| **AI-10** | Build fixture, golden, integration, and property-based tests for tracing, trimming, and retrim flows | **P0** | Not started |
-| **AI-11** | Implement `chopper cleanup` and the explicit last-day backup removal workflow | **P1** | Not started |
-| **AI-12** | Implement CLI logging setup and module-scoped diagnostic plumbing | **P1** | Not started |
+| ID | Action | Priority |
+|---|---|---|
+| **AI-01** | Build and validate the Tcl parser / lexer prototype, proc index, and brace-aware structure checker against real domain files | **P0** |
+| **AI-02** | Implement dry-run reporting: compiled manifest, dependency graph, and trim report emission without domain file writes | **P0** |
+| **AI-03** | Implement compiler logic for FI / FE / PI / PE, ordered feature application, and R1 conflict resolution | **P0** |
+| **AI-04** | Implement F2 copy-and-delete trimming engine plus staging writer and promote/restore flow | **P0** |
+| **AI-05** | Implement audit trail generation under `.chopper/` with the artifact contracts in Section 5.4 | **P1** |
+| **AI-06** | Ship JSON Schema files and semantic validators for base, feature, and project JSONs | **P1** |
+| **AI-07** | Implement validation (Phase 1 + Phase 2), diagnostics, exit codes, and standalone `chopper validate` command | **P0** |
+| **AI-08** | Implement F3 generation and template hook integration behind a narrow generator interface | **P1** |
+| **AI-09** | Implement dry-run mode (full pipeline simulation without file writes) | **P0** |
+| **AI-10** | Build fixture, golden, integration, and property-based tests for tracing, trimming, and retrim flows | **P0** |
+| **AI-11** | Implement `chopper cleanup` and the explicit last-day backup removal workflow | **P1** |
+| **AI-12** | Implement CLI logging setup and module-scoped diagnostic plumbing | **P1** |
 
 ### 13.2 Operational Follow-Ups
 
@@ -2595,3 +2688,43 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | Date | Change |
 |---|---|
 | 2024-06-01 | Initial draft |
+| 2026-04 | Consolidated review pass: removed `common/` infrastructure references; removed `template_script` execution contract (schema field retained); replaced all `docs_old/` forward-references with hyperlinks to current `docs/*.md`; promoted Trim Workflow to §3.7; added Rule L1 (The Law of Explicit Include) and treatment-token vocabulary convention to §4; added backup edge-case matrix to §2.8 with `VE-23` and `VI-03`; added GUI-readiness sections §8.3–8.5; added FR-38–FR-41 (service layer, JSON serialization, ProgressSink, diagnostic stability); rewrote FR-23 to name concrete audit artifacts; removed status column from §13.1; added TOC and Glossary; registered `VE-19`–`VE-23`, `VW-14`–`VW-17`, `VI-03`, `PE-03` in the diagnostic registry. |
+| 2026-04-19 | Locked in purely additive feature semantics. R1 rewritten around provenance-aware cross-source aggregation: rules L1 (explicit include wins cross-source), L2 (same-source authoring conveniences), L3 (base inviolable, features additive-only). P3 algorithm in §5.3 rewritten to classify per-source contributions (WHOLE / TRIM / NONE) and then aggregate across sources with full provenance recorded on every manifest entry. Feature ordering scoped to F3 `flow_actions` sequencing only; F1/F2 merges declared order-independent. FR-08 rewritten. Q13 and Q19 updated. New §11.6 FAQ entries for cross-source include/exclude disagreements. Diagnostic registry: `VW-10` un-retired and re-assigned to `cross-source-fe-vetoed`; `VW-11` scoped to same-source as `fe-pe-same-source-conflict`; new `VW-18 cross-source-pe-vetoed` added; VW active count 15 → 17. Project-v1 schema `features` description rewritten to reflect additive-only semantics and F3-only ordering authority. |
+| 2026-04-19 | Public-surface cleanup to eliminate schema/doc contradictions. Removed `_draft` field entirely from `json_kit/schemas/base-v1.schema.json` and `json_kit/docs/JSON_AUTHORING_GUIDE.md` (scan mode and draft-JSON generation are out of scope; see OOS-04). Rewrote `options.template_script` schema description to state the field is reserved in v1 and not executed; narrowed `VE-18 template-script-path-escapes` to Phase 1 static path validation (symlink/containment only). Updated RISKS_AND_PITFALLS.md TC-09 to match. Corrected stale non-registry diagnostic codes in schemas and authoring guide: feature-v1 `V-19` → `VW-04 feature-domain-mismatch`; authoring-guide `V-19 family` → `VE-15`/`VE-16`. |
+| 2026-04-19 | Scan-mode artifact purge across the live surface. Rewrote `tests/TESTING_STRATEGY.md` Scenario 14 (replaced fictional `TRACE-CYCLE-01` with BFS visited-set termination assertion) and Scenario 21 (replaced `diff_report.json` schema with dry-run artifact set: `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`). Extended the scenario table with six additive-model scenarios (23–28) covering cross-source FE/PE vetoes (`VW-10`, `VW-18`), same-source FE/PE conflict (`VW-11`), F3 `flow_actions` ordering authority, F1/F2 merge order-independence, and per-entry provenance in the compiled manifest. Replaced remaining ad-hoc parser diagnostic code strings with authoritative registry codes in `tests/FIXTURE_CATALOG.md` (`PARSE-DYNA-01` → `PW-01`, `PARSER-DUP-01` → `PE-01`, `TRACE-CROSS-DOMAIN-01` → `TW-02`), `docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md` (same mappings), and `tests/fixtures/tracing_domain/dynamic.tcl` (`TRACE-UNRESOLV-01` → `TW-03 dynamic-call-form` in three comment lines). Live surface now carries zero scan-mode subcommand references, zero fictional diagnostic codes, and zero `diff_report.json` mentions. OOS-04 in §2.1 and Q15 in §11 remain as the definitional statements of record. |
+| 2026-04-20 | Clarified and propagated the "trace is reporting-only" contract so the PI+/PT semantics are unmistakable at every authoring and implementation surface. Added a concrete worked example to §5.4 showing `foo` (listed in `procedures.include`) is copied while `bar` (reached only via trace) appears in `dependency_graph.json` and `trim_report.json` but is not copied. Promoted Scenario 14 in `tests/TESTING_STRATEGY.md` from a "no diagnostic" assertion to a real `TW-04 cycle-in-call-graph` assertion that also pins the no-auto-copy rule. Rewrote `docs/RISKS_AND_PITFALLS.md` Pitfall P-09 to strike the stale "`procedures.exclude` filters trace-derived proc candidates" mental model — under the additive L1/L2/L3 model, trace never adds survivors and PE is a same-source proc-trimming instruction governed by VW-09/VW-10/VW-11/VW-12/VW-18. Added a new Critical Principle #7 ("Trace Is Reporting-Only (Never Copies)") to `AGENTS.md` with the `foo`/`bar` example and the `TW-04` cycle termination pointer. Added a pull-quote callout to `json_kit/docs/JSON_AUTHORING_GUIDE.md` § "Merge and conflict semantics" stating the same rule in domain-owner language. No diagnostic-registry changes were required: `TW-04 cycle-in-call-graph` was already registered and PI+/PT were already described as reporting-only in §5.4's output table. |
+
+---
+
+## 15. Glossary
+
+| Term | Definition |
+|---|---|
+| **Domain** | A single EDA tool / flow-stage subtree under `global/<vendor>/<domain>/`. The unit of trimming. |
+| **Base JSON** | Required domain baseline JSON (schema `chopper/base/v1`). Declares minimum viable F1/F2/F3 content for the domain. |
+| **Feature JSON** | Optional overlay JSON (schema `chopper/feature/v1`) layered on top of base to add or remove files, procs, or stages. |
+| **Project JSON** | Reproducible selection manifest (schema `chopper/project/v1`) bundling a base plus ordered feature list for a specific project branch. |
+| **F1** | File-level capability: whole-file include/exclude via `files.include` / `files.exclude`. |
+| **F2** | Proc-level capability: per-proc include/exclude inside Tcl files via `procedures.include` / `procedures.exclude`. |
+| **F3** | Stage-level capability: generated `<stage>.tcl` run files driven by the `stages` array and `flow_actions`. |
+| **FI** | `files.include` set (literal paths + expanded globs). |
+| **FE** | `files.exclude` set (literal paths + patterns). |
+| **PI** | `procedures.include` — additive proc-selection model. |
+| **PE** | `procedures.exclude` — subtractive proc-selection model. |
+| **PI+** | Transitive trace expansion of PI; reporting-only, never affects survival. |
+| **PT** | Traced-only procs (PI+ minus PI); reporting-only. |
+| **Rule L1** | The Law of Explicit Include: an explicit include always wins over any exclude. See §4 R1. |
+| **FULL_COPY** / `full-copy` | File survives unchanged; all procs retained. |
+| **PROC_TRIM** / `proc-trim` | File survives with only the surviving procs retained; other proc bodies deleted. |
+| **GENERATED** / `generated` | File is produced by F3 run-file generation, not copied from source. |
+| **REMOVE** / `remove` | File is not present in the trimmed output. |
+| **TFM** | Tool Flow Manager — the CTH R2G orchestration layer Chopper operates within. |
+| **FlowBuilder** | Legacy flow composition tool; Chopper replaces a subset of its manual trimming workflow. |
+| **SNORT** | Prior-art proc extractor; Chopper absorbs its false-positive suppression heuristics (see §R3). |
+| **ivar** | Internal variable registry used by TFM code (`ivar(key)`); treated as configuration, not trimmed. |
+| **iproc_source** | TFM sourcing primitive (`iproc_source -file <path>`); understood by the parser, flags `-optional`, `-use_hooks`, `-quiet`, `-required`. |
+| **Hook file** | Pre/post extension point (`pre_*.tcl`, `post_*.tcl`) loaded by `-use_hooks`; reported in diagnostics, copied only when explicitly included. |
+| **Stack file** | Optional scheduler metadata file (`N`/`J`/`L`/`D`/`I`/`O`/`R` lines); generated alongside `<stage>.tcl`. |
+| **Signoff** | Final verification stage of the VLSI flow (timing, power, DFT, formality); Chopper's primary adoption target. |
+| **Domain boundary** | The directory tree rooted at the domain directory; Chopper never reads, writes, or backs up outside this boundary. |
+| **Dry-run** | `--dry-run` mode: full pipeline simulation producing `.chopper/` artifacts without modifying any domain files. |

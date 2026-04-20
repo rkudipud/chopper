@@ -2,7 +2,7 @@
 
 **Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-36) that prevent those risks from being realized.
 **Audience:** Engineering team
-**Replaces:** `docs_old/TECHNICAL_CHALLENGES.md` and the former `docs/IMPLEMENTATION_PITFALLS_GUIDE.md`
+**Replaces:** prior `TECHNICAL_CHALLENGES.md` and the former `docs/IMPLEMENTATION_PITFALLS_GUIDE.md`.
 
 ---
 
@@ -383,17 +383,18 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 }
 ```
 
-**Correct Behavior:** `helper` is included because it was explicitly requested. Excludes remain meaningful only for wildcard-expanded file candidates and trace-derived proc candidates.
+**Correct Behavior:** `helper` is included because it was explicitly requested. `files.exclude` remains meaningful only for wildcard-expanded file candidates. `procedures.exclude` is a *same-file* proc-trimming instruction (`PROC_TRIM` keep-set = `all_procs(file) − PE`); it does **not** filter trace-expanded callees, because trace (P4) is reporting-only and never adds procs to the surviving set. Only procs explicitly listed in `procedures.include` survive trimming — traced callees are emitted in `dependency_graph.json` and `trim_report.json` for visibility but are not copied.
 
 **Implementation Requirement:**
 - Literal file paths in `files.include` are authoritative and always survive
 - `files.exclude` applies only to files matched by wildcard `files.include` patterns
 - Explicit `procedures.include` entries are authoritative and always survive
-- `procedures.exclude` applies only to procs added by trace expansion beyond the explicit seed set
+- `procedures.exclude` prunes procs inside `PROC_TRIM` files (same-source authoring rule L2); it cannot remove another source's explicit `procedures.include` (`VW-18`) and cannot remove a whole-file include (`VW-10`)
+- PI+ (transitive trace set) is **reporting-only**: see [chopper_description.md](chopper_description.md) §5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
 
-**Why It Matters:** This keeps owner-requested content safe while making exclude fields useful for broad globs and conservative tracing.
+**Why It Matters:** This keeps owner-requested content safe. Excludes remain useful for broad globs and for authoring conveniences inside a single source, but never for second-guessing another author's explicit include.
 
-**Test:** Scenario: base includes proc X, feature excludes proc X. Final output must contain proc X. Scenario: traced-only proc Y appears via conservative trace and feature excludes Y. Final output omits Y.
+**Test:** Scenario: base includes proc X, feature excludes proc X. Final output must contain proc X and emit `VW-18`. Scenario: proc Y is only reachable via trace (called by an explicitly-included proc); feature excludes Y. Final output omits Y from the trimmed domain regardless — Y was never going to be copied — and the PE entry is recorded with no diagnostic suppression.
 
 ---
 
@@ -769,7 +770,7 @@ base_path = Path.cwd() / "jsons/base.json"
 - The project JSON `domain` field must match `Path.cwd().name`
 - If `--domain` is accepted, verify that it resolves to the same path as `Path.cwd()`
 - After resolution, passes fully resolved `Path` objects into the service layer `TrimRequest`
-- Phase 1 validation (V-15) catches unresolvable paths
+- Phase 1 validation (`VE-13 project-path-unresolvable`) catches unresolvable paths
 
 **Why It Matters:** This is the #1 probable mistake for project JSON implementers. The path resolution convention is intentional — it keeps project JSONs portable.
 
@@ -791,7 +792,7 @@ chopper trim --project p.json --base jsons/base.json
 **Implementation Requirement:**
 - In argparse setup, create a mutually exclusive group for `--project` vs `--base`/`--features`
 - If both are provided: fail with exit code 2 and a clear message like: `"--project is mutually exclusive with --base and --features. Use one mode or the other."`
-- Validation check V-13 covers this case
+- Validation check `VE-11 conflicting-cli-options` (exit code 2) covers this case
 
 **Why It Matters:** Ambiguous input modes produce unpredictable behavior and break reproducibility.
 
@@ -813,11 +814,11 @@ chopper trim --project p.json --base jsons/base.json
 **Implementation Requirement:**
 - After collecting all diagnostics, if `--strict` is active, re-classify any WARNING as ERROR
 - Recalculate the exit code based on the escalated diagnostics
-- V-04 (duplicate file entries) is the primary case: normally WARNING, escalated to ERROR under `--strict`
+- `VW-01 file-in-both-include-lists` (and related soft-mismatch warnings) is the primary case: normally WARNING, escalated to ERROR under `--strict`
 
 **Why It Matters:** CI pipelines rely on exit codes to gate merges. `--strict` ensures warnings do not silently pass.
 
-**Test:** Scenario: trim with a V-04 duplicate entry. Without `--strict`: exit 0. With `--strict`: exit 1.
+**Test:** Scenario: trim with a `VW-01` overlap warning. Without `--strict`: exit 0. With `--strict`: exit 1.
 
 ---
 
@@ -868,7 +869,7 @@ iproc_source -file setup.tcl -use_hooks
 - There is no `HOOK_AUTO` keep reason. Hook files use the normal `explicit-file` reason if included.
 - Warn in scan output that discovered hook files require explicit inclusion
 
-**Why It Matters:** The old hook-auto behavior was removed by design (ARCHITECTURE.md Rev 18, Decision 1). Restoring it silently would re-bloat trimmed domains.
+**Why It Matters:** The old hook-auto behavior was removed by design (see [chopper_description.md](chopper_description.md) Q12). Restoring it silently would re-bloat trimmed domains.
 
 **Test:**
 - Scenario: Domain has `setup.tcl` + `pre_setup.tcl` + `post_setup.tcl`. Base JSON includes only `setup.tcl` in `files.include`. After trim: `pre_setup.tcl` and `post_setup.tcl` must NOT appear in the trimmed domain.
@@ -1007,7 +1008,7 @@ Non-Tcl files are intentionally file-level only. Attempting to over-interpret no
 
 ### TC-09: Template Generation
 
-Some domains may need template-generated artifacts. Generation is supported through an optional domain-relative `template_script` executed once at the end of a successful trim run; domain-specific generation logic stays outside the Chopper core.
+Some domains may need template-generated artifacts. The base JSON schema retains an optional `options.template_script` field as a reserved hook for forward compatibility, but Chopper v1 does not execute it — only its path shape and domain-boundary containment are validated (`VE-18`). Domain-specific generation logic stays outside the Chopper core, and any runtime execution of such scripts is out of scope for v1.
 
 ---
 

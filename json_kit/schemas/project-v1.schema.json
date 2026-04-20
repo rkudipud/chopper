@@ -42,7 +42,7 @@
         "minLength": 1,
         "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
       },
-      "description": "Ordered list of feature JSON paths relative to the current working directory / domain root (forward slashes only, no '..', no '//', no absolute paths). Order is authoritative - later features see the results of earlier ones. If a feature declares depends_on in its Feature JSON, each prerequisite feature should also be selected here and must appear earlier in this list."
+      "description": "List of feature JSON paths relative to the current working directory / domain root (forward slashes only, no '..', no '//', no absolute paths). Features are purely additive — their contributions union with the base and with each other, and excludes from one feature never remove content contributed by the base or another feature. Order is authoritative for F3 `flow_actions` sequencing only: when multiple features inject steps/stages against a common reference via `add_step_before`/`add_step_after`/`add_stage_before`/`add_stage_after`, earlier features are applied first so later features see and can target the cumulative F3 result. F1/F2 merges (files and procedures) are order-independent. If a feature declares `depends_on`, each prerequisite feature must also be selected and must appear earlier in this list."
     },
     "notes": {
       "type": "array",

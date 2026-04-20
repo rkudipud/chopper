@@ -196,7 +196,7 @@ def assert_domain_state(domain_path: Path, expected: DomainState) -> None:
 ```python
 # Template for integration scenario tests:
 def test_scenario_XX_description(virgin_domain: Path) -> None:
-    """Scenario XX: <description from ENGINEERING_HANDOFF_CHECKLIST.md>."""
+    """Scenario XX: end-to-end integration scenario (see named scenarios table below)."""
     runner = ChopperRunner(virgin_domain)
 
     # Arrange: set up any additional domain state here
@@ -214,7 +214,7 @@ def test_scenario_XX_description(virgin_domain: Path) -> None:
 
 ## 5. Named Integration Scenarios
 
-Scenario numbering matches ENGINEERING_HANDOFF_CHECKLIST.md Sprint 4–5 integration scenarios.
+Scenario numbering is stable within this document; each scenario below names the sprint it originates from.
 
 | # | Name | Sprint | Key Assertions |
 |---|---|---|---|
@@ -229,15 +229,21 @@ Scenario numbering matches ENGINEERING_HANDOFF_CHECKLIST.md Sprint 4–5 integra
 | 11c | `--project` audit artifact `input_project.json` present | Sprint 4 | Exact copy of project JSON |
 | 12 | Feature order preserved in manifest | Sprint 4 | `feature_json_paths` in manifest matches CLI order |
 | 13 | Include-wins enforcement | Sprint 2 | PI+ always superset of PI |
-| 14 | Trace cycle (A→B→A) | Sprint 2 | Both procs included; TRACE-CYCLE-01 warning emitted |
+| 14 | Trace cycle (A→B→A) | Sprint 2 | `TW-04 cycle-in-call-graph` WARNING emitted listing the cycle path; BFS terminates via visited-set; cycle procs appear in `dependency_graph.json` only when already reachable from explicit PI — they are NOT auto-copied into the trimmed domain |
 | 15 | Empty domain (no procs) | Sprint 2 | 0 procs after trim; no error |
 | 16 | NFS lock detection log | Sprint 3 | WARNING logged when lock path is on NFS mount |
-| 17 | `--strict` escalates V-23 to ERROR | Sprint 4 | exit code 1 when F3 references trimmed step file |
-| 18 | Feature name uniqueness (V-18) | Sprint 4 | ERROR when two features share same `name` |
-| 19 | Empty base JSON (V-17) | Sprint 4 | INFO diagnostic; no crash |
-| 20 | `template_script` not executed in dry-run | Sprint 4 | INFO logged; script not run |
-| 21 | `diff_report.json` schema | Sprint 2 | Emitted with correct fields when base.json exists |
+| 17 | `--strict` escalates `VW-16 step-source-missing` to ERROR | Sprint 4 | exit code 1 when F3 references trimmed step file |
+| 18 | Feature name uniqueness (`VE-14 duplicate-feature-name`) | Sprint 4 | ERROR when two features share same `name` |
+| 19 | Empty base JSON (`VI-01 empty-base-json`) | Sprint 4 | INFO diagnostic; no crash |
+| 20 | `template_script` reserved in v1 (not executed) | Sprint 4 | Field accepted by schema; no script execution; `VE-18` fires only on symlink escape |
+| 21 | Dry-run artifact set | Sprint 2 | `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt` all emitted with documented fields; no domain files written |
 | **22** | **Re-trim idempotency** (H-15) | Sprint 3 | `compiled_manifest.json` hash identical across two identical-input runs; trimmed files byte-identical |
+| 23 | Additive model — cross-source FE veto | Sprint 2 | Feature `procedures.exclude` cannot remove a base `procedures.include`; `VW-10 cross-source-fe-vetoed` warning emitted; proc retained |
+| 24 | Additive model — cross-source PE veto | Sprint 2 | Feature `procedures.exclude` cannot remove another feature's explicit `procedures.include`; `VW-18 cross-source-pe-vetoed` warning emitted; proc retained |
+| 25 | Additive model — same-source FE/PE conflict | Sprint 2 | Same feature lists a proc in both `procedures.include` and `procedures.exclude`; `VW-11 fe-pe-same-source-conflict` warning emitted; include wins |
+| 26 | F3 `flow_actions` ordering authoritative | Sprint 2 | Last feature's `flow_actions` append order is preserved in compiled manifest; reordering CLI features changes `flow_actions` but leaves F1/F2 merged sets unchanged |
+| 27 | F1/F2 merge order-independence | Sprint 2 | Swapping CLI feature order leaves `files.include`/`procedures.include` union identical (set equality) |
+| 28 | Provenance recorded in manifest | Sprint 2 | Each entry in `compiled_manifest.json` carries its origin (`base` or `feature:<name>`) for every `files.*` and `procedures.*` decision |
 
 ---
 

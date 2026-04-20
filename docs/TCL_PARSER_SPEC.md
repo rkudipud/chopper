@@ -958,7 +958,7 @@ The compiler builds two in-memory structures from `list[ProcEntry]`:
 proc_index: dict[str, ProcEntry] = {e.canonical_name: e for e in all_entries}
 ```
 
-**Call graph edges** — directed edges for BFS trace expansion (see ARCHITECTURE.md §4.3). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
+**Call graph edges** — directed edges for BFS trace expansion (see [chopper_description.md](chopper_description.md) §5.4, P4 trace phase). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
 
 ```python
 # Edge: caller canonical_name → unresolved call token
@@ -980,7 +980,7 @@ source_edges: list[tuple[str, str]] = [
 ]
 ```
 
-Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism (ARCHITECTURE.md Decision 3), and collects all reachable `ProcEntry` records as additional keeps.
+Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism ([chopper_description.md](chopper_description.md) §5.4 and NFR-03), and collects all reachable `ProcEntry` records as additional keeps.
 
 #### 8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)
 
@@ -1029,8 +1029,8 @@ Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) 
 | [Tcl proc manual](https://www.tcl-lang.org/man/tcl8.6/TclCmd/proc.htm) | `proc name args body` syntax |
 | [Tcl namespace manual](https://www.tcl-lang.org/man/tcl8.6/TclCmd/namespace.htm) | `namespace eval` semantics |
 | [BNF for Tcl](https://wiki.tcl-lang.org/page/BNF+for+Tcl) | Why Tcl has no formal BNF (context-sensitive language) |
-| ARCHITECTURE.md §4.3 | Proc index contract and trace expansion algorithm |
-| ARCHITECTURE.md §9 (TC-01, TC-02) | Technical challenges for proc boundary detection |
+| [chopper_description.md](chopper_description.md) §5.4 | Proc index contract and trace expansion algorithm |
+| [chopper_description.md](chopper_description.md) §9 and [RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md) (TC-01, TC-02) | Technical challenges for proc boundary detection |
 
 ---
 
@@ -1073,4 +1073,4 @@ Cross-file `canonical_name` uniqueness is checked later during domain-wide proc 
 
 ### A.2 Namespace Resolution Cross-Reference (E-11)
 
-The parser captures `namespace_path` for each proc (e.g., `"a::b::c"`). During trace expansion (see ARCHITECTURE.md §4.3 step 5 and TECHNICAL_REQUIREMENTS.md §7.1.1 Phase 3), the tracer uses this namespace context to resolve proc calls deterministically via the namespace resolution contract defined in TCL_PARSER_SPEC.md §5.3.1.
+The parser captures `namespace_path` for each proc (e.g., `"a::b::c"`). During trace expansion (see [chopper_description.md](chopper_description.md) §5.4 and the P4 trace phase contract), the tracer uses this namespace context to resolve proc calls deterministically via the namespace resolution contract defined in [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §5.3.1.

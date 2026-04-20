@@ -125,9 +125,8 @@ Equivalent JSON stage definition:
 | `vendor` | string | No | Vendor (e.g., `synopsys`, `cadence`) |
 | `tool` | string | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | string | No | Human-readable summary |
-| `_draft` | boolean | No | `true` = machine-generated, not yet curated. Default: `false` |
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
-| `options.template_script` | string | No | Domain-relative path to post-trim script |
+| `options.template_script` | string | No | Reserved (v1): domain-relative script path. Schema-validated for path safety but not executed in v1. |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
@@ -281,7 +280,7 @@ All paths in `base` and `features` must be:
 1. Values in `depends_on` are **feature `name` strings**, not file paths.
 2. Each prerequisite must appear in the project `features` list.
 3. Each prerequisite must appear **earlier** in the list than the feature declaring the dependency.
-4. Chopper validates this at project-level (V-19 family).
+4. Chopper validates this at project-level (`VE-15 missing-depends-on-feature` and `VE-16 depends-on-out-of-order`).
 
 ### Example — three-level chain
 
@@ -464,6 +463,9 @@ Glob patterns support three special characters to match multiple files:
 1. Explicit `include` always overrides `exclude` at the same granularity
 2. Later features override earlier ones for the same element
 3. `depends_on` ordering is validated but does not auto-sort features
+
+> **Trace is logging-only — it does not copy procs.**
+> Chopper's P4 trace expansion walks your `procedures.include` set to build a call tree (`dependency_graph.json`) and emit `TW-*` warnings. Traced callees appear in the call tree and in `trim_report.json`, but **only procs explicitly listed in `procedures.include`** (or whole-file-included via `files.include`) are copied into the trimmed domain. Example: if you list `foo` and `foo` calls `bar`, `foo` is copied and `bar` is logged. To keep `bar`, list it explicitly. This is why `procedures.exclude` never needs to "hide" traced callees — they were never going to be copied.
 
 **Per-file input interaction matrix:**
 

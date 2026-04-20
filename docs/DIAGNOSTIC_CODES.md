@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01–VE-25 | 18 | 7 | 25 | Schema, path, action, ordering failures — block output |
-| `VW` Validation Warnings | VW-01–VW-15 | 12 | 2 | 15 | Soft mismatches, overlaps, stale globs |
-| `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
+| `VE` Validation Errors | VE-01–VE-25 | 23 | 2 | 25 | Schema, path, action, ordering failures — block output |
+| `VW` Validation Warnings | VW-01–VW-20 | 17 | 2 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
+| `VI` Validation Info | VI-01–VI-05 | 3 | 2 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 3) |
-| `PE` Parse Errors | PE-01–PE-10 | 2 | 8 | 10 | Fatal parse failures; file skipped or partial |
+| `PE` Parse Errors | PE-01–PE-10 | 3 | 7 | 10 | Fatal parse failures; file skipped or partial |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **49** | **46** | **95** | |
+| **Total** | | **63** | **36** | **100** | |
 
 ---
 
@@ -59,12 +59,17 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-15 | `missing-depends-on-feature` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite is not selected in project `features` | Add the prerequisite feature to the project or remove the dependency declaration |
 | VE-16 | `depends-on-out-of-order` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite appears later than the dependent feature in project `features` order | Reorder project features so all prerequisites appear earlier than the dependent feature |
 | VE-17 | `brace-error-post-trim` | 2 | validator | 1 | Surviving `.tcl` file has brace-matching errors after trim | Edit the file or adjust procs kept to avoid broken syntax |
-| VE-18 | `template-script-path-escapes` | 2 | validator | 1 | `options.template_script` resolved path escapes domain root (symlink boundary) or does not exist at execution time | Fix the path or remove the option; skipped in `--dry-run` |
-| — | — | — | — | — | **VE-19 through VE-25 reserved** | — |
+| VE-18 | `template-script-path-escapes` | 1 | validator | 1 | `options.template_script` resolves (via `Path.resolve()`) to a path outside the domain root (symlink escape) or fails the schema path-shape check. The field itself is reserved and not executed in v1; only path safety is validated. | Fix the path or remove the option |
+| VE-19 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
+| VE-20 | `duplicate-feature-entry` | 1 | validator | 1 | Same feature path appears more than once in project `features[]` | Remove duplicate entries; feature order must be unique |
+| VE-21 | `occurrence-suffix-zero` | 1 | compiler | 1 | `@0` used on an action `reference` — `@n` is 1-based | Use `@1` for the first occurrence, or omit `@n` entirely |
+| VE-22 | `ambiguous-step-target` | 1 | compiler | 1 | `replace_step` / `remove_step` targets a duplicate step string without `@n` disambiguation | Add `@n` to the `reference` to pick a specific occurrence |
+| VE-23 | `no-domain-or-backup` | 1 | cli | 2 | Neither `<domain>/` nor `<domain>_backup/` exists at invocation — nothing to trim | Verify you are in the correct working directory; restore the domain from version control |
+| — | — | — | — | — | **VE-24 through VE-25 reserved** | — |
 
 ---
 
-## 2. Validation Warnings — `VW-01` through `VW-15`
+## 2. Validation Warnings — `VW-01` through `VW-20`
 
 > Exit 0; escalate to error with `--strict` unless noted otherwise.
 
@@ -79,10 +84,16 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-07 | `run-file-step-trimmed` | 2 | validator | 0 | F3-generated run file references a step file that was trimmed away | Add step file to `files.include` or remove the step from stage |
 | VW-08 | `file-empty-after-trim` | 2 | trimmer | 0 | File survived trim but lost all proc definitions; exists as blank/comment-only | Expected if only top-level code mattered; review if file should be in `files.include` |
 | VW-09 | `fi-pi-overlap` | 1 | compiler | 0 | File is in `files.include` and also has procs in `procedures.include`; PI entries are redundant on FULL_COPY files | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include` |
-| VW-10 | `fi-pe-overlap` | — | — | — | **Retired.** FI+PE is now a valid combination (PE downgrades FULL_COPY to PROC_TRIM). No longer emitted. | — |
-| VW-11 | `fe-pe-conflict` | 1 | compiler | 0 | File is in `files.exclude` and `procedures.exclude` (no PI) — both are removal signals; file is removed entirely; PE entries have no effect | Remove from `files.exclude` and use PE alone if you want to keep the file with specific procs removed |
+| VW-10 | `cross-source-fe-vetoed` | 1 | compiler | 0 | File is in one source's `files.exclude` but survives because another source (base or another feature) contributes the file via FI, PI, or PE. The excluding source's FE entry is discarded. Features are purely additive and cannot remove content contributed by other sources. | Remove the redundant `files.exclude` entry, or verify the other source's inclusion is intentional |
+| VW-11 | `fe-pe-same-source-conflict` | 1 | compiler | 0 | Within a single JSON source, the same file appears in both `files.exclude` and `procedures.exclude` with no matching `procedures.include`. Both are removal-within-this-source signals; this source contributes nothing for the file (other sources may still contribute). | Within one JSON, use `files.exclude` alone to drop a file, or `procedures.exclude` alone to keep it with some procs removed |
 | VW-12 | `pi-pe-same-file` | 1 | compiler | 0 | Same file has procs in both `procedures.include` and `procedures.exclude`; PI takes precedence, PE ignored for this file | Choose one model per file: additive (PI) or subtractive (PE), not both |
 | VW-13 | `pe-removes-all-procs` | 1 | compiler | 0 | All procs excluded from file via `procedures.exclude`; file survives as comment/blank-only | Consider using `files.exclude` to remove the entire file instead |
+| VW-14 | `step-file-missing` | 2 | validator | 0 | F3 step string is a bare `.tcl` filename but the target file did not survive trim (cross-validate) | Add the file to `files.include` or remove the step |
+| VW-15 | `step-proc-missing` | 2 | validator | 0 | F3 step string is a bare proc name but the proc did not survive trim (cross-validate) | Add the proc to `procedures.include` or remove the step |
+| VW-16 | `step-source-missing` | 2 | validator | 0 | F3 step contains `source` / `iproc_source` with a literal file path that did not survive trim | Add the sourced file to `files.include` or remove the step |
+| VW-17 | `external-reference` | 2 | validator | 0 | Surviving code references a path outside the domain boundary (not an error; informational for cross-domain awareness) | Verify the external dependency is intentional; no action required if expected |
+| VW-18 | `cross-source-pe-vetoed` | 1 | compiler | 0 | A source lists proc `p` of file `F` in `procedures.exclude`, but `p` survives because another source contributes `F` whole-file or includes `p` explicitly via `procedures.include`. The PE entry from the excluding source is discarded. Features cannot strip procs from content contributed by other sources. | Remove the redundant PE entry, or align with the other source's include intent |
+| — | — | — | — | — | **VW-19 through VW-20 reserved** | — |
 
 ---
 
@@ -94,7 +105,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | --- | --- | --- | --- | --- | --- | --- |
 | VI-01 | `empty-base-json` | 1 | validator | 0 | Base JSON has no `files`, `procedures`, or `stages` blocks (WARNING in `--strict`) | May be intentional for feature-driven flow; review if draft |
 | VI-02 | `top-level-tcl-only` | 2 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
-| — | — | — | — | — | **VI-03 through VI-05 reserved** | — |
+| VI-03 | `domain-hand-edited` | 1 | cli | 0 | Re-trim detected that `<domain>/` contents diverged from the last generated output; rebuild from `_backup` will discard local edits | Commit or move local edits before re-running; Chopper always rebuilds from `_backup` |
+| — | — | — | — | — | **VI-04 through VI-05 reserved** | — |
 
 ---
 
@@ -120,7 +132,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | --- | --- | --- | --- | --- | --- | --- |
 | PE-01 | `duplicate-proc-definition` | parser | 1 | Duplicate proc definition in the same source file; last definition wins for index | Remove one definition or rename the proc to avoid silent shadowing | §6.3 |
 | PE-02 | `unbalanced-braces` | parser | 1 | Unbalanced braces in file; proc boundaries cannot be reliably determined | Fix brace matching in the Tcl source file; use an editor brace-matching tool | §3 |
-| — | — | — | — | **PE-03 through PE-10 reserved** | — | — |
+| PE-03 | `ambiguous-short-name` | parser | 1 | A file defines two procs that collapse to the same `short_name` once namespace stripping is applied; F2 cannot disambiguate by short name alone | Rename one proc or reference it by namespace-qualified name in `procedures.include` | §4.3 |
+| — | — | — | — | **PE-04 through PE-10 reserved** | — | — |
 
 ---
 
@@ -167,3 +180,4 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 - Every code constant must be defined in `src/chopper/core/diagnostics.py` before use in implementation.
 - Every code carries a kebab-case **`slug`** for human-facing display (e.g., `"duplicate-proc-definition"`). The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.
 - When adding a new code: pick the lowest available reserved slot in the correct `<FAMILY><SEV>` band, assign a slug, update this table and the summary above, then implement the constant.
+- **VW-10 re-assignment (2026-04-19):** `VW-10` was briefly retired (old slug `fi-pe-overlap`) when FI+PE was still modeled as a conflict. Under the purely additive feature model, FI+PE within a single source is a valid L2.2 authoring pattern, so the old semantics are dead. `VW-10` has been re-assigned to `cross-source-fe-vetoed` to report feature `files.exclude` entries that are discarded because another source contributes the file. The companion code `VW-18 cross-source-pe-vetoed` covers the same cross-source veto for `procedures.exclude`.

@@ -5,9 +5,9 @@
 ## Quick Links
 
 - **[AGENTS.md](AGENTS.md)** — AI agent instructions, architecture overview, design principles
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Product behavior, 7-phase pipeline, design decisions
-- **[docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md)** — Implementation contracts, phase specs
-- **[docs/DEVELOPER_KICKOFF.md](docs/DEVELOPER_KICKOFF.md)** — Developer onboarding checklist
+- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 7-phase pipeline, R1 merge rules, requirements
+- **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
+- **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
 - **[Makefile](Makefile)** — Build, test, lint commands
 
 ---
@@ -338,15 +338,15 @@ F5 (Run File Gen)  →  F6 (Validate Post)  →  F7 (Write & Audit)
 | **audit/** | Backup, restore, audit trail artifacts | F7 |
 | **generators/** | Run file generation | F5 |
 
-For full details, see [AGENTS.md](AGENTS.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For full details, see [AGENTS.md](AGENTS.md) and [docs/chopper_description.md](docs/chopper_description.md).
 
 ---
 
 ## Additional Resources
 
 - **[Makefile](Makefile)** — Build and test commands
-- **[docs/DEVELOPER_KICKOFF.md](docs/DEVELOPER_KICKOFF.md)** — Developer onboarding guide
-- **[docs/TECHNICAL_REQUIREMENTS.md](docs/TECHNICAL_REQUIREMENTS.md)** — Phase-by-phase implementation contracts
+- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 7-phase pipeline, R1 merge rules, requirements
+- **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
 - **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Tcl parser engineering baseline
 - **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks and implementation pitfalls
 - **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry

@@ -19,7 +19,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Optional: domain this feature is intended for (e.g., my_domain). If present and the selected base declares a different domain, Python-level validation V-19 emits a WARNING: 'Feature domain mismatch'. Features without this field are domain-agnostic and can be applied to any domain without a warning."
+      "description": "Optional: domain this feature is intended for (e.g., my_domain). If present and the selected base declares a different domain, the validator emits `VW-04 feature-domain-mismatch` (warning; escalates to error in `--strict`). Features without this field are domain-agnostic and can be applied to any domain without a warning."
     },
     "description": {
       "type": "string",
@@ -107,7 +107,7 @@
             "$ref": "#/$defs/procEntry"
           },
           "minItems": 1,
-          "description": "Proc-level excludes from this feature, used to prune trace-derived proc candidates. Does not remove explicit procedures.include entries. MUST NOT be empty if procedures.exclude is present."
+          "description": "Proc-level excludes from this feature. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE). Does not remove explicit procedures.include entries from any source (emits VW-18 cross-source-pe-vetoed) and does not remove whole-file includes (emits VW-10 cross-source-fe-vetoed). Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
         }
       }
     },

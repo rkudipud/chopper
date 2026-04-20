@@ -19,8 +19,8 @@ This file enumerates all parser test fixtures required for Sprint 1 acceptance. 
 | 5 | `parser_backslash_line_continuation.tcl` | P-02 | §3.2, §7.2 | `ProcEntry` spans correct; original source line numbers preserved |
 | 6 | `parser_nested_namespace_accumulates.tcl` | P-03 | §4.5 | `qualified_name` = `a::b::deep_proc`; `namespace_path` = `a::b` |
 | 7 | `parser_namespace_reset_after_block.tcl` | P-03, B-04 | §4.5 | `p1.qualified_name = a::p1`, `p2.qualified_name = b::p2` after sequential blocks |
-| 8 | `parser_computed_proc_name_skipped.tcl` | P-04 | §4.3 | No `ProcEntry` for dynamic name; WARNING diagnostic `PARSE-DYNA-01` |
-| 9 | `parser_duplicate_proc_definition_error.tcl` | P-05 | §6.1, §7.10 | ERROR diagnostic `PARSER-DUP-01`; proc index uses last definition's span |
+| 8 | `parser_computed_proc_name_skipped.tcl` | P-04 | §4.3 | No `ProcEntry` for dynamic name; WARNING diagnostic `PW-01 computed-proc-name` |
+| 9 | `parser_duplicate_proc_definition_error.tcl` | P-05 | §6.1, §7.10 | ERROR diagnostic `PE-01 duplicate-proc-definition`; proc index uses last definition's span |
 | 10 | `parser_comment_with_braces_ignored.tcl` | P-07 | §3.4 | `ProcEntry` parsed correctly; brace in comment does not affect depth |
 | 11 | `parser_proc_inside_if_block.tcl` | — | §4.4, §7.8 | Proc inside `if` NOT indexed; debug log emitted |
 | 12 | `parser_namespace_absolute_override.tcl` | — | §4.3 | `proc ::abs::foo` inside `namespace eval ns` resolves as `abs::foo` |
@@ -137,7 +137,7 @@ proc ${prefix}_handler {} {
 }
 ```
 
-**Expected:** No `ProcEntry`. WARNING diagnostic with code `PARSE-DYNA-01`.
+**Expected:** No `ProcEntry`. WARNING diagnostic with code `PW-01 computed-proc-name`.
 
 ---
 
@@ -153,7 +153,7 @@ proc read_data {} {
 }
 ```
 
-**Expected:** ERROR diagnostic code `PARSER-DUP-01`. Proc index contains only the second definition (lines 5–7). File flagged as invalid for trim/trace.
+**Expected:** ERROR diagnostic code `PE-01 duplicate-proc-definition`. Proc index contains only the second definition (lines 5–7). File flagged as invalid for trim/trace.
 
 ---
 
@@ -295,7 +295,7 @@ Representative proc for `puts`/`echo`-heavy result reporting with Synopsys/Caden
 | `tcl_set_command_name_echo off/on` — Synopsys EDA command, not a user proc | §5.5 |
 | `redirect -variable varname "command string"` — string content NOT extracted as call | §5.1, §5.2 |
 | Nested `if + foreach line [split $var "\n"]` — CONTROL_FLOW contexts | §4.4 |
-| `vpxmode`, `vpx`, `tclmode` — Cadence LEC EDA commands; TRACE-CROSS-DOMAIN-01 at trace time | §5.3.1 |
+| `vpxmode`, `vpx`, `tclmode` — Cadence LEC EDA commands; `TW-02 unresolved-proc-call` at trace time | §5.3.1 |
 | `puts "..."`, `echo "..." >> fev_results.log` — §5.5 Level 3/4 suppression; `>>` is inert argument | §5.5 |
 | `define_proc_attributes` DPA block with backslash continuation | §4.6 |
 
@@ -316,7 +316,7 @@ ProcEntry(
 )
 ```
 
-No parse error diagnostics. `vpx`, `vpxmode`, `tclmode` produce `TRACE-CROSS-DOMAIN-01` at trace-expansion time (not parse time — brace structure is clean).
+​No parse error diagnostics. `vpx`, `vpxmode`, `tclmode` produce `TW-02 unresolved-proc-call` at trace-expansion time (not parse time — brace structure is clean).
 
 ---
 
