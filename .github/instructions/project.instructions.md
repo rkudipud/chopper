@@ -10,6 +10,86 @@ Authoritative conventions and guardrails for working in this codebase. Read this
 
 ---
 
+## Scope Lock (Read Before Writing Any Code or Doc)
+
+Chopper's scope is intentionally narrow. The list below names decisions that are **closed** — not deferred, not reserved, not "architecturally enabled for later". Each one was debated, rejected, and recorded. Agents and contributors must not reintroduce these concepts by any route: no code, no doc reservation, no stub, no comment, no "TODO for stage 6", no "reserved namespace".
+
+### 1. Closed Decisions (Do Not Reintroduce)
+
+| Forbidden concept | Exact identifiers that must not appear | Authoritative rejection |
+|---|---|---|
+| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §16 Q3 |
+| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §16 Q2 |
+| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`docs/CLI_HELP_TEXT_REFERENCE.md`](../../docs/CLI_HELP_TEXT_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
+| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §8.2 rule 4; `--strict` is exit-code policy only |
+| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| MCP integration | `mcp_server/`, `adapters/mcp_*.py`, `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.validate` MCP tool, any MCP client code | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`docs/DIAGNOSTIC_CODES.md`](../../docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
+| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §15 |
+| Networked services | HTTP server, IPC, message bus, daemon mode | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §2 |
+| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
+
+If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
+
+### 2. Single Authority: The Bible
+
+[`docs/chopper_description.md`](../../docs/chopper_description.md) is the **bible**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
+
+- [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) — describes *how* the bible is built; cannot add behavior the bible does not mandate.
+- [`docs/DIAGNOSTIC_CODES.md`](../../docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the bible; cannot introduce a code for behavior not in the bible.
+- [`docs/CLI_HELP_TEXT_REFERENCE.md`](../../docs/CLI_HELP_TEXT_REFERENCE.md), [`docs/RISKS_AND_PITFALLS.md`](../../docs/RISKS_AND_PITFALLS.md), [`docs/TCL_PARSER_SPEC.md`](../../docs/TCL_PARSER_SPEC.md) — all subordinate.
+- [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../docs/FUTURE_PLANNED_DEVELOPMENTS.md) — records what was considered and *not* shipped; never a green light to build.
+
+**When docs disagree, the bible wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
+
+**Adding a new capability** — any new flag, subcommand, diagnostic family, port, pipeline phase, generated artifact, or runtime behavior — requires, **in this order**:
+
+1. **User approval.** Not inferred, not assumed. Explicit.
+2. **Bible edit first.** The feature is specified in [`docs/chopper_description.md`](../../docs/chopper_description.md) before any subordinate doc or code moves.
+3. **Cascade.** Subordinate docs update only after the bible is updated.
+4. **Then code.** Implementation follows the cascade, never precedes it.
+
+No agent may invert this order. If you catch yourself writing code for a feature that is not in the bible, stop and file a proposal (below).
+
+### 3. Proposal Procedure (The Only Legitimate Route)
+
+When you (or a reviewer, or a user comment) identify something Chopper "should maybe do", the correct action is **not** to implement it. It is not to stub it. It is not to reserve a seam for it. The correct action is:
+
+1. Open [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../docs/FUTURE_PLANNED_DEVELOPMENTS.md).
+2. Add a new `FD-xx` entry at the next unused number in the appropriate category section.
+3. State: what the idea is, why it was considered, why it is not in v1, and what would change in the bible if it were adopted.
+4. Do **not** implement it. Do **not** stub it. Do **not** reserve a diagnostic code, port, or namespace for it.
+5. Flag the user for review in the same turn.
+
+`FD-xx` entries are **not TODOs**. They are a record that the idea was considered and routed correctly. Many will stay `FD-xx` forever. That is the intended outcome.
+
+### 4. Enforcement Hooks (Agent Self-Check)
+
+Before committing any change, grep the repo for the forbidden-identifier tokens in §1 above:
+
+```text
+LockPort | preserve-hand-edits | chopper scan | PluginHost | MCPProgressBridge |
+EntryPointPluginHost | MCPDiagnosticSink | advisor/ | XE- | XW- | XI- |
+mcp_server | \.chopper/\.lock | \.chopper/hand_edits
+```
+
+Every hit outside a negative assertion (a sentence like "there is no `LockPort`") is a regression to fix before the commit lands. Docs are allowed to name a forbidden concept **only** in the context of saying it is forbidden.
+
+### 5. Decision Tree When Adding Anything
+
+```text
+Is this in docs/chopper_description.md?
+├── YES → Implement per the bible. Cascade to subordinate docs if needed.
+└── NO  → Is it in §1 "Closed Decisions" above?
+         ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
+         └── NO  → File an FD-xx stub in FUTURE_PLANNED_DEVELOPMENTS.md. Flag the user. Stop.
+```
+
+There is no fourth branch.
+
+---
+
 ## Quick Setup
 
 First time? Set up your environment with a platform-agnostic script:

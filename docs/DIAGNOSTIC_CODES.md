@@ -25,18 +25,18 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01–VE-25 | 23 | 2 | 25 | Schema, path, action, ordering failures — block output |
-| `VW` Validation Warnings | VW-01–VW-20 | 17 | 2 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
-| `VI` Validation Info | VI-01–VI-05 | 3 | 2 | 5 | Advisory notices; no action required |
+| `VE` Validation Errors | VE-01–VE-30 | 23 | 7 (retired: VE-16, VE-24; + 5 free: VE-27–VE-30 and 1 mid-range) | 30 | Schema, path, action, ordering, filesystem failures — block output |
+| `VW` Validation Warnings | VW-01–VW-20 | 17 | 3 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
+| `VI` Validation Info | VI-01–VI-05 | 3 | 2 (retired: VI-04, VI-05) | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 3) |
 | `PE` Parse Errors | PE-01–PE-10 | 3 | 7 | 10 | Fatal parse failures; file skipped or partial |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **63** | **36** | **100** | |
+| **Total** | | **65** | **40** | **105** | |
 
 ---
 
-## 1. Validation Errors — `VE-01` through `VE-25`
+## 1. Validation Errors — `VE-01` through `VE-30`
 
 > Phase 1 = Pre-Trim · Phase 2 = Post-Trim. All errors block output generation (exit 1) unless noted.
 
@@ -54,10 +54,10 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-10 | `occurrence-suffix-overflow` | 1 | compiler | 1 | `@n` suffix where `n` exceeds actual occurrence count for that step string | Reduce `@n` or verify the step appears enough times |
 | VE-11 | `conflicting-cli-options` | 1 | cli | **2** | `--project` provided alongside `--base` or `--features` | Use `--project` alone or `--base`/`--features` alone |
 | VE-12 | `project-schema-invalid` | 1 | schema | 1 | Project JSON fails `chopper/project/v1` schema validation | Fix project JSON: requires `$schema`, `project`, `domain`, `base` |
-| VE-13 | `project-path-unresolvable` | 1 | validator | 1 | `base` or `features` paths in project JSON cannot be resolved to existing files | Check paths are relative to the domain root (current working directory) |
+| VE-13 | `project-path-unresolvable` | 1 | validator | **2** | `base` or `features` paths in project JSON cannot be resolved to existing files. Treated as an authoring error — Chopper hard-crashes before the pipeline starts, prints the offending path(s), and exits 2. | Fix the paths in the project JSON (relative to the domain root) and re-run |
 | VE-14 | `duplicate-feature-name` | 1 | compiler | 1 | Two or more selected features have the same `name` field | Rename one feature or remove the duplicate |
 | VE-15 | `missing-depends-on-feature` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite is not selected in project `features` | Add the prerequisite feature to the project or remove the dependency declaration |
-| VE-16 | `depends-on-out-of-order` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite appears later than the dependent feature in project `features` order | Reorder project features so all prerequisites appear earlier than the dependent feature |
+| VE-16 | `depends-on-out-of-order` | — | — | — | **RETIRED.** Feature order in `project.features` is no longer required to match `depends_on` order. Dependencies are checked after *all* feature JSONs are loaded: if a `depends_on` prerequisite is missing from the project selection, `VE-15` fires. Out-of-order placement is allowed. | — |
 | VE-17 | `brace-error-post-trim` | 2 | validator | 1 | Surviving `.tcl` file has brace-matching errors after trim | Edit the file or adjust procs kept to avoid broken syntax |
 | VE-18 | `template-script-path-escapes` | 1 | validator | 1 | `options.template_script` resolves (via `Path.resolve()`) to a path outside the domain root (symlink escape) or fails the schema path-shape check. The field itself is reserved and not executed in v1; only path safety is validated. | Fix the path or remove the option |
 | VE-19 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
@@ -65,19 +65,22 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-21 | `occurrence-suffix-zero` | 1 | compiler | 1 | `@0` used on an action `reference` — `@n` is 1-based | Use `@1` for the first occurrence, or omit `@n` entirely |
 | VE-22 | `ambiguous-step-target` | 1 | compiler | 1 | `replace_step` / `remove_step` targets a duplicate step string without `@n` disambiguation | Add `@n` to the `reference` to pick a specific occurrence |
 | VE-23 | `no-domain-or-backup` | 1 | cli | 2 | Neither `<domain>/` nor `<domain>_backup/` exists at invocation — nothing to trim | Verify you are in the correct working directory; restore the domain from version control |
-| — | — | — | — | — | **VE-24 through VE-25 reserved** | — |
+| VE-24 | `concurrent-invocation` | — | — | — | **RETIRED.** Chopper has no lock and no concurrency guard. It is a single-user, single-invocation push-button tool against a single on-disk domain. Two operators racing the same checkout is an operator-level contract violation; Chopper does not attempt to detect or prevent it. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q3. | — |
+| VE-25 | `feature-depends-on-cycle` | 1 | compiler | 1 | Selected features form a `depends_on` cycle; topological sort is not possible | Break the cycle by removing or reordering `depends_on` declarations in the offending feature JSONs |
+| VE-26 | `filesystem-error-during-trim` | 1 | trimmer | 1 | Filesystem operation failed during P5a trim (permission denied, disk full, read-only FS, missing parent directory, cross-device rename). Trimmer invokes rollback: staging tree is discarded and `<domain>_backup/` is restored into `<domain>/`. Audit bundle is still written to `.chopper/` on a best-effort basis. | Verify filesystem permissions and available space on the domain's filesystem; inspect `.chopper/internal-error.log` and `trim_report.json` for the offending path |
+| — | — | — | — | — | **VE-27 through VE-30 reserved** | — |
 
 ---
 
 ## 2. Validation Warnings — `VW-01` through `VW-20`
 
-> Exit 0; escalate to error with `--strict` unless noted otherwise.
+> Exit 0; `--strict` forces the final process exit code to 1 if any warning is present, but does **not** rewrite severity. Warnings stay warnings in `diagnostics.json` and in rendered output.
 
 | Code | Slug | Phase | Source | Exit | Description | Recovery Hint |
 | --- | --- | --- | --- | --- | --- | --- |
-| VW-01 | `file-in-both-include-lists` | 1 | compiler | 0 | Same file appears in both `files.include` and `procedures.include` (ERROR in `--strict`) | Remove from one list; full-file include supersedes proc-level |
+| VW-01 | `file-in-both-include-lists` | 1 | compiler | 0 | Same file appears in both `files.include` and `procedures.include` | Remove from one list; full-file include supersedes proc-level |
 | VW-02 | `proc-in-include-and-exclude` | 1 | compiler | 0 | Same proc listed in both include and exclude across inputs | Explicit include wins; review if exclude is intentional |
-| VW-03 | `glob-matches-nothing` | 1 | validator | 0 | Glob pattern in `files.include` resolved to zero files (ERROR in `--strict`) | Pattern may be stale or mistyped |
+| VW-03 | `glob-matches-nothing` | 1 | validator | 0 | Glob pattern in `files.include` resolved to zero files | Pattern may be stale or mistyped |
 | VW-04 | `feature-domain-mismatch` | 1 | validator | 0 | Feature JSON `domain` field does not match selected base domain | Feature may be domain-agnostic; verify intended use |
 | VW-05 | `dangling-proc-call` | 2 | validator | 0 | Surviving proc calls another proc not present in trimmed output or `common/` | Add missing proc to `procedures.include` or accept the dangling reference |
 | VW-06 | `source-file-removed` | 2 | validator | 0 | `iproc_source`/`source` references a file that was removed | Add missing file to `files.include` or remove the sourcing call |
@@ -99,14 +102,15 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 ## 3. Validation Info — `VI-01` through `VI-05`
 
-> Exit 0; purely advisory. `VI-01` escalates to WARNING in `--strict`.
+> Exit 0; purely advisory. `--strict` does **not** affect VI-* codes — advisories never flip the exit code.
 
 | Code | Slug | Phase | Source | Exit | Description | Recovery Hint |
 | --- | --- | --- | --- | --- | --- | --- |
-| VI-01 | `empty-base-json` | 1 | validator | 0 | Base JSON has no `files`, `procedures`, or `stages` blocks (WARNING in `--strict`) | May be intentional for feature-driven flow; review if draft |
+| VI-01 | `empty-base-json` | 1 | validator | 0 | Base JSON has no `files`, `procedures`, or `stages` blocks | May be intentional for feature-driven flow; review if draft |
 | VI-02 | `top-level-tcl-only` | 2 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
-| VI-03 | `domain-hand-edited` | 1 | cli | 0 | Re-trim detected that `<domain>/` contents diverged from the last generated output; rebuild from `_backup` will discard local edits | Commit or move local edits before re-running; Chopper always rebuilds from `_backup` |
-| — | — | — | — | — | **VI-04 through VI-05 reserved** | — |
+| VI-03 | `domain-hand-edited` | 1 | cli | 0 | Re-trim detected that `<domain>/` contents diverged from the last generated output; rebuild from `_backup` will discard local edits. Chopper does **not** preserve hand edits — the single source of truth for the trimmed domain is `<domain>_backup/` plus the JSON selection. | Commit or stash local edits **before** re-running Chopper; once the rebuild starts, the divergent content is gone. |
+| VI-04 | `hand-edits-stashed` | — | — | — | **RETIRED.** `--preserve-hand-edits` is not supported — no stash path exists. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q2. | — |
+| VI-05 | `stale-lock-recovered` | — | — | — | **RETIRED.** Chopper has no lock file, so there is nothing to go stale. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q3. | — |
 
 ---
 
@@ -174,9 +178,12 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 ## Notes
 
-- **Exit 0** — Does not fail the run. Reported in output unless suppressed. `--strict` escalates `VW-*` and `VI-01` to errors.
+- **Exit 0** — Does not fail the run. Reported in output unless suppressed. `--strict` does **not** rewrite severity; it only forces the CLI to exit 1 if any nominal `WARNING` is present. `VI-*` advisories never flip the exit code.
 - **Exit 1** — Validation or parse failure; output generation is blocked.
-- **Exit 2** — CLI usage error (`VE-11` only).
+- **Exit 2** — CLI / pre-pipeline fatal: `VE-11` conflicting options, `VE-13` unresolvable `--project` paths, `VE-23` missing domain + backup.
+- **Exit 3** — Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2; `AuditService` still writes `.chopper/internal-error.log`.
+- **Retired codes** (`VE-16`, `VE-24`, `VI-04`, `VI-05`) retain their slot numbers for historical continuity and are never re-assigned. New codes take the lowest unused slot.
+- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope for Chopper (see [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q1 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
 - Every code constant must be defined in `src/chopper/core/diagnostics.py` before use in implementation.
 - Every code carries a kebab-case **`slug`** for human-facing display (e.g., `"duplicate-proc-definition"`). The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.
 - When adding a new code: pick the lowest available reserved slot in the correct `<FAMILY><SEV>` band, assign a slug, update this table and the summary above, then implement the constant.

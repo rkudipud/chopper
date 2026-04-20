@@ -10,7 +10,7 @@
 
 ```
 usage: chopper [-h] [-v] [--debug] [--plain] [--no-color] [--json] [--strict]
-               {scan,validate,trim,cleanup} ...
+               {validate,trim,cleanup} ...
 
 Chopper — EDA TFM domain trimming tool.
 
@@ -31,7 +31,7 @@ options:
   --plain               Disable Rich rendering; use plain text output
   --no-color            Disable ANSI color codes
   --json                Emit machine-readable JSON to stdout
-  --strict              Treat warnings as errors
+  --strict              Exit non-zero if any warning is present (does not rewrite severity)
 ```
 
 ---
@@ -98,7 +98,7 @@ options:
 
 ## Phrasing Rules
 
-1. **Subcommand descriptions** use imperative verb: "Scan a domain...", "Validate JSON inputs...", "Execute the full trim pipeline...", "Remove domain_backup..."
+1. **Subcommand descriptions** use imperative verb: "Validate JSON inputs...", "Execute the full trim pipeline...", "Remove domain_backup..."
 2. **Option help text** is a short noun phrase or clause; no trailing period.
 3. **Default values** shown in parentheses: `(default: current directory)`.
 4. **Mutual exclusivity** described as: `(mutually exclusive with --base/--features)`.

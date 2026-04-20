@@ -82,6 +82,21 @@ Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON
 
 ---
 
+### FD-09: Performance Benchmark Harness and Phase Budgets
+
+v1 accepts a 5–10 minute runtime for a typical domain; optimization is explicitly deferred until the core pipeline is verified end-to-end. Post-v1, add:
+
+- A `make bench` target that runs the `tests/fixtures/gen_large_domain.py` fixture through `chopper validate` and `chopper trim --dry-run` and records P50 / P95 wall-clock per phase.
+- A phase-time budget table (% of total) kept next to the benchmark harness so regressions are visible at review time.
+- Opt-in parser concurrency (`--jobs N`) using a bounded thread pool with sorted result merge to preserve determinism.
+- Optional `slots=True` on hot frozen dataclasses if allocator pressure shows up in profiling.
+
+**Deferred because:** premature optimization before correctness is verified risks locking in bugs. The determinism contract (§11 of the plan) is the prerequisite for any meaningful benchmarking.
+
+**Source:** [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §11, §13.5
+
+---
+
 ## Summary
 
 | ID | Category | Item | Status |
@@ -93,3 +108,4 @@ Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON
 | FD-05 | Docs | Quick-start guide | Deferred until spec final |
 | FD-06 | Docs | Example diagnostic messages | Deferred until spec final |
 | FD-07 | Docs | Terminology glossary | Deferred until spec final |
+| FD-09 | Performance | Benchmark harness and phase budgets | Deferred until core pipeline verified |
