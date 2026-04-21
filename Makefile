@@ -1,4 +1,9 @@
-.PHONY: lint format format-check type-check test test-unit test-integration test-golden test-property test-all check ci install-dev install-all clean
+.PHONY: lint format format-check type-check imports-check docs-gate test test-unit test-integration test-golden test-property test-all check ci install-dev install-all clean
+
+# Determinism: pin the hash seed so dict/set iteration order is stable across
+# runs. Any test that depends on hash ordering leaking into output is a
+# determinism bug (HANDOFF_REVIEW_20260421.md S-6).
+export PYTHONHASHSEED := 0
 
 # ────────────────────────────────────────────────────────────
 # Code Quality
@@ -15,6 +20,16 @@ format-check:
 
 type-check:
 	mypy src/
+
+imports-check:
+	lint-imports --config pyproject.toml
+
+# Doc ↔ code consistency gates. Catch the "agent invented a new diagnostic
+# code" and "agent drifted a service signature" classes of defect at CI time.
+# See HANDOFF_REVIEW_20260421.md PR-4.
+docs-gate:
+	python scripts/check_diagnostic_registry.py
+	python scripts/check_service_signatures.py
 
 # ────────────────────────────────────────────────────────────
 # Testing
@@ -41,10 +56,10 @@ test-all: test
 # ────────────────────────────────────────────────────────────
 
 # Pre-commit gate (fast)
-check: lint format-check type-check test-unit
+check: lint format-check type-check imports-check docs-gate test-unit
 
 # Full CI gate
-ci: lint format-check type-check test
+ci: lint format-check type-check imports-check docs-gate test
 
 # ────────────────────────────────────────────────────────────
 # Development Helpers

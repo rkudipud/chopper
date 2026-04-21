@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/progress-event/v1",
+  "title": "Chopper ProgressEvent v1",
+  "description": "Wire-format schema for a single ProgressSink event, serialized as one JSON object per line (JSONL) on stderr when a machine-output transport is negotiated. v1 does NOT ship a stderr JSONL mode — that is deferred to FD-10 — but the on-wire shape is frozen here so tests can round-trip and so a future GUI can consume without re-specifying. Each event corresponds to one ProgressSink method call: phase_started / phase_done / step. Authoritative method signatures live in docs/ARCHITECTURE_PLAN.md §5.",
+  "type": "object",
+  "required": ["schema", "run_id", "event", "timestamp", "phase"],
+  "additionalProperties": false,
+  "oneOf": [
+    { "required": ["event"], "properties": { "event": { "const": "phase_started" } } },
+    { "required": ["event"], "properties": { "event": { "const": "phase_done" } } },
+    { "required": ["event"], "properties": { "event": { "const": "step" } } }
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "chopper/progress-event/v1",
+      "description": "Schema identifier. Mismatched consumers refuse to parse."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z(-[a-z0-9]+)?$",
+      "description": "Same run_id as the RunResult for this invocation. Lets consumers multiplex events from multiple runs."
+    },
+    "event": {
+      "type": "string",
+      "enum": ["phase_started", "phase_done", "step"],
+      "description": "Which ProgressSink method produced this event."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp (with Z suffix) of when the event was emitted."
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["P0_DOMAIN_STATE", "P1_CONFIG", "P2_PARSE", "P3_COMPILE", "P4_TRACE", "P5_TRIM", "P6_POSTVALIDATE", "P7_AUDIT"],
+      "description": "Current pipeline phase. For step events, the phase is the one whose `phase_started` was most recently emitted."
+    },
+    "phase_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7,
+      "description": "Numeric index of `phase` (0..7) for ordinal progress bars."
+    },
+    "phase_total": {
+      "type": "integer",
+      "enum": [8],
+      "description": "Total phases in the pipeline. Fixed at 8 for v1 (P0..P7). Present on phase_started/phase_done for bar initialization."
+    },
+    "step_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "0-indexed step within the current phase, when the service knows the count. Null for phases that don't enumerate steps."
+    },
+    "step_total": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Total steps in this phase, when known in advance. Null when the service can't estimate (e.g., streaming parse)."
+    },
+    "message": {
+      "type": ["string", "null"],
+      "description": "Short human-readable label, e.g. 'Parsing procs in utils.tcl'. No newlines."
+    },
+    "detail": {
+      "type": "object",
+      "description": "Free-form structured detail for GUIs. Consumers must tolerate unknown keys.",
+      "additionalProperties": true
+    },
+    "elapsed_seconds": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Wall-clock seconds elapsed since phase_started. Present on phase_done and step events."
+    }
+  }
+}

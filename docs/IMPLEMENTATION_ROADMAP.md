@@ -50,7 +50,10 @@ Skip any of the above and the stage gate will fail.
 7. P5a (TrimmerService): read from _backup, write to domain per manifest decisions
    → FULL_COPY: byte-identical copy; PROC_TRIM: rewrite with spans deleted; REMOVE: skip
 8. P5b (GeneratorService): emit <stage>.tcl files per F3 stage specs
-9. P6 (validate_post): re-tokenize rewritten files; emit VW-05/VW-06/VW-08 if dangling refs
+9. P6 (validate_post): re-tokenize rewritten files; emit `VE-16` (brace imbalance, exit 3),
+   `VW-05` (dangling-proc-call), `VW-06` (source-file-removed), `VW-08` (file-empty-after-trim),
+   and the F3 cross-validate codes `VW-14`..`VW-17`. Under `--dry-run`, only the manifest-derivable
+   subset runs — see the bible §5.7 canonical list ([`chopper_description.md`](chopper_description.md))
 10. P7 (AuditService): write .chopper/ bundle — always, even on failure
 ```
 
@@ -66,7 +69,7 @@ Skip any of the above and the stage gate will fail.
 | **M3 — Trim** | `mini_domain` trimmed correctly; second trim is idempotent (Case 2) | Live trim + re-trim demo; `FULL_COPY` hash-equal to backup |
 | **M4 — F3 + Audit** | `<stage>.tcl` files correct; `.chopper/` bundle present on success and failure | F3 example 10 run; forced-error audit test |
 | **M5 — Validator** | All VE-*/VW-* codes fire exactly where specified | `chopper validate` on known-bad JSONs; post-trim dangling-ref test |
-| **M6 — CLI + E2E** | All 28+ TESTING_STRATEGY.md scenarios pass; coverage thresholds met | `make ci` green; `fev_formality_real` live trim demo |
+| **M6 — CLI + E2E** | All 30 named TESTING_STRATEGY scenarios pass; coverage thresholds met | `make ci` green; `fev_formality_real` live trim demo |
 
 Each milestone = one stage gate green + demo checkpoint verified. No milestone is declared done until a second review pass confirms it.
 
@@ -77,8 +80,7 @@ Each milestone = one stage gate green + demo checkpoint verified. No milestone i
 Use this table when assigning work. It shows which document is authoritative for each stage and where the main implementation risks live.
 
 | Stage | Primary deliverable | Read first | Main risk / pitfall source |
-|---|---|---|---|
-| Stage 0 | Core models, diagnostics, context, serialization | `ARCHITECTURE_PLAN.md` §5–§10 | `IMPLEMENTATION_ROADMAP.md` phase contract + serialization rules |
+|---|---|---|---|| Stage 0 | Core models, diagnostics, context, serialization | `ARCHITECTURE_PLAN.md` §5–§10 | `IMPLEMENTATION_ROADMAP.md` phase contract + serialization rules |
 | Stage 1 | Parser utility + parser service | `TCL_PARSER_SPEC.md` | `RISKS_AND_PITFALLS.md` TC-01, TC-02, P-01..P-18 |
 | Stage 2a | Config loading and schema resolution | `chopper_description.md` §5.1, §6 | `RISKS_AND_PITFALLS.md` config / validation pitfalls |
 | Stage 2b | Compiler merge + tracer BFS | `chopper_description.md` §5.3–§5.4 | `RISKS_AND_PITFALLS.md` compiler pitfalls + tracing fixtures |
@@ -89,6 +91,24 @@ Use this table when assigning work. It shows which document is authoritative for
 | Stage 5 | CLI + orchestrator + end-to-end wiring | `CLI_HELP_TEXT_REFERENCE.md` + `ARCHITECTURE_PLAN.md` §6 | `tests/TESTING_STRATEGY.md` named scenarios |
 
 No stage should invent behavior locally. If the stage owner cannot find the contract in the docs above, the correct action is to update the docs before writing code.
+
+### Agent-Assignment Matrix
+
+Per the build-out plan, each stage is assigned to one primary implementer agent and gated by a second-agent adversarial review at exit. Use this mapping when delegating tasks — it aligns stage risk with agent profile depth. Higher-risk modules (parser, compiler/tracer, trimmer) go to the Principal-SWE agent profile; schema- and registry-driven stages go to the standard SWE profile; CLI integration always gets a `Devils Advocate` review pass before the milestone closes.
+
+| Stage | Primary agent | Reviewer agent | Rationale |
+|---|---|---|---|
+| Stage 0 — `core/` | `SWE` | `Devils Advocate` | Mechanical scaffolding; small surface; frozen dataclasses + serialization. High discipline, low design surface. |
+| Stage 1 — parser | `Principal software engineer` | `Devils Advocate` | Highest-risk module — TC-01 / TC-02 + P-01..P-36. Adversarial review on the 17-fixture matrix is mandatory. |
+| Stage 2a — config | `SWE` | `SWE` | Schema-driven; depends_on topo-sort; mechanical. |
+| Stage 2b — compiler + tracer | `Principal software engineer` | `Devils Advocate` | R1 merge algorithm + BFS + determinism; subtle interactions (include-wins, frontier semantics, frozen-manifest invariant). |
+| Stage 3a — trimmer + state | `Principal software engineer` | `Devils Advocate` | Filesystem side-effects + fault-injection matter; Case-1..Case-4 rebuild correctness and crash-recovery fixtures must be exercised. |
+| Stage 3b — generators (F3) | `SWE` | `SWE` | Straight-line emission given a frozen `CompiledManifest`. |
+| Stage 3c — audit | `SWE` | `SWE` | Fixed seven-artifact list + determinism contract. Mechanical once `core.serialization` is stable. |
+| Stage 4 — validator | `SWE` | `SWE` | Registry-driven; each `VE-*` / `VW-*` has a single emission site keyed off the manifest. |
+| Stage 5 — CLI + E2E | `SWE` | `Devils Advocate` | Integration-heavy. The Devils-Advocate review runs the full 30-scenario matrix from `tests/TESTING_STRATEGY.md` §5 and the `fev_formality_real` acceptance trim. |
+
+**Review gate rule.** The reviewer agent **MUST** be a different agent instance than the primary implementer. The reviewer owns the exit-gate DoD: green `make ci`, green `make docs-gate`, every fixture in scope passing, and every new diagnostic emission traceable to an Active row in `docs/DIAGNOSTIC_CODES.md`. The reviewer blocks the milestone close until all boxes are ticked.
 
 ---
 
@@ -448,7 +468,7 @@ Implementation follows the phase-gate policy in [`ARCHITECTURE_PLAN.md`](ARCHITE
 | File | Contains |
 |---|---|
 | `src/chopper/validator/pre.py` | `validate_pre(ctx, loaded) -> None` — file existence (`VE-06`), proc-in-file (`VE-07`), glob wellformedness (`VE-09`), empty-procs-array (`VE-03`), feature-domain-mismatch (`VW-04`) |
-| `src/chopper/validator/post.py` | `validate_post(ctx, manifest, rewritten_paths) -> None` — re-parse rewritten files, check brace balance (`VE-17` internal error), dangling proc refs (`VW-05`), missing source targets (`VW-06`), empty-after-trim (`VW-08`) |
+| `src/chopper/validator/post.py` | `validate_post(ctx, manifest, rewritten_paths) -> None` — re-parse rewritten files, check brace balance (`VE-16` internal-consistency assertion, exit 3), dangling proc refs (`VW-05`), missing source targets (`VW-06`), empty-after-trim (`VW-08`), and F3 cross-validate codes `VW-14`..`VW-17` (see bible §5.7 for the dry-run subset and §5.8 for the cross-validate contract) |
 
 Whether these are free functions or service classes depends on DAY0_REVIEW A9 decision.
 

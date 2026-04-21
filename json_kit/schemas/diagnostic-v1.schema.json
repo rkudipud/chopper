@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/diagnostic/v1",
+  "title": "Chopper Diagnostic v1",
+  "description": "Wire-format schema for a single Diagnostic record as serialized by `src/chopper/core/serialization.py`. Contract surface between the Chopper engine and any downstream consumer (CI dashboards, GUI, external tooling). Every field that appears in `diagnostics.json` or on the stderr JSONL stream (future FD-10) MUST validate against this schema. All severities, exit codes, slugs, and recovery hints are authoritative in `docs/DIAGNOSTIC_CODES.md`; this schema pins only the on-wire shape.",
+  "type": "object",
+  "required": ["code", "slug", "severity", "phase", "source", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[VTP][EWI]-[0-9]{2}$",
+      "description": "Diagnostic identifier. Must match an Active row in docs/DIAGNOSTIC_CODES.md. Family: V=validator, T=tracer, P=parser. Severity letter: E=error, W=warning, I=info."
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Stable kebab-case identifier, e.g. 'file-not-in-domain'. Stable across releases; safe for log grep and automation."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warning", "info"],
+      "description": "Nominal severity. `--strict` does NOT rewrite this field; it only changes the process exit code. See bible §5.9 and DIAGNOSTIC_CODES.md for the exit-code policy."
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["P0_DOMAIN_STATE", "P1_CONFIG", "P2_PARSE", "P3_COMPILE", "P4_TRACE", "P5_TRIM", "P6_POSTVALIDATE", "P7_AUDIT"],
+      "description": "Pipeline phase that produced the diagnostic. Matches chopper.core.diagnostics.Phase enum values."
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "domain_state",
+        "config",
+        "validator_pre",
+        "parser",
+        "compiler",
+        "tracer",
+        "trimmer",
+        "generator",
+        "validator_post",
+        "audit",
+        "cli",
+        "orchestrator"
+      ],
+      "description": "Engine component that emitted the diagnostic. Useful for filtering in the GUI."
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Single-line human-readable message. No embedded newlines; consumers render on one line unless they explicitly wrap. Not localized in v1."
+    },
+    "path": {
+      "type": ["string", "null"],
+      "description": "Domain-relative POSIX path if the diagnostic is tied to a specific file. `null` for run-level diagnostics. Never an absolute path; never a Windows backslash path. Serialized via Path.as_posix()."
+    },
+    "line_no": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "1-indexed line number within `path` when applicable. `null` when the diagnostic is not line-specific."
+    },
+    "hint": {
+      "type": ["string", "null"],
+      "description": "Optional one-line recovery hint rendered by the CLI. Free text. Short enough for a TTY line."
+    },
+    "context": {
+      "type": "object",
+      "description": "Arbitrary JSON-safe key/value map for machine consumers (e.g., GUI drill-down). Values must be JSON-serializable scalars, arrays, or objects. Does NOT affect dedupe semantics.",
+      "additionalProperties": true
+    },
+    "dedupe_bucket": {
+      "type": "string",
+      "default": "",
+      "description": "Optional namespace for multi-context emission. Empty string = default bucket, collapses duplicates globally. Services set distinct bucket values when they want multiple entries for the same (code, path, line_no, message). See ARCHITECTURE_PLAN.md §8.1."
+    },
+    "exit_code": {
+      "type": ["integer", "null"],
+      "enum": [null, 0, 1, 2, 3],
+      "description": "Nominal exit code contribution for this diagnostic, copied from DIAGNOSTIC_CODES.md. Advisory/informational — the process exit code is computed from the full diagnostic summary per bible §5.9, not by picking the maximum over this field."
+    }
+  }
+}

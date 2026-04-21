@@ -2,7 +2,7 @@
 name = "chopper"
 version = "0.1.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 license = {text = "Intel Proprietary"}
 authors = [
     {name = "rkudipud"},
@@ -25,6 +25,7 @@ dev = [
     "hypothesis>=6.0,<7",
     "mypy>=1.0,<2",
     "ruff>=0.4,<1",
+    "import-linter>=2.0,<3",
 ]
 
 [project.scripts]
@@ -38,12 +39,12 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py313"
 line-length = 120
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+select = ["E", "F", "I", "N", "W", "UP", "FA"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -51,11 +52,89 @@ pythonpath = ["src"]
 addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-under=78"
 
 [tool.hypothesis]
-max_examples = 500
+# Start conservative; raise once CI budget profiling confirms headroom. See
+# HANDOFF_REVIEW_20260421.md S-9 for rationale.
+max_examples = 200
 print_blob = true
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+# ---------------------------------------------------------------------------
+# import-linter contracts.
+#
+# Enforces the layered architecture defined in docs/ARCHITECTURE_PLAN.md §3:
+#
+#     cli  →  orchestrator  →  services  →  core
+#     adapters → core (+ third-party libs only)
+#
+# Services (parser, config, compiler, trimmer, generators, validator, audit)
+# MUST NOT import each other. The core package MUST NOT import any sibling.
+# Adapters bridge ports to third-party libs; they may import core but no
+# sibling service.
+#
+# Run via `lint-imports` (installed with the dev extra) and wired into
+# `make check`.
+# ---------------------------------------------------------------------------
+
+[tool.importlinter]
+root_packages = ["chopper"]
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture: cli -> orchestrator -> services -> core"
+type = "layers"
+layers = [
+    "chopper.cli",
+    "chopper.orchestrator",
+    "chopper.parser | chopper.config | chopper.compiler | chopper.trimmer | chopper.generators | chopper.validator | chopper.audit",
+    "chopper.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "core is stdlib-only (no sibling imports)"
+type = "forbidden"
+source_modules = ["chopper.core"]
+forbidden_modules = [
+    "chopper.cli",
+    "chopper.orchestrator",
+    "chopper.adapters",
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.validator",
+    "chopper.audit",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services are independent (no sibling-to-sibling imports)"
+type = "independence"
+modules = [
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.validator",
+    "chopper.audit",
+]
+
+[[tool.importlinter.contracts]]
+name = "Adapters depend only on core + third-party"
+type = "forbidden"
+source_modules = ["chopper.adapters"]
+forbidden_modules = [
+    "chopper.cli",
+    "chopper.orchestrator",
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.validator",
+    "chopper.audit",
+]

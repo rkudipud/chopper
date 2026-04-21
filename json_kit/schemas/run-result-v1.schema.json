@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/run-result/v1",
+  "title": "Chopper RunResult v1",
+  "description": "Wire-format schema for the summary object emitted by ChopperRunner.run(ctx). This is the 'outer' payload a future GUI or CI tool consumes — it is intentionally compact. The full manifest and dependency graph live in their own audit artifacts under `.chopper/` (compiled_manifest.json, dependency_graph.json); this schema pins only the summary surface so that downstream tooling can render a run outcome without deserializing megabytes of manifest data. Authoritative field definitions live in ARCHITECTURE_PLAN.md §9.1 (RunResult, AuditManifest) and bible §5.5. This schema is the single contract between the CLI and any potential GUI, ensuring both can evolve independently while remaining compatible; CI validates every RunResult against this schema, so breaking changes surface immediately.",
+  "type": "object",
+  "required": [
+    "schema",
+    "run_id",
+    "exit_code",
+    "started_at",
+    "ended_at",
+    "duration_seconds",
+    "domain",
+    "command",
+    "artifacts_present",
+    "diagnostics_summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "chopper/run-result/v1",
+      "description": "Schema identifier. Mismatched consumers refuse to parse rather than drift silently."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z(-[a-z0-9]+)?$",
+      "description": "Filesystem-safe ISO-8601 UTC start time, e.g. '2026-04-21T14-30-05Z'. Same run_id appears in every audit artifact produced by this invocation — see bible §5.5.12 (correlation)."
+    },
+    "exit_code": {
+      "type": "integer",
+      "enum": [0, 1, 2, 3],
+      "description": "Process exit code per bible §5.9 / CLI_HELP_TEXT_REFERENCE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case)."
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp with timezone (always Z). Same instant as run_id, in RFC-3339 form for downstream tools that want a real datetime."
+    },
+    "ended_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp with timezone. Always >= started_at."
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Wall-clock seconds between started_at and ended_at. Convenience field so consumers don't re-parse the timestamps."
+    },
+    "subcommand": {
+      "type": "string",
+      "enum": ["validate", "trim", "cleanup"],
+      "description": "Which CLI verb produced this result."
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when invoked with `--dry-run`. No domain files were modified; only .chopper/ artifacts were written."
+    },
+    "strict": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when invoked with `--strict`. Warnings forced the exit code to 1 (see DIAGNOSTIC_CODES.md exit-code policy)."
+    },
+    "domain": {
+      "type": "object",
+      "required": ["name", "root", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Domain directory name, e.g. 'fev_formality'."
+        },
+        "root": {
+          "type": "string",
+          "description": "Absolute POSIX path to the resolved domain root."
+        },
+        "state": {
+          "type": "string",
+          "enum": ["VIRGIN", "TRIMMED", "CLEANED", "CORRUPTED"],
+          "description": "Domain lifecycle state detected by P0 (DomainStateService). See bible §2.8."
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "description": "Selection inputs so a reviewer can reproduce the run.",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["base", "base-features", "project"],
+          "description": "Which of the three input modes was used (bible §5.9)."
+        },
+        "base_json": {
+          "type": ["string", "null"],
+          "description": "Absolute POSIX path to the resolved base JSON."
+        },
+        "feature_jsons": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered list of resolved feature JSON paths in CLI / project order."
+        },
+        "project_json": {
+          "type": ["string", "null"],
+          "description": "Absolute POSIX path to the project JSON when --project was used; null otherwise."
+        },
+        "project_name": { "type": ["string", "null"] },
+        "project_owner": { "type": ["string", "null"] },
+        "release_branch": { "type": ["string", "null"] },
+        "project_notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Verbatim `notes` array from project JSON, preserved for audit."
+        }
+      }
+    },
+    "artifacts_present": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_./-]+$"
+      },
+      "uniqueItems": true,
+      "description": "Domain-relative POSIX names of files written under .chopper/ during this run, lex-sorted. Enumerated per bible §5.5.10."
+    },
+    "manifest_summary": {
+      "type": ["object", "null"],
+      "description": "Compact counts from CompiledManifest. Null when P3 never produced a manifest (e.g. P1 aborted).",
+      "additionalProperties": false,
+      "properties": {
+        "files_in": { "type": "integer", "minimum": 0 },
+        "files_copied": { "type": "integer", "minimum": 0 },
+        "files_trimmed": { "type": "integer", "minimum": 0 },
+        "files_generated": { "type": "integer", "minimum": 0 },
+        "files_removed": { "type": "integer", "minimum": 0 },
+        "procs_in": { "type": "integer", "minimum": 0 },
+        "procs_kept": { "type": "integer", "minimum": 0 },
+        "procs_removed": { "type": "integer", "minimum": 0 },
+        "stages_in": { "type": "integer", "minimum": 0 },
+        "stages_out": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "graph_summary": {
+      "type": ["object", "null"],
+      "description": "Compact counts from DependencyGraph. Null when P4 never ran.",
+      "additionalProperties": false,
+      "properties": {
+        "nodes": { "type": "integer", "minimum": 0 },
+        "edges": { "type": "integer", "minimum": 0 },
+        "pi_plus_nodes": { "type": "integer", "minimum": 0, "description": "Size of PI+ (reachable_from_includes). Reporting-only: PI+ nodes are NOT auto-copied; see bible §5.4." },
+        "cycles_detected": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "trim_stats": {
+      "type": ["object", "null"],
+      "description": "Corresponds to trim_stats.json. Null for `validate` and `cleanup`.",
+      "additionalProperties": false,
+      "properties": {
+        "files_before": { "type": "integer", "minimum": 0 },
+        "files_after": { "type": "integer", "minimum": 0 },
+        "procs_before": { "type": "integer", "minimum": 0 },
+        "procs_after": { "type": "integer", "minimum": 0 },
+        "sloc_before": { "type": "integer", "minimum": 0 },
+        "sloc_after": { "type": "integer", "minimum": 0 },
+        "raw_lines_before": { "type": "integer", "minimum": 0 },
+        "raw_lines_after": { "type": "integer", "minimum": 0 },
+        "trim_ratio_sloc": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "sloc_after / sloc_before. See bible §5.5.13."
+        }
+      }
+    },
+    "diagnostics_summary": {
+      "type": "object",
+      "required": ["error", "warning", "info", "total"],
+      "additionalProperties": false,
+      "properties": {
+        "error": { "type": "integer", "minimum": 0 },
+        "warning": { "type": "integer", "minimum": 0 },
+        "info": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "by_family": {
+          "type": "object",
+          "description": "Optional per-family counts, e.g. {\"VE\": 1, \"VW\": 3, \"PW\": 2, \"TW\": 4}.",
+          "patternProperties": {
+            "^[VTP][EWI]$": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "top_codes": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": ["code", "count"],
+            "additionalProperties": false,
+            "properties": {
+              "code": { "type": "string", "pattern": "^[VTP][EWI]-[0-9]{2}$" },
+              "count": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "description": "Top N most-frequent codes in this run, descending by count then lex-ascending by code."
+        }
+      }
+    },
+    "internal_error": {
+      "type": ["object", "null"],
+      "description": "Populated only when exit_code == 3. Mirrors the top of .chopper/internal-error.log so that GUIs / CI can surface the programmer-error without parsing the log file.",
+      "additionalProperties": false,
+      "required": ["kind", "message"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Exception class name, e.g. 'AssertionError'."
+        },
+        "message": { "type": "string" },
+        "log_path": {
+          "type": "string",
+          "description": "POSIX path to .chopper/internal-error.log."
+        }
+      }
+    }
+  }
+}

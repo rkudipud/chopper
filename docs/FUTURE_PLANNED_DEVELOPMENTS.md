@@ -54,7 +54,7 @@ Provide a terminal-based interactive UI for browsing available features, preview
 
 ### FD-04: GUI Client
 
-JSON-over-stdio wire protocol is now documented in `docs/chopper_description.md` §5.11.3. The Chopper engine will accept a `TrimRequest` as JSON on stdin and emit a `TrimResult` as JSON on stdout. Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
+A machine-readable stdio wire protocol for a future GUI client is documented in `docs/chopper_description.md` §5.11.3 and in [`FD-10`](#fd-10-machine-readable-cli-output). The wire-level JSON payload is conventionally called a "TrimRequest" envelope; on the Python side it deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. There is no Python class named `TrimRequest` — the engine boundary is `ChopperContext` in, `RunResult` out (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6). Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
 
 GUI-relevant data surfaces (file selection, proc selection, dependency graph, trim stats, JSON viewing, diagnostics) are enumerated in §5.11.5. No additional data models or artifacts are needed — the v1 pipeline already produces everything a GUI would consume.
 

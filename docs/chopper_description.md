@@ -115,6 +115,7 @@ The following items have been evaluated and **permanently excluded**. They will 
 | OOS-02 | Computed proc name extraction | Procs with dynamic names (`proc ${prefix}_helper`) are skipped with `PW-01`. Heuristic resolution adds complexity with no practical value. |
 | OOS-03 | Pipeline checkpointing | No domain exceeds 200 MB. Full restart from Phase 1 is acceptable. |
 | OOS-04 | Auto-draft JSON / scan mode | Scan mode was explicitly removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
+| OOS-05 | File-mutation detection via timers or locks (during a run) | Chopper **assumes the filesystem is static for the duration of a single invocation**. No mtime polling between P2 and P5. No file locks. No stale-lock recovery. No in-flight re-stat. If a user (or another process) modifies files under `<domain>/` or `<domain>_backup/` while Chopper is running, the result is undefined behavior and is classified as a **programmer error on the operator side** — not an engineering problem Chopper tries to detect or mitigate. The CLI help text and [`docs/RISKS_AND_PITFALLS.md`](RISKS_AND_PITFALLS.md) make this contract explicit so operators know to run Chopper against a quiesced domain. This boundary is drawn deliberately: adding timers or locks would (a) pull in platform-specific primitives (`fcntl`/`msvcrt`), (b) introduce stale-lock recovery paths, and (c) make testing non-deterministic. All three were rejected in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q3. **Never reintroduce.** |
 
 ### 2.3 Roles
 
@@ -1334,6 +1335,8 @@ P4 runs the BFS trace expansion (R3) seeded by PI. Its outputs are:
 
 PI+ helps the domain owner understand what their explicit selections depend on. It never adds procs or files to the surviving set.
 
+**Frontier and visited-set semantics (BFS contract).** The BFS frontier does **not** deduplicate on enqueue. If proc `A` calls `B` three times (from three different call sites), all three enqueue operations push `B` onto the frontier and all three are recorded as distinct `Edge` records in `dependency_graph.json` with their own `call_site` locations. Deduplication happens at the **visited-set level only**: when a canonical name is popped from the frontier, if it is already in `visited` the pop is a no-op (no call extraction, no re-enqueue, no duplicate `TW-*` diagnostic). This design preserves the full caller → callee edge set for downstream analysis (users routinely care *where* a proc was called from, not just *whether* it was called), while still guaranteeing BFS termination in the presence of cycles. The frontier is sorted lex-ascending before each pop so the traversal is deterministic.
+
 **Source-edge survival rule (R3 corollary).** `source` and `iproc_source` call tokens extracted from proc bodies become edges in `dependency_graph.json` with `kind: "source"`, **identical in type to proc-call edges**. They are **reporting-only**: they never copy files, never retain procs, and never influence trimming. Survival of a sourced file still requires an explicit `files.include` entry; survival of a sourced proc still requires an explicit `procedures.include` entry. A `source` or `iproc_source` pointing at a file that did not survive trim emits `VW-06 source-file-removed` at P6.
 
 **Worked BFS example (end-to-end).**
@@ -1410,6 +1413,8 @@ Outcome after a full Chopper run:
 | `TW-*` diagnostic | none unless ambiguous/dynamic/cycle | none unless ambiguous/dynamic/cycle |
 
 To make `bar` survive trimming the author must add it to `procedures.include` (or include the whole file with `files.include`). Trace expansion is a visibility tool, not a survival mechanism.
+
+**Frozen-manifest invariant.** `CompiledManifest` is constructed exactly once by `CompilerService.run()` (P3) as a `@dataclass(frozen=True)`. `TracerService` (P4) and `GeneratorService` (P5b) receive read-only references — they **MUST NOT** mutate the manifest, and the dataclass's frozen flag guarantees any attempt raises `FrozenInstanceError`, which the orchestrator treats as a programmer error (exit 3). The architectural consequence: **P4 cannot promote traced callees into `proc_decisions` or `file_decisions`.** Users inspect `dependency_graph.json` and then edit their JSONs if they want more content to survive — the engine never silently widens the surviving set on their behalf. This invariant is what makes the trace "reporting-only" more than a style guideline; it is structurally enforceable.
 
 ### 5.4.1 Per-File Parsing to Global Call Tree
 
@@ -1763,6 +1768,18 @@ The `input_base.json`, `input_features/`, and `input_project.json` files are **e
 | `trim_report.json` | ✓ | ✓ | — | — |
 | `trim_report.txt` | ✓ | ✓ | — | — |
 | `trim_stats.json` | ✓ | ✓ | — | — |
+| `internal-error.log` | ✓ (exit 3 only) | ✓ (exit 3 only) | ✓ (exit 3 only) | ✓ (exit 3 only) |
+
+**`internal-error.log` contract.** This file is written **only on exit code 3** (programmer error / internal-consistency failure). It is produced by the CLI's exit-3 handler rather than `AuditService`, because the audit stage itself may have failed. Contents:
+
+- `run_id` (ISO-8601 UTC, matches the rest of the audit bundle)
+- Timestamp of the crash
+- Full Python traceback of the originating exception
+- Snapshot of the `DiagnosticSink` at the moment of failure (all diagnostics emitted before the crash)
+- Active `RunConfig` fields (paths and flags, no secrets)
+- `python_version`, `chopper_version`, and platform string
+
+The CLI also records the existence and path of this log in `RunResult.internal_error` (see `json_kit/schemas/run-result-v1.schema.json`) so that GUI / CI consumers can surface the failure without reading the log directly. The log is plain text (not JSON) to remain readable even if the `core.serialization` layer itself is the source of the crash.
 
 **Dry-run artifacts** are written to `.chopper/` in the domain root but no domain files are modified. This allows `diff` between dry-run and live-run artifacts.
 
@@ -1855,6 +1872,18 @@ Chopper has two validation phases that run within the pipeline:
 | **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, rewritten_paths)` | `CompiledManifest` + sequence of paths the trimmer actually rewrote | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); scans surviving procs for dangling-proc-call (`VW-05`), source-file-removed (`VW-06`), and F3 cross-validation (`VW-14`–`VW-17`) |
 
 Phase 2 input contract: `rewritten_paths` contains only files the trimmer touched during P5 (copied-and-edited or newly generated). Files copied verbatim from `<domain>_backup/` are **not** re-tokenized — they were already validated at P2 and the trimmer did not change them.
+
+**Cross-validate contract (`options.cross_validate`).** The F3 cross-validate checks (`VW-14`/`VW-15`/`VW-16`) are part of P6 (`validate_post`) and derive their answers from `CompiledManifest` — never from a filesystem re-scan. For each step string in every surviving stage, the validator classifies the token by syntax:
+
+- **File-path literal** ending in `.tcl`/`.pl`/`.py`/`.csh` → look up `manifest.file_decisions`; emit `VW-14 step-file-missing` on miss.
+- **Bare proc token** (no path separator, no extension) → look up `manifest.proc_decisions`; emit `VW-15 step-proc-missing` on miss.
+- **`source <path>` / `iproc_source <path>` command** → look up `manifest.file_decisions`; emit `VW-16 step-source-missing` on miss.
+
+Because the check is manifest-derivable, it runs **identically in dry-run and live modes**. When `options.cross_validate` is `false`, `VW-14`/`VW-15`/`VW-16` are suppressed entirely. The flag defaults to `true` because silently emitting a run-file that calls into trimmed-away content is a high-cost authoring failure.
+
+**Performance note.** Cross-validate is O(stages × steps × manifest-size) in the worst case and adds measurable runtime on domains with large `flow_actions` surfaces. Authors who are confident in their selection (or who are iterating quickly on feature JSONs) may disable it with `"options": { "cross_validate": false }`. For any run that will be committed or handed off, cross-validate **must** be enabled — it is the only check that catches stage references to files or procs that the F1/F2 merge removed. `VW-17 external-reference` (advisory) is emitted regardless of `cross_validate` because it does not depend on manifest lookups.
+
+**Diagnostic authority.** All severities, exit codes, recovery hints, and phase assignments for `VE-16`, `VW-05`, `VW-06`, `VW-08`, `VW-14`..`VW-17` are defined in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md). This section names codes only; it does not restate their metadata.
 
 **`chopper validate` standalone command.**
 
@@ -1949,7 +1978,7 @@ The following data is already produced by the v1 pipeline and available as typed
 | **File selection browser** | `CompiledManifest.files` — per-file treatment, reason, input sources | `compiled_manifest.json` |
 | **Proc selection browser** | `CompiledManifest.procs` — per-proc decision, source file, keep reason | `compiled_manifest.json` |
 | **Dependency graph viewer** | Call-tree edges, PI+, unresolved tokens | `dependency_graph.json` |
-| **Trim statistics dashboard** | `TrimStats` — files/procs/SLOC before/after, trim ratios | `trim_stats.json` |
+| **Trim statistics dashboard** | `RunResult.trim_stats` — files/procs/SLOC before/after, trim ratios | `trim_stats.json` |
 | **JSON viewer / editor** | Base, feature, and project JSON schemas + validation diagnostics | `input_base.json`, `input_features/`, `input_project.json` |
 | **Diagnostic browser** | `Diagnostic` records with severity, code, location, hint, phase | `diagnostics.json` |
 | **Stage/flow viewer** | `CompiledManifest.flow_stages` — resolved stage sequence after flow actions | `compiled_manifest.json` |
@@ -1979,7 +2008,9 @@ Rendering itself is **not** a protocol in v1. The CLI renders directly in `cli/r
 
 ### 5.12 Python Coding Standards
 
-Chopper is a Python ≥ 3.9 CLI. The rules below are authoritative for every file under `src/chopper/`. They consolidate what was previously scattered between the instructions file and the architecture plan; the instructions file now carries a brief summary that defers here.
+Chopper is a Python ≥ 3.13 CLI. The rules below are authoritative for every file under `src/chopper/`. They consolidate what was previously scattered between the instructions file and the architecture plan; the instructions file now carries a brief summary that defers here.
+
+> **Python version policy.** v1 targets **Python 3.13 or newer only**. Older Pythons (3.9–3.12) are unsupported — supporting them would require backporting type-syntax workarounds (PEP 585 / PEP 604) and duplicating CI matrices for no user benefit, since the deployment environment ships 3.13+. The `pyproject.toml` `requires-python = ">=3.13"` pin and the `mypy`/`ruff` targets enforce this. If a future release needs to widen the matrix it does so explicitly through an FD entry, not by accident.
 
 #### 5.12.1 Module Layout and Boundaries
 

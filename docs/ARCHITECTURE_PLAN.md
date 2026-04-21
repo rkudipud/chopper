@@ -195,6 +195,8 @@ Ports live in `src/chopper/core/protocols.py` as `typing.Protocol` definitions. 
 | `DiagnosticSink` | `emit(Diagnostic)` / `snapshot()` / `finalize()` | `CollectingSink` | `JSONLSink` (audit) |
 | `ProgressSink` | `phase_started` / `phase_done` / `step` | `RichProgress` | `SilentProgress` |
 
+**Only two progress adapters exist.** Under `--plain`, no new `PlainProgress` class is introduced — `RichProgress` is instantiated with a `rich.Console(no_color=True, force_terminal=False, legacy_windows=False)` and the live progress bar is disabled, so it emits single-line ASCII status messages. Same class, reconfigured. The CLI selects the adapter as follows: `-q / --quiet` → `SilentProgress`; `--plain` → `RichProgress` in ASCII/no-color mode; otherwise → `RichProgress` in styled mode.
+
 **No `ClockPort`, no `SerializerPort`, no `AuditStore`, no `TableRenderer` port.** Per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A2–A5:
 
 - **Clock** — `datetime.now(timezone.utc)` is called directly by `AuditService`. Tests use `freezegun` or `monkeypatch` to freeze time. Two call sites do not warrant a port.
@@ -284,7 +286,7 @@ class ChopperContext:
 |---|---|---|
 | `verbose` | `-v / --verbose` | structlog level set to `DEBUG`; otherwise `INFO`. |
 | `quiet` | `-q / --quiet` | `ProgressSink` = `SilentProgress`; no progress output (CI / grid). |
-| `plain` | `--plain` | Rich rendering is bypassed: CLI prints ASCII text, no ANSI color, no progress bars. |
+| `plain` | `--plain` | `ProgressSink` = `RichProgress` reconfigured with `Console(no_color=True, force_terminal=False)` and the live progress bar disabled. Output is ASCII single-line status — no ANSI, no Unicode box-drawing, no spinners. No dedicated `PlainProgress` class. |
 
 `SilentProgress` is used by `-q / --quiet` and by test harnesses. Rich honors the `NO_COLOR` environment variable automatically — no dedicated flag is required.
 

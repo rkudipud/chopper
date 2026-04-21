@@ -769,7 +769,7 @@ base_path = Path.cwd() / "jsons/base.json"
 - The project JSON file itself can live anywhere (e.g., `configs/`, `projects/`, outside the repo)
 - The project JSON `domain` field must match `Path.cwd().name`
 - If `--domain` is accepted, verify that it resolves to the same path as `Path.cwd()`
-- After resolution, passes fully resolved `Path` objects into the service layer `TrimRequest`
+- After resolution, passes fully resolved `Path` objects into the `RunConfig` bound by `ChopperContext`
 - Phase 1 validation (`VE-13 project-path-unresolvable`) catches unresolvable paths
 
 **Why It Matters:** This is the #1 probable mistake for project JSON implementers. The path resolution convention is intentional — it keeps project JSONs portable.
@@ -884,28 +884,28 @@ iproc_source -file setup.tcl -use_hooks
 **THE TRAP:**
 ```python
 # CLI loads project JSON, extracts base + features
-# WRONG: discards project name, owner, notes before creating TrimRequest
-request = TrimRequest(
-    domain_path=domain,
-    base_json=resolved_base,
-    feature_jsons=resolved_features,
-    # project_json, project_name, project_owner, project_notes all missing!
+# WRONG: discards project name, owner, notes before building RunConfig
+config = RunConfig(
+    domain_root=domain,
+    backup_root=backup,
+    audit_root=audit,
+    # project_json, project_name, project_owner, release_branch, project_notes all missing!
 )
 # Result: audit artifacts have no record that --project was used
 ```
 
-**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields in `TrimRequest`:
+**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields on `RunConfig` (the engine-behavior record inside `ChopperContext`, per [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1):
 - `project_json` — path to the project JSON file
 - `project_name` — from `project` field
 - `project_owner` — from `owner` field
 - `release_branch` — from `release_branch` field
 - `project_notes` — from `notes` array
 
-These fields flow through to `chopper_run.json` and `compiled_manifest.json`.
+These fields flow through `ConfigService` → `CompiledManifest` and are written into `chopper_run.json` and `compiled_manifest.json` by `AuditService`.
 
 **Implementation Requirement:**
-- CLI layer: parse project JSON, populate all `TrimRequest` project fields
-- Service layer: pass project fields through to `RunSelection` and `CompiledManifest`
+- CLI layer: parse project JSON, populate all `RunConfig` project fields before constructing `ChopperContext`
+- Service layer: pass project fields through to `LoadedConfig` and `CompiledManifest`
 - Audit writer: serialize project fields into `chopper_run.json` and `compiled_manifest.json`
 - When `--project` is NOT used: these fields are empty strings / None / empty tuples
 
@@ -993,7 +993,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **CLI** | `--strict` not checked | Escalate warnings to errors, change exit code (P-27) |
 | **CLI** | Cleanup runs without `--confirm` | Require `--confirm` — exit code 2 without it (P-28) |
 | **Hooks** | Hook files auto-copied from `-use_hooks` | Discovery-only; must be in `files.include` (P-29) |
-| **Project** | Project metadata lost in audit | Populate all `TrimRequest` project fields (P-30) |
+| **Project** | Project metadata lost in audit | Populate all `RunConfig` project fields (P-30) |
 | **Project** | Domain mismatch with project JSON | Require current working directory consistency and reject mismatches (P-31) |
 
 ---

@@ -505,27 +505,33 @@ All unresolvable patterns produce structured diagnostics with reason codes.
 
 ### 5.3 Call Extraction Algorithm
 
+**Input contract — hybrid token-stream + regex filter (do NOT regex raw text).**
+Call extraction (`call_extractor.py`) consumes the **already-tokenized command-position token stream** produced by `tokenizer.py`, filtered to tokens whose context-stack top is `PROC_BODY`. Comments, quoted strings, and brace-escaped bodies are already suppressed by tokenizer state flags — the call extractor never re-scans the raw file text for calls.
+
+Within each command-position token, regex is permitted (and encouraged) for the *downstream* classification work: identifying the shape of the first word (bare vs `::`-qualified vs dynamic), applying the SNORT-derived 4-level suppression cascade in §5.5, and extracting DPA proc-name arguments. SNORT's `_IsProcFoundInLine()` has been proven on Intel EDA codebases for 15+ years and its regex patterns are reused verbatim inside this layer. The invariant is only this: **regex operates on token values, never on raw file lines.** Using raw-line regex re-introduces the false-positive classes that the tokenizer already eliminated (quoted strings, comments, nested bodies).
+
 ```
-For each line in proc body:
-  1. Skip comment lines (# at command position)
-  2. Identify command boundaries (newlines and semicolons, respecting braces and quotes).
-     Semicolons inside brace-delimited blocks (depth > 0 relative to current context)
-     and inside double-quoted strings do NOT create command boundaries.
-  3. For each command:
-     a. Extract the first word (the command name)
-     b. If the first word is a known control structure (if, for, foreach, while, switch, catch):
-        - Parse the body argument(s) recursively for commands.
-          Recursion depth is bounded by brace nesting in the source file, which is finite.
-          Implementations should use an iterative or stack-based approach to avoid
-          Python stack overflow on deeply nested control structures.
-     c. If the first word starts with `$` or contains `$`:
-        - Log as dynamic dispatch, do not extract
-     d. If the first word is a literal string matching [a-zA-Z_][a-zA-Z0-9_:]* :
-        - Record as a candidate proc call
-  4. For bracketed expressions [cmd ...]:
-     a. Extract `cmd` as a candidate proc call
-     b. Apply the same literal-check as step 3d
+For each command-position token in body (already filtered to PROC_BODY context):
+  1. Skip if the tokenizer flagged this token as a comment or inside a quoted string.
+  2. Apply the 4-level suppression cascade (§5.5) to the first word only.
+     Suppressed tokens are discarded silently.
+  3. Classify the first word via regex:
+     a. Bare `[a-zA-Z_][a-zA-Z0-9_:]*`              → candidate proc call
+     b. `::`-prefixed absolute qualified form        → candidate proc call
+     c. Starts with `$` / contains `${...}` / `[...]` → dynamic dispatch; emit PW-03 / TW-03 at trace time
+     d. Known control structure (if, for, foreach, foreach_in_collection, while, switch, catch, try)
+        → recurse into body argument(s). Recursion depth is bounded by brace nesting in the
+          source file, which is finite. Implementations should use an iterative or stack-based
+          approach to avoid Python stack overflow on deeply nested control structures.
+  4. For bracketed sub-expressions [cmd ...] already isolated by the tokenizer:
+     a. Extract `cmd` as a candidate proc call (same regex classification as step 3).
+     b. Only the first word of the bracketed command is a call candidate; arguments are not.
+  5. NEVER extract second-or-later tokens of a command as call candidates. The DPA proc name
+     in `define_proc_attributes <name> ...` is the canonical trap — see pitfall P-35.
 ```
+
+**Why this ordering.** The tokenizer eliminates ~90% of false positives structurally (quotes, comments, brace bodies); the SNORT suppression cascade eliminates the remaining content-dependent false positives (log-string mentions, option-flag arguments, vendor commands). Running regex first on raw lines inverts this and recreates the exact class of bugs SNORT spent 15 years fixing.
+
 
 ### 5.3.1 Deterministic Proc Name Resolution Contract
 
@@ -1028,7 +1034,7 @@ The trimmer operates per-file: it reconstructs each proc-trimmed file by keeping
 | `start_line` / `end_line` | Core proc span |
 | `dpa_start_line` / `dpa_end_line` | Atomic drop with proc when excluded (Pitfall P-33) |
 | `comment_start_line` / `comment_end_line` | Atomic drop with proc when excluded (Pitfall P-34) |
-| `body_start_line` / `body_end_line` | Boundary for `TrimStats.loc_removed` counting |
+| `body_start_line` / `body_end_line` | Boundary for `RunResult.trim_stats.loc_removed` counting |
 
 **Full atomic unit per proc** — the trimmer handles each `ProcEntry` as one indivisible block:
 
