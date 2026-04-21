@@ -1,0 +1,429 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chopper/feature/v1",
+  "title": "Chopper Feature JSON v1",
+  "description": "Optional extension that injects, overrides, or removes procs/files/stages from the base flow. Features are layered on top of the base in selected order. Stages are optional; when used, stage fields map directly to generated run script files and optionally to stack entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs). Stack file generation is optional; users can create stack files manually or use Chopper's optional generated output.",
+  "type": "object",
+  "required": ["$schema", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "chopper/feature/v1"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Feature identifier (e.g., dft, power, scan)"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional: domain this feature is intended for (e.g., my_domain). If present and the selected base declares a different domain, the validator emits `VW-04 feature-domain-mismatch` (warning; escalates to error in `--strict`). Features without this field are domain-agnostic and can be applied to any domain without a warning."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this feature provides"
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "description": "Optional prerequisite feature names. Values must reference other Feature JSON `name` fields, not file paths. Use this to declare inter-feature dependency chains. Project-level validation should ensure prerequisite features are selected and appear earlier in project.features order."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional informational metadata. Chopper never evaluates these fields — they are documentation only. Preserved in audit artifacts and scan output.",
+      "properties": {
+        "owner": {
+          "type": "string",
+          "description": "Team or individual responsible for this feature"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags for feature catalog filtering (e.g., signoff, dft, power)"
+        },
+        "wiki": {
+          "type": "string",
+          "description": "URL to wiki page or documentation for this feature"
+        },
+        "related_ivars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Documentation-only: ivar references related to this feature"
+        },
+        "related_appvars": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Documentation-only: appvar references related to this feature"
+        }
+      },
+      "additionalProperties": true
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "minItems": 1,
+          "description": "Files or glob patterns to include (domain-relative, forward slashes). Glob patterns: '*' (any chars except /), '?' (one char except /), '**' (any dirs/subdirs). Examples: 'procs/*.tcl', 'reports/**', 'setup.tcl'. MUST NOT be empty if files.include is present."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "minItems": 1,
+          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include. Excludes only prune wildcard-expanded candidates; literal include paths survive. MUST NOT be empty if files.exclude is present."
+        }
+      }
+    },
+    "procedures": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "minItems": 1,
+          "description": "Additional proc-level includes from this feature. MUST NOT be empty if procedures.include is present."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "minItems": 1,
+          "description": "Proc-level excludes from this feature. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE). Does not remove explicit procedures.include entries from any source (emits VW-18 cross-source-pe-vetoed) and does not remove whole-file includes (emits VW-10 cross-source-fe-vetoed). Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
+        }
+      }
+    },
+    "flow_actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flowAction"
+      },
+      "minItems": 1,
+      "description": "Ordered list of flow actions applied top-to-bottom during compilation. Stage-creation actions should be authored with real stack output in mind: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, and `dependencies` -> `D`. MUST NOT be empty if flow_actions is present."
+    }
+  },
+  "$defs": {
+    "procEntry": {
+      "type": "object",
+      "required": ["file", "procs"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative Tcl file path. Must not contain '..' traversal or double slashes."
+        },
+        "procs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Proc names. MUST NOT be empty."
+        }
+      }
+    },
+    "flowAction": {
+      "type": "object",
+      "required": ["action"],
+      "oneOf": [
+        { "$ref": "#/$defs/addStepAction" },
+        { "$ref": "#/$defs/addStageAction" },
+        { "$ref": "#/$defs/removeStepAction" },
+        { "$ref": "#/$defs/removeStageAction" },
+        { "$ref": "#/$defs/loadFromAction" },
+        { "$ref": "#/$defs/replaceStepAction" },
+        { "$ref": "#/$defs/replaceStageAction" }
+      ]
+    },
+    "addStepAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["add_step_before", "add_step_after"]
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage name"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^@]+(@[1-9][0-9]*)?$",
+          "description": "Reference step string to insert before/after. Supports @n instance targeting (e.g., step.tcl@2)."
+        },
+        "items": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Step strings to insert"
+        }
+      }
+    },
+    "addStageAction": {
+      "type": "object",
+      "required": ["action", "name", "reference", "load_from", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["add_stage_before", "add_stage_after"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the new stage. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reference stage name to insert before/after"
+        },
+        "load_from": {
+          "type": "string",
+          "description": "Predecessor stage for data loading inside the generated `<stage>.tcl` script, typically via ivar(src_task). This is separate from the optional stack-file `D` dependency graph line."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
+        },
+        "exit_codes": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 1,
+          "description": "Optional legal exit codes for the added stage. Become the `L` line in a manually-created stack file."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional execution command for the added stage. Becomes the `J` line in a manually-created stack file."
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
+        },
+        "run_mode": {
+          "type": "string",
+          "enum": ["serial", "parallel"],
+          "default": "serial",
+          "description": "Optional: Execution mode (serial or parallel). Translated into R <value> in the stack file. Since 2025.12."
+        },
+        "language": {
+          "type": "string",
+          "enum": ["tcl", "python"],
+          "default": "tcl",
+          "description": "Optional: Language of the stage. Set to 'python' if the stage uses Python. Default is tcl."
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
+        }
+      }
+    },
+    "removeStepAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "remove_step"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage name"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^@]+(@[1-9][0-9]*)?$",
+          "description": "Step string to remove. Use @n for instance targeting (e.g., step.tcl@2)."
+        }
+      }
+    },
+    "removeStageAction": {
+      "type": "object",
+      "required": ["action", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "remove_stage"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stage name to remove"
+        }
+      }
+    },
+    "loadFromAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "load_from"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage to modify"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "New predecessor stage name"
+        }
+      }
+    },
+    "replaceStepAction": {
+      "type": "object",
+      "required": ["action", "stage", "reference", "with"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "replace_step"
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target stage name"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^@]+(@[1-9][0-9]*)?$",
+          "description": "Step string to replace. Use @n for instance targeting (e.g., step.tcl@2)."
+        },
+        "with": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Replacement step string"
+        }
+      }
+    },
+    "replaceStageAction": {
+      "type": "object",
+      "required": ["action", "reference", "with"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "replace_stage"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stage name to replace"
+        },
+        "with": {
+          "$ref": "#/$defs/stageDefinition",
+          "description": "Replacement stage definition"
+        }
+      }
+    },
+    "stageDefinition": {
+      "type": "object",
+      "required": ["name", "load_from", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
+        },
+        "load_from": {
+          "type": "string",
+          "description": "Predecessor stage for data loading inside the generated `<stage>.tcl` script. This is separate from the optional stack-file `D` dependency graph line."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
+        },
+        "exit_codes": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 1,
+          "description": "Optional legal exit codes. Become the `L` line in a manually-created stack file."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional execution command. Becomes the `J` line in a manually-created stack file."
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
+        },
+        "run_mode": {
+          "type": "string",
+          "enum": ["serial", "parallel"],
+          "default": "serial",
+          "description": "Optional: Execution mode"
+        },
+        "language": {
+          "type": "string",
+          "enum": ["tcl", "python"],
+          "default": "tcl",
+          "description": "Optional: Stage language"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
+        }
+      }
+    }
+  }
+}

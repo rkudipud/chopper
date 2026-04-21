@@ -44,7 +44,7 @@ Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 
 ### 2.2 Integration Tests (`tests/integration/`)
 
-- Use the `ChopperRunner` harness (§4) and mini-domain fixtures (§3).
+- Use the `ChopperSubprocess` harness (§4) and mini-domain fixtures (§3).
 - Test full end-to-end pipelines: scan → validate → trim → cleanup.
 - Named scenarios (see §5).
 
@@ -112,9 +112,9 @@ def large_domain_60_files(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 ---
 
-## 4. ChopperRunner Integration Test Harness
+## 4. ChopperSubprocess Integration Test Harness
 
-The `ChopperRunner` class wraps CLI invocation and captures exit code, stdout, and stderr.
+The `ChopperSubprocess` class wraps CLI invocation and captures exit code, stdout, and stderr. It is named distinctly from the production `ChopperRunner` (in `src/chopper/orchestrator/`) to avoid confusion in imports, grep results, and error messages: `ChopperRunner` sequences phases in-process; `ChopperSubprocess` shells out to the installed CLI and observes its results.
 
 ```python
 # tests/integration/runner.py
@@ -148,12 +148,12 @@ class RunResult:
         return self
 
 
-class ChopperRunner:
+class ChopperSubprocess:
     """Wraps `chopper` CLI invocation for integration tests.
 
     Usage::
 
-        runner = ChopperRunner(domain_path)
+        runner = ChopperSubprocess(domain_path)
         result = runner.trim("--base", "jsons/base.json")
         result.assert_success()
     """
@@ -208,7 +208,7 @@ def assert_domain_state(domain_path: Path, expected: DomainState) -> None:
 # Template for integration scenario tests:
 def test_scenario_XX_description(virgin_domain: Path) -> None:
     """Scenario XX: end-to-end integration scenario (see named scenarios table below)."""
-    runner = ChopperRunner(virgin_domain)
+    runner = ChopperSubprocess(virgin_domain)
 
     # Arrange: set up any additional domain state here
 

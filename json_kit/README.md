@@ -1,6 +1,6 @@
 # Chopper JSON Kit — Standalone Package
 
-**Version:** 1.0.0  
+**Version:** 1.0.2  
 **Date:** April 2026  
 **Status:** Shippable before Chopper runtime
 
@@ -28,6 +28,7 @@ You author these JSONs now. When Chopper is released, you run `chopper trim --pr
 standalone_json_kit/
 ├── README.md                        ← You are here
 ├── VERSION.txt                      ← Schema version tracking
+├── validate_jsons.py                ← One-command schema validation helper
 ├── schemas/
 │   ├── base-v1.schema.json          ← Base JSON schema (authoritative validator)
 │   ├── feature-v1.schema.json       ← Feature JSON schema
@@ -54,6 +55,20 @@ standalone_json_kit/
 
 ## 10-Minute Quick Start
 
+### 0. Bootstrap Python environment on tcsh/csh systems
+
+```tcsh
+source setup.csh
+```
+
+This creates and activates `.venv` automatically and installs `jsonschema`, which is required for schema validation examples in this repo.
+
+Windows PowerShell:
+
+```powershell
+. .\setup.ps1
+```
+
 ### 1. Choose your starting example
 
 | Your situation | Start with |
@@ -71,36 +86,24 @@ standalone_json_kit/
 ```bash
 cp -r examples/07_base_full/ my_domain/chopper/
 cd my_domain/chopper/
-# Edit base.json: change domain, owner, file lists, stage definitions
+# Edit jsons/base.json: change domain, owner, file lists, stage definitions
 ```
 
-### 3. Validate against schemas
+### 3. Validate against schemas (one command)
 
 ```bash
-pip install jsonschema
+python validate_jsons.py my_domain/
 ```
 
-```python
-import json, jsonschema, pathlib
+Examples:
 
-schema_dir = pathlib.Path("standalone_json_kit/schemas")
-schemas = {
-    "chopper/base/v1":    json.load(open(schema_dir / "base-v1.schema.json")),
-    "chopper/feature/v1": json.load(open(schema_dir / "feature-v1.schema.json")),
-    "chopper/project/v1": json.load(open(schema_dir / "project-v1.schema.json")),
-}
-
-for f in pathlib.Path("my_domain").rglob("*.json"):
-    data = json.load(open(f))
-    sid = data.get("$schema")
-    if sid in schemas:
-        try:
-            jsonschema.validate(data, schemas[sid])
-            print(f"OK  {f}")
-        except jsonschema.ValidationError as e:
-            print(f"ERR {f}: {e.message}")
-
+```bash
+python validate_jsons.py
+python validate_jsons.py examples/08_base_plus_one_feature/
+python validate_jsons.py my_domain/chopper/
 ```
+
+The script validates Base/Feature/Project JSONs based on `$schema`, prints clear `OK/ERR/SKIP` lines, and returns non-zero on validation failures.
 
 ### 4. Use the domain analyzer agent
 
@@ -119,11 +122,12 @@ Convention:
 ```
 <domain_root>/
 └── chopper/
-    ├── base.json
-    └── features/
-        ├── feature_a.json
-        ├── feature_b.json
-        └── project_abc.json
+    ├── jsons/
+    │   ├── base.json
+    │   └── features/
+    │       ├── feature_a.feature.json
+    │       └── feature_b.feature.json
+    └── project_abc.json
 ```
 
 Or at the project level:
@@ -139,6 +143,8 @@ Paths in `project.json` are relative to the domain root (where Chopper will be i
 ---
 
 ## Key Rules (Quick Reference)
+
+**Naming scheme:** Base JSON is `jsons/base.json`; feature JSONs are `jsons/features/<feature_name>.feature.json`.
 
 1. **`$schema` is always required** and must be the exact literal string (e.g., `"chopper/base/v1"`).
 2. **Base needs at least one of:** `files`, `procedures`, `stages`.
@@ -195,6 +201,7 @@ Chopper has four input sets per file. Mixing them creates ambiguity — this mat
 
 ## Getting Help
 
+- `validate_jsons.py` — one-command schema validation for any file/folder
 - `docs/JSON_AUTHORING_GUIDE.md` — full field reference, all rules, decision flowchart
 - `agent/DOMAIN_ANALYZER.md` — step-by-step domain analysis instructions for AI assistants
 - `examples/` — working JSON files for every combination

@@ -1,4 +1,4 @@
-1.0.0
+1.0.2
 
 Schema versions included:
   base-v1.schema.json    — chopper/base/v1    (Draft-07)
@@ -9,6 +9,15 @@ Released: April 2026
 Status: Standalone (pre-runtime shippable)
 
 Changelog:
+  1.0.2 — Agent workflow and deployment readiness update
+           * Clarified collaborative JSON authoring workflow and user-in-the-loop analysis expectations
+           * Added explicit domain-boundary confirmation rules and prohibition on scanning outside user-confirmed scope
+           * Added runtime environment guidance: prefer Unix tcsh/csh analysis, then bash, then Windows-based fallback
+           * Hardened validate_jsons.py for non-object JSON files and verified setup/validator smoke tests
+  1.0.1 — Documentation and examples alignment update
+           * Standardized JSON naming scheme to jsons/base.json and jsons/features/<feature_name>.feature.json
+           * Updated examples and project path references to new jsons layout
+           * Expanded analyzer instructions for proc call tracing logs, interactive feedback checkpoints, and EDA command/proc disambiguation
   1.0.0 — Initial release
            * depends_on field added to feature schema (array-only, minItems:1)
            * stage dependencies simplified to array-only in base and feature schemas

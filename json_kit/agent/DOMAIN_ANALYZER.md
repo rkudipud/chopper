@@ -17,6 +17,10 @@ When a user points you at a domain directory (or pastes file listings, file cont
 5. **Author** valid JSON files conforming to the schemas in `schemas/`
 6. **Verify** ordering and dependency chains before finalizing
 
+Your task is not only to analyze. After validating the user-provided codebase structure and flow artifacts, help the user generate base and feature JSONs and validate those JSONs before considering the task complete.
+
+This is a collaborative workflow. The best UX is to analyze with the user, show intermediate findings, collect corrections, and then author JSONs from the agreed understanding.
+
 You do **not** run any tool commands or execute Chopper. You read files, reason about their relationships, and produce JSON. **Stages and stack-file mapping are optional features.** Some users will author only base/feature JSONs for file and proc trimming (F1 + F2); others will also define stages for generated run scripts (F3).
 
 ---
@@ -25,9 +29,17 @@ You do **not** run any tool commands or execute Chopper. You read files, reason 
 
 Before authoring any JSON, run through these discovery questions in order. Ask the user for any information you cannot determine from the files provided.
 
+At the end of each major phase (inventory, tracing, split), pause and ask the user to confirm findings before moving on.
+
 ### Q1 — What is the domain root?
 
 Identify the top-level directory that Chopper will be invoked from. All paths in JSON must be relative to this root.
+
+Ask the user where the domain boundary stops before scanning broadly. In most cases this is the current working directory, but do not assume it.
+
+Also ask the user to identify the top-level files/directories they consider the primary flow entry points.
+
+Do not analyze, classify, or recommend files outside the user-confirmed domain boundary.
 
 ### Q2 — What scheduler stack files exist? (Optional)
 
@@ -46,6 +58,8 @@ Script files contain proc definitions and invocation sequences. Identify:
 - Optional or addon proc files (sourced conditionally, often with optional/fallback flags)
 - Setup / environment preparation scripts
 - Artifact promotion / cleanup scripts
+
+If the user points to a specific proc file, treat it as a tracing seed file and include all procs defined in that file as trace roots for cross-file analysis.
 
 ### Q4 — What configuration and data files exist?
 
@@ -223,6 +237,82 @@ Chopper performs breadth-first trace automatically at runtime, but explicitly li
 
 When uncertain whether a proc is needed: include it in `procedures.include`. Over-inclusion is safer than over-exclusion during initial authoring.
 
+### 3.4 Build a proc call tree and generated trace log
+
+For every candidate proc set, generate a trace artifact that users can review before JSON authoring.
+
+If the user supplied a specific proc file, trace from every proc defined in that file and continue traversal across all discovered proc files.
+
+**Required trace outputs:**
+- Entry roots (top-level procs called by stage scripts)
+- Directed call edges (`caller -> callee`)
+- Reachability groups by root
+- Unresolved calls (callee names not defined in discovered files)
+- External tool command invocations observed during parsing (reported separately from proc edges)
+- File-level proc inventory (`defined`, `reachable`, `unreachable`)
+
+Use this compact log format when reporting results to the user:
+
+```text
+PROC TRACE LOG
+roots:
+  - run_main
+  - run_signoff
+
+edges:
+  - run_main -> load_design
+  - run_main -> run_checks
+  - run_checks -> emit_reports
+
+unresolved:
+  - vendor_helper_proc
+
+files:
+  - procs/core.tcl
+    defined: [run_main, load_design, run_checks, emit_reports]
+    reachable: [run_main, load_design, run_checks, emit_reports]
+    unreachable: []
+  - procs/debug.tcl
+    defined: [dump_state, run_debug_shell]
+    reachable: []
+    unreachable: [dump_state, run_debug_shell]
+
+external_commands:
+  - set_app_var
+  - report_timing
+```
+
+### 3.5 Distinguish EDA commands from proc calls
+
+Do not treat EDA tool commands as proc edges. During parsing and tracing:
+
+- Classify as proc call only when the callee resolves to a discovered proc definition.
+- Classify known tool shell/app commands as external commands (for example common Synopsys/Cadence commands).
+- If uncertain, mark as `unresolved` and ask the user whether it is a proc, alias, or tool command.
+- Never recommend `procedures.include` entries based only on external command tokens.
+
+This prevents false-positive edges and keeps `procedures.include` focused on real domain procs.
+
+### 3.6 Convert trace findings into include/exclude JSON decisions
+
+Map trace outcomes directly to Chopper JSON curation:
+
+| Trace observation | Recommended JSON action |
+|------------------|-------------------------|
+| Root/reachable proc used in normal flow | Add to `procedures.include` |
+| Proc file where most procs are reachable and broadly needed | Add file glob/literal to `files.include` |
+| Unreachable debug/dev-only procs in otherwise required file | Add those names to `procedures.exclude` |
+| Entire file has only unreachable legacy/debug content | Add file path/pattern to `files.exclude` |
+| Unresolved call likely external/vendor | Keep unresolved in log, do not auto-exclude; ask user whether to include vendor file or leave external |
+
+Always present the trace log first, then present the proposed JSON snippets for `files` and `procedures` so users can approve or adjust quickly.
+
+Before moving to Phase 4, explicitly ask for feedback on:
+- call-tree roots,
+- unresolved entries,
+- external command classification,
+- and any proc/file include or exclude changes.
+
 ---
 
 ## Phase 4 — Determine the Base / Feature Split
@@ -377,10 +467,10 @@ Use this template:
   "project": "<PROJECT_ID>",
   "domain": "<DOMAIN_NAME>",
   "owner": "<PROJECT_OWNER>",
-  "base": "<domain>/chopper/base.json",
+  "base": "<domain>/jsons/base.json",
   "features": [
-    "<domain>/chopper/features/<feature_a>.json",
-    "<domain>/chopper/features/<feature_b>.json"
+    "<domain>/jsons/features/<feature_a>.feature.json",
+    "<domain>/jsons/features/<feature_b>.feature.json"
   ],
   "notes": [
     "<reason for ordering or selection>",
@@ -405,7 +495,23 @@ Use this template:
 
 ## Phase 8 — Validation and Common Corrections
 
-### Quick schema validation (Python — no Chopper required)
+### Quick schema validation (use repository helper)
+
+Ask users to run this from repository root after each authoring step:
+
+```bash
+python validate_jsons.py <path-to-json-or-folder>
+```
+
+Examples:
+
+```bash
+python validate_jsons.py
+python validate_jsons.py my_domain/chopper/
+python validate_jsons.py examples/10_chained_features_depends_on/
+```
+
+If users need a manual fallback, use this Python snippet:
 
 ```python
 import json, sys, pathlib

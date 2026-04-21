@@ -33,10 +33,10 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 
 ```
 project.json
-  └── base.json          (one, required)
-  └── feature_a.json     (optional)
-  └── feature_b.json     (optional)
-  └── feature_c.json     (optional)
+  └── jsons/base.json                           (one, required)
+  └── jsons/features/feature_a.feature.json    (optional)
+  └── jsons/features/feature_b.feature.json    (optional)
+  └── jsons/features/feature_c.feature.json    (optional)
 ```
 
 Feature order in the project file matters **only for F3 flow_actions sequencing** (each action is performed in feature order) and for **depends_on validation** (each prerequisite must appear earlier). **F1/F2 merging is order-independent:** file and proc include/exclude selections are aggregated as set unions regardless of feature order, so reordering features does not change the trimmed output — only F3 stage modifications depend on sequence.
@@ -243,7 +243,7 @@ Equivalent JSON stage definition:
   "$schema": "chopper/project/v1",
   "project": "PROJECT_ABC",
   "domain": "my_domain",
-  "base": "my_domain/chopper/base.json"
+  "base": "my_domain/jsons/base.json"
 }
 ```
 
@@ -285,13 +285,13 @@ All paths in `base` and `features` must be:
 ### Example — three-level chain
 
 ```json
-// feature_dft_support.json — no prerequisites
+// dft_support.feature.json — no prerequisites
 { "$schema": "chopper/feature/v1", "name": "dft_support", ... }
 
-// feature_power_analysis.json — needs dft first
+// power_analysis.feature.json — needs dft first
 { "$schema": "chopper/feature/v1", "name": "power_analysis", "depends_on": ["dft_support"], ... }
 
-// feature_pipeline_signoff.json — needs both
+// pipeline_signoff.feature.json — needs both
 { "$schema": "chopper/feature/v1", "name": "pipeline_signoff", "depends_on": ["dft_support", "power_analysis"], ... }
 
 // project.json — order must respect all depends_on
@@ -299,11 +299,11 @@ All paths in `base` and `features` must be:
   "$schema": "chopper/project/v1",
   "project": "FULL_SIGNOFF",
   "domain": "my_domain",
-  "base": "chopper/base.json",
+  "base": "jsons/base.json",
   "features": [
-    "chopper/features/dft_support.json",       // position 1: no deps
-    "chopper/features/power_analysis.json",    // position 2: dft_support at 1 ✓
-    "chopper/features/pipeline_signoff.json"   // position 3: both above ✓
+    "jsons/features/dft_support.feature.json",       // position 1: no deps
+    "jsons/features/power_analysis.feature.json",    // position 2: dft_support at 1 ✓
+    "jsons/features/pipeline_signoff.feature.json"   // position 3: both above ✓
   ]
 }
 ```
@@ -312,8 +312,8 @@ All paths in `base` and `features` must be:
 
 ```json
 "features": [
-  "chopper/features/power_analysis.json",    // ERROR: dft_support not yet seen
-  "chopper/features/dft_support.json"
+  "jsons/features/power_analysis.feature.json",    // ERROR: dft_support not yet seen
+  "jsons/features/dft_support.feature.json"
 ]
 ```
 
@@ -509,6 +509,57 @@ Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`)
 - **PI overrides FE:** PI forces file survival regardless of FE (cases 11, 13).
 - **FI + PI (no PE) stays FULL_COPY:** PI is additive and redundant on a fully included file (cases 8, 14).
 
+### Proc call tracing workflow for JSON curation
+
+When deciding `procedures.include`, `procedures.exclude`, `files.include`, and `files.exclude`, build a proc call tree first and review a generated trace log.
+
+**Recommended process:**
+1. Identify entry procs from stage scripts or top-level run scripts.
+2. Traverse proc-to-proc calls and build call edges.
+3. Mark each proc as reachable or unreachable from the selected roots.
+4. Group results per file and classify unresolved calls.
+5. Author JSON include/exclude entries from this evidence.
+
+**Interactive checkpoints (required for curation quality):**
+1. Ask user for top-level domain files/directories before tracing.
+2. Ask user which top-level files are authoritative entry points.
+3. If user points to a proc file, trace from every proc in that file across other files.
+4. Show inventory and trace log, then ask user to confirm/correct classification before writing final JSON decisions.
+
+**EDA command vs proc disambiguation:**
+- Treat Synopsys/Cadence shell and app commands as external commands, not proc edges.
+- Add call-tree edges only when callee resolves to a discovered proc definition.
+- Keep uncertain tokens in unresolved/external review list and confirm with user before include/exclude decisions.
+
+**Generated log template:**
+
+```text
+PROC TRACE LOG
+roots:
+  - <entry_proc>
+
+edges:
+  - <caller> -> <callee>
+
+unresolved:
+  - <missing_or_external_proc>
+
+files:
+  - <path/to/file.tcl>
+    defined: [<p1>, <p2>]
+    reachable: [<p1>]
+    unreachable: [<p2>]
+```
+
+**How to convert trace results into JSON:**
+- Reachable core procs: add to `procedures.include`.
+- Reachable scenario-specific procs: place in the relevant feature `procedures.include`.
+- Unreachable debug/deprecated procs in needed files: add to `procedures.exclude`.
+- Files containing only unreachable legacy/debug procs: add to `files.exclude`.
+- Files with predominantly reachable procs used across projects: add to base `files.include`.
+
+This trace-first workflow improves explainability for users and speeds up authoring by making include/exclude decisions auditable.
+
 ### Stage naming
 
 - Stage `name` values must be unique within the compiled flow
@@ -549,6 +600,12 @@ Are you selecting which features to apply for a specific project run?
   NO  → Not needed (single-base-only trim)
 ```
 
+When using an agent or assistant, the expected task is: inspect the user-provided codebase, help generate `jsons/base.json` and any needed feature JSONs, and then validate them with `validate_jsons.py`.
+
+This work should be collaborative. Best UX comes from analyzing the codebase hand-in-hand with the user, showing inventories and trace logs, collecting corrections, and only then finalizing JSON content.
+
+Before broad scanning, ask the user where the domain boundary stops. In most cases this is the current working directory, but do not assume it. Keep inventory, tracing, and recommendations within that user-confirmed boundary.
+
 ---
 
 ## 10. Validation Workflow
@@ -558,12 +615,27 @@ Are you selecting which features to apply for a specific project run?
 Run any JSON validator or use Python's built-in:
 
 ```bash
-python -m json.tool base.json > /dev/null
+python -m json.tool jsons/base.json > /dev/null
 ```
 
 ### Step 2 — Schema validation
 
-Install `jsonschema`:
+Use the repository helper script (recommended):
+
+```bash
+python validate_jsons.py my_domain/
+```
+
+Examples:
+
+```bash
+python validate_jsons.py
+python validate_jsons.py examples/08_base_plus_one_feature/
+```
+
+The script validates every JSON file with recognized `$schema` values and reports `OK`, `ERR`, or `SKIP` per file.
+
+Manual fallback (advanced): install `jsonschema`:
 
 ```bash
 pip install jsonschema
@@ -577,7 +649,7 @@ import jsonschema
 
 with open("json_kit/schemas/base-v1.schema.json") as sf:
     schema = json.load(sf)
-with open("my_domain/chopper/base.json") as f:
+with open("my_domain/jsons/base.json") as f:
     instance = json.load(f)
 
 jsonschema.validate(instance, schema)  # raises if invalid
@@ -638,7 +710,7 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 
 ```json
 // WRONG
-"depends_on": ["chopper/features/dft_support.json"]
+"depends_on": ["jsons/features/dft_support.feature.json"]
 
 // CORRECT — use the feature's `name` value
 "depends_on": ["dft_support"]
@@ -649,14 +721,14 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 ```json
 // WRONG — power_analysis declared depends_on dft_support, but dft_support comes after
 "features": [
-  "chopper/features/power_analysis.json",
-  "chopper/features/dft_support.json"
+  "jsons/features/power_analysis.feature.json",
+  "jsons/features/dft_support.feature.json"
 ]
 
 // CORRECT
 "features": [
-  "chopper/features/dft_support.json",
-  "chopper/features/power_analysis.json"
+  "jsons/features/dft_support.feature.json",
+  "jsons/features/power_analysis.feature.json"
 ]
 ```
 

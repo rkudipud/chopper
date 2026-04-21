@@ -3,10 +3,10 @@
   "project": "PROJECT_ABC",
   "domain": "my_domain",
   "owner": "integration-team",
-  "base": "chopper/base.json",
+  "base": "jsons/base.json",
   "features": [
-    "chopper/features/dft.json",
-    "chopper/features/power_analysis.json"
+    "jsons/features/dft.feature.json",
+    "jsons/features/power.feature.json"
   ],
   "notes": [
     "DFT and power are independent features — order does not matter for correctness here.",

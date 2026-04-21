@@ -247,7 +247,7 @@ proc legacy_proc {} {
 
 ### 16 — `parser_eda_complex_del_seq_rpt.tcl`
 
-Representative Intel/Synopsys FEV-domain proc exercising the most challenging real-world patterns. Anchored to `tests/fev_formality/default_fm_procs.tcl` and the production `del_seq_rpt` proc.
+Representative Intel/Synopsys FEV-domain proc exercising the most challenging real-world patterns. Anchored to `tests/fixtures/fev_formality_real/default_fm_procs.tcl` and the production `del_seq_rpt` proc.
 
 **Patterns covered:**
 
@@ -323,3 +323,16 @@ ProcEntry(
 All 17 fixtures must pass before the Parser module (Stage 1) is declared complete and Stage 2 (Compiler) begins. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
 
 Parser fixture Tcl files live in `tests/fixtures/edge_cases/`. The binary Latin-1 fixture (fixture 15) is generated into that directory by `tests/fixtures/create_latin1_fixture.py`.
+
+---
+
+## Real-World Fixtures
+
+Real-world Tcl sources are kept alongside the fabricated parser fixtures so the integration suite (Stage 3+) can exercise the full pipeline end-to-end against content that matches production EDA domains.
+
+| Fixture Directory | Source | Purpose |
+|---|---|---|
+| `tests/fixtures/fev_formality_real/` | Production Intel/Synopsys Formality (FEV) domain — `default_fm_procs.tcl`, `default_rules.fm.tcl`, `fev_fm_rtl2gate.tcl`, `fev_fm_gate2gate.tcl`, `*.stack`, `vars.tcl`, `utils/`, etc. | End-to-end acceptance test for `chopper trim --project` against a real domain layout; parser fixture 16 (`parser_eda_complex_del_seq_rpt.tcl`) is anchored on one proc from this tree. Determinism gate (NFR-03) runs against this directory by invoking two successive trims and comparing outputs byte-for-byte. |
+| `tests/fixtures/mini_domain/` | Fabricated minimal domain | Smoke + first-trim / re-trim integration scenarios. |
+| `tests/fixtures/namespace_domain/` | Fabricated namespace-heavy domain | Namespace resolution integration scenarios. |
+| `tests/fixtures/tracing_domain/` | Fabricated cyclic proc domain | Trace (P4) integration scenarios: BFS termination, TW-04 cycle emission. |

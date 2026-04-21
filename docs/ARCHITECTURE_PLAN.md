@@ -243,12 +243,23 @@ To make the split visible in code, the context is composed of two inner records:
 # core/context.py
 @dataclass(frozen=True)
 class RunConfig:
-    """Pure invocation config. No methods, no effects."""
+    """Pure engine-behavior config. No methods, no effects. Consumed by services."""
     domain_root: Path
     backup_root: Path
-    audit_root: Path                     # .chopper/
+    audit_root: Path                     # .chopper/ — reserved; see bible §5.5
     strict: bool                         # exit-code policy, applied at CLI (§8.2)
     dry_run: bool
+    mode: RunMode = RunMode.TRIM         # TRIM | VALIDATE | CLEANUP
+
+
+@dataclass(frozen=True)
+class PresentationConfig:
+    """CLI-side UX config. Drives adapter selection; never read by services."""
+    verbose: bool = False                # -v   : raise log level to DEBUG for structlog
+    debug: bool = False                  # --debug : re-raise on exit 3; print traceback
+    plain: bool = False                  # --plain : no rich; ASCII tables
+    no_color: bool = False               # --no-color : disable ANSI color codes
+    json: bool = False                   # --json : machine-readable stdout + JSONL stderr
 
 
 @dataclass(frozen=True)
@@ -267,11 +278,24 @@ class ChopperContext:
     audit: AuditStore
 ```
 
+**Flag-to-adapter mapping (CLI responsibility; see [`docs/CLI_HELP_TEXT_REFERENCE.md`](CLI_HELP_TEXT_REFERENCE.md) for flag definitions).**
+
+| `PresentationConfig` field | Source flag | Effect |
+|---|---|---|
+| `verbose` | `-v / --verbose` | structlog level set to `DEBUG`; otherwise `INFO`. |
+| `debug` | `--debug` | On exit code 3, CLI re-raises instead of swallowing; prints full traceback. |
+| `plain` | `--plain` | `TableRenderer` = `PlainTable`; `ProgressSink` = `PlainProgress`. |
+| `no_color` | `--no-color` | Disables ANSI colors in whichever renderer is active. |
+| `json` | `--json` | `TableRenderer` = `JsonRenderer` (serializes `RunResult` to stdout); `ProgressSink` = `JsonlProgress` (one JSON event per line to stderr); `DiagnosticSink` = `JsonlSink`. |
+
+When multiple flags apply (e.g. `--json --plain`), `--json` wins for rendering; `--plain` still disables Rich imports. `ProgressSink` is active in **every** mode — only the adapter changes. `SilentProgress` is used by test harnesses (not selectable via CLI).
+
 **Construction rules.**
 
 - Built exactly once per run — by `cli/main.py` in production, by `make_test_context()` in tests.
 - Never mutated. Port *bindings* are fixed; port *state* may change via method calls.
 - Services receive `ctx` plus the typed inputs they declare — nothing else. No module-level globals, no singletons, no thread-locals.
+- Services read only `ctx.config` (the `RunConfig`). `PresentationConfig` is CLI-local and never enters the service layer.
 
 ### 6.2 The runner
 
@@ -282,25 +306,34 @@ class ChopperContext:
 def run(ctx: ChopperContext) -> RunResult:
     state = manif = graph = None
     try:
-        state   = DomainStateService().run(ctx)                         # P0
+        state   = DomainStateService().run(ctx)                         # P0 — no gate (never errors)
         loaded  = ConfigService().run(ctx, state)                       # P1a
         PreValidatorService().run(ctx, loaded)                          # P1b
         if _has_errors(ctx, Phase.P1_CONFIG): return _abort(ctx, state, manif, graph)
         parsed  = ParserService().run(ctx, loaded.surface_files)        # P2
+        if _has_errors(ctx, Phase.P2_PARSE):  return _abort(ctx, state, manif, graph)
         manif   = CompilerService().run(ctx, loaded, parsed)            # P3
         if _has_errors(ctx, Phase.P3_COMPILE): return _abort(ctx, state, manif, graph)
-        graph   = TracerService().run(ctx, manif, parsed)               # P4 (reporting-only)
+        graph   = TracerService().run(ctx, manif, parsed)               # P4 — no gate (reporting-only;
+                                                                        # TW-* are warnings by definition;
+                                                                        # internal invariant violations raise → exit 3)
         if not ctx.config.dry_run:
-            TrimmerService().run(ctx, manif, state)                     # P5a
+            rewritten = TrimmerService().run(ctx, manif, state)         # P5a — writes directly via ctx.fs
             if _has_errors(ctx, Phase.P5_TRIM): return _abort(ctx, state, manif, graph)
-            GeneratorService().run(ctx, manif)                          # P5b
-            PostValidatorService().run(ctx, manif)                      # P6
+            GeneratorService().run(ctx, manif)                          # P5b — writes directly via ctx.fs;
+                                                                        # returns artifact records for audit only
+            PostValidatorService().run(ctx, manif, rewritten)           # P6 — re-tokenizes only rewritten files
             if _has_errors(ctx, Phase.P6_POSTVALIDATE): return _abort(ctx, state, manif, graph)
+        else:
+            # Dry-run P6: manifest-derivable checks only (VW-05, VW-06, VW-14..VW-17);
+            # filesystem re-read checks (VE-17, VE-29) are skipped because nothing was rewritten.
+            PostValidatorService().run(ctx, manif, rewritten_paths=())
         return _build_result(ctx, manif, graph, exit_code=0)
     finally:
         # P7 audit always runs — even on exceptions, even on early return.
-        # AuditService tolerates `None` inputs and writes whatever is available
-        # (state snapshot, partial manifest, partial graph, full diagnostic trail).
+        # AuditService tolerates `None` inputs: it writes chopper_run.json + diagnostics.json
+        # unconditionally, and the other artifacts only if their producing phase completed.
+        # chopper_run.json records `artifacts_present: string[]` listing which files were written.
         try:
             AuditService().run(ctx, manif, graph)
         except Exception:
@@ -316,7 +349,20 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 
 **Gate semantics (explicit).** `_has_errors(ctx, phase)` inspects `ctx.diag.snapshot()` and returns `True` iff any diagnostic with `severity == ERROR` and `phase == <phase>` is present. **Severity is never rewritten by the gate.** `--strict` does not affect gating — see §8.2 rule 4. On abort, the runner returns a `RunResult` with `exit_code=1`; the `finally` block guarantees `AuditService` runs so `.chopper/` gets whatever artifacts are reachable.
 
-**Gate between P5a (Trimmer) and P5b (Generator).** Historically the plan ran them back-to-back. That let a failed trim produce run-files pointing into a half-trimmed tree. The gate shown above stops the pipeline after P5a if any `ERROR`-severity `phase == P5_TRIM` diagnostic is present, so the Generator never writes into a broken state. The registered codes covering this gate live in the `VE-*` trimmer range in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
+**Phase-gate policy (summary).**
+
+| Phase | Emits | Gated? | Rationale |
+|---|---|---|---|
+| P0 `DomainStateService` | — | No | Never emits `ERROR` diagnostics; filesystem failures raise at the port boundary (CLI emits `VE-23` / `VE-26`). |
+| P1 `ConfigService` + `PreValidatorService` | `VE-*` | **Yes** | Invalid input must not reach parser. |
+| P2 `ParserService` | `PE-*` | **Yes** | A corrupted proc index corrupts everything downstream; abort before P3. |
+| P3 `CompilerService` | `VE-*` compiler | **Yes** | Manifest contradictions (e.g. `VE-05`) must not reach the trimmer. |
+| P4 `TracerService` | `TW-*` | No | Reporting-only; tracer emits only warnings. Internal invariant violations raise → exit 3. |
+| P5 `TrimmerService` + `GeneratorService` | `VE-*` trimmer | **Yes** | A failed trim must not emit run-files into a broken tree. No staging; failure leaves `<domain>/` half-rebuilt and `<domain>_backup/` intact (bible §2.8). |
+| P6 `PostValidatorService` | `VE-*` + `VW-*` | **Yes** (error only) | Final correctness gate before a successful exit. |
+| P7 `AuditService` | `VI-*` | No | Always runs in `finally`; never gates. |
+
+**Rollback model.** There is no staging tree and no atomic promotion. If P5 fails, `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` is untouched. On the next invocation, `DomainStateService` observes both directories and classifies the state as Case 2 (re-trim); `TrimmerService` treats `<domain>_backup/` as the source of truth and rebuilds `<domain>/` from scratch. Operators who want a pristine restart may run `rm -rf <domain> && mv <domain>_backup <domain>` manually. The registered codes covering the P5 gate are `VE-26`, `VE-27`, `VE-28`, `VE-29` in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
 
 ---
 
@@ -365,13 +411,14 @@ class Diagnostic:
     line_no:  int  | None = None
     hint:     str  | None = None
     context:  Mapping[str, object] = field(default_factory=dict)  # JSON-safe
+    dedupe_bucket: str = ""       # optional namespace for multi-context emission; default collapses across sites
 ```
 
 **Invariants:**
 
 - `code` MUST match a registered code in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md). Construction validates this against a compile-time registry; unknown codes raise immediately. Tests fail fast on typos.
 - `Diagnostic` is immutable and hashable (default frozen-dataclass `__eq__` compares all fields).
-- **Dedupe key is a subset of equality.** The sink deduplicates on `(code, path, line_no, message)` — *not* on full-field equality. Two diagnostics with identical code/path/line/message but different `hint` or `context` still collapse to one at the sink. This is intentional: `hint` and `context` are presentational or diagnostic-local metadata and must not create spurious duplicates.
+- **Dedupe key is a subset of equality.** The sink deduplicates on `(code, path, line_no, message, dedupe_bucket)` — *not* on full-field equality. Within a bucket, **last write wins**: a later `emit()` with the same key replaces the prior entry. Different buckets for the same `(code, path, line_no, message)` produce distinct entries; callers that need multi-context emission set distinct bucket values. Default bucket `""` preserves the original collapse-on-duplicate semantics. `hint` and `context` do not affect the dedupe key.
 - `context` values must be JSON-serializable. No live objects.
 
 ### 8.2 Sink contract
@@ -386,7 +433,7 @@ class DiagnosticSink(Protocol):
 **Rules binding every service:**
 
 1. **No `print`, no user-facing `raise`.** Services call `ctx.diag.emit(...)`. Programmer errors stay as exceptions.
-2. **No diagnostic is emitted twice.** Sinks dedupe on the equality key `(code, path, line_no, message)`. Duplicate emits are silently dropped — no error, no second entry.
+2. **No diagnostic is emitted twice within the same bucket.** Sinks dedupe on `(code, path, line_no, message, dedupe_bucket)`. Within a bucket, a later emit **replaces** the prior entry (last-write-wins), so callers can refine the `hint`/`context` of a previously-emitted diagnostic without duplication. Callers that want multiple concurrent entries for the same logical issue set distinct `dedupe_bucket` values.
 3. **Ordering is emission order, preserved verbatim.** `snapshot()` returns diagnostics in the exact order `emit()` was called. The sink does **not** sort. Determinism of the user-visible diagnostic sequence follows from (a) single-threaded execution (§11) and (b) a fixed phase sequence in `ChopperRunner.run()`. Services that iterate user data (files, procs) must iterate in a documented sorted order so their own emissions are reproducible across runs.
 4. **`--strict` is an exit-code policy, not a severity rewrite.** Services always emit the nominal severity — a `WARNING` stays a `WARNING` in the sink, in `diagnostics.json`, and in all rendered output, with or without `--strict`. Phase gates fire on nominal `ERROR` only (see §6.2). At the very end of the run, the CLI computes the process exit code from `sink.finalize()`:
    - exit `0` — no `ERROR`, and either `--strict` is off or no `WARNING` is present.
@@ -437,7 +484,7 @@ Diagnostics are the user-facing spine. This section pins down how services hand 
 ```python
 @dataclass(frozen=True)
 class DomainState:
-    case: Literal[1,2,3,4,5,6]           # bible §2.8 matrix
+    case: Literal[1,2,3,4]               # bible §2.8 matrix (cases 1–4 only)
     domain_exists: bool
     backup_exists: bool
     hand_edited: bool                    # triggers VI-03 / stash
@@ -556,7 +603,7 @@ class AuditManifest:
 | `CompilerService.run` | `(ctx, loaded, parsed) -> CompiledManifest` |
 | `TracerService.run` | `(ctx, manifest, parsed) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx, manifest, state) -> TrimReport` |
-| `GeneratorService.run` | `(ctx, manifest) -> tuple[GeneratedArtifact, ...]` |
+| `GeneratorService.run` | `(ctx, manifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is a manifest record consumed by `AuditService` for audit artifacts. The runner does not re-write the returned content. |
 | `ValidatorService.run_pre` | — **REMOVED.** Split into `PreValidatorService.run(ctx, loaded) -> None`. |
 | `ValidatorService.run_post` | — **REMOVED.** Split into `PostValidatorService.run(ctx, manifest) -> None`. |
 | `PreValidatorService.run` | `(ctx, loaded) -> None` (emits diagnostics) |

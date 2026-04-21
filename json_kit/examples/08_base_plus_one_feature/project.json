@@ -3,9 +3,9 @@
   "project": "PROJECT_ABC",
   "domain": "my_domain",
   "owner": "integration-team",
-  "base": "chopper/base.json",
+  "base": "jsons/base.json",
   "features": [
-    "chopper/features/dft.json"
+    "jsons/features/dft.feature.json"
   ],
   "notes": [
     "DFT feature adds scan chain verification stage after main"

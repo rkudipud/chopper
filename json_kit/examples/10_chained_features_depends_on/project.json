@@ -3,11 +3,11 @@
   "project": "PROJECT_FULL_SIGNOFF",
   "domain": "my_domain",
   "owner": "integration-team",
-  "base": "chopper/base.json",
+  "base": "jsons/base.json",
   "features": [
-    "chopper/features/dft_support.json",
-    "chopper/features/power_analysis.json",
-    "chopper/features/pipeline_signoff.json"
+    "jsons/features/dft_support.feature.json",
+    "jsons/features/power_analysis.feature.json",
+    "jsons/features/pipeline_signoff.feature.json"
   ],
   "notes": [
     "Order is authoritative and required by depends_on chains:",

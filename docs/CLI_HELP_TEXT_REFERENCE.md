@@ -69,7 +69,9 @@ build trimmed output, validate results, and emit audit trail.
 
 First trim:  renames domain/ to domain_backup/, builds trimmed domain/.
 Re-trim:     rebuilds domain/ from existing domain_backup/.
-On failure:  remove half cooked domain/ and replace domain_backup/ as domain/.
+On failure:  leave state as-is and exit non-zero; re-run to resume (the next
+             run detects the leftover state and rebuilds from domain_backup/),
+             or manually run `rm -rf domain && mv domain_backup domain` to reset.
 
 options:
   --domain PATH       Domain root path (default: current directory)

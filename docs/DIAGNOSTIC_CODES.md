@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01–VE-30 | 23 | 7 (retired: VE-16, VE-24; + 5 free: VE-27–VE-30 and 1 mid-range) | 30 | Schema, path, action, ordering, filesystem failures — block output |
+| `VE` Validation Errors | VE-01–VE-30 | 26 | 4 (retired: VE-16, VE-24; + 2 free: VE-30 and 1 mid-range) | 30 | Schema, path, action, ordering, filesystem failures — block output |
 | `VW` Validation Warnings | VW-01–VW-20 | 17 | 3 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
 | `VI` Validation Info | VI-01–VI-05 | 3 | 2 (retired: VI-04, VI-05) | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 3) |
 | `PE` Parse Errors | PE-01–PE-10 | 3 | 7 | 10 | Fatal parse failures; file skipped or partial |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **65** | **40** | **105** | |
+| **Total** | | **68** | **37** | **105** | |
 
 ---
 
@@ -54,21 +54,24 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-10 | `occurrence-suffix-overflow` | 1 | compiler | 1 | `@n` suffix where `n` exceeds actual occurrence count for that step string | Reduce `@n` or verify the step appears enough times |
 | VE-11 | `conflicting-cli-options` | 1 | cli | **2** | `--project` provided alongside `--base` or `--features` | Use `--project` alone or `--base`/`--features` alone |
 | VE-12 | `project-schema-invalid` | 1 | schema | 1 | Project JSON fails `chopper/project/v1` schema validation | Fix project JSON: requires `$schema`, `project`, `domain`, `base` |
-| VE-13 | `project-path-unresolvable` | 1 | validator | **2** | `base` or `features` paths in project JSON cannot be resolved to existing files. Treated as an authoring error — Chopper hard-crashes before the pipeline starts, prints the offending path(s), and exits 2. | Fix the paths in the project JSON (relative to the domain root) and re-run |
+| VE-13 | `project-path-unresolvable` | 1 | cli | **2** | `base` or `features` paths in project JSON cannot be resolved to existing files. Owned by the **CLI pre-runner check** (before `ChopperRunner.run()` starts): Chopper renders the offending path(s) via the CLI's `TableRenderer`, emits the diagnostic on stderr (text or JSONL depending on `--json`), and exits 2 without entering the pipeline. | Fix the paths in the project JSON (relative to the domain root; no `..`, no absolute paths) and re-run |
 | VE-14 | `duplicate-feature-name` | 1 | compiler | 1 | Two or more selected features have the same `name` field | Rename one feature or remove the duplicate |
 | VE-15 | `missing-depends-on-feature` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite is not selected in project `features` | Add the prerequisite feature to the project or remove the dependency declaration |
 | VE-16 | `depends-on-out-of-order` | — | — | — | **RETIRED.** Feature order in `project.features` is no longer required to match `depends_on` order. Dependencies are checked after *all* feature JSONs are loaded: if a `depends_on` prerequisite is missing from the project selection, `VE-15` fires. Out-of-order placement is allowed. | — |
-| VE-17 | `brace-error-post-trim` | 2 | validator | 1 | Surviving `.tcl` file has brace-matching errors after trim | Edit the file or adjust procs kept to avoid broken syntax |
+| VE-17 | `brace-error-post-trim` | 2 | validator | **3** | Post-trim re-tokenization of a rewritten `.tcl` file reports brace imbalance. This is an **internal-consistency assertion**: `PE-02` already rejects pre-existing imbalanced files in P2, so the only way P6 sees one is if the trimmer itself introduced it (programmer error). Exit 3 signals "Chopper broke," not "user input is bad." | File a bug with the offending path and the `trim_report.json`; restore `<domain>_backup/` and re-run |
 | VE-18 | `template-script-path-escapes` | 1 | validator | 1 | `options.template_script` resolves (via `Path.resolve()`) to a path outside the domain root (symlink escape) or fails the schema path-shape check. The field itself is reserved and not executed in v1; only path safety is validated. | Fix the path or remove the option |
-| VE-19 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
+| VE-19 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory. Comparison is **case-insensitive** (`Path.cwd().name.casefold() == project.domain.casefold()`): operators authoring on Windows and running on Linux grid nodes are tolerated. | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
 | VE-20 | `duplicate-feature-entry` | 1 | validator | 1 | Same feature path appears more than once in project `features[]` | Remove duplicate entries; feature order must be unique |
 | VE-21 | `occurrence-suffix-zero` | 1 | compiler | 1 | `@0` used on an action `reference` — `@n` is 1-based | Use `@1` for the first occurrence, or omit `@n` entirely |
 | VE-22 | `ambiguous-step-target` | 1 | compiler | 1 | `replace_step` / `remove_step` targets a duplicate step string without `@n` disambiguation | Add `@n` to the `reference` to pick a specific occurrence |
 | VE-23 | `no-domain-or-backup` | 1 | cli | 2 | Neither `<domain>/` nor `<domain>_backup/` exists at invocation — nothing to trim | Verify you are in the correct working directory; restore the domain from version control |
 | VE-24 | `concurrent-invocation` | — | — | — | **RETIRED.** Chopper has no lock and no concurrency guard. It is a single-user, single-invocation push-button tool against a single on-disk domain. Two operators racing the same checkout is an operator-level contract violation; Chopper does not attempt to detect or prevent it. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q3. | — |
 | VE-25 | `feature-depends-on-cycle` | 1 | compiler | 1 | Selected features form a `depends_on` cycle; topological sort is not possible | Break the cycle by removing or reordering `depends_on` declarations in the offending feature JSONs |
-| VE-26 | `filesystem-error-during-trim` | 1 | trimmer | 1 | Filesystem operation failed during P5a trim (permission denied, disk full, read-only FS, missing parent directory, cross-device rename). Trimmer invokes rollback: staging tree is discarded and `<domain>_backup/` is restored into `<domain>/`. Audit bundle is still written to `.chopper/` on a best-effort basis. | Verify filesystem permissions and available space on the domain's filesystem; inspect `.chopper/internal-error.log` and `trim_report.json` for the offending path |
-| — | — | — | — | — | **VE-27 through VE-30 reserved** | — |
+| VE-26 | `filesystem-error-during-trim` | 5 | trimmer | 1 | Filesystem operation failed during P5 trim (permission denied, disk full, read-only FS, missing parent directory, cross-device rename). No staging is used; on failure, `<domain>/` is left in whatever half-rebuilt state the failure produced and `<domain>_backup/` is untouched. Re-invocation detects this state as Case 2 (re-trim) and rebuilds `<domain>/` from `<domain>_backup/`. Audit bundle is still written to `.chopper/` on a best-effort basis. | Verify filesystem permissions and available space; re-run Chopper to resume from backup, or run `rm -rf <domain> && mv <domain>_backup <domain>` to reset manually |
+| VE-27 | `backup-contents-missing` | 5 | trimmer | 1 | A file named in `CompiledManifest` as `FULL_COPY` or `PROC_TRIM` was not found under `<domain>_backup/` at P5. Manifest is out of sync with the backup tree (typically because the backup was hand-edited between runs). | Re-create the domain from version control and re-run; do not hand-edit `<domain>_backup/` |
+| VE-28 | `domain-write-failed` | 5 | trimmer | 1 | Write to the rebuilt `<domain>/` failed mid-operation (partial write, post-write size mismatch, directory-vs-file collision). Distinct from `VE-26` which covers OS-reported errors; `VE-28` covers semantic-integrity failures (the write returned OK but the result is wrong). | Inspect `trim_report.json` for the offending path; re-run to resume from `<domain>_backup/` |
+| VE-29 | `proc-atomic-drop-failed` | 5 | trimmer | 1 | The trimmer could not align a proc's byte span with its parser-reported line range during atomic deletion. Typically caused by DPA-block or comment-banner lookahead drift between P2 and P5 (files were edited between parse and trim, or parser output is stale). | Re-run Chopper end-to-end (parser output will be regenerated); if it persists, file a parser bug with the offending file |
+| — | — | — | — | — | **VE-30 reserved** | — |
 
 ---
 

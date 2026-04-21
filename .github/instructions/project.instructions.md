@@ -246,7 +246,7 @@ All authoritative documentation lives under [docs/](../../docs/). Before impleme
 
 Other key docs:
 
-- [docs/chopper-gui-readiness-plan.md](../../docs/chopper-gui-readiness-plan.md) — GUI-readiness plan: typed results, JSON serialization, service-layer discipline.
+- [docs/chopper_description.md](../../docs/chopper_description.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
 - [docs/FUTURE_PLANNED_DEVELOPMENTS.md](../../docs/FUTURE_PLANNED_DEVELOPMENTS.md) — Roadmap items explicitly out of v1 scope.
 - [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
 - [json_kit/docs/JSON_AUTHORING_GUIDE.md](../../json_kit/docs/JSON_AUTHORING_GUIDE.md) and [json_kit/schemas/](../../json_kit/schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
@@ -264,18 +264,16 @@ Other key docs:
 
 ## Code Style
 
-Enforced by Ruff:
+The authoritative Python coding standards live in [docs/chopper_description.md](../../docs/chopper_description.md) §5.12. Summary:
 
-- Line length: 120 characters
-- `snake_case` functions/variables, `CamelCase` classes, `UPPER_CASE` constants
-- Type hints on **all** public functions
-- 4-space indentation
+- Ruff for lint + format; line length 120; 4-space indent; `snake_case` / `CamelCase` / `UPPER_CASE`.
+- Full type hints on every public function; `@dataclass(frozen=True)` for records; `typing.Protocol` for ports.
+- `from __future__ import annotations` at the top of every module; `mypy` strict for `core/`, no-`Any` elsewhere.
+- `pathlib.Path` only; POSIX-normalize on serialization; `..` and absolute paths rejected at the schema boundary.
+- No `print()` in library code; user outcomes via `ctx.diag.emit(Diagnostic(...))`; internal logs via `structlog`.
+- Programmer errors raise `ChopperError` subclasses and exit with code 3 via the runner's final `except`.
 
-**Data Structures:**
-
-- Frozen `dataclass` for records (immutable, hashable)
-- `Enum` for vocabularies (e.g., `FileTreatment`, `Severity`)
-- `Protocol` for alternate implementations (e.g., `ProgressSink`, `TableRenderer`)
+When this summary and the bible disagree, the bible (§5.12) wins — update the summary here to match.
 
 ---
 

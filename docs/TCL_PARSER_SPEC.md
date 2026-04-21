@@ -23,6 +23,8 @@ This document specifies the tokenization, parsing, and indexing rules for Choppe
 
 ### 2.1 Public Function Signature
 
+**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps — it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and takes already-decoded text as a callback-driven function. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
+
 ```python
 def parse_file(
     domain_path: Path,
@@ -40,6 +42,8 @@ def parse_file(
 
     Returns:
         List of ProcEntry records. May be empty (not an error).
+        Return contract on PE-* diagnostics is specified in
+        docs/chopper_description.md §5.4.1.
     """
 ```
 

@@ -159,6 +159,13 @@ global/
 
 **Key rule: anything outside the selected domain's boundary is a “DO NOT TOUCH” zone and is NEVER trimmed.** Chopper operates strictly on the single domain directory it is invoked from; sibling domains, vendor roots, shared `global/` infrastructure, and any path that escapes the domain are never read, written, or backed up. References from domain code into external paths are surfaced as advisory diagnostics (`VW-17 external-reference`) but never cause trimming or survival decisions.
 
+**Reserved path: `.chopper/`.** The `.chopper/` directory is a **reserved** audit-artifact location that lives only at `<domain>/.chopper/`. It is not user-authored content and is not part of the trimmable surface. Chopper guarantees:
+
+- `.chopper/` is **never** backed up. When `<domain>/` is renamed to `<domain>_backup/` on first trim, any pre-existing `.chopper/` is moved aside first and then re-created fresh under the new rebuilt `<domain>/`.
+- `.chopper/` is **never** copied from `<domain>_backup/` into the rebuilt `<domain>/` during a re-trim. Each run produces a fresh `.chopper/` for that run.
+- `.chopper/` is **never** walked by the P2 parser and **never** matched by any `files.include` glob (including `**`).
+- `.chopper/` is owner-managed between runs (domain owners are expected to add it to `.gitignore`); Chopper does not prune it automatically.
+
 ### 2.5 Per-Domain Structure (Actual)
 
 Each domain is typically flat or shallow, with Tcl at the root and optional subdirectories:
@@ -238,12 +245,12 @@ FINAL CLEANUP:
 
 | # | `<domain>/` | `<domain>_backup/` | Chopper behavior |
 |---|---|---|---|
-| 1 | exists | missing | First trim. Create `<domain>_backup/` as a full copy, then build the trimmed `<domain>/` in place. |
-| 2 | exists | exists | Re-trim. Do **not** re-backup. Rebuild `<domain>/` from `<domain>_backup/` using the current JSONs. If the existing `<domain>/` contents have been hand-edited since the last run, emit `VI-03 domain-hand-edited`; local changes are discarded. |
+| 1 | exists | missing | First trim. Create `<domain>_backup/` as a full copy (excluding any pre-existing `.chopper/`, which is moved aside and re-created fresh under the new `<domain>/`), then build the trimmed `<domain>/` in place. |
+| 2 | exists | exists | Re-trim. Do **not** re-backup. Rebuild `<domain>/` from `<domain>_backup/` using the current JSONs. This branch also handles recovery from a prior failed run (the half-rebuilt `<domain>/` is discarded and rebuilt from the intact backup). If the existing `<domain>/` contents have been hand-edited since the last run, emit `VI-03 domain-hand-edited`; local changes are discarded. |
 | 3 | missing | exists | Recovery re-trim. Restore `<domain>/` from `<domain>_backup/` and proceed as case 2. |
 | 4 | missing | missing | Fatal. Emit `VE-23 no-domain-or-backup`; exit 2. Nothing to trim. |
-| 5 | exists | exists, but `cleanup --confirm` was run previously | Case 2 still applies; the prior cleanup only deleted an older backup. |
-| 6 | any | `<domain>_backup/` exists but is unreadable / permission-denied | Fatal I/O error with the offending path; user must resolve filesystem state. |
+
+**Failure recovery (no staging, no atomic promotion).** Chopper does not stage trimmed output into a temporary tree and does not atomically swap trees on success. If a trim run aborts between P5 and P7 (for example, disk full, permission denied, DPA atomic drop failed), `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` remains intact. On the next invocation, the edge-case matrix observes both directories present and selects **Case 2** (re-trim): the trimmer treats `<domain>_backup/` as the authoritative source, discards the half-rebuilt `<domain>/`, and rebuilds cleanly. Operators who want a pristine manual reset may run `rm -rf <domain> && mv <domain>_backup <domain>` at any time — this returns the workspace to the pre-Chopper state.
 
 **Operational rule:** backups stay in the project branch throughout the trim window and are removed explicitly by `chopper cleanup --confirm`. Users are expected to commit or move hand-edits before re-running; Chopper always rebuilds from `_backup` and does not attempt to merge.
 
@@ -428,7 +435,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 **Features are purely additive.** A feature's `files.exclude` and `procedures.exclude` only prune that *same feature's own* include contributions; they cannot remove content contributed by the base or by another feature. Explicit include from any source always wins over exclude from any other source. In detail:
 
 - `files.exclude` prunes glob expansions of the *same JSON's* `files.include` patterns. A feature's FE has no effect on a file contributed by the base or by another feature; when it would, the FE is discarded and `VW-10 cross-source-fe-vetoed` is emitted.
-- `procedures.exclude` means "keep the file but remove these procs" — the file survives as `PROC_TRIM` with the excluded procs dropped from *that source's* contribution. If another source (base or any feature) whole-file-includes the same file, or explicitly includes any of the PE'd procs via `procedures.include`, the PE is vetoed and `VW-18 cross-source-pe-vetoed` is emitted. Base content is never stripped by a feature.
+- `procedures.exclude` means "keep the file but remove these procs" — the file survives as `PROC_TRIM` with the excluded procs dropped from *that source's* contribution. If another source (base or any feature) whole-file-includes the same file, or explicitly includes any of the PE'd procs via `procedures.include`, the PE is vetoed and `VW-18 cross-source-pe-vetoed` is emitted. Base content is never stripped by a feature. **An empty `procs` array in a `procedures.exclude` entry (`"procs": []`) is a silent no-op** — unlike `procedures.include` where an empty array fires `VE-03`, exclude tolerates empty lists because they express "nothing to remove," which is harmless.
 - Within a single JSON, mixing `procedures.include` and `procedures.exclude` on the same file is an authoring conflict: PI wins, PE is ignored for that file, and `VW-12` is emitted.
 - Within a single JSON, mixing `files.exclude` and `procedures.exclude` on the same file with no PI is redundant: both are removal-within-this-source signals, the file is not contributed by this JSON, and `VW-11` is emitted.
 - The full conflict-resolution, file-treatment, and interaction-warning rules are defined in R1.
@@ -458,8 +465,8 @@ Schema: `json_kit/schemas/project-v1.schema.json`
 
 **Rules:**
 - `$schema`, `project`, `domain`, and `base` are required. Everything else is optional.
-- `domain` must match the basename of the current working directory (the domain root).
-- `base` and `features` paths are resolved relative to the current working directory, not the project JSON file location.
+- `domain` must match the basename of the current working directory (the domain root), compared case-insensitively via `casefold()` (see §5.1).
+- `base` and `features` paths are resolved relative to the current working directory, not the project JSON file location. `..` and absolute paths are forbidden.
 - `--project` is mutually exclusive with `--base` and `--features`.
 
 **Key fields:**
@@ -1052,7 +1059,7 @@ Given the same current working directory, base JSON, and ordered feature list, p
 
 When `--project` is provided, Chopper assumes it is being run from the domain root. The current working directory is therefore the root for resolving `base` and `features`, not the project JSON file location. The resolved inputs then enter the same compilation pipeline as `--base`/`--features`. The `project`, `owner`, `release_branch`, and `notes` fields from the project JSON are recorded in audit artifacts.
 
-When `--project` is provided, the project JSON `domain` field is a required identifier for audit and consistency. It must match the basename of the current working directory. If `--domain` is also provided, it must resolve to that same current working directory. Any mismatch is reported through project-validation diagnostics (for example `VE-12` / `VE-13`, as applicable).
+When `--project` is provided, the project JSON `domain` field is a required identifier for audit and consistency. It must match the basename of the current working directory using a **case-insensitive** comparison: `Path.cwd().name.casefold() == project.domain.casefold()`. Full-path comparisons elsewhere in Chopper remain case-sensitive; only the domain-name field is case-folded because operators may author on Windows and run on Linux grid nodes. If `--domain` is also provided, it must resolve (case-insensitively) to that same current working directory. Any mismatch is reported as `VE-19 project-domain-mismatch` (or `VE-12` / `VE-13` for structural variants).
 
 The detailed CLI reference with all arguments, flags, and per-subcommand usage is in [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md).
 
@@ -1342,12 +1349,23 @@ To make `bar` survive trimming the author must add it to `procedures.include` (o
 The parser is strictly per-file and never reaches across file boundaries. The tracer is strictly global and relies on a single domain-wide index. This subsection makes the handoff between the two explicit.
 
 **Step 1 — Per-file parse (P2, per file).**
-`parse_file(tcl_file, on_diagnostic=...)` returns a `list[ProcEntry]` for that single file. Each entry carries its `canonical_name` (`relative/path.tcl::qualified_name`), its `namespace_path` captured from enclosing `namespace eval` blocks, the body span, and two unresolved handoff fields:
+`parse_file(tcl_file, on_diagnostic=...)` returns a `list[ProcEntry]` for that single file. The public parser entry point that the runner actually calls is `ParserService.run(ctx, files)` (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2); `parse_file()` is the pure internal utility the service wraps. Each entry carries its `canonical_name` (`relative/path.tcl::qualified_name`), its `namespace_path` captured from enclosing `namespace eval` blocks, the body span, and two unresolved handoff fields:
 
 - `calls: tuple[str, ...]` — raw call tokens extracted from the body after false-positive suppression. These are textual tokens such as `"helper"` or `"::foo::bar"`; the parser does not know whether they resolve and never attempts to.
 - `source_refs: tuple[str, ...]` — literal `source` / `iproc_source` file targets.
 
 At this point there is no cross-file knowledge. The parser runs file-by-file and holds no memory between files.
+
+**Per-file return contract on `PE-*` diagnostics.** `parse_file()` never raises for user-input errors; it emits diagnostics and decides what to return based on how corrupted the file is:
+
+| Emitted code | `parse_file()` returns | Rationale |
+|---|---|---|
+| `PE-01` duplicate proc | full `ProcEntry` list with **one** entry per name (last definition's span wins) | Index is still usable; the duplicate is recorded once. |
+| `PE-02` unbalanced braces | **`[]`** (empty list) | The file's brace structure is untrustworthy; no proc span can be reliably extracted. Downstream `VE-07 proc-not-in-file` will fire if any JSON referenced procs in this file. |
+| `PE-03` ambiguous short name | full list | Ambiguity is resolved at trace time (P4) by namespace rules; parser cannot pick. |
+| Any `PW-*` / `PI-*` | full list | Warnings and info diagnostics never degrade the return value. |
+
+The orchestrator treats any `ERROR`-severity P2 diagnostic as a phase-gate failure (see plan §6.2): the runner aborts before P3, so a corrupted proc index never reaches the compiler.
 
 **Step 2 — Assemble the global proc index (start of P4).**
 The compiler concatenates every file's `ProcEntry` list into **one flat dictionary keyed by `canonical_name`**:
@@ -1728,9 +1746,11 @@ Chopper output must be:
 - Explainable through trace and trim reports
 - Safe to review in code review
 
-#### Determinism, staging, and atomic promotion
+#### Determinism and write-safety
 
-Determinism and write-safety remain architectural requirements. The detailed staging, atomic-promotion, and restore rules are implemented in `src/chopper/audit/` and `src/chopper/trimmer/`; risks are tracked in [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md).
+Determinism is a hard requirement (NFR-03): the same inputs must produce byte-identical output on every run. This is achieved through lex-sorted file discovery, lex-sorted BFS trace frontiers, stable JSON serialization, and a fixed phase sequence (no concurrency).
+
+Write-safety does **not** use a staging tree or atomic promotion. Chopper writes directly to `<domain>/` during P5 and P5b; if a write fails mid-run, `<domain>_backup/` remains intact and the next invocation rebuilds from it (see §2.8 "Failure recovery"). Risks and recovery paths are tracked in [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md).
 
 ### 5.7 Dry-Run vs Live Trim
 
@@ -1743,9 +1763,11 @@ Both modes execute the same seven-phase pipeline. The only difference is which p
 | P2 Parse domain Tcl | Executes | Executes |
 | P3 Compile selections | Executes | Executes |
 | P4 Trace dependencies | Executes | Executes |
-| P5 Build output | **Writes to staging** | **Skipped** |
-| P6 Post-trim validate | Executes (against staging) | Executes (against resolved sets) |
-| P7 Finalize & audit | **Atomic promote + .chopper/ artifacts** | **Reports only; no domain writes** |
+| P5 Build output | **Writes directly to `<domain>/`** | **Skipped** |
+| P6 Post-trim validate | Executes against the rewritten files in `<domain>/` | Executes against the resolved sets only (manifest-derivable checks); filesystem re-read checks are skipped |
+| P7 Finalize & audit | Writes `.chopper/` artifacts | Writes `.chopper/` artifacts (reports only; no domain writes) |
+
+**Dry-run P6 scope.** Because no file is rewritten in dry-run, brace-balance and other filesystem-dependent checks (`VE-17`, `VE-29`) cannot run. P6 under `--dry-run` runs only the manifest-derivable checks: `VW-05 dangling-proc-call`, `VW-06 source-file-removed`, `VW-14 step-file-missing`, `VW-15 step-proc-missing`, `VW-16 step-source-missing`, `VW-17 external-reference`. All other P6 behavior is unchanged.
 
 Dry-run emits:
 - `compiled_manifest.json` — file and proc treatment decisions
@@ -1757,12 +1779,17 @@ Dry-run emits:
 
 Chopper has two validation phases that run within the pipeline:
 
-| Phase | When | What |
-|---|---|---|
-| **Phase 1** (within P1) | Pre-trim | Schema, missing files/procs, empty procs arrays, invalid actions, path rules |
-| **Phase 2** (within P6) | Post-trim | Brace balance, dangling proc refs, missing source targets, F3 cross-validation |
+| Phase | When | Service | Input | What it checks |
+|---|---|---|---|---|
+| **Phase 1** (within P1) | Pre-trim | `PreValidatorService.run(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, cross-source veto detection |
+| **Phase 2** (within P6) | Post-trim | `PostValidatorService.run(ctx, manifest, rewritten_paths)` | `CompiledManifest` + sequence of paths the trimmer actually rewrote | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-17` — internal-consistency assertion, exit 3); scans surviving procs for dangling-proc-call (`VW-05`), source-file-removed (`VW-06`), and F3 cross-validation (`VW-14`–`VW-17`) |
 
-`chopper validate` is the standalone Phase 1-only command (no domain source files needed — structural checks only).
+Phase 2 input contract: `rewritten_paths` contains only files the trimmer touched during P5 (copied-and-edited or newly generated). Files copied verbatim from `<domain>_backup/` are **not** re-tokenized — they were already validated at P2 and the trimmer did not change them.
+
+**`chopper validate` standalone command.**
+
+- **Default behavior (JSON-only):** When invoked without access to the domain source tree, `chopper validate` runs Phase 1 structural checks only — schema validation, path rules, empty-procs detection, depends-on resolution, and every other check that does not require reading `.tcl` files. Filesystem-existence checks (`VE-06`, `VE-07`) and parser-time checks (`PE-*`) are **skipped** in this mode.
+- **Full mode (with domain):** When invoked from inside the domain directory (so that `Path.cwd().name.casefold() == project.domain.casefold()` per §5.1) or with an explicit `--domain .` argument, `chopper validate` additionally runs the parser (`PE-*`) and the filesystem-existence checks (`VE-06`, `VE-07`). This is the pre-flight mode used before `chopper trim`.
 
 The detailed validation check matrix, diagnostics contract, and exit semantics are defined in [docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
 
@@ -1778,7 +1805,7 @@ Detailed CLI behavior, diagnostics fields, exit codes, presentation constraints,
 
 ### 5.10 Python Implementation Guidance
 
-Python coding standards, repository structure, package boundaries, configuration policy, logging policy, and future GUI-readiness are defined in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) and [docs/chopper-gui-readiness-plan.md](chopper-gui-readiness-plan.md).
+Chopper's Python coding standards live in §5.12 below. GUI-readiness and the wire protocol live in §5.11. [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) provides a short summary that points back to these sections; the bible is authoritative.
 
 ### 5.11 GUI Readiness and Wire Protocol
 
@@ -1798,44 +1825,21 @@ The following rules are **non-negotiable in v1** even though no GUI ships:
 
 #### 5.11.2 Service Layer Contract
 
-The service layer is the boundary between presentation (CLI/TUI/GUI) and domain logic. Each Chopper subcommand maps to one service class with a single `execute` method:
+The service layer is the boundary between presentation (CLI/TUI/GUI) and domain logic. The authoritative contract lives in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6 (`ChopperContext`, `RunConfig`, `PresentationConfig`, `ChopperRunner.run()`) and §9.2 (per-phase service signatures: `DomainStateService`, `ConfigService`, `PreValidatorService`, `ParserService`, `CompilerService`, `TracerService`, `TrimmerService`, `GeneratorService`, `PostValidatorService`, `AuditService`).
 
-```python
-@dataclass(frozen=True)
-class TrimRequest:
-    domain_path: Path
-    base_json: Path
-    feature_jsons: tuple[Path, ...]
-    project_json: Path | None = None
-    project_name: str = ""
-    project_owner: str = ""
-    release_branch: str = ""
-    project_notes: tuple[str, ...] = ()
-    dry_run: bool = False
-    mode: TrimMode = TrimMode.TRIM
+**Invocation pattern (CLI and future GUI use the same entry point):**
 
-@dataclass(frozen=True)
-class TrimResult:
-    run_id: str
-    exit_code: ExitCode
-    compiled_manifest: CompiledManifest
-    diagnostics: tuple[Diagnostic, ...]
-    trim_stats: TrimStats
-    audit_artifacts: dict[str, Path]
-
-class TrimService(Protocol):
-    def execute(self, request: TrimRequest, progress: ProgressSink | None = None) -> TrimResult: ...
-```
-
-Equivalent request/result pairs exist for `ValidateService` and `CleanupService`. CLI, GUI, and test harnesses all program against these contracts.
+1. The frontend parses its inputs (CLI args, GUI form data, or a JSON `TrimRequest` on stdin per §5.11.3) into a `RunConfig` (engine behavior) plus a `PresentationConfig` (UX adapter selection).
+2. The frontend constructs a `ChopperContext` by binding concrete ports (`LocalFS`, `CollectingSink` or `JsonlSink`, an appropriate `ProgressSink` adapter, `DotChopperAuditStore`, etc.) per the `PresentationConfig`.
+3. The frontend calls `ChopperRunner().run(ctx) -> RunResult`.
+4. The frontend renders `RunResult` through a `TableRenderer` (terminal, JSON, or GUI widget) and exits with `RunResult.exit_code`.
 
 **Rules:**
 
-- Services accept typed request objects and return typed result objects.
-- Services never print to stdout/stderr directly.
-- Services accept an optional `ProgressSink` for streaming progress.
-- Services raise `ChopperError` subclasses for expected errors.
-
+- Services accept `ctx` plus typed inputs they declare; never print to stdout/stderr directly.
+- Services surface outcomes through `ctx.diag.emit(...)` and `ctx.progress.*`; never raise for user-visible conditions.
+- A future GUI does **not** require any new service class — it builds `ChopperContext` the same way the CLI does and consumes `RunResult` + the JSONL event stream (§5.11.3).
+- There is **no** separate `TrimService` / `ValidateService` / `CleanupService` layer above the runner. The three subcommands differ only in how they configure `RunConfig` (e.g. `mode = VALIDATE` vs `TRIM`, `dry_run = True/False`) before invoking `ChopperRunner.run()`.
 #### 5.11.3 JSON-over-stdio Wire Protocol (Future GUI)
 
 When a GUI is implemented, it will communicate with the Chopper engine via **JSON-over-stdio**:
@@ -1888,13 +1892,14 @@ The following data is already produced by the v1 pipeline and available as typed
 
 #### 5.11.6 Extension Points for GUI
 
-Three protocol-based extension points enable GUI-specific behavior without modifying core code:
+Four protocol-based extension points enable GUI-specific behavior without modifying core code:
 
 | Extension Point | Protocol | Purpose |
 |---|---|---|
-| `ProgressSink` | `on_progress()`, `on_diagnostic()` | GUI progress panels and live diagnostic feeds |
-| `OutputFormatter` | `format_report()`, `format_diagnostics()` | GUI-specific rendering of results |
-| `TableRenderer` | `render_table()` | GUI table widgets instead of terminal tables |
+| `ProgressSink` | `phase_started()`, `phase_done()`, `step()` | Progress panels and pipeline-stage indicators. Active in every run (text, JSON, silent); the CLI picks the adapter per `PresentationConfig` (`RichProgress`, `PlainProgress`, `JsonlProgress`, `SilentProgress`). |
+| `DiagnosticSink` | `emit()`, `snapshot()`, `finalize()` | Diagnostic collection and streaming. `CollectingSink` is the default; `JsonlSink` writes JSONL to stderr for the GUI wire protocol (§5.11.3). |
+| `OutputFormatter` | `format_report()`, `format_diagnostics()` | GUI-specific rendering of `RunResult`. |
+| `TableRenderer` | `render_table()` | GUI table widgets instead of terminal tables. |
 
 #### 5.11.7 What v1 Must NOT Do
 
@@ -1903,6 +1908,64 @@ Three protocol-based extension points enable GUI-specific behavior without modif
 - Must NOT use `print()` in library code (`src/chopper/compiler/`, `src/chopper/parser/`, `src/chopper/trimmer/`, `src/chopper/validator/`, `src/chopper/core/`).
 - Must NOT require a TTY for correct operation — headless and piped invocations must work.
 - Must NOT couple diagnostic emission to console rendering — diagnostics are data, not output.
+
+### 5.12 Python Coding Standards
+
+Chopper is a Python ≥ 3.9 CLI. The rules below are authoritative for every file under `src/chopper/`. They consolidate what was previously scattered between the instructions file and the architecture plan; the instructions file now carries a brief summary that defers here.
+
+#### 5.12.1 Module Layout and Boundaries
+
+- The repository layout is defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §3. Every source module lives under `src/chopper/`. No sibling-module imports across service packages — services depend only on `core/` and their own submodules. Cross-cutting data lives in `core/models.py`; cross-cutting protocols live in `core/protocols.py`.
+- Ports-and-adapters: every external dependency (filesystem, clock, diagnostic sink, progress sink, audit store, table renderer) is declared as a `typing.Protocol` in `core/protocols.py`. Concrete adapters live in `adapters/`. Services receive ports via `ChopperContext`.
+- Services never construct adapters; the CLI does that at startup (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1).
+
+#### 5.12.2 Path Handling
+
+- **Always** use `pathlib.Path`. Never use `os.path` string manipulation.
+- Always normalize to forward slashes on serialization (POSIX form). On Windows, `Path.as_posix()` is used before any path enters JSON output.
+- Path comparisons that cross OS boundaries (e.g., project JSON `domain` field matched against cwd basename) use `casefold()` (§5.1). Every other path comparison is case-sensitive.
+- Forbidden in user input: `..` traversal, absolute paths, drive letters. Validated at the schema boundary (§6.3.1).
+- `Path.resolve()` is used once at CLI entry to normalize the domain root; downstream services use the resolved absolute path.
+
+#### 5.12.3 Type Annotations
+
+- Every public function and method has full type annotations.
+- Every `core/models.py` class is a frozen `@dataclass(frozen=True)`. Immutability is a hard rule — services cannot mutate each other's outputs.
+- Enums use `enum.Enum` (string-valued for JSON serializability) or `enum.IntEnum` where numeric comparison is meaningful (e.g., `Phase`).
+- `typing.Protocol` (PEP 544) is preferred over `abc.ABC` for ports. Duck typing with static verification.
+- `from __future__ import annotations` at the top of every module; forward references resolved lazily.
+- `mypy` in strict mode for `core/`; non-strict (but no-`Any`) for the rest.
+
+#### 5.12.4 Logging and Diagnostics
+
+- **No `print()` in library code.** Any module under `src/chopper/{parser,compiler,trimmer,validator,core,config,audit,generators}` that calls `print()` is a review-blocking defect. The CLI and test harnesses may print.
+- All user-facing outcomes go through `ctx.diag.emit(Diagnostic(...))` (§5.11.1). Every code is registered in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
+- Internal logging uses `structlog`. Configuration is done exactly once, in `cli/main.py`. Library modules call `log = structlog.get_logger(__name__)` and emit structured events (`log.info("phase_complete", phase="P3", duration_ms=123)`).
+- Structured events never replace diagnostics. Diagnostics are for users; structlog is for internal debugging and audit.
+
+#### 5.12.5 Errors and Exceptions
+
+- User-visible conditions are **diagnostics**, not exceptions. Services never raise `ValueError` / `FileNotFoundError` to signal bad input.
+- `ChopperError` (in `core/errors.py`) is the base for programmer-error exceptions. Subclasses: `UnknownDiagnosticCodeError` (registry mismatch at `Diagnostic` construction), `ProgrammerError` (internal-consistency assertions).
+- An unhandled exception that escapes a service is an exit-code-3 programmer error; the runner catches it in `finally` (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2), writes a stack trace to `.chopper/internal-error.log`, and exits 3. `--debug` additionally re-raises so the trace hits stderr.
+
+#### 5.12.6 Style and Formatting
+
+- Ruff is the only linter + formatter (replaces flake8, isort, black).
+- Line length: 120.
+- `snake_case` for functions and variables, `CamelCase` for classes, `UPPER_CASE` for constants.
+- 4-space indentation. No tabs.
+- Imports grouped: stdlib, third-party, first-party (`chopper.*`), relative. Ruff enforces.
+- Docstrings: Google style, required on every public function / class / method. Omitted on private helpers unless non-obvious.
+
+#### 5.12.7 Configuration Policy
+
+- No configuration files under the user's home directory, no `$CHOPPER_*` environment variables (except for CI overrides documented explicitly). All configuration enters via CLI flags, base/feature/project JSONs, and `.chopper/` audit artifacts.
+- `RunConfig` ([`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1) is the single source of engine-behavior configuration; `PresentationConfig` is the single source of CLI-UX configuration. Neither is mutable after construction.
+
+#### 5.12.8 Testing Standards
+
+Coverage gates, fixture conventions, and the integration-test harness are defined in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md). Parser fixture catalog is in [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md). Minimum line coverage is 78% overall; parser 85%, compiler 80%, trimmer 80%, config 85%, core 80%.
 
 ---
 
@@ -2323,10 +2386,11 @@ Equivalent resolved selections must produce the same trimmed output whether they
 **Path resolution rules:**
 - Chopper assumes it is invoked from the domain root. The current working directory is therefore the root for resolving `base` and `features`.
 - `base` and `features` paths are resolved relative to the current working directory, not relative to the project JSON file location.
-- This means a project JSON can live anywhere — `configs/`, `projects/`, outside the repo — and still correctly reference the domain's base and feature JSONs under the default `jsons/` layout.
+- **The operator MUST `cd` into the domain root before running `chopper trim --project <path>`.** The project JSON can live anywhere — `configs/`, outside the repo, anywhere on disk — but its `base` and `features` strings reference paths under the domain root, not under the project JSON's own location.
+- `..` is **forbidden** in `base` and `features` strings (per §6.3.1). Absolute paths are also forbidden. Project JSONs stored outside the domain (e.g., `configs/project_abc.json` at the repo root) must still express their `base`/`features` as domain-relative paths such as `jsons/base.json`.
 - The default expected curated JSON layout under the domain root is `jsons/base.json` and `jsons/features/*.json`.
-- All path rules from §6.3.1 apply (forward slashes, no `..` traversal, no absolute paths).
-- The project JSON `domain` field must match the basename of the current working directory. If `--domain` is provided with `--project`, it must resolve to that same directory. Mismatches are reported through project-validation diagnostics (for example `VE-12` / `VE-13`, as applicable).
+- All other path rules from §6.3.1 apply (forward slashes, no absolute paths).
+- The project JSON `domain` field is compared case-insensitively against the basename of the current working directory (see §5.1). If `--domain` is provided with `--project`, it must resolve to that same directory. Mismatches are reported as `VE-19`.
 
 **CLI usage:**
 ```bash
@@ -2548,7 +2612,7 @@ post_read_constraints.tcl
 
 ### 8.3 GUI-Readiness Implications
 
-The GUI-readiness plan is defined in full in [docs/chopper-gui-readiness-plan.md](chopper-gui-readiness-plan.md). At the architecture level the relevant invariants are:
+The GUI-readiness surface is defined in §5.11 above. At the architecture level the relevant invariants are:
 
 - **Service layer first.** Every CLI subcommand (`validate`, `trim`, `cleanup`) is a thin adapter over a callable service returning a typed result object. A future GUI invokes the same service without re-implementing logic.
 - **No `print()` in library code.** All user-visible output is emitted through a `ProgressSink` / structlog pipeline; the CLI attaches a text renderer, a GUI would attach a widget renderer.
@@ -2752,7 +2816,7 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md) | Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples |
 | [docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) | Tcl parser engineering baseline: tokenizer, namespace resolution, edge cases |
 | [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md) | Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) |
-| [docs/chopper-gui-readiness-plan.md](chopper-gui-readiness-plan.md) | GUI-readiness plan: typed results, JSON serialization, service-layer discipline |
+| [docs/chopper_description.md](chopper_description.md) §5.11 | GUI-readiness surface: typed results, JSON-over-stdio wire protocol, service-layer discipline |
 | [docs/FUTURE_PLANNED_DEVELOPMENTS.md](FUTURE_PLANNED_DEVELOPMENTS.md) | Roadmap items explicitly out of v1 scope |
 | [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) | SNORT comparison and absorbed proc-extraction guardrails |
 | Python logging cookbook | Confirms that library code should not configure global logging handlers |
