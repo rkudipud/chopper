@@ -125,7 +125,8 @@ Equivalent JSON stage definition:
 | `vendor` | string | No | Vendor (e.g., `synopsys`, `cadence`) |
 | `tool` | string | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | string | No | Human-readable summary |
-| `options.cross_validate` | boolean | No | Cross-validate F3 run-file output against F1/F2 surviving set. Default: `true`. Missing step targets emit warnings (`VW-14`/`VW-15`/`VW-16`), never errors. |
+| `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
+| `options.template_script` | string | No | Reserved (v1): domain-relative script path. Schema-validated for path safety but not executed in v1. |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
@@ -242,7 +243,7 @@ Equivalent JSON stage definition:
   "$schema": "chopper/project/v1",
   "project": "PROJECT_ABC",
   "domain": "my_domain",
-  "base": "my_domain/jsons/base.json"
+  "base": "jsons/base.json"
 }
 ```
 
@@ -277,8 +278,9 @@ All paths in `base` and `features` must be:
 ### Rules
 
 1. Values in `depends_on` are **feature `name` strings**, not file paths.
-2. Each prerequisite must appear in the project `features` list. Order within the list is **not** enforced — Chopper loads all features first, then validates the dependency graph.
-3. Chopper validates this at project-level (`VE-15 missing-depends-on-feature` for unmet prerequisites and `VE-22 feature-depends-on-cycle` for cyclic dependencies).
+2. Each prerequisite must appear in the project `features` list.
+3. Each prerequisite must appear **earlier** in the list than the feature declaring the dependency.
+4. Chopper validates this at project-level (`VE-15 missing-depends-on-feature` and `VE-16 depends-on-out-of-order`).
 
 ### Example — three-level chain
 
@@ -645,9 +647,9 @@ Validate using Python:
 import json
 import jsonschema
 
-with open("json_kit/schemas/base-v1.schema.json") as sf:
+with open("schemas/base-v1.schema.json") as sf:
     schema = json.load(sf)
-with open("my_domain/jsons/base.json") as f:
+with open("jsons/base.json") as f:
     instance = json.load(f)
 
 jsonschema.validate(instance, schema)  # raises if invalid
@@ -659,7 +661,7 @@ Or validate all three together:
 ```python
 import json, jsonschema, pathlib
 
-schema_dir = pathlib.Path("standalone_json_kit/schemas")
+schema_dir = pathlib.Path("schemas")  # relative to chopper_json_kit repo root
 schemas = {
     "chopper/base/v1":    json.load(open(schema_dir / "base-v1.schema.json")),
     "chopper/feature/v1": json.load(open(schema_dir / "feature-v1.schema.json")),

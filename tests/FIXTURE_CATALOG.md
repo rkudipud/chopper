@@ -316,6 +316,16 @@ ProcEntry(
 
 ​No parse error diagnostics. `vpx`, `vpxmode`, `tclmode` produce `TW-02 unresolved-proc-call` at trace-expansion time (not parse time — brace structure is clean).
 
+**`foreach_in_collection` assertion (P-36).** The `get_hier_summary` proc body uses `foreach_in_collection` as a Synopsys EDA iterator. If the real fixture does not contain a `proc` keyword inside the `foreach_in_collection` body, a companion synthetic fixture `parser_foreach_in_collection_no_inner_proc.tcl` must be added that explicitly places a `proc` keyword inside the iterator body. Both fixtures must carry the explicit assertion:
+
+```python
+inner_procs = [e for e in result if "inner" in e.canonical_name or e.source_file == fixture_path]
+assert len([e for e in result if e.canonical_name != "...::get_hier_summary"]) == 0, \
+    "proc keyword inside foreach_in_collection body must NOT be indexed as a ProcEntry"
+```
+
+No proc defined inside a `foreach_in_collection` body (or any CONTROL_FLOW context) may appear in `ParseResult.index`.
+
 ---
 
 ## Coverage Requirements

@@ -1,6 +1,6 @@
 # Chopper v2
 
-**Chopper v2** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes a 7-phase compilation pipeline to automatically remove unwanted files, Tcl procedures, and code paths while preserving correctness and auditability.
+**Chopper v2** is a docs-first Python toolchain for surgically trimming VLSI EDA tool domains via JSON feature selection. The intended execution model is an 8-phase pipeline (`P0`-`P7`) that removes unwanted files, Tcl procedures, and code paths while preserving correctness and auditability.
 
 ## Quick Links
 
@@ -198,7 +198,7 @@ pytest
 ```
 
 Expected output:
-- Python 3.8+ with `(.venv)` in your prompt
+- Python 3.13+ with `(.venv)` in your prompt
 - pip from `.venv` directory
 - Chopper CLI help text
 - Pytest discovers and runs tests
@@ -256,6 +256,17 @@ Add-Content -Path $PROFILE -Value ". 'C:\path\to\chopper_v2\setup.ps1'"
 # Check if venv is active (should show .venv path)
 which python    # Unix/Linux/macOS
 Get-Command python  # PowerShell
+```
+
+### `make` not found on Windows
+
+`make check` and `make ci` require GNU Make. On stock Windows shells, run the equivalent tools directly from `.venv\Scripts\` until Make is installed.
+
+```powershell
+.\.venv\Scripts\ruff.exe check src/ tests/
+.\.venv\Scripts\ruff.exe format --check src/ tests/
+.\.venv\Scripts\mypy.exe src/
+.\.venv\Scripts\pytest.exe tests\unit\ -v
 ```
 
 If not active, re-run setup:

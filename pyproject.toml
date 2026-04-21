@@ -28,9 +28,6 @@ dev = [
     "import-linter>=2.0,<3",
 ]
 
-[project.scripts]
-chopper = "chopper.cli.main:main"
-
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"

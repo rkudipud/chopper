@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-EXPECTED_SCENARIO_COUNT = 30
+EXPECTED_SCENARIO_COUNT = 25
 
 ROOT = Path(__file__).resolve().parents[2]
 STRATEGY_DOC = ROOT / "tests" / "TESTING_STRATEGY.md"

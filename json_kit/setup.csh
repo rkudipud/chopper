@@ -11,7 +11,7 @@ if ( ! -f "$script_dir/README.md" || ! -d "$script_dir/schemas" ) then
 endif
 
 set venv_dir = "$script_dir/.venv"
-set proxy = "http://proxy-chain.intel.com:928"
+set proxy = "http://proxy-chain.intel.com:912"
 
 # Prefer python3, then python.
 set python_cmd = ""

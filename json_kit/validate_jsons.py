@@ -4,7 +4,7 @@
 Usage examples:
   python validate_jsons.py
   python validate_jsons.py examples/08_base_plus_one_feature
-  python validate_jsons.py my_domain/chopper
+  python validate_jsons.py my_domain/
 """
 
 from __future__ import annotations

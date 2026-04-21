@@ -16,7 +16,7 @@ if (-not (Test-Path (Join-Path $scriptDir "README.md")) -or -not (Test-Path (Joi
 }
 
 $venvDir = Join-Path $scriptDir ".venv"
-$proxy = "http://proxy-chain.intel.com:928"
+$proxy = "http://proxy-chain.intel.com:912"
 
 # Prefer python launcher, then python in PATH.
 $usePyLauncher = $false

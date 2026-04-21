@@ -25,7 +25,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-30 | 26 | 4 | 30 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-20 | 18 | 1 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
+| `VW` Validation Warnings | VW-01–VW-20 | 18 | 2 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
 | `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 3 | 7 | 10 | Fatal parse failures; file skipped or partial |
@@ -86,7 +86,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-07 | `run-file-step-trimmed` | 6 | validator | 0 | F3-generated run file references a step file that was trimmed away | Add step file to `files.include` or remove the step from stage |
 | VW-08 | `file-empty-after-trim` | 5 | trimmer | 0 | File survived trim but lost all proc definitions; exists as blank/comment-only | Expected if only top-level code mattered; review if file should be in `files.include` |
 | VW-09 | `fi-pi-overlap` | 1 | compiler | 0 | File is in `files.include` and also has procs in `procedures.include`; PI entries are redundant on `FULL_COPY` files | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include` |
-| ~~VW-10~~ | RETIRED | — | — | — | Slot retired pre-v1; reassigned to VW-19. Do not reuse. | — |
+| — | — | — | — | — | **VW-10 reserved** | — |
 | VW-11 | `fe-pe-same-source-conflict` | 1 | compiler | 0 | Within a single JSON source, the same file appears in both `files.exclude` and `procedures.exclude` with no matching `procedures.include`. Both are removal-within-this-source signals; this source contributes nothing for the file (other sources may still contribute). | Within one JSON, use `files.exclude` alone to drop a file, or `procedures.exclude` alone to keep it with some procs removed |
 | VW-12 | `pi-pe-same-file` | 1 | compiler | 0 | Same file has procs in both `procedures.include` and `procedures.exclude`; PI takes precedence, PE ignored for this file | Choose one model per file: additive (PI) or subtractive (PE), not both |
 | VW-13 | `pe-removes-all-procs` | 1 | compiler | 0 | All procs excluded from file via `procedures.exclude`; file survives as comment/blank-only | Consider using `files.exclude` to remove the entire file instead |

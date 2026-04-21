@@ -233,7 +233,7 @@ Scenario numbering is stable within this document; each scenario below names the
 | 2 | Re-trim with same selection | Stage 3 | State=TRIMMED; output byte-identical to first trim |
 | 3 | Re-trim with different features | Stage 3 | State=TRIMMED; new manifest differs from first |
 | 4 | Cleanup after trim | Stage 3 | State=CLEANED; `domain_backup/` absent |
-| 5–9 | Crash at each of 5 state transitions | Stage 3 | `assert_domain_recoverable`; re-run succeeds |
+| ~~5–9~~ | ~~Crash at each of 5 state transitions~~ | *Deferred* | *See note below* |
 | 10 | Dry-run produces no filesystem changes | Stage 3 | No `domain_backup/`; no `.chopper/` |
 | 11a | `--project` path resolution is correct | Stage 5 | Resolved base/features match expected paths |
 | 11b | `--project` trim file list matches `--base/--features` | Stage 5 | Identical file trees |
@@ -255,6 +255,8 @@ Scenario numbering is stable within this document; each scenario below names the
 | 26 | F3 `flow_actions` ordering authoritative | Stage 2 | Last feature's `flow_actions` append order is preserved in compiled manifest; reordering CLI features changes `flow_actions` but leaves F1/F2 merged sets unchanged |
 | 27 | F1/F2 merge order-independence | Stage 2 | Swapping CLI feature order leaves `files.include`/`procedures.include` union identical (set equality) |
 | 28 | Provenance recorded in manifest | Stage 2 | Each entry in `compiled_manifest.json` carries its origin (`base` or `feature:<name>`) for every `files.*` and `procedures.*` decision |
+
+> **Deferred — Scenarios 5–9 (crash-injection).** Forcing failure at each of the 5 state transitions (P5/P6 boundary) and asserting `assert_domain_recoverable` is deferred post-D0. The backup/rebuild model (bible §2.8 Case 2) handles crash recovery at the operator level: a user rebuilds from `<domain>_backup/`. These tests may be added in a future hardening phase.
 
 ---
 
@@ -318,3 +320,28 @@ def test_compiler_include_wins(base_json_with_explicit_includes, feature_json_wi
         f"Explicit includes were dropped: {explicit_procs - surviving_procs}"
     )
 ```
+
+### 6.3 R1 Merge Order-Independence
+
+**Contract:** For any set of feature JSONs whose `depends_on` graph permits reordering (i.e., no ordering constraint exists between them), `CompilerService.run()` must produce an identical `CompiledManifest` regardless of the order features appear in `LoadedConfig.features`. This applies to F1 (file decisions) and F2 (proc decisions) only. F3 `flow_actions` sequencing is explicitly order-dependent and is excluded from this invariant.
+
+```python
+from hypothesis import given, strategies as st
+from itertools import permutations
+
+@given(st.sampled_from(list(permutations(["feat_a", "feat_b", "feat_c"]))))
+def test_compiler_f1_f2_order_independence(feature_order):
+    """F1/F2 manifest is identical for any permutation of features with no ordering dependency."""
+    # Load mini_domain or tracing_domain fixtures; features have no depends_on constraints.
+    base = load_base("tests/fixtures/mini_domain/base.json")
+    features = [load_feature(f"tests/fixtures/mini_domain/{f}.json") for f in feature_order]
+    manifest = CompilerService().run(make_test_ctx(), LoadedConfig(base=base, features=tuple(features), ...), parsed)
+    assert manifest.file_decisions == reference_manifest.file_decisions, (
+        f"F1 decisions differ for order {feature_order}: {manifest.file_decisions}"
+    )
+    assert manifest.proc_decisions == reference_manifest.proc_decisions, (
+        f"F2 decisions differ for order {feature_order}: {manifest.proc_decisions}"
+    )
+```
+
+Parametrize over all permutations of 2–4 independent features drawn from `tracing_domain` or `mini_domain` fixtures. The reference manifest is produced by the canonical topo-sort order.

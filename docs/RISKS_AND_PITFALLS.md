@@ -1,6 +1,6 @@
 # Chopper — Technical Risks and Implementation Pitfalls
 
-**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-36) that prevent those risks from being realized.
+**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-37) that prevent those risks from being realized.
 **Audience:** Engineering team
 **Replaces:** prior `TECHNICAL_CHALLENGES.md` and the former `docs/IMPLEMENTATION_PITFALLS_GUIDE.md`.
 
@@ -11,7 +11,7 @@
 This guide merges two previously separate documents:
 
 - **Technical Challenges (TC-01 – TC-10)** — High-level risk areas identified during architecture. Each TC names a category of failure that would compromise trim correctness, reproducibility, or safety.
-- **Implementation Pitfalls (P-01 – P-36)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
+- **Implementation Pitfalls (P-01 – P-37)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
 
 The document is organized by module. Each module section opens with the relevant TC risk statements, followed by the detailed pitfalls that guard against them.
 
@@ -338,6 +338,51 @@ If `foreach_in_collection` is not in the recognized control-flow keyword set, th
 **Why It Matters:** `foreach_in_collection` appears throughout Synopsys DC and Formality flows (`get_hier_summary` in `default_fm_procs.tcl` is a concrete example). Missing this keyword causes context stack corruption or false proc indexing in every file that uses it.
 
 **Test:** Fixture `foreach_in_collection_not_proc_context` — proc body containing `foreach_in_collection` with a `proc` keyword inside the iterator body; assert the inner `proc` is NOT indexed.
+
+---
+
+### Pitfall P-37: Adjacent Drop-Ranges Produce Blank-Line Artifacts When Not Coalesced
+
+**THE TRAP:**
+
+```python
+# Two adjacent procs are both marked for drop.
+# Naïve deletion applies each range independently (bottom-up):
+# range A: lines 40–55  (proc + DPA)
+# range B: lines 15–38  (proc + banner + DPA, ends at line 38; line 39 is blank)
+# After dropping range A then range B, line 39 (the blank separator) survives
+# because it was outside both ranges. Output file has an orphaned blank line
+# at the deletion site.
+```
+
+This produces cosmetic clutter in the trimmed output file. With many adjacent dropped procs, entire swathes of blank lines accumulate at the deletion site.
+
+**Correct Behavior:** Before writing the rewritten file, **coalesce** all collected drop-ranges:
+
+1. Sort drop-ranges in ascending order by `start_line` (for coalescing; apply in descending order when deleting).
+2. Merge adjacent or overlapping ranges: if `range_A.end + 1 >= range_B.start`, merge into a single span `(range_B.start, range_A.end)` — note: after sorting ascending, "range A" precedes "range B", so `range_A.end + 1 >= range_B.start` is the adjacency condition.
+3. Apply the coalesced set, sorted descending by start line, as a single deletion pass.
+
+```python
+def coalesce_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge adjacent or overlapping (start, end) line ranges."""
+    if not ranges:
+        return []
+    sorted_ranges = sorted(ranges, key=lambda r: r[0])
+    merged = [sorted_ranges[0]]
+    for start, end in sorted_ranges[1:]:
+        if start <= merged[-1][1] + 1:  # adjacent or overlapping
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged  # return ascending; caller reverses for bottom-up deletion
+```
+
+**Implementation Requirement:** `TrimmerService` and `proc_dropper.py` must call a coalesce step before applying any deletions. Blank lines between adjacent dropped-proc regions are included in the coalesced span if they fall within the merged range.
+
+**Test:** Create a two-proc test fixture where both procs are dropped. Assert that the output file contains no consecutive blank lines at the deletion site.
+
+**Why It Matters:** In production EDA domains, feature selection often drops adjacent utility procs (e.g., all EDA-vendor-specific helpers in a file). Without coalescing, the trimmed file visually signals removed sections through blank-line patterns — a minor but reproducible quality defect. More importantly, it is a sign that the deletion loop may be applying overlapping or inconsistently-ordered range logic.
 
 ---
 
@@ -979,6 +1024,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Parser** | Comment banner orphaned after proc drop | Record `comment_start_line`/`comment_end_line`; drop atomically with proc (P-34) |
 | **Parser** | DPA proc name extracted as false call dependency | Extract first word only; Level 2c suppression filter (P-35) |
 | **Parser** | `foreach_in_collection` not in control-flow keywords | Add to `CONTROL_FLOW_KEYWORDS`; push `CONTROL_FLOW` context (P-36) |
+| **Trimmer** | Adjacent drop-ranges leave blank-line artifacts | Coalesce adjacent/overlapping ranges before deletion pass (P-37) |
 | **Compiler** | Trace expansion is non-deterministic | Require exact match, not ambiguous (P-08) |
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |
 | **Compiler** | Glob results include duplicates | Normalize + deduplicate (P-11) |

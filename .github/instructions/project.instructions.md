@@ -329,6 +329,7 @@ JSON/TOML schema loading.
 
 - Uses `jsonschema` library
 - Schemas defined in `json_kit/schemas/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`
+- Authoring contract uses schema IDs `chopper/base/v1`, `chopper/feature/v1`, and `chopper/project/v1`. Do not assume a given checkout contains the full `json_kit/schemas/` bundle unless the files are actually present.
 
 ---
 

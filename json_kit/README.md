@@ -25,9 +25,12 @@ You author these JSONs now. When Chopper is released, you run `chopper trim --pr
 ## Package Contents
 
 ```
-standalone_json_kit/
+chopper_json_kit/
+├── AGENTS.md                        ← AI agent instructions (GitHub Copilot / Copilot Chat)
 ├── README.md                        ← You are here
 ├── VERSION.txt                      ← Schema version tracking
+├── setup.csh                        ← Bootstrap Python venv on tcsh/csh (Unix primary)
+├── setup.ps1                        ← Bootstrap Python venv on Windows PowerShell
 ├── validate_jsons.py                ← One-command schema validation helper
 ├── schemas/
 │   ├── base-v1.schema.json          ← Base JSON schema (authoritative validator)
@@ -48,7 +51,7 @@ standalone_json_kit/
 │   ├── 10_chained_features_depends_on/ ← three-level depends_on chain + project
 │   └── 11_project_base_only/        ← base-only trim (no features)
 └── agent/
-    └── DOMAIN_ANALYZER.md           ← Agent instructions for codebase analysis and JSON authoring
+    └── DOMAIN_ANALYZER.md           ← 8-phase domain analysis protocol for AI-assisted JSON authoring
 ```
 
 ---
@@ -61,12 +64,18 @@ standalone_json_kit/
 source setup.csh
 ```
 
-This creates and activates `.venv` automatically and installs `jsonschema`, which is required for schema validation examples in this repo.
+This creates and activates `.venv` automatically and installs `jsonschema`, which is required for schema validation examples in this repo. Both scripts configure the Intel pip/git proxy by default. Add `. ~/.tcshrc` auto-activation if desired.
 
 Windows PowerShell:
 
 ```powershell
 . .\setup.ps1
+```
+
+Pass `-NoProxy` to skip proxy configuration on environments that do not use the Intel proxy:
+
+```powershell
+. .\setup.ps1 -NoProxy
 ```
 
 ### 1. Choose your starting example
@@ -84,8 +93,9 @@ Windows PowerShell:
 ### 2. Copy and adapt
 
 ```bash
-cp -r examples/07_base_full/ my_domain/chopper/
-cd my_domain/chopper/
+cp -r examples/07_base_full/jsons/ my_domain/jsons/
+cp examples/07_base_full/  # if you need a project.json, copy from examples/11_project_base_only/
+cd my_domain/
 # Edit jsons/base.json: change domain, owner, file lists, stage definitions
 ```
 
@@ -100,45 +110,54 @@ Examples:
 ```bash
 python validate_jsons.py
 python validate_jsons.py examples/08_base_plus_one_feature/
-python validate_jsons.py my_domain/chopper/
+python validate_jsons.py my_domain/
+python validate_jsons.py --schema-dir /custom/schemas/ my_domain/
 ```
 
-The script validates Base/Feature/Project JSONs based on `$schema`, prints clear `OK/ERR/SKIP` lines, and returns non-zero on validation failures.
+The script validates Base/Feature/Project JSONs based on `$schema`, prints clear `OK/ERR/SKIP` lines, and returns non-zero on validation failures. Use `--schema-dir` if your schema files live outside the default `schemas/` directory.
 
 ### 4. Use the domain analyzer agent
 
-Open `agent/DOMAIN_ANALYZER.md` in your AI assistant (Copilot, Claude, etc.) as a system prompt or instruction file. Then ask:
+**GitHub Copilot / Copilot Chat (VS Code):** The repo ships with `AGENTS.md` at the root, which is automatically loaded as agent context in Copilot Chat. Just open a Copilot Chat session in this workspace and ask:
 
 > "Analyze my domain directory at `my_domain/` and help me author the base, feature, and project JSONs."
 
-The agent follows an 8-phase process: inventory → stack extraction → proc extraction → base/feature split → authoring → validation.
+**Other AI assistants (Claude, ChatGPT, etc.):** Open `agent/DOMAIN_ANALYZER.md` as a system prompt or instruction file and ask the same question.
+
+The agent follows an 8-phase process: discover domain structure → extract stack-file stage definitions → extract and classify procs → split base vs. feature content → author base JSON → author feature JSONs → author project JSON → validate. Collaboration checkpoints are built in — the agent pauses after key findings to confirm before finalizing JSON decisions.
 
 ---
 
 ## Where to Put Your JSON Files
 
-Convention:
+The authoritative layout is:
 
 ```
 <domain_root>/
-└── chopper/
-    ├── jsons/
-    │   ├── base.json
-    │   └── features/
-    │       ├── feature_a.feature.json
-    │       └── feature_b.feature.json
-    └── project_abc.json
+├── jsons/
+│   ├── base.json
+│   └── features/
+│       ├── feature_a.feature.json
+│       └── feature_b.feature.json
+└── project.json
 ```
 
-Or at the project level:
+`project.json` lives at the domain root and references the other files with paths relative to that root:
 
-```
-projects/<PROJECT_ID>/
-└── chopper/
-    ├── project.json         ← points to domain base + selected features
+```json
+{
+  "$schema": "chopper/project/v1",
+  "project": "PROJECT_ABC",
+  "domain": "my_domain",
+  "base": "jsons/base.json",
+  "features": [
+    "jsons/features/feature_a.feature.json",
+    "jsons/features/feature_b.feature.json"
+  ]
+}
 ```
 
-Paths in `project.json` are relative to the domain root (where Chopper will be invoked).
+Chopper is invoked from `<domain_root>/`, so all paths in every JSON are relative to that directory.
 
 ---
 
@@ -151,8 +170,10 @@ Paths in `project.json` are relative to the domain root (where Chopper will be i
 3. **Arrays must never be empty** when present — `minItems: 1` is enforced by schema.
 4. **Paths:** forward slashes only, no `..`, no `//`, no absolute paths.
 5. **`depends_on`** uses feature `name` values, not file paths.
-6. **Project feature order** must satisfy all `depends_on` declarations (prerequisites first).
+6. **Project feature order** must satisfy all `depends_on` declarations (prerequisites first). F1/F2 file and proc merging is order-independent; only F3 `flow_actions` sequencing depends on feature order.
 7. **`load_from` ≠ `dependencies`:** `load_from` = data predecessor for run script; `dependencies` = stack `D` line (scheduler order).
+8. **`flow_actions`** (feature only) modify the base flow at the stage level: insert, remove, or replace steps and entire stages. Actions are applied in feature order and each action sees the cumulative result of all previous features.
+9. **`metadata`** (feature only) is documentation-only: `owner`, `tags`, `wiki`, `related_ivars`, `related_appvars`. Chopper never evaluates these fields — they are preserved in audit output only.
 
 ---
 
@@ -198,6 +219,15 @@ Chopper has four input sets per file. Mixing them creates ambiguity — this mat
 - **FI + PI (no PE) stays FULL_COPY:** PI is additive and redundant on a fully included file (cases 8, 14).
 
 ---
+
+## Where to Start
+
+- **Using GitHub Copilot / Copilot Chat?** → Open a chat session — `AGENTS.md` is loaded automatically as agent context
+- **Using another AI assistant?** → Open [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) as a system prompt
+- **Reading docs?** → [`docs/JSON_AUTHORING_GUIDE.md`](docs/JSON_AUTHORING_GUIDE.md)
+- **Copying an example?** → [`examples/`](examples/) — pick the folder matching your scenario
+- **Analyzing a domain codebase?** → Open [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) and follow Phase 1
+- **Validating existing JSONs?** → Run `python validate_jsons.py <path>` from the repo root
 
 ## Getting Help
 

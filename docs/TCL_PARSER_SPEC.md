@@ -402,6 +402,7 @@ define_proc_attributes read_libs \
    b. Validate: the extracted DPA name must match `qualified_name` of the proc just closed. Mismatch → emit `PW-11` and do NOT associate.
    c. Collect continuation lines: while the current DPA line ends with `\`, advance and include the next line.
    d. Record `dpa_start_line` and `dpa_end_line` on the `ProcEntry`.
+   e. **Cursor advance after DPA block.** After recording the DPA block, the main-loop line cursor must be advanced past **all physical source lines** consumed by the block — including every backslash-continuation line. Each `\<newline>` pair is one physical source line and must increment the cursor by 1. Advancing by logical lines instead of physical lines causes an off-by-one error in `start_line` for every subsequent proc in the file. In production EDA files (e.g., `default_fm_procs.tcl`) every proc has a multi-line DPA block with continuation lines, so this error is systematic — all proc spans after the first DPA are wrong if step (e) is omitted.
 4. No DPA found within the lookahead window → `dpa_start_line = dpa_end_line = None`.
 
 **DPA proc name extraction** (adapted from SNORT's `_GetDefineProcAttributesProcName`):

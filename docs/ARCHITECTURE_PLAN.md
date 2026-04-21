@@ -157,7 +157,7 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `ConfigService` | P1 | `ctx, state` → `LoadedConfig` | `config/service.py` |
 | `validate_pre` (function) | P1 | `ctx, loaded` → emits diagnostics | `validator/functions.py` |
 | `ParserService` | P2 | `ctx, files` → `ParseResult` | `parser/service.py` |
-| `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` |
+| `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` — **Two-pass implementation required.** Pass 1: iterate `loaded.features` in topo-sort order and collect per-source contribution sets (FI, FE, PI, PE per source). Pass 2: apply R1 L1/L2/L3 cross-source resolution on the collected sets. F1/F2 output must be identical regardless of feature declaration order; only F3 `flow_actions` sequencing depends on order. Never apply excludes as a sequential mutating pass over a shared set — that makes F1/F2 order-dependent. |
 | `TracerService` | P4 | `ctx, manifest, parsed` → `DependencyGraph` | `compiler/trace_service.py` |
 | `TrimmerService` | P5a | `ctx, manifest, state` → `TrimReport` | `trimmer/service.py` |
 | `GeneratorService` | P5b | `ctx, manifest` → `tuple[GeneratedArtifact, ...]` | `generators/service.py` |
@@ -217,6 +217,11 @@ class FileSystemPort(Protocol):
     def remove(self, path: Path, *, recursive: bool = False) -> None: ...
     def mkdir(self, path: Path, *, parents: bool = False, exist_ok: bool = False) -> None: ...
     def copy_tree(self, src: Path, dst: Path) -> None: ...
+    # CONTRACT: copy_tree must NEVER copy a .chopper/ subdirectory from src into dst.
+    # LocalFS skips any child named ".chopper" at the top level of src during the
+    # recursive copy. InMemoryFS must enforce the same exclusion. This guarantees
+    # that each trim run starts with a fresh .chopper/ and that backup metadata
+    # never contaminates the rebuilt domain (bible §2.4).
 ```
 
 Services never call `pathlib.Path.read_text()`, `Path.rename()`, `shutil.rmtree()`, or `os.makedirs()` directly. Everything goes through `ctx.fs.*`. `InMemoryFS` implements the full surface so every service is unit-testable without hitting disk.
@@ -488,6 +493,24 @@ class LoadedConfig:
     surface_files: tuple[Path, ...]      # all files named by any source
 
 @dataclass(frozen=True)
+class ProcEntry:
+    canonical_name: str                  # "<domain-relative-posix-path>::<proc_name>"
+    name:           str                  # bare proc name (without namespace prefix)
+    qualified_name: str                  # fully-qualified name (namespace + bare name)
+    start_line:     int                  # line of the `proc` keyword (1-based)
+    end_line:       int                  # line of the closing `}` of the proc body (1-based)
+    body_start_line: int                 # line of the opening `{` of the proc body
+    body_end_line:   int                 # line of the closing `}` of the proc body
+    source_file:    Path                 # domain-relative path to the source file
+    # --- DPA and comment-banner span fields (required by TrimmerService for atomic drop) ---
+    # All four fields are None when the corresponding block is absent or could not
+    # be associated. P5 TrimmerService uses these to build each drop-range atomically.
+    dpa_start_line:     int | None = None  # first line of define_proc_attributes/arguments block
+    dpa_end_line:       int | None = None  # last line (inclusive) of DPA block, after continuations
+    comment_start_line: int | None = None  # first line of the contiguous backward comment banner
+    comment_end_line:   int | None = None  # last line of the banner (= start_line - 1)
+
+@dataclass(frozen=True)
 class ParsedFile:
     path: Path
     procs: tuple[ProcEntry, ...]
@@ -522,8 +545,12 @@ class DependencyGraph:
 
 @dataclass(frozen=True)
 class RunResult:
-    manifest:    CompiledManifest
-    graph:       DependencyGraph
+    # manifest and graph are None on early-abort paths (P1/P2/P3 gate fires before
+    # the phase that produces them completes). CLI renderer must handle None gracefully
+    # and display "pipeline aborted before <artifact> was available" in place of the
+    # normal summary. AuditService tolerates None for both fields.
+    manifest:    CompiledManifest | None
+    graph:       DependencyGraph  | None
     diagnostics: Sequence[Diagnostic]
     exit_code:   int
     duration:    timedelta
@@ -590,7 +617,7 @@ class AuditManifest:
 |---|---|
 | `DomainStateService.run` | `(ctx) -> DomainState` |
 | `ConfigService.run` | `(ctx, state) -> LoadedConfig` |
-| `ParserService.run` | `(ctx, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. |
+| `ParserService.run` | `(ctx, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. |
 | `CompilerService.run` | `(ctx, loaded, parsed) -> CompiledManifest` |
 | `TracerService.run` | `(ctx, manifest, parsed) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx, manifest, state) -> TrimReport` |
