@@ -31,6 +31,7 @@ The **Cheetah R2G (CTH R2G)** flow spans the full VLSI backend pipeline, from **
 The TFM is organized into **domains**. Each domain corresponds to one tool or one flow stage and has a designated **domain owner**. Every domain currently ships with a large amount of generalized flow code, optional behavior, legacy support, and customer-specific feature logic.
 
 When a **new project** signs up for the TFM:
+
 1. A **project branch** is created from the main repo.
 2. A **2-week trim window** begins.
 3. Each **domain deployment owner** trims only their own domain for that project.
@@ -42,7 +43,7 @@ When a **new project** signs up for the TFM:
 Each tool domain ships with the full feature set, whether or not a given customer needs it.
 
 | Pain Point | Description |
-|---|---|
+| --- | --- |
 | **Per-domain bloat** | Every domain carries all features, even when the customer needs only a subset. |
 | **Intertwined flow code** | The flow is file/proc-call based and tightly coupled, not cleanly modular. |
 | **No selective trimming** | There is no built-in mechanism to surgically remove unwanted files, procs, and code paths. |
@@ -59,12 +60,12 @@ Build **Chopper** — a per-domain trimming tool that lets each domain deploymen
 Chopper is currently in a **docs-first architecture phase**.
 
 | Status Item | Current State |
-|---|---|
+| --- | --- |
 | **Product maturity** | Early framework / scaffold stage |
 | **Implementation state** | Core trim engine is not yet production-implemented |
 | **Repository reality** | The repo currently contains package/framework scaffolding plus architecture and analysis docs |
 | **Primary source of truth** | This architecture document |
-| **Supporting document** | per component spec docs are available | 
+| **Supporting document** | per component spec docs are available |
 | **Implication** | Design clarity must come before feature implementation |
 
 This document therefore describes the **intended architecture**, the **resolved design decisions**, the **current open questions**, and the **implementation work queue** required to turn the framework into a working product.
@@ -76,6 +77,7 @@ This document therefore describes the **intended architecture**, the **resolved 
 ### 2.1 In Scope
 
 Chopper is in scope for:
+
 - Per-domain trimming only
 - Whole-file include/exclude
 - Tcl proc-level trimming
@@ -85,15 +87,16 @@ Chopper is in scope for:
 
 System is classified into three broad features:
 
-**F1:** File-level granularity; users can choose which files to include and which to remove.
-**F2:** Proc-level granularity; users can choose which procs to include from which file and which procs to remove from which file.
-**F3:** Stage-level granularity; users can use the stage/step section to define run files and these scripts "<stage>.tcl" files will be generated.
+- **F1:** File-level granularity; users can choose which files to include and which to remove.
+- **F2:** Proc-level granularity; users can choose which procs to include from which file and which procs to remove from which file.
+- **F3:** Stage-level granularity; users can use the stage/step section to define run files and these scripts `<stage>.tcl` files will be generated.
 
 **NOTE:** Users have complete freedom to choose any one or combination of all three feature sets, and JSON ensures that at least one of these feature keys is always present.
 
 ### 2.2 Out of Scope
 
 Chopper is not intended to do the following:
+
 - Trim directories outside the selected domain path. The domain owner is responsible for ensuring that the domain path is properly scoped to contain all relevant files and procs.
 - Perform repo-wide global trimming across all domains in one dependency graph.
 - Evaluate runtime Tcl semantics completely. Chopper performs static analysis and tracing based on the source code, but it does not attempt to fully resolve dynamic Tcl patterns such as `eval`, `uplevel`, or runtime-generated proc/file names. Such patterns are logged as warnings and require explicit owner input.
@@ -107,7 +110,7 @@ Chopper is not intended to do the following:
 The following items have been evaluated and **permanently excluded**. They will not be implemented in any version of Chopper.
 
 | ID | Item | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | OOS-01 | Non-Tcl subroutine-level trimming | Non-Tcl files (Perl, Python, shell) are file-level only by design. Subroutine-level parsing for non-Tcl languages is not a requirement. |
 | OOS-02 | Computed proc name extraction | Procs with dynamic names (`proc ${prefix}_helper`) are skipped with `PW-01`. Heuristic resolution adds complexity with no practical value. |
 | OOS-03 | Pipeline checkpointing | No domain exceeds 200 MB. Full restart from Phase 1 is acceptable. |
@@ -116,7 +119,7 @@ The following items have been evaluated and **permanently excluded**. They will 
 ### 2.3 Roles
 
 | Role | Responsibility |
-|---|---|
+| --- | --- |
 | **Global Flow Owner** | Owns the full mainline flow code for a domain and authors base/features JSONs for that domain. |
 | **Project Lead / Release Manager** | Creates the project branch, coordinates the trim window, and drives final cleanup and branch readiness. |
 | **Domain Deployment Owner** | Chooses project-specific features, maintains JSON combinations, runs Chopper, reviews output, and commits trimmed domain results. |
@@ -125,7 +128,7 @@ The following items have been evaluated and **permanently excluded**. They will 
 
 The TFM repo has this top-level structure under `global/`:
 
-```
+```text
 global/
 ├── snps/
 │   ├── fev_formality/         ◄── DOMAIN (trimmable)
@@ -170,7 +173,7 @@ global/
 
 Each domain is typically flat or shallow, with Tcl at the root and optional subdirectories:
 
-```
+```text
 domain_X/
 ├── jsons/
 │   ├── base.json
@@ -189,6 +192,7 @@ domain_X/
 ```
 
 Owner-curated base and feature JSONs are expected by default under the domain-local `jsons/` directory:
+
 - `<domain>/jsons/base.json`
 - `<domain>/jsons/features/<feature>.feature.json`
 
@@ -196,7 +200,7 @@ Project JSON does not have a fixed default location. The user provides its path 
 
 ### 2.6 Project Branch Lifecycle
 
-```
+```text
 main branch (full TFM, all domains, all features)
   │
   ├── git branch project_ABC
@@ -215,7 +219,7 @@ main branch (full TFM, all domains, all features)
 ### 2.7 Flow Code Languages
 
 | Language | Usage | Chopper Treatment |
-|---|---|---|
+| --- | --- | --- |
 | **Tcl** | Primary flow language | File-level and proc-level |
 | **Perl** | Utility and support scripts | File-level only |
 | **Python** | Utility and reporting scripts and primary sometimes | File-level only |
@@ -225,7 +229,7 @@ main branch (full TFM, all domains, all features)
 
 Chopper uses a **backup-and-rebuild** workflow. The domain directory is the operational unit; `<domain>_backup/` is a sibling created on first trim and consumed on re-trim.
 
-```
+```text
 BEFORE first trim:
   domain/                    ← original full domain
 
@@ -245,11 +249,11 @@ FINAL CLEANUP:
 **Edge-case behavior matrix** (evaluated at invocation, in the current working directory):
 
 | # | `<domain>/` | `<domain>_backup/` | Chopper behavior |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | exists | missing | First trim. Create `<domain>_backup/` as a full copy (excluding any pre-existing `.chopper/`, which is moved aside and re-created fresh under the new `<domain>/`), then build the trimmed `<domain>/` in place. |
-| 2 | exists | exists | Re-trim. Do **not** re-backup. Rebuild `<domain>/` from `<domain>_backup/` using the current JSONs. This branch also handles recovery from a prior failed run (the half-rebuilt `<domain>/` is discarded and rebuilt from the intact backup). If the existing `<domain>/` contents have been hand-edited since the last run, emit `VI-03 domain-hand-edited`; local changes are discarded. |
+| 2 | exists | exists | Re-trim. Do **not** re-backup. Rebuild `<domain>/` from `<domain>_backup/` using the current JSONs. This branch also handles recovery from a prior failed run (the half-rebuilt `<domain>/` is discarded and rebuilt from the intact backup). Any hand edits to `<domain>/` since the last run are discarded — Chopper does not detect or warn about them at the diagnostic level; the CLI always prints a fixed pre-flight line *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* so the user is informed every run. |
 | 3 | missing | exists | Recovery re-trim. Restore `<domain>/` from `<domain>_backup/` and proceed as case 2. |
-| 4 | missing | missing | Fatal. Emit `VE-23 no-domain-or-backup`; exit 2. Nothing to trim. |
+| 4 | missing | missing | Fatal. Emit `VE-21 no-domain-or-backup`; exit 2. Nothing to trim. |
 
 **Failure recovery (no staging, no atomic promotion).** Chopper does not stage trimmed output into a temporary tree and does not atomically swap trees on success. If a trim run aborts between P5 and P7 (for example, disk full, permission denied, DPA atomic drop failed), `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` remains intact. On the next invocation, the edge-case matrix observes both directories present and selects **Case 2** (re-trim): the trimmer treats `<domain>_backup/` as the authoritative source, discards the half-rebuilt `<domain>/`, and rebuilds cleanly. Operators who want a pristine manual reset may run `rm -rf <domain> && mv <domain>_backup <domain>` at any time — this returns the workspace to the pre-Chopper state.
 
@@ -260,6 +264,7 @@ FINAL CLEANUP:
 **Current architectural assumption:** cross-domain dependencies do not materially exist in practice.
 
 This means:
+
 - Domains are trimmed independently.
 - Tracing is bounded to the selected domain path.
 
@@ -270,6 +275,7 @@ If cross-domain references are discovered, they may show up in the call tree, bu
 **Domain owners own feature selection.**
 
 This includes:
+
 - Choosing the base JSON for their domain
 - Choosing the selected feature JSONs for a project
 - Deciding final run-file generation content for their domain
@@ -345,6 +351,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 ```
 
 **Rules:**
+
 - `$schema` and `domain` are required.
 - At least one of `files`, `procedures`, or `stages` must be present.
 - All three sections can coexist.
@@ -352,14 +359,14 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 **Key fields:**
 
 | Field | Required | Description |
-|-------|----------|--------------|
+| --- | --- | --- |
 | `$schema` | Yes | Must be `"chopper/base/v1"` |
 | `domain` | Yes | Domain directory name (e.g., `my_domain`) |
 | `owner` | No | Team responsible for this base |
 | `vendor` | No | Vendor (e.g., `synopsys`, `cadence`) |
 | `tool` | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | No | Human-readable summary |
-| `options.cross_validate` | No | Cross-validate F3 output against F1/F2. Default: `true` |
+| `options.cross_validate` | No | Cross-validate F3 run-file output against the F1/F2 surviving set. When `true` (default), every step in every surviving stage is checked against the set of files and procs that survived trim; missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) — all warnings, never errors. Set to `false` to suppress those warnings when F3 intentionally references content outside the trimmed domain. |
 | `files.include` | No* | Glob patterns or literal paths to include |
 | `files.exclude` | No | Glob patterns to exclude |
 | `procedures.include` | No* | Proc-level includes — array of `{ file, procs[] }` |
@@ -435,7 +442,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 
 **Features are purely additive.** A feature's `files.exclude` and `procedures.exclude` only prune that *same feature's own* include contributions; they cannot remove content contributed by the base or by another feature. Explicit include from any source always wins over exclude from any other source. In detail:
 
-- `files.exclude` prunes glob expansions of the *same JSON's* `files.include` patterns. A feature's FE has no effect on a file contributed by the base or by another feature; when it would, the FE is discarded and `VW-10 cross-source-fe-vetoed` is emitted.
+- `files.exclude` prunes glob expansions of the *same JSON's* `files.include` patterns. A feature's FE has no effect on a file contributed by the base or by another feature; when it would, the FE is discarded and `VW-19 cross-source-fe-vetoed` is emitted.
 - `procedures.exclude` means "keep the file but remove these procs" — the file survives as `PROC_TRIM` with the excluded procs dropped from *that source's* contribution. If another source (base or any feature) whole-file-includes the same file, or explicitly includes any of the PE'd procs via `procedures.include`, the PE is vetoed and `VW-18 cross-source-pe-vetoed` is emitted. Base content is never stripped by a feature. **An empty `procs` array in a `procedures.exclude` entry (`"procs": []`) is a silent no-op** — unlike `procedures.include` where an empty array fires `VE-03`, exclude tolerates empty lists because they express "nothing to remove," which is harmless.
 - Within a single JSON, mixing `procedures.include` and `procedures.exclude` on the same file is an authoring conflict: PI wins, PE is ignored for that file, and `VW-12` is emitted.
 - Within a single JSON, mixing `files.exclude` and `procedures.exclude` on the same file with no PI is redundant: both are removal-within-this-source signals, the file is not contributed by this JSON, and `VW-11` is emitted.
@@ -721,9 +728,9 @@ Let `Signals(F) = { c(s, F) : s ∈ sources, c(s, F) ≠ NONE }` and `FE_Sources
 
 1. If **any** `c(s, F)` is `WHOLE(s, F)` → **treatment = `FULL_COPY`**, all procs survive.
    - For every `s' ≠ s` where `c(s', F) = TRIM(s', F, keep)` and `keep ⊊ all_procs(F)`: emit `VW-18` (the excluded procs from `s'` are vetoed by `s`'s WHOLE include).
-   - For every `s'' ∈ FE_Sources(F)`: emit `VW-10` (FE from `s''` vetoed by WHOLE from `s`).
+   - For every `s'' ∈ FE_Sources(F)`: emit `VW-19` (FE from `s''` vetoed by WHOLE from `s`).
 2. Else if every non-NONE signal is `TRIM` → **treatment = `PROC_TRIM`**, surviving procs = `⋃ₛ keep(s)` over every `TRIM(s, F, keep)`.
-   - For every `s'' ∈ FE_Sources(F)`: emit `VW-10` (FE vetoed by another source's PROC_TRIM contribution).
+   - For every `s'' ∈ FE_Sources(F)`: emit `VW-19` (FE vetoed by another source's PROC_TRIM contribution).
    - For every `TRIM(s', F, keep)` where some proc `p ∈ all_procs(F) − keep(s', F)` appears in `keep(s)` for some `s ≠ s'`: emit `VW-18` (PE of `p` by `s'` vetoed by include from `s`).
 3. Else (no signals on F) → if `F` is F3-`GENERATED`, treatment is `GENERATED`; otherwise **treatment = `REMOVE`**.
 
@@ -740,23 +747,21 @@ These warnings are non-fatal (exit 0) and escalate to errors in `--strict`.
 | Code | Slug | Scope | Condition |
 |---|---|---|---|
 | `VW-09` | `fi-pi-overlap` | Same-source | Source `s` has file `F` in FI and also has procs of `F` in PI (no PE in `s`). PI is redundant. |
-| `VW-10` | `cross-source-fe-vetoed` | Cross-source | Source `s` has `F` in `files.exclude`, but `F` survives because another source `s' ≠ s` contributes `F` (via FI, PI, or PE). `s`'s FE entry is discarded. |
+| `VW-19` | `cross-source-fe-vetoed` | Cross-source | Source `s` has `F` in `files.exclude`, but `F` survives because another source `s' ≠ s` contributes `F` (via FI, PI, or PE). `s`'s FE entry is discarded. |
 | `VW-11` | `fe-pe-same-source-conflict` | Same-source | Source `s` has `F` in both `files.exclude` and has PE entries for `F`, with no PI in `s`. Both are removal-within-`s` signals; `s` contributes nothing for `F`. |
 | `VW-12` | `pi-pe-same-file` | Same-source | Source `s` has PI and PE entries for the same file `F`. PI wins; PE is ignored for `F` within `s`. |
 | `VW-13` | `pe-removes-all-procs` | Same-source | A source's PE set covers every proc in `F` and no PI restores any. File survives as comment/blank-only. |
 | `VW-18` | `cross-source-pe-vetoed` | Cross-source | Source `s'` has proc `p` in file `F` in PE, but `p` survives because another source `s ≠ s'` includes `F` whole-file or includes `p` via PI. `s'`'s PE entry for `p` is discarded. |
 
-**Retired codes:** `VW-10` was previously retired and is now re-assigned to `cross-source-fe-vetoed` (the old `fi-pe-overlap` semantics are dead under the additive model — FI and PE within the same source are a valid L2.2 authoring pattern, and cross-source combinations are handled by `VW-10` and `VW-18`).
-
 #### Per-file interaction matrix (single source)
 
-Retained for authoring reference. Columns describe what **one** source contributes. Cross-source vetoes (`VW-10`, `VW-18`) are applied after per-source classification and do not appear in this table.
+Retained for authoring reference. Columns describe what **one** source contributes. Cross-source vetoes (`VW-19`, `VW-18`) are applied after per-source classification and do not appear in this table.
 
 | # | FI | FE | PI | PE | Source's contribution | Surviving procs in source's contribution | Diagnostic |
 |---|---|---|---|---|---|---|---|
 | 1 | — | — | — | — | `NONE` | — | — |
 | 2 | ✓ | — | — | — | `WHOLE` | all | — |
-| 3 | — | ✓ | — | — | `NONE` (FE alone contributes nothing; see VW-10 at aggregation) | — | — |
+| 3 | — | ✓ | — | — | `NONE` (FE alone contributes nothing; see VW-19 at aggregation) | — | — |
 | 4 | ✓ | ✓ | — | — | `WHOLE` (literal FI) or `NONE` (glob-only pruned by same-source FE) | all or — | — |
 | 5 | — | — | ✓ | — | `TRIM(keep = PI)` | PI only | — |
 | 6 | — | — | — | ✓ | `TRIM(keep = all − PE)` | all − PE | — |
@@ -775,11 +780,11 @@ Retained for authoring reference. Columns describe what **one** source contribut
 
 - Row 9 (FI+PE, one source): that source contributes the file as `PROC_TRIM` minus PE procs. If another source has a `WHOLE` signal on the same file, L3.1 lifts treatment to `FULL_COPY` and row 9's PE is vetoed with `VW-18`.
 - Row 11 (FE+PI, one source): the source contributes via PI; its own FE has no effect on its own PI contribution. If another source also FE's the same file, aggregation still keeps the file (PI wins).
-- Rows 3 and 12 (FE alone, FE+PE): these contribute nothing from this source. If another source contributes the file, the file survives and this source's FE is surfaced as `VW-10`.
+- Rows 3 and 12 (FE alone, FE+PE): these contribute nothing from this source. If another source contributes the file, the file survives and this source's FE is surfaced as `VW-19`.
 
 #### Feature safety statement
 
-Selected features cannot remove anything that the base or another selected feature contributes. A feature's `files.exclude` and `procedures.exclude` only prune that feature's own include contributions. Every cross-source veto — FE against another source's include, or PE against another source's PI or whole-file include — is reported via `VW-10` or `VW-18` so the domain owner can see which feature authoring intent was discarded and why.
+Selected features cannot remove anything that the base or another selected feature contributes. A feature's `files.exclude` and `procedures.exclude` only prune that feature's own include contributions. Every cross-source veto — FE against another source's include, or PE against another source's PI or whole-file include — is reported via `VW-19` or `VW-18` so the domain owner can see which feature authoring intent was discarded and why.
 
 ### R2 — Default Action Is Exclude
 
@@ -1040,7 +1045,7 @@ Chopper always rebuilds from a clean backup rather than editing in place.
 
 ## 5. Pipeline, Compilation, and Workflow
 
-Chopper executes a **seven-phase pipeline**. Every invocation — live trim or dry-run — follows the same phase sequence. The only difference is that dry-run skips the write phases (P5 and P7) and emits reports instead.
+Chopper executes a **seven-phase pipeline**. Every invocation — live trim or dry-run — follows the same decision sequence. The difference is operational: live trim rewrites the domain in P5 and emits the audit bundle in P7, while `--dry-run` suppresses domain mutations, runs only manifest-derivable post-validation checks in P6, and still emits report artifacts in `.chopper/`.
 
 ### 5.1 Input Modes
 
@@ -1060,7 +1065,7 @@ Given the same current working directory, base JSON, and ordered feature list, p
 
 When `--project` is provided, Chopper assumes it is being run from the domain root. The current working directory is therefore the root for resolving `base` and `features`, not the project JSON file location. The resolved inputs then enter the same compilation pipeline as `--base`/`--features`. The `project`, `owner`, `release_branch`, and `notes` fields from the project JSON are recorded in audit artifacts.
 
-When `--project` is provided, the project JSON `domain` field is a required identifier for audit and consistency. It must match the basename of the current working directory using a **case-insensitive** comparison: `Path.cwd().name.casefold() == project.domain.casefold()`. Full-path comparisons elsewhere in Chopper remain case-sensitive; only the domain-name field is case-folded because operators may author on Windows and run on Linux grid nodes. If `--domain` is also provided, it must resolve (case-insensitively) to that same current working directory. Any mismatch is reported as `VE-19 project-domain-mismatch` (or `VE-12` / `VE-13` for structural variants).
+When `--project` is provided, the project JSON `domain` field is a required identifier for audit and consistency. It must match the basename of the current working directory using a **case-insensitive** comparison: `Path.cwd().name.casefold() == project.domain.casefold()`. Full-path comparisons elsewhere in Chopper remain case-sensitive; only the domain-name field is case-folded because operators may author on Windows and run on Linux grid nodes. If `--domain` is also provided, it must resolve (case-insensitively) to that same current working directory. Any mismatch is reported as `VE-17 project-domain-mismatch` (or `VE-12` / `VE-13` for structural variants).
 
 The detailed CLI reference with all arguments, flags, and per-subcommand usage is in [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md).
 
@@ -1106,15 +1111,15 @@ chopper trim --dry-run --project configs/project_abc.json
    ▼
   P5  Build output             copy surviving files from backup; proc-delete unwanted
    │                           definitions from PROC_TRIM files; generate F3 stage scripts;
-   │                           write to staging directory  [SKIPPED in --dry-run]
+   │                           write directly into rebuilt domain/  [NO DOMAIN WRITES in --dry-run]
    │
    ▼
   P6  Post-trim validate       Phase 2 checks against the resolved output:
    │                           brace balance, dangling proc refs, missing source targets
    │
    ▼
-  P7  Finalize & audit         atomic promote staging → domain/; emit .chopper/ artifacts
-                               [in --dry-run: emit reports only, no domain writes]
+  P7  Finalize & audit         emit .chopper/ artifacts for the run
+                               [in --dry-run: report-only artifacts, no domain writes]
 ```
 
 **Phase dependency rule:** each phase receives the output of the previous phase and produces a well-defined intermediate. No phase reaches back to re-run an earlier phase.
@@ -1125,10 +1130,10 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 
 #### P0 — Detect trim state
 
-- Check for `.chopper/backup/` in the selected domain.
-  - Present → this is a **re-trim**; restore originals from the backup before any further work so P1–P7 always see the pristine domain.
-  - Absent → this is a **first trim**; originals will be backed up at P7.
-- Owner: `audit/`.
+- Check for sibling `<domain>_backup/` next to the selected domain.
+  - Present → this is a **re-trim** or recovery run; rebuild `domain/` from `<domain>_backup/` before any further work so P1–P7 always see the pristine source.
+  - Absent → this is a **first trim**; the original domain will become `<domain>_backup/` before rebuild begins.
+- Owner: `orchestrator/` (`DomainStateService`).
 - Output: a boolean run mode (`first_trim` vs `re_trim`) attached to the run context; no JSON artifact yet.
 
 #### P1 — Read and validate inputs
@@ -1143,7 +1148,7 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 #### P2 — Parse domain Tcl
 
 - Walk `sorted(domain_path.rglob('*.tcl'))` so traversal order is lexicographic and deterministic.
-- For each file, call `parse_file(path, on_diagnostic=...)` which returns `list[ProcEntry]`.
+- For each file, read text through the filesystem service and call `parse_file(file_path=path, text=text, on_diagnostic=...)`, which returns `list[ProcEntry]`.
 - Each `ProcEntry` carries `canonical_name`, `short_name`, `qualified_name`, `namespace_path`, body and DPA/comment spans, and the two handoff fields `calls` (raw call tokens) and `source_refs` (literal `source` / `iproc_source` targets). See [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §6 for the full field list.
 - The parser **does not resolve** `calls` — those are textual tokens. Resolution is P4's job.
 - Parser-family diagnostics (`PE-*` / `PW-*` / `PI-*`) flow through the `on_diagnostic` callback.
@@ -1156,7 +1161,7 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 - Treats the base JSON and each selected feature JSON as a distinct *source*, and applies the three-step provenance-aware algorithm from §5.3:
   1. Per-source partition: expand `files.include` into `FI_literal` + `FI_glob`, subtract `FE`, and compile `PI` / `PE`.
   2. Per-source per-file classification into `NONE` / `WHOLE` / `TRIM(keep_set)` under the same-source L2 rules (emits `VW-09`, `VW-11`, `VW-12`, `VW-13`).
-  3. Cross-source aggregation under L1 + L3: any `WHOLE` wins (→ `FULL_COPY`); otherwise union of `TRIM` keep sets (→ `PROC_TRIM`); else `REMOVE` (or `GENERATED` for F3 outputs). Emits cross-source `VW-10` / `VW-18` for vetoed `FE` / `PE`.
+  3. Cross-source aggregation under L1 + L3: any `WHOLE` wins (→ `FULL_COPY`); otherwise union of `TRIM` keep sets (→ `PROC_TRIM`); else `REMOVE` (or `GENERATED` for F3 outputs). Emits cross-source `VW-19` / `VW-18` for vetoed `FE` / `PE`.
 - Record provenance on every manifest entry: `input_sources[]`, `treatment`, `surviving_procs[]`, `vetoed_entries[]`.
 - Ordering: F1 and F2 aggregation is set-union and therefore order-independent; feature order is authoritative only in the F3 `flow_actions` pass and in P4's BFS.
 - Owner: `compiler/`.
@@ -1174,28 +1179,28 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 #### P5 — Build output (skipped under `--dry-run`)
 
 - For each manifest entry:
-  - `FULL_COPY` → copy the file verbatim from the backup into the staging directory.
-  - `PROC_TRIM` → read the file, delete the line spans of every proc not in `surviving_procs(F)`, rewrite into staging.
+  - `FULL_COPY` → copy the file verbatim from the backup into the rebuilt `domain/` tree.
+  - `PROC_TRIM` → read the file from backup, delete the line spans of every proc not in `surviving_procs(F)`, rewrite directly into the rebuilt `domain/` tree.
   - `GENERATED` → run the F3 generator (`flow_actions` is authoritative for ordering here).
   - `REMOVE` → record the omission; do not write.
 - Write `.chopper/trim_report.json` and `trim_report.txt` describing every file and proc operation and the diagnostics correlated with each.
 - Owner: `trimmer/` + `generators/`.
-- Output: a complete staging directory tree plus the trim-report artifacts.
+- Output: the rebuilt `domain/` tree plus the trim-report artifacts. If P5 fails mid-run, the partially rebuilt `domain/` is left in place and the intact `<domain>_backup/` is the recovery source for the next invocation.
 
 #### P6 — Post-trim validate
 
-- Phase 2 validation runs against the staging output (or, under `--dry-run`, against the synthetic trim plan):
-  - brace balance across every rewritten file,
+- Phase 2 validation runs against the rebuilt output (or, under `--dry-run`, against the synthetic trim plan):
+  - under a live trim: brace balance across every rewritten file,
   - dangling proc references (every call target in a surviving file must resolve to a surviving proc or an accepted external such as a vendor/Tcl built-in),
   - missing `source` / `iproc_source` targets (must resolve to a surviving file or an accepted external).
-- Emit `VE-*` / `VW-*`; `--strict` escalates `VW` to `VE`.
+- Emit `VE-*` / `VW-*`; `--strict` changes the final process exit code if any warning is present, but does **not** rewrite diagnostic severity.
 - Owner: `validator/` (Phase 2).
 - Output: updated diagnostics log; optionally aborts the run before P7.
 
 #### P7 — Finalize and audit
 
-- Under a normal run: atomically promote staging → `domain/`, back up the originals (first trim only) to `.chopper/backup/`, release the lock.
-- Under `--dry-run`: leave the domain untouched and emit only the `.chopper/` reports.
+- Under a normal run: leave the rebuilt `domain/` in place, preserve `<domain>_backup/` per the re-trim model, and emit the `.chopper/` bundle for the run.
+- Under `--dry-run`: leave the domain untouched and emit only the report artifacts under `.chopper/`.
 - Write the full audit bundle under `.chopper/`: `chopper_run.json`, `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, `diagnostics.json`, `trim_stats.json`.
 - Owner: `audit/`.
 - Output: the audit trail (see §5.5).
@@ -1250,7 +1255,7 @@ P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules 
   │       if any c(s, F) = WHOLE:                   │
   │         treatment(F) = FULL_COPY                │
   │         surviving_procs(F) = all procs in F     │
-  │         for s' in FE_Sources(F): emit VW-10     │
+  │         for s' in FE_Sources(F): emit VW-19     │
   │         for every TRIM(s', F, keep') where      │
   │             keep' ⊊ all_procs(F): emit VW-18    │
   │                                                 │
@@ -1258,7 +1263,7 @@ P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules 
   │         treatment(F) = PROC_TRIM                │
   │         surviving_procs(F) = ⋃ keep(s')         │
   │                           over all TRIM(s',F,·) │
-  │         for s' in FE_Sources(F): emit VW-10     │
+  │         for s' in FE_Sources(F): emit VW-19     │
   │         for each TRIM(s', F, keep') with some   │
   │             p ∈ all_procs(F) − keep' that is in │
   │             keep(s) for some s ≠ s':            │
@@ -1278,7 +1283,7 @@ P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules 
   ┌─────────────────────────────────────────────────┐
   │  4. Emit same-source warnings VW-09, VW-11,     │
   │     VW-12, VW-13 from step 2; cross-source      │
-  │     warnings VW-10, VW-18 from step 3.          │
+  │     warnings VW-19, VW-18 from step 3.          │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
@@ -1297,6 +1302,15 @@ P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules 
 
 **Ordering:** F1 and F2 aggregation (steps 2–3) is set-union over sources and is **order-independent** — the same base and feature selections in any order produce the same surviving files and procs. Feature order is authoritative only in P3's F3 pass (`flow_actions` sequencing) and in P4's deterministic BFS traversal.
 
+**Iteration order (emission determinism).** During P3 cross-source aggregation, the compiler iterates in this fixed order so every diagnostic (`VW-09`..`VW-13`, `VW-19`, `VW-18`, etc.) is emitted in a reproducible sequence:
+
+1. **Sources:** `base` first; then each entry of `project.features[]` in the order given (or the CLI `--features` order when no project JSON is used). Topological sort of `depends_on` runs before P3; by the time L3 aggregation starts, the sequence is fixed.
+2. **Files within a source:** lexicographic POSIX order (`sorted()` on the domain-relative path string).
+3. **Procs within a file:** lexicographic order on `qualified_name`.
+4. **Emission:** every per-file and cross-source warning is emitted in the traversal order above, at the point the conflict is first detected. Later traversal steps never reorder earlier emissions.
+
+Golden tests in `tests/unit/compiler/` snapshot this ordering; any change to the iteration rule is a breaking change to the diagnostic sequence.
+
 When `--project` is used, Chopper resolves the base and selected feature paths from the project JSON before entering P3. Equivalent resolved selections produce identical results regardless of input mode.
 
 **Frozen output:** the compiled manifest is immutable after P3 completes. P4 (trace) reads it but does not modify the surviving sets.
@@ -1305,7 +1319,7 @@ When `--project` is used, Chopper resolves the base and selected feature paths f
 
 Detailed compilation data models, execution-freeze rules, and implementation contracts live alongside the core models in `src/chopper/core/models.py` and the compiler implementation in `src/chopper/compiler/`.
 
-This architecture document defines what Chopper must do; the technical requirements document (see `docs/TECHNICAL_IMPLEMENTATION.md` once authored) defines how the implementation must structure and preserve those contracts.
+This architecture document defines what Chopper must do. How the implementation structures and preserves those contracts is split across three peer documents: [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) (ports, services, stage layering), [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) (P2 engineering baseline), and [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (stage gates, DoD, checkpoints).
 
 ### 5.4 Trace Phase (P4 Detail)
 
@@ -1319,6 +1333,58 @@ P4 runs the BFS trace expansion (R3) seeded by PI. Its outputs are:
 | **TW-\* diagnostics** | Diagnostics log, trim report | **None** — advisory warnings |
 
 PI+ helps the domain owner understand what their explicit selections depend on. It never adds procs or files to the surviving set.
+
+**Source-edge survival rule (R3 corollary).** `source` and `iproc_source` call tokens extracted from proc bodies become edges in `dependency_graph.json` with `kind: "source"`, **identical in type to proc-call edges**. They are **reporting-only**: they never copy files, never retain procs, and never influence trimming. Survival of a sourced file still requires an explicit `files.include` entry; survival of a sourced proc still requires an explicit `procedures.include` entry. A `source` or `iproc_source` pointing at a file that did not survive trim emits `VW-06 source-file-removed` at P6.
+
+**Worked BFS example (end-to-end).**
+
+Given six procs across two files and a JSON selection of only `main`:
+
+```tcl
+# file: flow.tcl
+proc main {} {      ;# explicitly included
+    step_a
+    step_b
+    $dyn_cmd        ;# dynamic call → TW-03
+}
+proc step_a {} {
+    helper          ;# two definitions exist for `helper` → TW-01
+    recursive       ;# self-recursion → TW-04
+}
+proc step_b {} {
+    missing_util    ;# not defined anywhere → TW-02
+}
+proc recursive {} { recursive }   ;# cycle terminator
+
+# file: utils_a.tcl
+proc util_ns::helper {} { return 1 }
+# file: utils_b.tcl
+proc other_ns::helper {} { return 2 }
+```
+
+JSON selection:
+
+```json
+{"procedures": {"include": [{"file": "flow.tcl", "procs": ["main"]}]}}
+```
+
+BFS trace (P4) with frontier `[main]`, visited `{}`:
+
+| Step | Pop | Resolve calls | Emit | Enqueue | Visited after step |
+|---|---|---|---|---|---|
+| 1 | `flow.tcl::main` | `step_a` → `flow.tcl::step_a` (resolved); `step_b` → `flow.tcl::step_b` (resolved); `$dyn_cmd` → unresolvable | `TW-03 dynamic-call-form` at `flow.tcl::main` | `step_a`, `step_b` (lex-sorted) | `{main}` |
+| 2 | `flow.tcl::step_a` | `helper` → **two matches** (`util_ns::helper`, `other_ns::helper`); `recursive` → `flow.tcl::recursive` (resolved) | `TW-01 ambiguous-proc-match` at `flow.tcl::step_a` line N listing both candidates | `recursive` | `{main, step_a}` |
+| 3 | `flow.tcl::step_b` | `missing_util` → **zero matches** after namespace search | `TW-02 unresolved-proc-call` at `flow.tcl::step_b` line N | (none) | `{main, step_a, step_b}` |
+| 4 | `flow.tcl::recursive` | `recursive` → already in visited set | `TW-04 cycle-in-call-graph` listing cycle path `recursive → recursive` | (none — visited-set terminates) | `{main, step_a, step_b, recursive}` |
+| 5 | (frontier empty) | — | — | — | — |
+
+**Outcomes:**
+
+- **Trimmed `flow.tcl` contains only `main`.** Procs `step_a`, `step_b`, `recursive` appear as nodes in `dependency_graph.json` (reachable from PI via trace), but only `main` is named in `procedures.include`, so only `main` is copied. `step_a`/`step_b`/`recursive` are logged in `trim_report.json` as **traced-only (PT)**, not surviving.
+- **Neither `util_ns::helper` nor `other_ns::helper` is copied.** Both were candidates for an ambiguous match but neither was selected (ambiguity is a warning, not a resolution); neither is named in any `procedures.include` entry.
+- **`utils_a.tcl` and `utils_b.tcl` are removed from the trimmed domain** (not in `files.include`, no proc named from them is in `procedures.include`).
+- **Diagnostic set emitted by P4:** `{TW-01, TW-02, TW-03, TW-04}`. All are warnings; P4 never blocks P5.
+- **To retain `step_a` and `recursive`** the author adds them to `procedures.include`. To retain one of the ambiguous `helper` procs the author uses the fully-qualified name (`util_ns::helper`). To retain `utils_a.tcl` whole the author adds it to `files.include`.
 
 **Worked example (trace is logging, not copying):**
 
@@ -1350,7 +1416,7 @@ To make `bar` survive trimming the author must add it to `procedures.include` (o
 The parser is strictly per-file and never reaches across file boundaries. The tracer is strictly global and relies on a single domain-wide index. This subsection makes the handoff between the two explicit.
 
 **Step 1 — Per-file parse (P2, per file).**
-`parse_file(tcl_file, on_diagnostic=...)` returns a `list[ProcEntry]` for that single file. The public parser entry point that the runner actually calls is `ParserService.run(ctx, files)` (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2); `parse_file()` is the pure internal utility the service wraps. Each entry carries its `canonical_name` (`relative/path.tcl::qualified_name`), its `namespace_path` captured from enclosing `namespace eval` blocks, the body span, and two unresolved handoff fields:
+`parse_file(file_path=tcl_file, text=text, on_diagnostic=...)` returns a `list[ProcEntry]` for that single file. The public parser entry point that the runner actually calls is `ParserService.run(ctx, files)` (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2); `parse_file()` is the pure internal utility the service wraps, and the service owns filesystem reads through `ctx.fs`. Each entry carries its `canonical_name` (`relative/path.tcl::qualified_name`), its `namespace_path` captured from enclosing `namespace eval` blocks, the body span, and two unresolved handoff fields:
 
 - `calls: tuple[str, ...]` — raw call tokens extracted from the body after false-positive suppression. These are textual tokens such as `"helper"` or `"::foo::bar"`; the parser does not know whether they resolve and never attempts to.
 - `source_refs: tuple[str, ...]` — literal `source` / `iproc_source` file targets.
@@ -1368,13 +1434,16 @@ At this point there is no cross-file knowledge. The parser runs file-by-file and
 
 The orchestrator treats any `ERROR`-severity P2 diagnostic as a phase-gate failure (see plan §6.2): the runner aborts before P3, so a corrupted proc index never reaches the compiler.
 
+**Canonical-name test vectors.** The authoritative canonical-name derivation table (ten vectors covering file root, single/nested namespaces, absolute-name override, subdirectory files, and the computed-name skip case) lives in [`TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §4.3.1. Implementations and tests reference that table; this bible keeps the format contract (`"<domain-relative-posix-path>::<qualified_name>"`) and the survival rules (this section, above) without duplicating the per-vector list.
+
 **Step 2 — Assemble the global proc index (start of P4).**
 The compiler concatenates every file's `ProcEntry` list into **one flat dictionary keyed by `canonical_name`**:
 
 ```python
 proc_index: dict[str, ProcEntry] = {}
 for tcl_file in sorted(domain_path.rglob("*.tcl")):
-    for entry in parse_file(tcl_file, on_diagnostic=sink):
+  text = fs.read_text(tcl_file)
+  for entry in parse_file(file_path=tcl_file, text=text, on_diagnostic=sink):
         proc_index[entry.canonical_name] = entry
 ```
 
@@ -1768,7 +1837,7 @@ Both modes execute the same seven-phase pipeline. The only difference is which p
 | P6 Post-trim validate | Executes against the rewritten files in `<domain>/` | Executes against the resolved sets only (manifest-derivable checks); filesystem re-read checks are skipped |
 | P7 Finalize & audit | Writes `.chopper/` artifacts | Writes `.chopper/` artifacts (reports only; no domain writes) |
 
-**Dry-run P6 scope.** Because no file is rewritten in dry-run, brace-balance and other filesystem-dependent checks (`VE-17`, `VE-29`) cannot run. P6 under `--dry-run` runs only the manifest-derivable checks: `VW-05 dangling-proc-call`, `VW-06 source-file-removed`, `VW-14 step-file-missing`, `VW-15 step-proc-missing`, `VW-16 step-source-missing`, `VW-17 external-reference`. All other P6 behavior is unchanged.
+**Dry-run P6 scope.** Because no file is rewritten in dry-run, brace-balance and other filesystem-dependent checks (`VE-16`, `VE-26`) cannot run. P6 under `--dry-run` runs only the manifest-derivable checks: `VW-05 dangling-proc-call`, `VW-06 source-file-removed`, `VW-14 step-file-missing`, `VW-15 step-proc-missing`, `VW-16 step-source-missing`, `VW-17 external-reference`. All other P6 behavior is unchanged.
 
 Dry-run emits:
 - `compiled_manifest.json` — file and proc treatment decisions
@@ -1782,8 +1851,8 @@ Chopper has two validation phases that run within the pipeline:
 
 | Phase | When | Service | Input | What it checks |
 |---|---|---|---|---|
-| **Phase 1** (within P1) | Pre-trim | `PreValidatorService.run(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, cross-source veto detection |
-| **Phase 2** (within P6) | Post-trim | `PostValidatorService.run(ctx, manifest, rewritten_paths)` | `CompiledManifest` + sequence of paths the trimmer actually rewrote | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-17` — internal-consistency assertion, exit 3); scans surviving procs for dangling-proc-call (`VW-05`), source-file-removed (`VW-06`), and F3 cross-validation (`VW-14`–`VW-17`) |
+| **Phase 1** (within P1) | Pre-trim | `validate_pre(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, cross-source veto detection |
+| **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, rewritten_paths)` | `CompiledManifest` + sequence of paths the trimmer actually rewrote | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); scans surviving procs for dangling-proc-call (`VW-05`), source-file-removed (`VW-06`), and F3 cross-validation (`VW-14`–`VW-17`) |
 
 Phase 2 input contract: `rewritten_paths` contains only files the trimmer touched during P5 (copied-and-edited or newly generated). Files copied verbatim from `<domain>_backup/` are **not** re-tokenized — they were already validated at P2 and the trimmer did not change them.
 
@@ -1816,63 +1885,60 @@ Chopper v1 is CLI-only. However, the architecture **must** enable a future GUI w
 
 The following rules are **non-negotiable in v1** even though no GUI ships:
 
-1. **Typed result objects.** Every command handler returns a frozen dataclass result (e.g., `TrimResult`, `ValidateResult`), never a pre-rendered string. The CLI layer formats; the service layer produces data.
-2. **Structured progress events.** Progress is emitted as `ProgressEvent` records with phase, current, total, and message fields. The CLI renders these as progress bars; a GUI would render them as status panels.
+1. **Typed pipeline results.** The runner returns a frozen `RunResult`; individual phases exchange frozen dataclasses such as `ParseResult`, `CompiledManifest`, `DependencyGraph`, and `TrimReport`. No phase returns pre-rendered strings.
+2. **Structured progress events.** Progress flows through `ProgressSink` with explicit phase and step notifications. The CLI renders them today; a GUI can render the same events later.
 3. **Structured diagnostics.** Every diagnostic is a `Diagnostic` record with severity, code, message, location, and hint. No ad-hoc `print()` or unstructured error messages in library code.
-4. **JSON-serializable models.** Every frozen dataclass in `src/chopper/core/models.py` must be serializable via the standard `ChopperEncoder`. This includes `CompiledManifest`, `TrimStats`, `ProcEntry`, `FileEntry`, `StageDefinition`, and all diagnostic records.
-5. **Renderer adapters.** All CLI presentation goes through `TableRenderer`, `DiagnosticRenderer`, and `ProgressRenderer` protocols in `src/chopper/ui/protocols.py`. Service code never imports from `ui/`. A GUI implements the same protocols with its own widgets.
-6. **No presentation in core logic.** The compiler, parser, trimmer, and validator must never import terminal-rendering libraries, emit ANSI escape codes, or format output for human consumption. That is exclusively the presentation layer's job.
-7. **`--json` flag.** The CLI must support a `--json` flag on all subcommands that emits the raw typed result as JSON to stdout using `ChopperEncoder`. This is the same data a GUI would consume.
+4. **Deterministic serialization.** Core models are serializable through `dump_model()` in `src/chopper/core/serialization.py`, which is already the source for audit artifacts. A future GUI can consume the same shapes without changing the engine.
+5. **No presentation in core logic.** The compiler, parser, trimmer, validator, and audit writer never import terminal-rendering libraries or format user-facing output.
+6. **CLI rendering stays thin.** Human output lives in `cli/render.py`; engine code stays presentation-agnostic.
+7. **Machine output is deferred, not promised.** V1 does not freeze a `--json` CLI mode or a GUI wire protocol. If structured stdout/stderr is needed later, it enters through [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output), not via an undocumented side channel.
 
 #### 5.11.2 Service Layer Contract
 
-The service layer is the boundary between presentation (CLI/TUI/GUI) and domain logic. The authoritative contract lives in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6 (`ChopperContext`, `RunConfig`, `PresentationConfig`, `ChopperRunner.run()`) and §9.2 (per-phase service signatures: `DomainStateService`, `ConfigService`, `PreValidatorService`, `ParserService`, `CompilerService`, `TracerService`, `TrimmerService`, `GeneratorService`, `PostValidatorService`, `AuditService`).
+The engine boundary between presentation (CLI today, GUI later) and domain logic is defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6 (`ChopperContext`, `RunConfig`, `PresentationConfig`, `ChopperRunner.run()`) and §9.2 (per-phase signatures: `DomainStateService`, `ConfigService`, `validate_pre`, `ParserService`, `CompilerService`, `TracerService`, `TrimmerService`, `GeneratorService`, `validate_post`, `AuditService`).
 
-**Invocation pattern (CLI and future GUI use the same entry point):**
+**Invocation pattern (CLI today, future GUI later):**
 
-1. The frontend parses its inputs (CLI args, GUI form data, or a JSON `TrimRequest` on stdin per §5.11.3) into a `RunConfig` (engine behavior) plus a `PresentationConfig` (UX adapter selection).
-2. The frontend constructs a `ChopperContext` by binding concrete ports (`LocalFS`, `CollectingSink` or `JsonlSink`, an appropriate `ProgressSink` adapter, `DotChopperAuditStore`, etc.) per the `PresentationConfig`.
+1. The frontend parses its inputs into `RunConfig` (engine behavior) plus `PresentationConfig` (UX behavior).
+2. The frontend constructs `ChopperContext` by binding concrete ports: filesystem, diagnostic sink, and progress sink.
 3. The frontend calls `ChopperRunner().run(ctx) -> RunResult`.
-4. The frontend renders `RunResult` through a `TableRenderer` (terminal, JSON, or GUI widget) and exits with `RunResult.exit_code`.
+4. The frontend renders `RunResult` and the collected diagnostics using its own presentation layer and exits with `RunResult.exit_code`.
 
 **Rules:**
 
 - Services accept `ctx` plus typed inputs they declare; never print to stdout/stderr directly.
 - Services surface outcomes through `ctx.diag.emit(...)` and `ctx.progress.*`; never raise for user-visible conditions.
-- A future GUI does **not** require any new service class — it builds `ChopperContext` the same way the CLI does and consumes `RunResult` + the JSONL event stream (§5.11.3).
-- There is **no** separate `TrimService` / `ValidateService` / `CleanupService` layer above the runner. The three subcommands differ only in how they configure `RunConfig` (e.g. `mode = VALIDATE` vs `TRIM`, `dry_run = True/False`) before invoking `ChopperRunner.run()`.
-#### 5.11.3 JSON-over-stdio Wire Protocol (Future GUI)
+- A future GUI does **not** require new engine services; it binds the same context shape and consumes the same typed results and audit artifacts as the CLI.
+- `cleanup` is the one exception to the runner pattern: it is a standalone CLI action that deletes `<domain>_backup/` and does not enter the seven-phase pipeline.
 
-When a GUI is implemented, it will communicate with the Chopper engine via **JSON-over-stdio**:
+#### 5.11.3 Future GUI Integration Surface
 
-| Channel | Direction | Content |
-|---|---|---|
-| **stdin** | GUI → Engine | `TrimRequest` (or `ValidateRequest`, `CleanupRequest`) as a single JSON object |
-| **stdout** | Engine → GUI | `TrimResult` (or equivalent) as a single JSON object on completion |
-| **stderr** | Engine → GUI | Streaming `ProgressEvent` and `Diagnostic` records as JSON lines during execution |
+V1 freezes the **data surface**, not a transport protocol. The future GUI can be added in one of two ways:
 
-This protocol is **not implemented in v1** but is architecturally enabled by the service-layer and serialization contracts above. No v1 code needs to parse stdin JSON or emit to stderr in this format — the protocol exists as a documented contract for future implementation.
+1. **In-process Python integration** using `ChopperRunner.run(ctx)` plus the same ports the CLI binds today.
+2. **Structured CLI transport** added later through [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output) once the pipeline and artifact shapes have proven stable.
+
+What is already stable in v1 is the engine-facing surface:
+
+- `RunConfig` and `PresentationConfig`
+- `ChopperContext`
+- `RunResult`
+- `Diagnostic` records via `ctx.diag`
+- Audit artifacts emitted under `.chopper/`
 
 #### 5.11.4 Serialization Contract
 
-Every frozen dataclass in the core models must be JSON-serializable via a standard encoder:
+Every frozen dataclass in the core models must be JSON-serializable through `dump_model()` in `src/chopper/core/serialization.py`.
 
-```python
-# src/chopper/core/serialization.py
-class ChopperEncoder(json.JSONEncoder):
-    def default(self, o):
-        if dataclasses.is_dataclass(o):
-            return dataclasses.asdict(o)
-        if isinstance(o, PurePosixPath):
-            return str(o)
-        if isinstance(o, Enum):
-            return o.value
-        return super().default(o)
-```
+Contract:
 
-- CLI `--json` flag uses this serializer for machine-readable output.
-- Audit artifacts (`.chopper/` directory) use the same serializer.
-- A future GUI reads the same JSON format — no translation layer needed.
+- Paths serialize as POSIX strings.
+- Enums serialize as `.value`.
+- Mapping keys are recursively sorted for deterministic output.
+- List order is preserved exactly.
+- `None` values serialize as JSON `null`.
+
+Audit artifacts use this contract today. A future GUI or machine-readable frontend consumes the same shapes rather than inventing a second schema.
 
 #### 5.11.5 GUI-Relevant Data Surfaces
 
@@ -1891,21 +1957,22 @@ The following data is already produced by the v1 pipeline and available as typed
 
 **No additional artifacts or data models are needed for GUI enablement.** The v1 pipeline already produces everything a GUI would need. The only future work is the presentation layer itself.
 
-#### 5.11.6 Extension Points for GUI
+#### 5.11.6 Extension Points for a Future Frontend
 
-Four protocol-based extension points enable GUI-specific behavior without modifying core code:
+The extension surface is deliberately small:
 
-| Extension Point | Protocol | Purpose |
+| Extension Point | Contract | Purpose |
 |---|---|---|
-| `ProgressSink` | `phase_started()`, `phase_done()`, `step()` | Progress panels and pipeline-stage indicators. Active in every run (text, JSON, silent); the CLI picks the adapter per `PresentationConfig` (`RichProgress`, `PlainProgress`, `JsonlProgress`, `SilentProgress`). |
-| `DiagnosticSink` | `emit()`, `snapshot()`, `finalize()` | Diagnostic collection and streaming. `CollectingSink` is the default; `JsonlSink` writes JSONL to stderr for the GUI wire protocol (§5.11.3). |
-| `OutputFormatter` | `format_report()`, `format_diagnostics()` | GUI-specific rendering of `RunResult`. |
-| `TableRenderer` | `render_table()` | GUI table widgets instead of terminal tables. |
+| `FileSystemPort` | `read_text`, `write_text`, `exists`, `rename`, `remove`, `mkdir`, `copy_tree`, ... | Lets tests and future frontends drive the engine without assuming a real on-disk tree in every scenario |
+| `ProgressSink` | `phase_started()`, `phase_done()`, `step()` | Progress panels, spinners, CI silence, or future GUI status widgets |
+| `DiagnosticSink` | `emit()`, `snapshot()`, `finalize()` | Diagnostic collection and presentation-independent reporting |
+
+Rendering itself is **not** a protocol in v1. The CLI renders directly in `cli/render.py`; a future GUI will render from typed data without requiring a `TableRenderer` abstraction.
 
 #### 5.11.7 What v1 Must NOT Do
 
-- Must NOT embed terminal-specific formatting (ANSI codes, Rich markup) in any module outside `src/chopper/ui/` and `src/chopper/cli/`.
-- Must NOT return pre-formatted strings from service methods.
+- Must NOT embed terminal-specific formatting (ANSI codes, Rich markup) in any module outside `src/chopper/cli/`.
+- Must NOT return pre-formatted strings from runner or phase functions.
 - Must NOT use `print()` in library code (`src/chopper/compiler/`, `src/chopper/parser/`, `src/chopper/trimmer/`, `src/chopper/validator/`, `src/chopper/core/`).
 - Must NOT require a TTY for correct operation — headless and piped invocations must work.
 - Must NOT couple diagnostic emission to console rendering — diagnostics are data, not output.
@@ -1917,7 +1984,7 @@ Chopper is a Python ≥ 3.9 CLI. The rules below are authoritative for every fil
 #### 5.12.1 Module Layout and Boundaries
 
 - The repository layout is defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §3. Every source module lives under `src/chopper/`. No sibling-module imports across service packages — services depend only on `core/` and their own submodules. Cross-cutting data lives in `core/models.py`; cross-cutting protocols live in `core/protocols.py`.
-- Ports-and-adapters: every external dependency (filesystem, clock, diagnostic sink, progress sink, audit store, table renderer) is declared as a `typing.Protocol` in `core/protocols.py`. Concrete adapters live in `adapters/`. Services receive ports via `ChopperContext`.
+- Ports-and-adapters: the only engine ports are `FileSystemPort`, `DiagnosticSink`, and `ProgressSink` in `core/protocols.py`. Concrete adapters live in `adapters/`. Services receive them via `ChopperContext`. Clock access, serialization, audit writing, and rendering are direct helpers or CLI-local concerns, not additional ports.
 - Services never construct adapters; the CLI does that at startup (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1).
 
 #### 5.12.2 Path Handling
@@ -2391,7 +2458,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 - `..` is **forbidden** in `base` and `features` strings (per §6.3.1). Absolute paths are also forbidden. Project JSONs stored outside the domain (e.g., `configs/project_abc.json` at the repo root) must still express their `base`/`features` as domain-relative paths such as `jsons/base.json`.
 - The default expected curated JSON layout under the domain root is `jsons/base.json` and `jsons/features/*.json`.
 - All other path rules from §6.3.1 apply (forward slashes, no absolute paths).
-- The project JSON `domain` field is compared case-insensitively against the basename of the current working directory (see §5.1). If `--domain` is provided with `--project`, it must resolve to that same directory. Mismatches are reported as `VE-19`.
+- The project JSON `domain` field is compared case-insensitively against the basename of the current working directory (see §5.1). If `--domain` is provided with `--project`, it must resolve to that same directory. Mismatches are reported as `VE-17`.
 
 **CLI usage:**
 ```bash
@@ -2513,7 +2580,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-29 | Provide standalone `chopper validate` command that runs Phase 1 checks without requiring domain source files. Its a structural only check. |
 | FR-30 | Build a per-run proc index before tracing and serialize the resolved trace outcome into audit artifacts. |
 | FR-31 | Apply feature order deterministically and apply `flow_actions` top-to-bottom within each feature. |
-| FR-32 | Perform live trim through staging and atomic promotion so partially rebuilt output is never the final visible state. |
+| FR-32 | Perform live trim through the backup-and-rebuild model: write directly into the rebuilt domain tree, preserve `<domain>_backup/` as the recovery source, and rely on re-trim to recover from partial failures. |
 | FR-33 | Emit stable machine-readable diagnostics with severity, code, location, and hint fields. |
 | FR-34 | Provide explicit `chopper cleanup` support for last-day backup deletion. |
 | FR-35 | Accept a project JSON (`--project`) as an alternative to `--base`/`--features`, resolving base and feature paths from it and recording project metadata in audit artifacts. |
@@ -2536,11 +2603,11 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | NFR-06 | Remain domain-isolated by default. |
 | NFR-07 | Remain review-friendly in git and code review. |
 | NFR-08 | Be understandable by both human users and downstream LLM tooling. |
-| NFR-09 | Use same-filesystem staging and atomic promotion for generated and rewritten artifacts. |
+| NFR-09 | Avoid staging, locking, and extra promotion machinery; keep the write model direct and recoverable through `<domain>_backup/`. |
 | NFR-10 | Normalize all paths and sort all discovery/glob results before compilation. |
 | NFR-11 | Keep library code side-effect free; logging configuration belongs only in the CLI entrypoint. |
 | NFR-12 | Separate structural schema validation from semantic validation. |
-| NFR-13 | Failures must leave either a validated active domain or a restored pre-run state; no half-written domain is acceptable. |
+| NFR-13 | Failures must leave an intact `<domain>_backup/` and a deterministic recovery path. A half-rebuilt active domain is acceptable temporarily because the next invocation rebuilds from backup. |
 | NFR-14 | Tests must cover parser/trimmer invariants with both fixture-based and property-based techniques. |
 | NFR-15 | Audit JSON and text artifacts must remain stable and machine-usable within a major schema version. |
 
@@ -2676,7 +2743,7 @@ The GUI-readiness surface is defined in §5.11 above. At the architecture level 
 | Q15 | Is scan a Chopper subcommand? | **Resolved** | No. Scan mode has been removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
 | Q16 | Is default action configurable? | **Resolved** | No. Default exclude is fixed. |
 | Q17 | Is product implemented already? | **Resolved** | No. It is currently framework/scaffold plus architecture work. |
-| Q18 | How is live trim made write-safe? | **Resolved** | Staging plus same-filesystem atomic promotion and restore rules. |
+| Q18 | How is live trim made write-safe? | **Resolved** | Backup-and-rebuild. Chopper writes directly into `domain/`, keeps `<domain>_backup/` intact, and recovers by re-running from backup rather than staging or locking. |
 | Q19 | How is feature ordering interpreted? | **Resolved** | Feature order is authoritative for F3 `flow_actions` sequencing only (earlier features' stage/step insertions are visible to later features). F1 and F2 merges (files and procedures) are purely additive and order-independent. Within a feature, `flow_actions` apply top-to-bottom. |
 | Q20 | How are warnings and errors represented? | **Resolved** | Stable machine-readable diagnostics with severity, code, location, and hint. |
 
@@ -2789,7 +2856,7 @@ Hook discovery is not permission for silent bloat. Hook files stay out unless th
 It does not win. The selected base still includes it, so the item survives.
 
 **Q: What if feature A includes a file and feature B excludes it?**  
-The file survives. Explicit include from any source wins over exclude from any other source. Feature B's `files.exclude` entry is surfaced as `VW-10 cross-source-fe-vetoed` so the authoring conflict is visible in the audit trail.
+The file survives. Explicit include from any source wins over exclude from any other source. Feature B's `files.exclude` entry is surfaced as `VW-19 cross-source-fe-vetoed` so the authoring conflict is visible in the audit trail.
 
 **Q: What if the base includes a whole file and a feature excludes a proc inside it via `procedures.exclude`?**  
 The file survives as `FULL_COPY`, including the proc the feature tried to exclude. The feature's PE entry is surfaced as `VW-18 cross-source-pe-vetoed`. Features cannot strip procs from a file that the base contributed whole.
@@ -2817,12 +2884,12 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | [docs/CLI_HELP_TEXT_REFERENCE.md](CLI_HELP_TEXT_REFERENCE.md) | Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples |
 | [docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) | Tcl parser engineering baseline: tokenizer, namespace resolution, edge cases |
 | [docs/RISKS_AND_PITFALLS.md](RISKS_AND_PITFALLS.md) | Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) |
-| [docs/chopper_description.md](chopper_description.md) §5.11 | GUI-readiness surface: typed results, JSON-over-stdio wire protocol, service-layer discipline |
+| [docs/chopper_description.md](chopper_description.md) §5.11 | GUI-readiness surface: typed results, deterministic serialization, service-layer discipline |
 | [docs/FUTURE_PLANNED_DEVELOPMENTS.md](FUTURE_PLANNED_DEVELOPMENTS.md) | Roadmap items explicitly out of v1 scope |
 | [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) | SNORT comparison and absorbed proc-extraction guardrails |
 | Python logging cookbook | Confirms that library code should not configure global logging handlers |
 | Python `argparse` docs | Confirms subcommand-oriented CLI structure for `validate`, `trim`, and `cleanup` |
-| Python `pathlib`, `tempfile`, and `os.replace` docs | Support deterministic path handling, safe temp writes, and atomic promotion |
+| Python `pathlib`, `shutil`, and `os` docs | Support deterministic path handling, directory rebuild mechanics, and direct-write recovery behavior |
 | `jsonschema` documentation | Supports the Phase 1 schema-validation contract |
 | pytest good practices and Hypothesis docs | Support the layered fixture plus property-based test strategy |
 
@@ -2837,11 +2904,11 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | **AI-01** | Build and validate the Tcl parser / lexer prototype, proc index, and brace-aware structure checker against real domain files | **P0** |
 | **AI-02** | Implement dry-run reporting: compiled manifest, dependency graph, and trim report emission without domain file writes | **P0** |
 | **AI-03** | Implement compiler logic for FI / FE / PI / PE, ordered feature application, and R1 conflict resolution | **P0** |
-| **AI-04** | Implement F2 copy-and-delete trimming engine plus staging writer and promote/restore flow | **P0** |
+| **AI-04** | Implement F2 copy-and-delete trimming engine plus direct-write backup-and-rebuild recovery flow | **P0** |
 | **AI-05** | Implement audit trail generation under `.chopper/` with the artifact contracts in Section 5.4 | **P1** |
 | **AI-06** | Ship JSON Schema files and semantic validators for base, feature, and project JSONs | **P1** |
 | **AI-07** | Implement validation (Phase 1 + Phase 2), diagnostics, exit codes, and standalone `chopper validate` command | **P0** |
-| **AI-08** | Implement F3 generation and template hook integration behind a narrow generator interface | **P1** |
+| **AI-08** | Implement F3 generation behind a narrow generator interface using only the documented stage and flow-action model | **P1** |
 | **AI-09** | Implement dry-run mode (full pipeline simulation without file writes) | **P0** |
 | **AI-10** | Build fixture, golden, integration, and property-based tests for tracing, trimming, and retrim flows | **P0** |
 | **AI-11** | Implement `chopper cleanup` and the explicit last-day backup removal workflow | **P1** |
@@ -2890,6 +2957,7 @@ This log records the conscious design decisions that shaped the current document
 | 2026-04-20 | Consolidated `AGENTS.md` into `.github/instructions/project.instructions.md` and deleted the root `AGENTS.md`. The split between an "agent instructions" file (`AGENTS.md`) and a "project conventions" file (`.github/instructions/project.instructions.md`) had become a distinction without a difference — both held the same category of guardrail (architecture, critical principles, code style, testing standards, module guidance, diagnostic-code rules). Keeping two files meant rules drifted and contributors had to hunt. The consolidated file is the single entry point applied to every file (`applyTo: '**'`) so Copilot and humans read the same source. Updated live pointers in `README.md` and `docs/chopper_description.md` (§9.x, §11.x cross-reference table). Revision-history mentions of `AGENTS.md` in this log and in `TCL_PARSER_SPEC.md` are kept as historical references; only the active pointer in TCL_PARSER_SPEC Rev 11 was retargeted. |
 | 2026-04-20 | Embedded two narrative walkthroughs into §5 so the pipeline contract is understandable without cross-referencing code or test fixtures. Added §5.2.1 "End-to-End Walkthrough" expanding the compact P0–P7 ASCII diagram into the concrete data flow each phase consumes, produces, and hands off (run context → proc index → compiled manifest → dependency graph → staging → audit bundle). Added §5.4.1 "Per-File Parsing to Global Call Tree" making the parser-to-tracer handoff explicit: per-file `parse_file()` returns `list[ProcEntry]` with unresolved `calls` / `source_refs`; the compiler concatenates them into one flat global `dict[canonical_name, ProcEntry]` walked in lexicographic order; P4 BFS resolves call tokens against that index under the deterministic namespace contract, emitting `TW-01`/`TW-02`/`TW-03`/`TW-04` as warranted. No normative behavior changed — this is documentation of already-contracted semantics that were previously only discoverable by reading §5.4 step-by-step plus the §6 proc-index contract. A dedicated `docs/TECHNICAL_IMPLEMENTATION.md` covering service wiring, global data stores, and diagnostic routing will be authored as a separate peer document; §5.3.1 now links to it by name. |
 | 2026-04-21 | Re-synchronised chopper docs with `json_kit/` 1.0.2, which standardised feature JSON filenames to `<feature_name>.feature.json` and moved example instances under `jsons/` subdirectories. Updated every `json_kit/examples/*` citation in `chopper_description.md` (§3.1 base minimal/full examples, §3.2 feature example, §3.3 project example) to reference the `jsons/base.json` and `jsons/features/<name>.feature.json` layout. Replaced stale `feature_<name>.json` tokens in §5.1.1 CLI invocation examples, §5.5 audit-artifact tree (`input_features/01_dft.feature.json`, `02_power.feature.json`), the `chopper_run.json` example (`feature_jsons`), the `compiled_manifest.json` `input_sources` row (keyed by feature `name`, not filename), and the §6.6 extended project example (`scan_common.feature.json`, `dft.feature.json`, `power.feature.json`). Expanded §2.5 per-domain tree to show the `<feature>.feature.json` filename convention directly. No schema fields, diagnostic codes, or merge/trace semantics changed — this was a naming- and path-only alignment pass triggered by the json_kit release, cascading the new convention into every subordinate chopper doc reference. |
+| 2026-04-21 | Day-0 handoff-readiness cleanup driven by `docs/DAY0_REVIEW.md` decisions. **Diagnostic registry renumbered for compactness** (F1): `DIAGNOSTIC_CODES.md` rewritten to remove all "retired" slots, since Chopper is still in ideation and no code has ever shipped. `VE-17 brace-error-post-trim` → `VE-16`; `VE-19 project-domain-mismatch` → `VE-17`; `VE-20 duplicate-feature-entry` → `VE-18`; `VE-21 occurrence-suffix-zero` → `VE-19`; `VE-22 ambiguous-step-target` → `VE-20`; `VE-23 no-domain-or-backup` → `VE-21`; `VE-25 feature-depends-on-cycle` → `VE-22`; `VE-26 filesystem-error-during-trim` → `VE-23`; `VE-27 backup-contents-missing` → `VE-24`; `VE-28 domain-write-failed` → `VE-25`; `VE-29 proc-atomic-drop-failed` → `VE-26`. Dropped `VE-16` (old `depends-on-out-of-order`), `VE-18` (old `template-script-path-escapes`), `VE-24` (old concurrent-invocation), `VI-03` (old `domain-hand-edited`), `VI-04`, and `VI-05` entirely — no active codes have historical usage to preserve. **Scope cuts applied** (G1, G2, G3): `options.template_script` field and its diagnostic removed from `json_kit/schemas/base-v1.schema.json`, `JSON_AUTHORING_GUIDE.md`, and `RISKS_AND_PITFALLS.md` TC-09 — a reserved seam with a registered diagnostic is a scope-lock violation (filed as `FD-12` in `FUTURE_PLANNED_DEVELOPMENTS.md`). `options.cross_validate` rewritten from "Cross-validate F3 output against F1/F2" to a behavioural definition (emits `VW-14`/`VW-15`/`VW-16` warnings, never errors). Hand-edit-detection code `VI-03` killed per G3(c): replaced with a fixed CLI pre-flight warning printed every re-trim; bible §2.8 Case 2, `ARCHITECTURE_PLAN.md` §12 scenarios 16–17 and §16 Q2, and `DIAGNOSTIC_CODES.md` §3 all updated. **Doc-structure cleanup**: §5.3.1 stopped forward-referencing the never-authored `docs/TECHNICAL_IMPLEMENTATION.md` and instead cites the three live peer documents (`ARCHITECTURE_PLAN.md`, `TCL_PARSER_SPEC.md`, `IMPLEMENTATION_ROADMAP.md`); `ARCHITECTURE_PLAN.md` §8.5 retired-codes table replaced with a single sentence stating the registry is compact; §15 adoption roadmap collapsed to a pointer to `docs/IMPLEMENTATION_ROADMAP.md`; §12 scenarios 30/31/32 dropped (Windows case-insensitive paths, symlinks, non-ASCII paths — absorbed into general `pathlib` behaviour, not worth a row each). Stray `json_kit/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json` duplicates at `json_kit/` root deleted (canonical location is `json_kit/schemas/`). `FD-10 machine-readable-cli-output`, `FD-11 multi-platform-domain-support`, and `FD-12 template-script-generation` filed. `docs_old/` archive directory deleted. |
 
 ---
 

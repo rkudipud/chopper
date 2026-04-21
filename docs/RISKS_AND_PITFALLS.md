@@ -389,7 +389,7 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 - Literal file paths in `files.include` are authoritative and always survive
 - `files.exclude` applies only to files matched by wildcard `files.include` patterns
 - Explicit `procedures.include` entries are authoritative and always survive
-- `procedures.exclude` prunes procs inside `PROC_TRIM` files (same-source authoring rule L2); it cannot remove another source's explicit `procedures.include` (`VW-18`) and cannot remove a whole-file include (`VW-10`)
+- `procedures.exclude` prunes procs inside `PROC_TRIM` files (same-source authoring rule L2); it cannot remove another source's explicit `procedures.include` (`VW-18`) and cannot remove a whole-file include (`VW-19`)
 - PI+ (transitive trace set) is **reporting-only**: see [chopper_description.md](chopper_description.md) §5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
 
 **Why It Matters:** This keeps owner-requested content safe. Excludes remain useful for broad globs and for authoring conveniences inside a single source, but never for second-guessing another author's explicit include.
@@ -467,7 +467,7 @@ patterns = ["**/*.tcl", "sub/../file.tcl"]  # Unnormalized
 
 **TC-04 — Copy-and-Delete Correctness:** F2 depends on preserving top-level Tcl while deleting only unwanted proc definitions. Chopper deletes only recorded proc spans; text between surviving spans is preserved byte-for-byte. If a proc-trimmed file has no surviving procs and no non-comment top-level Tcl, it survives as a stub with `VW-08`. Malformed deletion breaks Tcl syntax or leaves dangling structure.
 
-### Pitfall P-13: Backup Creation and Staging Must Be Atomic or Fail Cleanly
+### Pitfall P-13: Backup-and-Rebuild Must Fail Cleanly and Recover Deterministically
 
 **THE TRAP:**
 ```python
@@ -477,17 +477,17 @@ write_trimmed_output(domain)      # Step 2: CRASH here
 # Result: domain/ doesn't exist, domain_backup/ exists, but trim is incomplete
 ```
 
-**Correct Behavior:** Backup creation and staging transitions are atomic or can be safely re-run.
+**Correct Behavior:** Backup creation and direct rebuild transitions are simple, restartable, and deterministic.
 
 **Implementation Requirement:**
-- Backup creation: Use atomic `os.rename(domain, domain_backup)` or tempfile + atomic move
-- Staging: Write to temporary staging directory, never to final domain/ location
-- Promotion: Atomic `os.replace(staging, domain)` from staging directory to final location
-- If crash: On re-run, detect backup and rebuild from it cleanly without re-backing-up
+- Backup creation: First trim creates sibling `domain_backup/` once and treats it as the recovery source on every later run.
+- Rebuild: Write directly into the active `domain/` tree during P5. There is no staging tree and no final promotion step.
+- Failure: If a write fails mid-run, leave the half-rebuilt `domain/` in place and keep `domain_backup/` untouched.
+- Recovery: On re-run, detect the existing backup and rebuild from it cleanly without re-backing-up.
 
 **Why It Matters:** Trim must be re-runnable without manual intervention.
 
-**Test:** Scenario: Simulate crash at backup/staging/promotion stages; verify re-run recovers cleanly.
+**Test:** Scenario: Simulate crash during backup creation or mid-rebuild; verify re-run recovers cleanly from `domain_backup/`.
 
 ---
 
@@ -1008,7 +1008,7 @@ Non-Tcl files are intentionally file-level only. Attempting to over-interpret no
 
 ### TC-09: Template Generation
 
-Some domains may need template-generated artifacts. The base JSON schema retains an optional `options.template_script` field as a reserved hook for forward compatibility, but Chopper v1 does not execute it — only its path shape and domain-boundary containment are validated (`VE-18`). Domain-specific generation logic stays outside the Chopper core, and any runtime execution of such scripts is out of scope for v1.
+Template-script generation is **not** a Chopper v1 feature and is not reserved in the schema. Previous drafts kept an `options.template_script` field with diagnostic `VE-18 template-script-path-escapes` as a reserved hook — that field and that diagnostic have been removed in line with the scope-lock policy (no reserved seams). If a future version wants template generation, it will be filed as `FD-12 template-script-generation` and re-introduced through the bible-first cascade. Domain-specific generation logic stays outside the Chopper core.
 
 ---
 

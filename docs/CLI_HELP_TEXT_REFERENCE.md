@@ -8,8 +8,8 @@
 
 ## Top-Level
 
-```
-usage: chopper [-h] [-v] [--debug] [--plain] [--no-color] [--json] [--strict]
+```text
+usage: chopper [-h] [-v] [-q] [--plain] [--strict]
                {validate,trim,cleanup} ...
 
 Chopper — EDA TFM domain trimming tool.
@@ -27,19 +27,18 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   -v, --verbose         Increase verbosity (-v=INFO, -vv=DEBUG)
-  --debug               Maximum verbosity with full stack traces
-  --plain               Disable Rich rendering; use plain text output
-  --no-color            Disable ANSI color codes
-  --json                Emit machine-readable JSON to stdout
+  -q, --quiet           Suppress progress output (CI / grid)
+  --plain               Disable Rich rendering and ANSI colors; use plain text output
   --strict              Exit non-zero if any warning is present (does not rewrite severity)
 ```
 
----
+> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; exit-code-3 already writes `.chopper/internal-error.log`; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output).
 
+---
 
 ## `chopper validate`
 
-```
+```text
 usage: chopper validate [--domain PATH]
                         (--base PATH [--features PATHS] | --project PATH)
                         [global options]
@@ -59,7 +58,7 @@ options:
 
 ## `chopper trim`
 
-```
+```text
 usage: chopper trim [--domain PATH]
                     (--base PATH [--features PATHS] | --project PATH)
                     [--dry-run] [global options]
@@ -78,14 +77,14 @@ options:
   --base PATH         Path to base JSON (required unless --project is used)
   --features PATHS    Comma-separated ordered list of feature JSON paths
   --project PATH      Path to project JSON (mutually exclusive with --base/--features)
-  --dry-run           Simulate the full pipeline without writing files
+  --dry-run           Compile, trace, run synthetic post-trim validation, and emit reports without modifying domain files
 ```
 
 ---
 
 ## `chopper cleanup`
 
-```
+```text
 usage: chopper cleanup [--domain PATH] --confirm [global options]
 
 Remove domain_backup/ permanently after the trim window is complete.

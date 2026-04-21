@@ -1,0 +1,152 @@
+# Chopper — Fixture Audit
+
+> **Status:** Gap tracker for Stage 0 → Stage 1 handoff.
+> **Purpose:** Map every named fixture under [`tests/fixtures/`](./fixtures/) to the pitfall, corner-case scenario, parser-spec rule, or tracing sub-category it covers. Identify gaps that must be filled before Stage 1 begins.
+
+**Authority.** Subordinate to:
+
+- [`docs/RISKS_AND_PITFALLS.md`](../docs/RISKS_AND_PITFALLS.md) — `P-01` through `P-36` pitfalls and `TC-01` through `TC-10` technical risks.
+- [`docs/TCL_PARSER_SPEC.md`](../docs/TCL_PARSER_SPEC.md) — tokenization rules, proc detection algorithm, canonical-name vectors.
+- [`tests/TESTING_STRATEGY.md`](TESTING_STRATEGY.md) — 30-row named integration-scenario catalog (§5).
+- [`tests/FIXTURE_CATALOG.md`](FIXTURE_CATALOG.md) — canonical fixture index.
+
+---
+
+## 1. Fixture Directories
+
+| Directory | Role | Status |
+|---|---|---|
+| [`fixtures/edge_cases/`](fixtures/edge_cases/) | Adversarial single-file Tcl inputs for parser unit tests | **Populated** — 17 fixtures (`parser_*.tcl`). See [§2](#2-edge-cases-parser-fixtures). |
+| [`fixtures/mini_domain/`](fixtures/mini_domain/) | Minimal valid multi-file domain (3 procs, 2 files, 1 feature) for end-to-end integration | **Populated** (see `FIXTURE_CATALOG.md`). |
+| [`fixtures/namespace_domain/`](fixtures/namespace_domain/) | Namespace resolution test cases across files | **Populated** (see `FIXTURE_CATALOG.md`). |
+| [`fixtures/tracing_domain/`](fixtures/tracing_domain/) | BFS trace fixtures (direct, cycle, ambiguous, dynamic) | **Populated** — 6 fixtures (see [§3](#3-tracing-domain-fixtures)). |
+| [`fixtures/fev_formality_real/`](fixtures/fev_formality_real/) | Real EDA code from a production FEV/Formality flow | **Populated** — 23 files. Drives H3 real-code coverage (see [§4](#4-real-code-coverage-fev_formality_real)). |
+
+Helpers at the root of `fixtures/`:
+
+- [`create_latin1_fixture.py`](fixtures/create_latin1_fixture.py) — generates the Latin-1 encoded input for `PW-02`.
+- [`gen_large_domain.py`](fixtures/gen_large_domain.py) — synthesizes the 10k-proc large-domain fixture for performance observation (`FD-09`).
+
+---
+
+## 2. Edge-Case Parser Fixtures
+
+Each `.tcl` under `fixtures/edge_cases/` targets a pitfall (`P-xx`) or parser-spec rule. Canonical mapping:
+
+| Fixture | Covers | Diagnostic | Spec § |
+|---|---|---|---|
+| `parser_basic_single_proc.tcl` | Baseline — `proc foo {} {}` | — | §4 |
+| `parser_basic_multiple_procs.tcl` | Multi-proc file, index stability | — | §4 |
+| `parser_empty_file.tcl` | Zero procs | — | §2.1.1 row 1 |
+| `parser_empty_proc_body_forms.tcl` | `proc foo {} {}` vs `proc foo {args} {}` | — | §4.1 |
+| `parser_brace_in_string_literal.tcl` | P-01: quote context inside braced body | — | §3.3.1, §3.3.2 |
+| `parser_backslash_line_continuation.tcl` | P-02: `\\\n` continuation, line-count integrity | `PW-05` | §3.2 |
+| `parser_comment_with_braces_ignored.tcl` | P-34: `#` comments with `{` / `}` inside | — | §3.4 |
+| `parser_nested_namespace_accumulates.tcl` | P-03: nested `namespace eval` composition | — | §4.5 |
+| `parser_namespace_reset_after_block.tcl` | P-03 corollary: namespace stack pops on `}` | — | §4.5.1 |
+| `parser_namespace_absolute_override.tcl` | `::abs::name` overrides active namespace | — | §4.3 (rows 4–6) |
+| `parser_proc_inside_if_block.tcl` | P-04: proc inside `if` body is NOT indexed | — | §4.4 |
+| `parser_computed_proc_name_skipped.tcl` | P-04: `proc $name {...}` skip + warn | `PW-01` | §4.3 (row 6) |
+| `parser_duplicate_proc_definition_error.tcl` | P-05: last-wins + `PE-01` | `PE-01` | §2.1.1 row 3 |
+| `parser_encoding_latin1_fallback.tcl` | P-09: UTF-8 fail → Latin-1 retry | `PW-02` | §2 |
+| `parser_call_extraction.tcl` | Call tokens extracted (bracketed, bare, namespace-qualified) | — | §5 |
+| `parser_eda_complex_del_seq_rpt.tcl` | Real EDA-style proc with DPA + structured comments | `PI-01`, `PI-04` | §4.6, §4.7 |
+| `parser_eda_complex_get_hier_summary.tcl` | Real EDA-style proc, complex body | — | §4.6 |
+
+### 2.1 Pitfall coverage matrix
+
+| Pitfall | Description | Fixture |
+|---|---|---|
+| P-01 | Quote context inside braced body | `parser_brace_in_string_literal.tcl` |
+| P-02 | Backslash line continuation | `parser_backslash_line_continuation.tcl` |
+| P-03 | Nested namespace resolution | `parser_nested_namespace_accumulates.tcl`, `parser_namespace_reset_after_block.tcl`, `parser_namespace_absolute_override.tcl` |
+| P-04 | Computed / dynamic proc name | `parser_computed_proc_name_skipped.tcl`, `parser_proc_inside_if_block.tcl` |
+| P-05 | Duplicate proc definition | `parser_duplicate_proc_definition_error.tcl` |
+| P-09 | Non-UTF-8 encoding | `parser_encoding_latin1_fallback.tcl` |
+| P-34 | Comment with embedded braces | `parser_comment_with_braces_ignored.tcl` |
+
+### 2.2 Gaps to fill before Stage 1 freeze
+
+The following pitfalls from [`RISKS_AND_PITFALLS.md`](../docs/RISKS_AND_PITFALLS.md) do not yet have a dedicated `edge_cases/` fixture. They are **Stage 1 prerequisites** — author them as part of Stage 1 kickoff:
+
+| Pitfall | Gap | Suggested fixture filename |
+|---|---|---|
+| P-06 | Non-brace body (`proc foo "quoted body"`) | `parser_non_brace_body_skipped.tcl` (`PW-03`) |
+| P-07 | Ambiguous short name across files | `parser_ambiguous_short_name_error.tcl` (`PE-03`) |
+| P-08 | Deep nesting (>8 levels) | `parser_deep_nesting_warning.tcl` (`PW-08`) |
+| P-10 | DPA block orphan (no preceding proc) | `parser_dpa_orphan.tcl` (`PI-04`) |
+| P-11 | DPA name mismatch | `parser_dpa_name_mismatch.tcl` (`PW-11`) |
+| P-12 | Multi-value `set` statement | `parser_multi_value_set.tcl` (`PW-06`) |
+| P-13 | Dynamic array index | `parser_dynamic_array_index.tcl` (`PW-07`) |
+| P-14 | Structured comment block extraction | `parser_structured_comment_block.tcl` (`PI-01`, `PI-03`) |
+| P-15 | Proc call in string context | `parser_proc_call_in_string.tcl` (`PW-10`) |
+| P-16 | Unbalanced braces | `parser_unbalanced_braces.tcl` (`PE-02`) |
+| P-17 | Dynamic variable reference in call | `parser_dynamic_variable_ref.tcl` (`PW-09`) |
+| P-18 | `namespace eval` with computed name | `parser_computed_namespace.tcl` (`PW-04`) |
+
+**Acceptance criterion for Stage 1:** every row above has a fixture and a matching unit test asserting both the returned `ProcEntry` set and the emitted diagnostic set. Rows not listed here are covered by existing fixtures in §2 or are pure control-flow variants that the parser's state-machine tests already exercise.
+
+---
+
+## 3. Tracing-Domain Fixtures
+
+`fixtures/tracing_domain/` drives the P4 BFS trace tests. Current coverage:
+
+| Fixture | Scenario | BFS outcome | Diagnostic |
+|---|---|---|---|
+| `chain.tcl` | `a → b → c → d` linear | All four in PI+ when `a` is PI | — |
+| `diamond.tcl` | `a → b; a → c; b → d; c → d` | `d` reached twice; BFS visited-set dedupes | — |
+| `cycle.tcl` | `a → b → a` (and self-recursion) | Cycle terminator via visited-set | `TW-04 cycle-in-call-graph` |
+| `dynamic.tcl` | `$cmd`, `eval`, `uplevel` call tokens | Unresolvable; not enqueued | `TW-03 dynamic-call-form` |
+| `ns_calls.tcl` | Namespace-qualified calls (`ns::p`, bare `p`, `::abs::p`) | All three resolve to the same proc | — |
+| `cross_file.tcl` | Call resolves to a proc in a different file | Cross-file edge in graph | — |
+
+### 3.1 Gaps to fill before Stage 2 freeze
+
+| Sub-scenario (review E3) | Gap | Suggested fixture |
+|---|---|---|
+| Ambiguous match — same short name in two namespaces | Not yet a dedicated fixture | `tracing_domain/ambiguous.tcl` + `utils_a.tcl` / `utils_b.tcl` with homonymous procs; expected `TW-01` |
+| Unresolved — callee not in any parsed file | Covered partially by `dynamic.tcl`; add a pure-unresolved case | `tracing_domain/unresolved.tcl`; expected `TW-02` |
+| `source` / `iproc_source` edge (reporting-only survival) | No fixture yet | `tracing_domain/source_edge.tcl` — a proc that `source`s a file not in `files.include`; assert the edge appears in `dependency_graph.json` with `kind: "source"` **and** the sourced file is NOT in the trimmed tree, **and** `VW-06 source-file-removed` fires at P6 |
+
+These three fixtures plus an expected `dependency_graph.json` per-fixture are Stage 2 prerequisites.
+
+---
+
+## 4. Real-Code Coverage (`fev_formality_real/`)
+
+Per [`DAY0_REVIEW.md`](../docs/DAY0_REVIEW.md) H3, `fixtures/fev_formality_real/` contains 23 files from a real FEV / Formality production flow. This is where Chopper's parser and compiler meet real-world Tcl:
+
+- `default_fm_procs.tcl` — 100% DPA coverage on every proc; structured-comment blocks; realistic argument patterns.
+- `fev_fm_*.tcl` — flow drivers with `source`/`iproc_source` patterns, multi-namespace definitions, conditional `if` blocks around config settings.
+- `fev_fm_*.stack` — stack-flow declaration files (input to F3).
+- `prepare_fev_formality.tcl`, `promote.tcl`, `vars.tcl` — domain bootstrap.
+- `utils/` — shared helper procs.
+
+### 4.1 Integration scenarios to build on this fixture
+
+Stage 3 / Stage 5 must add end-to-end scenarios (beyond the 28 named scenarios in [`TESTING_STRATEGY.md`](TESTING_STRATEGY.md) §5) that exercise this domain:
+
+1. **Parse every `.tcl` file.** Assert zero `PE-*`; catalogue every emitted `PW-*` / `PI-*` against the file it was raised in. This is a contract test for the parser — if a real file triggers a `PE-*`, either the parser is wrong or the file is malformed (investigate both).
+2. **F1 trim:** include a single flow driver (`fev_fm_rtl2gate.tcl`), exclude the rest. Assert the trimmed domain still references only surviving files via `source` / `iproc_source` (any missing target should emit `VW-06`).
+3. **F2 trim:** include `default_fm_procs.tcl` whole, plus a small subset of procs from a flow driver. Assert the subset survives and unreferenced procs are removed from the flow-driver file.
+4. **F3 stage generation:** author a feature JSON that adds a `.stack` entry; assert the generated `run.tcl` references only surviving procs; trigger `VW-14` / `VW-15` / `VW-16` by referencing a trimmed step.
+
+These scenarios become entries 29–32 in `TESTING_STRATEGY.md` §5 once Stage 3 begins.
+
+### 4.2 Fabricated + real blending
+
+The fixture is intentionally mixed: real production code is the parser workload, fabricated minimal JSONs select subsets of it. This matches the production shape — operators never ship a fabricated domain but always author JSONs against a real one. Golden snapshots pin the exact `compiled_manifest.json` / `dependency_graph.json` emitted against the real code so any parser or compiler drift is caught immediately.
+
+---
+
+## 5. Tracking
+
+This document is a living tracker. When a gap in §2.2 or §3.1 is filled:
+
+1. Add the new fixture file under `fixtures/edge_cases/` or `fixtures/tracing_domain/`.
+2. Move the row from the gap table into the populated table above.
+3. Add the corresponding unit-test / integration-test reference.
+4. Update [`tests/FIXTURE_CATALOG.md`](FIXTURE_CATALOG.md) if the fixture carries a canonical ID.
+
+When every row in §2.2 is filled, Stage 1 is cleared for freeze. When every row in §3.1 is filled, Stage 2 is cleared for freeze.

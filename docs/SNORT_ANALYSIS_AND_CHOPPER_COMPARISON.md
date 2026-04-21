@@ -3,6 +3,10 @@
 **Date:** April 18, 2026
 **Scope:** Technical analysis of Intel's SNORT Tcl static analysis tool, comparison with Chopper v2 parser/compiler/trimmer requirements, and strategic recommendations for Chopper's code analysis engine.
 
+> **Status:** Historical comparison and design-analysis reference.
+>
+> This document is **not** an implementation handoff spec. If anything here conflicts with [`docs/chopper_description.md`](chopper_description.md), [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md), or [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), the live handoff docs win.
+
 ---
 
 ## Table of Contents

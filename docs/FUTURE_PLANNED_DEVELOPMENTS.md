@@ -97,6 +97,42 @@ v1 accepts a 5–10 minute runtime for a typical domain; optimization is explici
 
 ---
 
+### FD-10: Machine-Readable CLI Output
+
+v1's CLI emits human-readable table output only. A `--json` or `--jsonl` mode would emit `RunResult` (and progress events) as structured lines on stdout so downstream tooling (CI dashboards, a future GUI, ad-hoc scripts) can consume them without scraping tables.
+
+Post-v1, this is ~50 lines of code in `cli/render.py` plus a test fixture — `RunResult` already serializes via `core/serialization.py` and `PresentationConfig` already has a rendering seam. The deferral is solely to keep v1's user surface minimal and let the table renderer bed in before committing to a machine-output contract.
+
+**Deferred because:** v1 is a push-button tool for one operator on one domain; structured output solves a problem (programmatic consumption) that no v1 user has. Shipping it now would freeze the JSON shape before the core pipeline has proved itself.
+
+**Source:** `DAY0_REVIEW.md` A1 (CLI flag inventory decision).
+
+---
+
+### FD-11: Multi-Platform Domain Support
+
+Chopper v1 runs on Linux grid nodes against domains authored on Windows. Authoring happens on either OS, trimming runs only on Linux. The `project.domain` field is case-folded for this reason (bible §5.1, `VE-17`).
+
+A future version might support trimming domains that live on Windows filesystems directly (case-insensitive, different path semantics, CRLF line endings). That would require a canonical internal path representation across OSes, a line-ending policy for the trimmer, and cross-OS golden fixtures.
+
+**Deferred because:** the v1 operator runs one command on one Linux grid node. Adding a cross-OS trim mode would double the fixture matrix and require contractual decisions about CRLF handling that have no v1 user.
+
+**Source:** `DAY0_REVIEW.md` response to case-fold discussion.
+
+---
+
+### FD-12: Template-Script Generation
+
+Some domains may want Chopper to execute a domain-specific post-trim script that generates derived artifacts (lint reports, project-level `run.tcl` wrappers, tool-specific setup files). Earlier spec drafts carried an `options.template_script` schema field and a `VE-18` diagnostic for path-safety validation, with the intent that v1 would validate the path but not execute the script ("reserved seam").
+
+Per the scope-lock policy in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md), reserved seams with registered diagnostics are not allowed. The field and the diagnostic have been removed. If a future version wants template generation, it will file this FD-12 entry as the starting point and re-enter the architecture through the bible-first cascade: spec the execution contract (sandbox? arguments? failure mode?), then reintroduce the schema field and diagnostic in a new code slot.
+
+**Deferred because:** domain owners today can run their generation scripts before or after `chopper trim` themselves. Baking an executor into Chopper commits the tool to a security surface (what paths are allowed? what exit-code policy?) that has no v1 caller demanding it.
+
+**Source:** `DAY0_REVIEW.md` G2; scope-lock policy (`.github/instructions/project.instructions.md` §1).
+
+---
+
 ## Summary
 
 | ID | Category | Item | Status |
@@ -109,3 +145,6 @@ v1 accepts a 5–10 minute runtime for a typical domain; optimization is explici
 | FD-06 | Docs | Example diagnostic messages | Deferred until spec final |
 | FD-07 | Docs | Terminology glossary | Deferred until spec final |
 | FD-09 | Performance | Benchmark harness and phase budgets | Deferred until core pipeline verified |
+| FD-10 | CLI/UX | Machine-readable CLI output (`--json` / `--jsonl`) | Deferred; v1 is table-only |
+| FD-11 | Platform | Multi-platform domain support (trim on Windows) | Deferred; v1 is Linux-only |
+| FD-12 | Generator | Template-script generation (post-trim executor) | Deferred; scope-lock removed the reserved seam |

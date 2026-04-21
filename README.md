@@ -6,8 +6,15 @@
 
 - **[.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)** — Project conventions, architecture overview, critical principles, diagnostic-code rules, editing conventions
 - **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 7-phase pipeline, R1 merge rules, requirements
+- **[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md)** — How the bible is built: hexagonal layout, ports, context/config, orchestrator
+- **[docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)** — Stage-by-stage delivery plan (Stage 0 → Stage 5)
 - **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
 - **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
+- **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Tcl parser engineering spec (state machine, canonical-name vectors)
+- **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks (`TC-*`) and implementation pitfalls (`P-*`)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to add features, adapters, and diagnostic codes without breaking scope-lock
+- **[tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md)** — Test pyramid, named integration scenarios, coverage gates
+- **[tests/FIXTURE_AUDIT.md](tests/FIXTURE_AUDIT.md)** — Fixture ↔ pitfall ↔ scenario mapping; Stage-gate prerequisites
 - **[Makefile](Makefile)** — Build, test, lint commands
 
 ---
@@ -316,27 +323,33 @@ rmdir /s .venv
 
 ## Architecture Overview
 
-The codebase executes a **7-phase pipeline**:
+> **Naming note:** `F1/F2/F3` are **capability classes** (file-level trimming / proc-level trimming / run-file generation). The internal execution pipeline uses `P0–P7` phase labels — never `F1–F7`.
+
+The codebase executes an **8-phase pipeline (P0–P7)**:
 
 ```
-F1 (Parse JSON)  →  F2 (Parse Tcl)  →  F3 (Merge & Trace)  →  F4 (Flow Actions) 
+P0 (Domain State)  →  P1 (Config + Pre-Validate)  →  P2 (Parse Tcl)  →  P3 (Compile)
    ↓
-F5 (Run File Gen)  →  F6 (Validate Post)  →  F7 (Write & Audit)
+P4 (Trace BFS)  →  P5 (Build Output)  →  P6 (Post-Validate)  →  P7 (Audit)
 ```
+
+All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run through this same pipeline.
 
 **Core Modules** in `src/chopper/`:
 
 | Module | Responsibility | Phase |
 |--------|-----------------|-------|
-| **parser/** | Tcl static analysis; tokenize, extract procs, track namespaces | F2 |
-| **compiler/** | Merge JSON, trace proc dependencies (breadth-first), apply selections | F3–F4 |
-| **trimmer/** | Delete marked files/procs, rewrite Tcl | F5 |
-| **validator/** | Pre- and post-trim validation (schema, structure, dangling refs) | F1, F6 |
-| **config/** | JSON/TOML schema loading and validation | F1 |
-| **cli/** | Command-line interface layer | User layer |
-| **core/** | Shared models, errors, diagnostics, protocols, serialization | All |
-| **audit/** | Backup, restore, audit trail artifacts | F7 |
-| **generators/** | Run file generation | F5 |
+| **parser/** | Tcl static analysis; tokenize, extract procs, track namespaces | P2 |
+| **compiler/** | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions | P3–P4 |
+| **trimmer/** | Copy/drop files and procs, rewrite Tcl in-place | P5 |
+| **validator/** | Pre- and post-trim validation (schema, structure, dangling refs) | P1, P6 |
+| **config/** | JSON schema loading, path resolution, depends_on topo-sort | P1 |
+| **cli/** | Command-line interface layer (validate, trim, cleanup) | User layer |
+| **core/** | Shared frozen dataclasses, errors, diagnostics, protocols, serialization | All |
+| **audit/** | Write `.chopper/` bundle on every run (success and failure) | P7 |
+| **generators/** | F3 run-file (`<stage>.tcl`) emission | P5 |
+| **orchestrator/** | Phase loop, domain-state detection, phase-gate logic | All |
+| **adapters/** | Concrete port implementations (filesystem, diagnostic sink, progress) | All |
 
 For full details, see [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md) and [docs/chopper_description.md](docs/chopper_description.md).
 

@@ -23,19 +23,19 @@ This document specifies the tokenization, parsing, and indexing rules for Choppe
 
 ### 2.1 Public Function Signature
 
-**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps — it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and takes already-decoded text as a callback-driven function. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
+**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps — it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and operates on already-decoded text supplied by the service. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
 
 ```python
 def parse_file(
-    domain_path: Path,
     file_path: Path,
+    text: str,
     on_diagnostic: DiagnosticCollector | None = None,
 ) -> list[ProcEntry]:
     """Parse a Tcl file and extract proc definitions.
 
     Args:
-        domain_path: Absolute path to the domain root directory.
-        file_path: Absolute path to the Tcl file to parse.
+        file_path: Domain-relative or absolute path identifying the Tcl file.
+        text: Already-decoded file content supplied by ParserService.
         on_diagnostic: Optional callback for emitting Diagnostic records
             (PE-01, PW-01, PW-02, etc. — see docs/DIAGNOSTIC_CODES.md).
             When None, diagnostics are silently discarded.
@@ -49,11 +49,51 @@ def parse_file(
 
 **Design rationale:** The parser is an internal utility module, not a top-level service endpoint. It returns `list[ProcEntry]` (not a result dataclass) because:
 
+### 2.1.1 Return-Value Contract on Diagnostics (D4)
+
+The bible [`chopper_description.md`](chopper_description.md) §5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
+
+| Condition in file | `parse_file()` returns | Diagnostic emitted |
+|---|---|---|
+| Clean parse, zero procs defined | `[]` (empty list) | — |
+| Clean parse, N procs defined | `[ProcEntry, ..., ProcEntry]` (length N) | — |
+| Duplicate proc definition in same file | Full list; **last-wins** replaces the earlier entry in-place at the same index | `PE-01 duplicate-proc-definition` (one per collision) |
+| Unbalanced braces (depth never returns to 0 or goes negative) | `[]` (empty list) | `PE-02 unbalanced-braces` |
+| Two procs collapse to the same short name after namespace stripping | Full list with both entries; F2 short-name lookup becomes ambiguous | `PE-03 ambiguous-short-name` |
+| Computed proc name (`proc $n {...}`) | Full list minus the skipped proc | `PW-01 computed-proc-name` |
+| UTF-8 decode fails, Latin-1 fallback succeeds | Full list on Latin-1 content | `PW-02 utf8-decode-failure` |
+| Non-brace body (`proc foo "..."`) | Full list minus the skipped proc | `PW-03 non-brace-body` |
+| `namespace eval` with computed name | Full list minus any procs the computed namespace would have contained | `PW-04 computed-namespace-name` |
+
+**Golden tests assert both the return value and the emitted diagnostic set** for every row above. See [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md) for the fixtures that exercise each row.
+
 ---
 
 ## 3. Tokenization Rules
 
 Chopper uses a simplified, brace-aware tokenizer that follows Tcl 8.6 Rules [1], [6], [9], and [10]. The tokenizer does NOT interpret variables, commands, or expressions — it only tracks structural delimiters.
+
+### 3.0 State-Machine Summary (D2)
+
+The tokenizer state is the tuple `(brace_depth: int, in_quote: bool, in_comment: bool, context_stack_top)` where `context_stack_top` is one of `FILE_ROOT | NAMESPACE_EVAL | CONTROL_FLOW | PROC_BODY` (see §4.2 for the full context stack). Transitions are per-character within the current logical line; `\\\n` line continuation (§3.2) does not reset state. The table below specifies every structural transition; characters not listed are inert and only advance position.
+
+| Current state | Input | Next state | Side effect |
+|---|---|---|---|
+| `brace_depth=d`, `in_quote=False`, `in_comment=False` | unescaped `{` | `brace_depth=d+1` | If the `{` opens a proc body, push `PROC_BODY` onto context stack. If it opens `namespace eval`, push `NAMESPACE_EVAL` + push the name onto namespace stack. If it opens a control-flow body (`if`, `for`, `foreach`, `while`, `switch`, `catch`, `eval`), push `CONTROL_FLOW`. |
+| `brace_depth=d>0`, `in_quote=False`, `in_comment=False` | unescaped `}` | `brace_depth=d-1` | If the new depth matches the `entered_at_depth` of the context-stack top, pop the context. If popping `NAMESPACE_EVAL`, also pop the namespace stack. If popping `PROC_BODY`, finalize the current `ProcEntry` (record `end_line`). |
+| any | `\` followed by `\n` | (unchanged) | Log-only; `PW-05 backslash-continuation` on first occurrence in a file. Does **not** reset `in_comment` or `in_quote`. |
+| `brace_depth=0`, `in_quote=False`, `in_comment=False`, at command position | `"` beginning a word | `in_quote=True` | Only at §3.3.1 pre-body positions. Braces inside the quoted word do NOT change `brace_depth`. |
+| `in_quote=True` | unescaped `"` | `in_quote=False` | End quoted word. Escaped `\"` does not exit. |
+| `in_quote=True` | `{` / `}` | (unchanged) | Literal character; `brace_depth` unchanged. |
+| `brace_depth=d`, `in_quote=False`, `in_comment=False`, at command position | `#` | `in_comment=True` | Comment extends to end of logical line (respecting `\\\n` continuation). |
+| `in_comment=True` | `\n` not preceded by `\` | `in_comment=False` | End of comment line. |
+| `in_comment=True` | `{` / `}` | (unchanged) | Inert; `brace_depth` unchanged. |
+| `in_quote=False`, `in_comment=False`, `brace_depth>0` | `"` | (unchanged) | Literal (per §3.3.2 "in-body rule"); does NOT enter quoted context. |
+| any | `[` / `]` | (unchanged) | Inert for brace tracking. Call-extraction (§5) inspects bracketed tokens separately. |
+| `brace_depth<0` at any point | — | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
+| end-of-file with `brace_depth>0` | — | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
+
+**Order of precedence when multiple conditions would apply on the same character:** `in_comment` beats `in_quote` beats brace tracking. `in_quote=True` suppresses `#` → comment. `\` before any special character escapes it for the purpose of state transitions (escape counting is "odd number of trailing backslashes escapes").
 
 ### 3.1 Brace Matching (Tcl Rule 6)
 
@@ -246,6 +286,36 @@ Result: only `bar` is indexed (as `ns::bar`). `foo` is skipped with a debug-leve
 | `proc foo {args} {...}` inside `namespace eval a { namespace eval b { ... } }` | `a::b::foo` |
 | `proc ::abs::foo {args} {...}` inside `namespace eval ns { ... }` | `abs::foo` (absolute overrides namespace context) |
 | `proc ${prefix}_foo {args} {...}` | **SKIP** — log WARNING (computed name, unresolvable) |
+
+#### 4.3.1 Canonical-Name Test Vectors (D3)
+
+The bible [`chopper_description.md`](chopper_description.md) §5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
+
+| `file_path` | `namespace_stack` | `proc_short_name` | `canonical_name` | Notes |
+|---|---|---|---|---|
+| `utils.tcl` | `[]` | `helper` | `utils.tcl::helper` | File root, bare name |
+| `utils.tcl` | `["a"]` | `helper` | `utils.tcl::a::helper` | Single-level namespace |
+| `utils.tcl` | `["a", "b"]` | `helper` | `utils.tcl::a::b::helper` | Nested namespace |
+| `utils.tcl` | `[]` | `::abs::x` | `utils.tcl::abs::x` | Absolute name at file root (leading `::` stripped) |
+| `utils.tcl` | `["a"]` | `::abs::x` | `utils.tcl::abs::x` | Absolute name overrides active namespace |
+| `utils.tcl` | `["a", "b"]` | `::abs::c::x` | `utils.tcl::abs::c::x` | Absolute name overrides nested namespace |
+| `common/helpers.tcl` | `[]` | `foo` | `common/helpers.tcl::foo` | Subdirectory file, bare name |
+| `common/helpers.tcl` | `["ns"]` | `foo` | `common/helpers.tcl::ns::foo` | Subdirectory + namespace |
+| `sub/dir/f.tcl` | `["p", "q"]` | `r` | `sub/dir/f.tcl::p::q::r` | Deep path + nested namespace |
+| `utils.tcl` | `[]` | `${prefix}_foo` | **(not indexed)** | Emits `PW-01 computed-proc-name`; proc is skipped entirely |
+
+**Enforcement.** `ParseResult` validates this format at construction. `tests/unit/parser/test_canonical_name.py` must parametrize across every row above. See also bible §5.4.1 (the authoritative registry) and [`RISKS_AND_PITFALLS.md`](RISKS_AND_PITFALLS.md) TC-02.
+
+#### 4.3.2 Source / `iproc_source` Edges (E2)
+
+`source` and `iproc_source` tokens encountered in proc bodies become **edges** in the dependency graph, identical in type to proc-call edges. They are **reporting-only**:
+
+- They never cause any file to be copied into the trimmed domain.
+- They never cause any proc to survive trim.
+- The sourced file's survival requires an explicit `files.include` entry; a sourced proc's survival requires an explicit `procedures.include` entry.
+- A `source` referencing a file that did not survive trim emits `VW-06 source-file-removed` in P6.
+
+See bible §5.4 R3 (source-edge survival effect) and §3.4 (hook semantics) for the authoritative contract.
 
 ### 4.4 Where Procs Are Recognized
 
@@ -927,18 +997,18 @@ if on_diagnostic is not None:
 
 **Caller integration (compiler):**
 ```python
-# Compiler bridges ProgressSink to parser's DiagnosticCollector
-entries = parse_file(domain, tcl_file, on_diagnostic=progress.on_diagnostic)
+# ParserService bridges DiagnosticSink to parser's DiagnosticCollector
+entries = parse_file(file_path=tcl_file, text=text, on_diagnostic=progress.on_diagnostic)
 ```
 
 **Unit test isolation:**
 ```python
 # Test without diagnostics (simple)
-entries = parse_file(domain, file)
+entries = parse_file(file_path=file, text=source_text)
 
 # Test with diagnostic capture
 diags: list[Diagnostic] = []
-entries = parse_file(domain, file, on_diagnostic=diags.append)
+entries = parse_file(file_path=file, text=source_text, on_diagnostic=diags.append)
 assert any(d.code == "PE-01" for d in diags)
 ```
 

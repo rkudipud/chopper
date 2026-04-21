@@ -4,7 +4,7 @@
 
 **What this plan is for.** Chopper is a **local, single-process Python CLI** — not a web app, not a cloud service, not a daemon, not a plugin host. It runs on a VLSI engineer's workstation (or a grid node), reads ≤1 GB of Tcl / JSON from disk, writes a trimmed domain back to disk, and exits. The plan below describes how to decompose this CLI into **independently developable services** (in-process, ports-and-adapters) so individual features can be added, rewritten, or replaced in isolation. Chopper is **not** extensible through plugins, AI advisors, or MCP adapters — those are not on the roadmap, not deferred, not planned. See §16 for the scope-lock rationale.
 
-**How to read this plan.** §1–§3 frame the shape. §4–§7 define the modules and their seams. §8–§10 pin down the contracts that make isolated feature work safe. §11–§12 cover performance and corner cases. §13 is a multi-expert review. §14–§16 are the contributor playbook, roadmap, and closed decisions.
+**How to read this plan.** §1–§3 frame the shape. §4–§7 define the modules and their seams. §8–§10 pin down the contracts that make isolated feature work safe. §11 covers determinism and performance. §12–§14 are pointers to the moved content (acceptance catalog, review, contributor playbook). §15–§16 are the roadmap pointer and closed decisions.
 
 ---
 
@@ -21,10 +21,10 @@
 9. [Inter-Service Communication Contract](#9-inter-service-communication-contract)
 10. [Feature Work Isolation Rules](#10-feature-work-isolation-rules)
 11. [Determinism, Concurrency, and Performance Envelope](#11-determinism-concurrency-and-performance-envelope)
-12. [Corner-Case Simulation Catalog](#12-corner-case-simulation-catalog)
-13. [Multi-Expert Review Panel](#13-multi-expert-review-panel)
-14. [Contributor Playbook — Adding or Replacing a Feature](#14-contributor-playbook--adding-or-replacing-a-feature)
-15. [Adoption Roadmap (Stage-Aligned)](#15-adoption-roadmap-stage-aligned)
+12. [Corner-Case Simulation Catalog — moved](#12-corner-case-simulation-catalog)
+13. [Multi-Expert Review Panel — removed](#13-multi-expert-review-panel)
+14. [Contributor Playbook — moved](#14-contributor-playbook)
+15. [Adoption Roadmap (Stage-Aligned) — superseded](#15-adoption-roadmap-stage-aligned)
 16. [Closed Decisions](#16-closed-decisions)
 
 ---
@@ -81,17 +81,13 @@ src/chopper/
 │   ├── result.py                # RunResult, phase-level result dataclasses
 │   └── serialization.py         # JSON encode/decode for all models
 │
-├── adapters/                    # Concrete implementations of ports
+├── adapters/                    # Concrete implementations of ports (ctx.fs / ctx.diag / ctx.progress only)
 │   ├── fs_local.py              # LocalFS
 │   ├── fs_memory.py             # InMemoryFS (tests)
 │   ├── sink_collecting.py       # CollectingSink (default)
 │   ├── sink_jsonl.py            # JSONLSink (audit)
 │   ├── progress_rich.py         # RichProgress
 │   ├── progress_silent.py       # SilentProgress
-│   ├── clock_system.py          # SystemClock
-│   ├── clock_frozen.py          # FrozenClock (tests, golden)
-│   ├── audit_dotchopper.py      # DotChopperAuditStore
-│   └── table_rich.py            # RichTable renderer
 │
 ├── parser/                      # Stage 1 — Tcl static analysis (P2)
 │   ├── service.py               # ParserService.run(ctx, files) -> ParseResult
@@ -119,8 +115,7 @@ src/chopper/
 │   └── service.py               # AuditService.run(...)
 │
 ├── validator/                   # Stage 4 — Pre+post validation (P1, P6)
-│   ├── pre_service.py            # PreValidatorService.run (P1)
-│   └── post_service.py           # PostValidatorService.run (P6)
+│   └── functions.py              # validate_pre(ctx, loaded), validate_post(ctx, manifest, rewritten)
 │
 ├── orchestrator/                # Composes the services; owns phase loop
 │   ├── runner.py                # ChopperRunner
@@ -130,7 +125,7 @@ src/chopper/
 └── cli/                         # Stage 5 — thin CLI (no business logic)
     ├── main.py                  # argparse / typer entrypoint
     ├── commands.py              # validate / trim / cleanup
-    └── render.py                # TableRenderer-backed output
+    └── render.py                # Rich-based output (no TableRenderer port; CLI calls rich directly)
 ```
 
 **The dependency rule is strict and enforced at CI** (`import-linter`):
@@ -160,16 +155,16 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 |---|---|---|---|
 | `DomainStateService` | P0 | `ctx` → `DomainState` | `orchestrator/domain_state.py` |
 | `ConfigService` | P1 | `ctx, state` → `LoadedConfig` | `config/service.py` |
-| `PreValidatorService` | P1 | `ctx, loaded` → emits diagnostics | `validator/pre_service.py` |
+| `validate_pre` (function) | P1 | `ctx, loaded` → emits diagnostics | `validator/functions.py` |
 | `ParserService` | P2 | `ctx, files` → `ParseResult` | `parser/service.py` |
 | `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` |
 | `TracerService` | P4 | `ctx, manifest, parsed` → `DependencyGraph` | `compiler/trace_service.py` |
 | `TrimmerService` | P5a | `ctx, manifest, state` → `TrimReport` | `trimmer/service.py` |
 | `GeneratorService` | P5b | `ctx, manifest` → `tuple[GeneratedArtifact, ...]` | `generators/service.py` |
-| `PostValidatorService` | P6 | `ctx, manifest` → emits diagnostics | `validator/post_service.py` |
+| `validate_post` (function) | P6 | `ctx, manifest, rewritten` → emits diagnostics | `validator/functions.py` |
 | `AuditService` | P7 | `ctx, manifest, graph` → `AuditManifest` | `audit/service.py` |
 
-**Every service has exactly one public method named `run(...)`.** Pre- and post-validation are **two separate services** (`PreValidatorService` at P1, `PostValidatorService` at P6), each with its own `run()`. No service exposes multiple public entry points.
+**Every service has exactly one public method named `run(...)`.** Pre- and post-validation are plain module-level functions (`validate_pre`, `validate_post` in `validator/functions.py`) — they read inputs and emit diagnostics; no service class is warranted (per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A9). Every other pipeline step is a service class with one `run()` method.
 
 **Key discipline:** Services **do not** call each other directly. They return typed results; the orchestrator decides what flows where. This is what makes isolated feature development possible — you can rewrite `TracerService` without touching `CompilerService` because neither imports the other.
 
@@ -199,10 +194,13 @@ Ports live in `src/chopper/core/protocols.py` as `typing.Protocol` definitions. 
 | `FileSystemPort` | `read_text` / `write_text` / `exists` / `list` / `stat` / `rename` / `remove` / `mkdir` / `copy_tree` | `LocalFS` | `InMemoryFS` (tests), `ReadOnlyFS` (dry-run) |
 | `DiagnosticSink` | `emit(Diagnostic)` / `snapshot()` / `finalize()` | `CollectingSink` | `JSONLSink` (audit) |
 | `ProgressSink` | `phase_started` / `phase_done` / `step` | `RichProgress` | `SilentProgress` |
-| `ClockPort` | `now()` / `monotonic()` | `SystemClock` | `FrozenClock` (golden tests) |
-| `TableRenderer` | tabular output for CLI | `RichTable` | `JSONTable`, `MarkdownTable` |
-| `AuditStore` | persist artifacts under `.chopper/` | `DotChopperAuditStore` | `EphemeralAuditStore` (tests) |
-| `SerializerPort` | model ↔ JSON | `JsonSerde` | — |
+
+**No `ClockPort`, no `SerializerPort`, no `AuditStore`, no `TableRenderer` port.** Per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A2–A5:
+
+- **Clock** — `datetime.now(timezone.utc)` is called directly by `AuditService`. Tests use `freezegun` or `monkeypatch` to freeze time. Two call sites do not warrant a port.
+- **Serialization** — `core/serialization.py` exposes a single helper `dump_model(obj) -> str` (`json.dumps(asdict(obj), sort_keys=True, default=_encode)`). Services and `AuditService` call it directly. No port, no `ctx.serde`.
+- **Audit storage** — `AuditService.run()` writes its seven fixed artifacts directly via `ctx.fs.write_text(ctx.config.audit_root / name, ...)`. Tests point `audit_root` at an `InMemoryFS` path; no separate store abstraction.
+- **Table renderer** — rendering is a CLI concern. `cli/render.py` calls `rich.print` / `rich.Table` directly. Services never render. One output path, not a three-adapter matrix.
 
 **`FileSystemPort` — the full honest surface.** Trimmer, domain-state detection, and audit all need more than `read_text` / `write_text`. The complete port is:
 
@@ -227,15 +225,17 @@ Services never call `pathlib.Path.read_text()`, `Path.rename()`, `shutil.rmtree(
 
 **Why Protocols, not ABCs.** Structural typing lets test fakes satisfy a port without importing Chopper internals. A test fake is just any object with the right method names; no inheritance.
 
+**Port count is deliberately small.** Three ports (`FileSystemPort`, `DiagnosticSink`, `ProgressSink`) cover every effectful surface Chopper needs. Everything else (clock, serialization, audit, rendering) is a direct call or a plain helper. Port abstractions for single-implementation concerns add ceremony without testability benefit.
+
 ---
 
 ## 6. Orchestration and the Context Object
 
 ### 6.1 Honest naming
 
-`ChopperContext` is a **service bundle plus run config**, not an immutable data record. Four of its port fields are effectful (`fs`, `diag`, `progress`, `audit`); two are pure (`clock`, `serde`); the rest is `config: RunConfig` (frozen flags and paths). `@dataclass(frozen=True)` on the wrapper only guarantees that **port bindings cannot be rebound mid-run** — it does not make the ports themselves pure. Contributors should read `ctx.<port>.<method>(...)` as "call into a possibly-effectful adapter."
+`ChopperContext` is a **port bundle plus run config**, not an immutable data record. Its three port fields (`fs`, `diag`, `progress`) are all effectful; the rest is `config: RunConfig` (frozen flags and paths). `@dataclass(frozen=True)` on the wrapper only guarantees that **port bindings cannot be rebound mid-run** — it does not make the ports themselves pure. Contributors should read `ctx.<port>.<method>(...)` as "call into a possibly-effectful adapter."
 
-`TableRenderer` is **not** on `ctx`. Rendering is a CLI concern; services never render. The CLI constructs a `TableRenderer` locally and feeds it the `RunResult` it got back from `ChopperRunner.run()`.
+**Rendering is not on `ctx`.** Rendering is a CLI concern; services never render. `cli/render.py` calls `rich.print` directly on the `RunResult` returned by `ChopperRunner.run()`. There is no `TableRenderer` port.
 
 To make the split visible in code, the context is composed of two inner records:
 
@@ -249,33 +249,33 @@ class RunConfig:
     audit_root: Path                     # .chopper/ — reserved; see bible §5.5
     strict: bool                         # exit-code policy, applied at CLI (§8.2)
     dry_run: bool
-    mode: RunMode = RunMode.TRIM         # TRIM | VALIDATE | CLEANUP
+    # No `mode` field. The CLI dispatches on subcommand name (`validate` / `trim` /
+    # `cleanup`); `cleanup` never enters ChopperRunner at all (it is a standalone
+    # `shutil.rmtree(<domain>_backup)` function). See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A7.
 
 
 @dataclass(frozen=True)
 class PresentationConfig:
     """CLI-side UX config. Drives adapter selection; never read by services."""
     verbose: bool = False                # -v   : raise log level to DEBUG for structlog
-    debug: bool = False                  # --debug : re-raise on exit 3; print traceback
-    plain: bool = False                  # --plain : no rich; ASCII tables
-    no_color: bool = False               # --no-color : disable ANSI color codes
-    json: bool = False                   # --json : machine-readable stdout + JSONL stderr
+    quiet: bool = False                  # -q   : SilentProgress; suppresses progress output
+    plain: bool = False                  # --plain : no Rich rendering; plain text + no ANSI colors
+    # `--debug`, `--no-color`, `--json` were cut per DAY0_REVIEW A1. Rich honors NO_COLOR
+    # automatically; exit-code-3 writes .chopper/internal-error.log; diagnostics.json
+    # in the audit bundle is the machine-readable surface (tracked as FD-10).
 
 
 @dataclass(frozen=True)
 class ChopperContext:
-    """Service bundle + run config. Frozen bindings; ports are effectful."""
+    """Port bundle + run config. Frozen bindings; ports are effectful."""
     config: RunConfig
-
-    # Pure ports (no observable state).
-    clock: ClockPort
-    serde: SerializerPort
 
     # Effectful ports (stateful adapters; fresh instance per run).
     fs: FileSystemPort
     diag: DiagnosticSink
     progress: ProgressSink
-    audit: AuditStore
+    # No clock / serde / audit ports. Services call datetime.now(timezone.utc),
+    # core.serialization.dump_model(), and ctx.fs directly. See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A3–A5.
 ```
 
 **Flag-to-adapter mapping (CLI responsibility; see [`docs/CLI_HELP_TEXT_REFERENCE.md`](CLI_HELP_TEXT_REFERENCE.md) for flag definitions).**
@@ -283,12 +283,10 @@ class ChopperContext:
 | `PresentationConfig` field | Source flag | Effect |
 |---|---|---|
 | `verbose` | `-v / --verbose` | structlog level set to `DEBUG`; otherwise `INFO`. |
-| `debug` | `--debug` | On exit code 3, CLI re-raises instead of swallowing; prints full traceback. |
-| `plain` | `--plain` | `TableRenderer` = `PlainTable`; `ProgressSink` = `PlainProgress`. |
-| `no_color` | `--no-color` | Disables ANSI colors in whichever renderer is active. |
-| `json` | `--json` | `TableRenderer` = `JsonRenderer` (serializes `RunResult` to stdout); `ProgressSink` = `JsonlProgress` (one JSON event per line to stderr); `DiagnosticSink` = `JsonlSink`. |
+| `quiet` | `-q / --quiet` | `ProgressSink` = `SilentProgress`; no progress output (CI / grid). |
+| `plain` | `--plain` | Rich rendering is bypassed: CLI prints ASCII text, no ANSI color, no progress bars. |
 
-When multiple flags apply (e.g. `--json --plain`), `--json` wins for rendering; `--plain` still disables Rich imports. `ProgressSink` is active in **every** mode — only the adapter changes. `SilentProgress` is used by test harnesses (not selectable via CLI).
+`SilentProgress` is used by `-q / --quiet` and by test harnesses. Rich honors the `NO_COLOR` environment variable automatically — no dedicated flag is required.
 
 **Construction rules.**
 
@@ -308,7 +306,7 @@ def run(ctx: ChopperContext) -> RunResult:
     try:
         state   = DomainStateService().run(ctx)                         # P0 — no gate (never errors)
         loaded  = ConfigService().run(ctx, state)                       # P1a
-        PreValidatorService().run(ctx, loaded)                          # P1b
+        validate_pre(ctx, loaded)                                       # P1b — plain function
         if _has_errors(ctx, Phase.P1_CONFIG): return _abort(ctx, state, manif, graph)
         parsed  = ParserService().run(ctx, loaded.surface_files)        # P2
         if _has_errors(ctx, Phase.P2_PARSE):  return _abort(ctx, state, manif, graph)
@@ -322,12 +320,12 @@ def run(ctx: ChopperContext) -> RunResult:
             if _has_errors(ctx, Phase.P5_TRIM): return _abort(ctx, state, manif, graph)
             GeneratorService().run(ctx, manif)                          # P5b — writes directly via ctx.fs;
                                                                         # returns artifact records for audit only
-            PostValidatorService().run(ctx, manif, rewritten)           # P6 — re-tokenizes only rewritten files
+            validate_post(ctx, manif, rewritten)                        # P6 — re-tokenizes only rewritten files
             if _has_errors(ctx, Phase.P6_POSTVALIDATE): return _abort(ctx, state, manif, graph)
         else:
             # Dry-run P6: manifest-derivable checks only (VW-05, VW-06, VW-14..VW-17);
-            # filesystem re-read checks (VE-17, VE-29) are skipped because nothing was rewritten.
-            PostValidatorService().run(ctx, manif, rewritten_paths=())
+            # filesystem re-read checks (VE-16, VE-23) are skipped because nothing was rewritten.
+            validate_post(ctx, manif, rewritten=())
         return _build_result(ctx, manif, graph, exit_code=0)
     finally:
         # P7 audit always runs — even on exceptions, even on early return.
@@ -353,16 +351,16 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 
 | Phase | Emits | Gated? | Rationale |
 |---|---|---|---|
-| P0 `DomainStateService` | — | No | Never emits `ERROR` diagnostics; filesystem failures raise at the port boundary (CLI emits `VE-23` / `VE-26`). |
-| P1 `ConfigService` + `PreValidatorService` | `VE-*` | **Yes** | Invalid input must not reach parser. |
+| P0 `DomainStateService` | — | No | Never emits `ERROR` diagnostics; filesystem failures raise at the port boundary (CLI emits `VE-21` / `VE-23`). |
+| P1 `ConfigService` + `validate_pre` | `VE-*` | **Yes** | Invalid input must not reach parser. |
 | P2 `ParserService` | `PE-*` | **Yes** | A corrupted proc index corrupts everything downstream; abort before P3. |
 | P3 `CompilerService` | `VE-*` compiler | **Yes** | Manifest contradictions (e.g. `VE-05`) must not reach the trimmer. |
 | P4 `TracerService` | `TW-*` | No | Reporting-only; tracer emits only warnings. Internal invariant violations raise → exit 3. |
 | P5 `TrimmerService` + `GeneratorService` | `VE-*` trimmer | **Yes** | A failed trim must not emit run-files into a broken tree. No staging; failure leaves `<domain>/` half-rebuilt and `<domain>_backup/` intact (bible §2.8). |
-| P6 `PostValidatorService` | `VE-*` + `VW-*` | **Yes** (error only) | Final correctness gate before a successful exit. |
+| P6 `validate_post` | `VE-*` + `VW-*` | **Yes** (error only) | Final correctness gate before a successful exit. |
 | P7 `AuditService` | `VI-*` | No | Always runs in `finally`; never gates. |
 
-**Rollback model.** There is no staging tree and no atomic promotion. If P5 fails, `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` is untouched. On the next invocation, `DomainStateService` observes both directories and classifies the state as Case 2 (re-trim); `TrimmerService` treats `<domain>_backup/` as the source of truth and rebuilds `<domain>/` from scratch. Operators who want a pristine restart may run `rm -rf <domain> && mv <domain>_backup <domain>` manually. The registered codes covering the P5 gate are `VE-26`, `VE-27`, `VE-28`, `VE-29` in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
+**Rollback model.** There is no staging tree and no atomic promotion. If P5 fails, `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` is untouched. On the next invocation, `DomainStateService` observes both directories and classifies the state as Case 2 (re-trim); `TrimmerService` treats `<domain>_backup/` as the source of truth and rebuilds `<domain>/` from scratch. Operators who want a pristine restart may run `rm -rf <domain> && mv <domain>_backup <domain>` manually. The registered codes covering the P5 gate are `VE-23`, `VE-24`, `VE-25`, `VE-26` in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
 
 ---
 
@@ -438,7 +436,7 @@ class DiagnosticSink(Protocol):
 4. **`--strict` is an exit-code policy, not a severity rewrite.** Services always emit the nominal severity — a `WARNING` stays a `WARNING` in the sink, in `diagnostics.json`, and in all rendered output, with or without `--strict`. Phase gates fire on nominal `ERROR` only (see §6.2). At the very end of the run, the CLI computes the process exit code from `sink.finalize()`:
    - exit `0` — no `ERROR`, and either `--strict` is off or no `WARNING` is present.
    - exit `1` — any `ERROR`, **or** `--strict` is on and any `WARNING` is present. (No individual `VI-*` code is singled out; advisories do not affect the exit code.)
-   - exit `2` — CLI / pre-pipeline fatal conditions the runner never even enters: `VE-11` conflicting CLI options, `VE-13` unresolvable `--project` paths (authoring error — see §12 scenario 20), `VE-23` missing domain + backup.
+   - exit `2` — CLI / pre-pipeline fatal conditions the runner never even enters: `VE-11` conflicting CLI options, `VE-13` unresolvable `--project` paths (authoring error — see §12 scenario 19), `VE-21` missing domain + backup.
    - exit `3` — unhandled exception escaped a service (programmer error). The outer `try / finally` in §6.2 catches it, logs a stack trace to `.chopper/internal-error.log` via `AuditService`, and exits `3`. This is deliberately distinct from exit `1` so CI systems can tell "pipeline found a problem" from "Chopper itself broke."
 
    `--strict` never changes what the pipeline *does*, only how the caller *interprets* the outcome. The stored diagnostic severity is the truth; `--strict` is a policy layer on top. **There is no warn-to-error promotion anywhere in the pipeline or in the sink — only in the final exit-code computation.**
@@ -454,24 +452,15 @@ class DiagnosticSink(Protocol):
 ### 8.4 Render path
 
 ```
-Service ─emit()─► CollectingSink ─snapshot()─► CLI TableRenderer
-                        └─► AuditService ─► .chopper/diagnostics.json (via SerializerPort)
+Service ─emit()─► CollectingSink ─snapshot()─► CLI cli/render.py (Rich)
+                        └─► AuditService ─► .chopper/diagnostics.json (via core.serialization.dump_model)
 ```
 
 The CLI is the **only** layer that formats for humans. Libraries stay silent.
 
 ### 8.5 Retired code slots
 
-| Family | Use | Active |
-|---|---|---|
-| `VE-25` | `feature-depends-on-cycle` | Yes |
-| `VE-26` | `filesystem-error-during-trim` | Yes |
-| `VE-16` | **RETIRED** — `depends_on` out-of-order no longer an error (see §12 scenario 11) | No |
-| `VE-24` | **RETIRED** — no locks, no concurrency guard | No |
-| `VI-04` | **RETIRED** — `--preserve-hand-edits` removed | No |
-| `VI-05` | **RETIRED** — no locks | No |
-
-The registry in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is authoritative; this table is a pointer only. Retired slots are never renumbered; they stay reserved and inactive so history stays readable. **There is no `X*` plugin family** — see §7 and §16 Q1.
+**There are no retired codes in v1.** Chopper is still in its ideation phase; the registry in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is compact with no historical gaps. If a code is ever removed post-release, its slot will be marked `RETIRED` there and never reused. There is no `X*` plugin family — see §7 and §16 Q1.
 
 ---
 
@@ -487,7 +476,7 @@ class DomainState:
     case: Literal[1,2,3,4]               # bible §2.8 matrix (cases 1–4 only)
     domain_exists: bool
     backup_exists: bool
-    hand_edited: bool                    # triggers VI-03 / stash
+    hand_edited: bool                    # informational only; no diagnostic emitted
 
 @dataclass(frozen=True)
 class LoadedConfig:
@@ -539,7 +528,7 @@ class RunResult:
 
 # ---------------------------------------------------------------------------
 # Stage 3 outputs — returned by TrimmerService / GeneratorService / AuditService.
-# All fields are JSON-serializable via SerializerPort; golden snapshots pin them.
+# All fields are JSON-serializable via core.serialization.dump_model; golden snapshots pin them.
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -561,7 +550,7 @@ class TrimReport:
     files_removed:      int
     procs_kept_total:   int
     procs_removed_total: int
-    rollback_performed: bool                      # True if P5a aborted and restored from backup
+    rebuild_interrupted: bool                     # True if P5a aborted after partial writes; next run rebuilds from backup
 
 @dataclass(frozen=True)
 class GeneratedArtifact:
@@ -604,10 +593,8 @@ class AuditManifest:
 | `TracerService.run` | `(ctx, manifest, parsed) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx, manifest, state) -> TrimReport` |
 | `GeneratorService.run` | `(ctx, manifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is a manifest record consumed by `AuditService` for audit artifacts. The runner does not re-write the returned content. |
-| `ValidatorService.run_pre` | — **REMOVED.** Split into `PreValidatorService.run(ctx, loaded) -> None`. |
-| `ValidatorService.run_post` | — **REMOVED.** Split into `PostValidatorService.run(ctx, manifest) -> None`. |
-| `PreValidatorService.run` | `(ctx, loaded) -> None` (emits diagnostics) |
-| `PostValidatorService.run` | `(ctx, manifest) -> None` (emits diagnostics) |
+| `validate_pre` | `(ctx, loaded) -> None` — plain module function in `validator/functions.py`; emits diagnostics. |
+| `validate_post` | `(ctx, manifest, rewritten: Sequence[Path]) -> None` — plain module function; emits diagnostics. |
 | `AuditService.run` | `(ctx, manifest, graph) -> AuditManifest` |
 
 ### 9.3 Communication rules
@@ -621,9 +608,9 @@ class AuditManifest:
 
 ### 9.4 What this buys
 
-- **Services are testable in isolation with minimal setup.** A shared `make_test_context()` helper (see §10.2) constructs a fresh `ChopperContext` with stub adapters (`InMemoryFS`, `FrozenClock`, `CollectingSink`, `EphemeralAuditStore`) in one call. Simple services test in a handful of lines; services with richer input (Parser, Compiler) need fixture data but still no boilerplate for the port layer. The goal is **stateless test setup**, not a literal line count.
+- **Services are testable in isolation with minimal setup.** A shared `make_test_context()` helper (see §10.2) constructs a fresh `ChopperContext` with stub adapters (`InMemoryFS`, `CollectingSink`, `SilentProgress`) in one call. Simple services test in a handful of lines; services with richer input (Parser, Compiler) need fixture data but still no boilerplate for the port layer. The goal is **stateless test setup**, not a literal line count.
 - **Swap any service without touching the others.** Its contract is its signature plus its result dataclass.
-- **Audit artifacts are free.** Every result already has a JSON shape via `SerializerPort`; `AuditService` dumps them without custom formatters.
+- **Audit artifacts are free.** Every result already has a JSON shape via `core.serialization.dump_model()`; `AuditService` dumps them without custom formatters.
 
 ---
 
@@ -638,7 +625,7 @@ To make every feature "individually and isolatedly developable/enhanceable" (you
 3. **Cross-service data flows only through frozen dataclasses.** Two services never share a mutable object.
 4. **Diagnostic codes are the API contract for user-visible behavior.** Adding a code requires a registry edit in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before use.
 5. **Stage discipline is hard.** Stage N may not import from Stage N+1. Enforced by `import-linter` contracts in CI.
-6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `FrozenClock`, `CollectingSink`, `EphemeralAuditStore` — they never touch the real filesystem or clock.
+6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `CollectingSink`, `SilentProgress` — they never touch the real filesystem. Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`; there is no ClockPort.
 7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (§6.2) — no plugin registry, no dynamic phase insertion. Adding a new phase means editing `runner.py`. That is deliberate: v1 has seven phases, period.
 8. **`ctx` bindings are stable; port state is not.** A service must not try to swap or reassign ports on `ctx`. Local scratch data stays local and is returned as part of the typed result.
 
@@ -653,10 +640,13 @@ def make_test_context(
     files: Mapping[Path, str] | None = None,
     strict: bool = False,
     dry_run: bool = False,
-    now: datetime | None = None,
     domain_root: Path = Path("/domain"),
 ) -> ChopperContext:
-    """Build a fresh ChopperContext backed entirely by stub adapters."""
+    """Build a fresh ChopperContext backed entirely by stub adapters.
+
+    Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`
+    in tests that need it; there is no ClockPort to inject.
+    """
     return ChopperContext(
         config=RunConfig(
             domain_root=domain_root,
@@ -665,12 +655,9 @@ def make_test_context(
             strict=strict,
             dry_run=dry_run,
         ),
-        clock=FrozenClock(now or datetime(2026, 1, 1)),
-        serde=JsonSerde(),
         fs=InMemoryFS(files or {}),
         diag=CollectingSink(),
         progress=SilentProgress(),
-        audit=EphemeralAuditStore(),
     )
 ```
 
@@ -690,14 +677,18 @@ def make_test_context(
 
 ## 12. Corner-Case Simulation Catalog
 
-Every row is a scenario the architecture must handle by design, not by patching. Each row maps to a test fixture under `tests/fixtures/` and an acceptance test under `tests/integration/` or `tests/property/`. All referenced codes are active in v1 unless noted.
+**Moved.** The 30-row acceptance scenario catalog now lives in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md) §5 ("Named Integration Scenarios"), alongside the scenario naming convention and the `ChopperSubprocess` harness that runs them. This keeps the architecture document focused on design and the testing document focused on verification. See also [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md) and [`tests/FIXTURE_AUDIT.md`](../tests/FIXTURE_AUDIT.md) for the fixture-level mapping that backs each scenario.
+
+<!-- Historical catalog removed; content merged into tests/TESTING_STRATEGY.md §5. -->
+
+<details><summary>Archived catalog (for historical reference only; do not edit here — edit the testing strategy)</summary>
 
 | # | Scenario | Expected Behavior | Owning Service | Diagnostic |
 |---|---|---|---|---|
 | 1 | Cyclic proc calls (A→B→A) | BFS visited-set terminates; cycle reported | `TracerService` | `TW-04` |
 | 2 | Dirty `.chopper/` from prior crash | Detected; stale artifacts overwritten; run proceeds | `AuditService` | — (silent) |
 | 3 | Parser fails mid-domain (unbalanced braces) | Phase records error; orchestrator aborts before P5; backup untouched | `ParserService` → `Runner` | `PE-02` |
-| 4 | Feature-level `FE` vetoed by another source's `FI` | Cross-source L1 wins: include survives; warning emitted | `CompilerService` | `VW-10` |
+| 4 | Feature-level `FE` vetoed by another source's `FI` | Cross-source L1 wins: include survives; warning emitted | `CompilerService` | `VW-19` |
 | 5 | Feature-level `PE` vetoed by another source's `PI` | Cross-source L1 wins: include survives; warning emitted | `CompilerService` | `VW-18` |
 | 6 | Duplicate `proc foo {...}` in same file | Last definition wins; `PE-01` emitted; index reflects the last one | `ParserService` | `PE-01` |
 | 7 | Backslash line continuation across proc header | Lines are **not** physically merged; tokenizer carries state across newlines; line numbers in diagnostics point at the continuation start | `ParserService` | `PW-05` |
@@ -705,16 +696,16 @@ Every row is a scenario the architecture must handle by design, not by patching.
 | 9 | Pre-body quoted arg word (`proc foo "a b" { ... }`) | Discovered as a valid proc per strict Tcl word-parsing; indexed normally | `ParserService` | — |
 | 10 | Very large domain (10k files, 500k LoC) | Single-threaded parse; 5–10 min runtime acceptable | `ParserService` | — |
 | 11 | Latin-1 source file | UTF-8 decode fails; fall back to Latin-1; warn | `ParserService` | `PW-02` |
-| 12 | `feature.depends_on` cycle | Topological sort fails at load; reject before P2 | `ConfigService` | `VE-25` |
+| 12 | `feature.depends_on` cycle | Topological sort fails at load; reject before P2 | `ConfigService` | `VE-22` |
 | 13 | `feature.depends_on` prerequisite missing from project selection | After all feature JSONs are loaded, emit `VE-15` and abort P1. Order in `project.features` is **not** checked — out-of-order is allowed. | `ConfigService` → `ValidatorService.run_pre` | `VE-15` |
 | 14 | Computed proc name (`proc $n {...}`) | Skip + warn; never indexed | `ParserService` | `PW-01` |
-| 15 | User passes `--dry-run` | P5/P6 skipped; P0–P4 + P7 still produce audit; zero FS mutations | `Runner` | — |
-| 16 | Backup present, domain missing (recovery) | Case 3 from bible §2.8: restore then re-trim | `DomainStateService` | `VI-03` |
-| 17 | Hand-edited `domain/` detected | Discard hand edits; rebuild from backup; emit `VI-03`. (No `--preserve-hand-edits` flag — hand edits are the user's responsibility to commit or stash **before** running Chopper.) | `DomainStateService` | `VI-03` |
-| 18 | Domain missing AND backup missing | Fatal; exit 2 | `DomainStateService` | `VE-23` |
+| 15 | User passes `--dry-run` | Domain-write portions of P5 are skipped; P6 runs only synthetic manifest-derivable checks; P0–P4 + P7 still produce audit artifacts; zero FS mutations to the domain tree | `Runner` | — |
+| 16 | Backup present, domain missing (recovery) | Case 3 from bible §2.8: restore then re-trim | `DomainStateService` | — |
+| 17 | Hand-edited `domain/` on re-trim | Discard hand edits; rebuild from `<domain>_backup/`. Chopper does not detect this at the diagnostic level; the CLI prints a fixed pre-flight warning every run (*"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."*). Operators commit or stash hand edits **before** running Chopper. | `DomainStateService` (silent) | — |
+| 18 | Domain missing AND backup missing | Fatal; exit 2 | `DomainStateService` | `VE-21` |
 | 19 | `--project` points at stale / unresolvable feature paths | **Hard crash before the pipeline starts.** Emit `VE-13`, print the bad path(s), exit 2. Authoring error — no partial recovery. | CLI / `ConfigService` pre-pass | `VE-13` |
 | 20 | CLI conflicts (`--project` with `--base`) | Pre-pipeline; emit `VE-11`; exit 2 | CLI | `VE-11` |
-| 21 | Trimmer writes a partially-invalid file (e.g. dangling proc) | P5a gate trips on `VE-2x` trimmer error; P5b (Generator) is **not** run; existing backup restored by `TrimmerService` rollback; exit 1 | `TrimmerService` → `Runner` | `VE-2x` (registry) |
+| 21 | Trimmer writes a partially-invalid file (e.g. dangling proc) | P5a gate trips on `VE-2x` trimmer error; P5b (Generator) is **not** run; the partially rebuilt `domain/` is left in place and the next invocation rebuilds from `<domain>_backup/`; exit 1 | `TrimmerService` → `Runner` | `VE-2x` (registry) |
 | 22 | Service raises unexpectedly | Outer `try/finally` in §6.2 writes `.chopper/internal-error.log` + partial audit; exits `3` (programmer-error channel) | `Runner` | (internal error log) |
 | 23 | Identical diagnostic emitted twice | Deduplicated at sink by `(code, path, line_no, message)` | `CollectingSink` | — |
 | 24 | JSON with trailing commas / BOM | Reject at load with a schema error; do not enter P2 | `ConfigService` | `VE-01` / schema |
@@ -722,155 +713,32 @@ Every row is a scenario the architecture must handle by design, not by patching.
 | 26 | Feature selects a proc that doesn't exist in any parsed file | Emit warning; dependency graph records miss; trim proceeds | `CompilerService` | `VW-11` |
 | 27 | File is included but referenced proc is in a different file | Whole-file include wins; other file unchanged | `CompilerService` | — |
 | 28 | Trim interrupted by Ctrl-C mid-write | Next run detects inconsistent state via `DomainStateService` (bible §2.8 matrix); restore from backup proceeds normally. No lock file is inspected (there is no lock file). | `DomainStateService` | — |
-| 29 | Read-only filesystem under `domain/` | Trimmer's `ctx.fs.rename`/`write_text` fails; emit `VE-26 filesystem-error-during-trim` with the offending path; P5a rollback restores `<domain>_backup/` → `<domain>/`; audit writes to a best-effort path; exit 1 | `TrimmerService` | `VE-26` |
-| 30 | Windows case-insensitive path collision | `pathlib.Path.resolve()` + POSIX normalization dedupe; golden snapshot stable across OSes | all services | — |
-| 31 | Symlinks inside the domain | Follow once; detect cycles via visited-set on resolved paths | `ParserService` | `PW-0x` (registry) |
-| 32 | Non-ASCII path characters | Handled by `pathlib`; no encoding-specific logic required | all services | — |
-| 33 | `--strict` with warnings present | Pipeline runs to completion unchanged; CLI exits 1 at the end because `finalize()` reports `WARNING > 0` and `--strict` is set. **No severity rewriting** — the warnings remain warnings in `diagnostics.json` and in rendered output. | CLI exit-code layer | — |
+| 29 | Read-only filesystem under `domain/` | Trimmer's `ctx.fs.rename`/`write_text` fails; emit `VE-23 filesystem-error-during-trim` with the offending path; audit writes to a best-effort path; exit 1. The recovery path is the next re-trim from `<domain>_backup/`. | `TrimmerService` | `VE-23` |
+| 30 | `--strict` with warnings present | Pipeline runs to completion unchanged; CLI exits 1 at the end because `finalize()` reports `WARNING > 0` and `--strict` is set. **No severity rewriting** — the warnings remain warnings in `diagnostics.json` and in rendered output. | CLI exit-code layer | — |
 
 **Every scenario has a test.** The catalog is the acceptance checklist for v1.
+
+</details>
 
 ---
 
 ## 13. Multi-Expert Review Panel
 
-Each reviewer sees the same plan and raises objections grounded in their role. Each objection is either defended here or moved to the action items below the panel.
-
-### 13.1 Principal Software Engineer (Fowler-style)
-
-**Endorses.** Hexagonal over literal SOA — correct shape. Strict stage imports enforced by tooling — matches the stage-gated build model. Frozen dataclasses plus Protocols — high testability, low coupling. Diagnostic sink as the single user-visible spine — no hidden log channels.
-
-**Objections.**
-
-- *O1 — "Distributed monolith" risk.* Addressed by §9.3 rule 1: services do not call services; only the orchestrator composes them. `import-linter` contracts block regressions.
-- *O2 — `ChopperContext` looks like a god object.* Reframed and accepted. The context is a **service bundle plus run config** (§6.1), not an immutable data record. Port bindings are stable; port state is not. This is a DI container, not a service locator — services accept `ctx` and use only the ports they need. The `RunConfig` / ports split in §6.1 makes the distinction visible at every call site.
-- *O3 — How do you keep the sink from becoming a global?* It is a field on `ctx`, passed explicitly, and every test builds a fresh one via `make_test_context()` (§10.2). No module-level sink exists.
-
-**Action items.** (Consolidated in §13.6.)
-
-### 13.2 Product Manager
-
-**Endorses.** Stage-aligned delivery: every stage produces a demoable artifact. Closed decisions (§16) replace open questions — no ambiguity to negotiate later. Plugin / MCP / AI concepts are permanently excluded, not deferred (§7), removing an entire class of "is-it-really-out-of-scope" debates.
-
-**Objections.** None open.
-
-### 13.3 Customer Developer (VLSI Domain Owner)
-
-Flow owner who authors JSONs and runs Chopper daily. Concerns are operator ergonomics.
-
-**Endorses.** Deterministic output means diff review is meaningful. `--dry-run` previews without touching `<domain>_backup/`. Typed diagnostics — runbooks can be keyed on `code`.
-
-**Objections.**
-
-- *O1 — "Latin-1 files on old scripts must not break my flow."* Handled by `PW-02` fallback (scenario 11).
-- *O2 — "I author on Windows, trim runs on Linux grid."* `pathlib.Path` + POSIX normalization. JSONs are LF-normalized.
-- *O3 — "I want to know what would change before I run trim."* `--dry-run` produces `dependency_graph.json` and diagnostics without touching the domain.
-- *O4 — **UNRESOLVED** — "What if I hand-edit `domain/` between trims and forget to commit?"* By design, Chopper discards hand edits on re-trim (`VI-03`, scenario 17). There is no `--preserve-hand-edits` safety net (see §16). This is a deliberate trade-off: the single-source-of-truth for the trimmed domain is `<domain>_backup/` + the JSON selection, not `<domain>/`. Operators must commit or stash hand edits **before** re-running. The `VI-03` diagnostic is the only mitigation. Accepted as a sharp edge; documented in the CLI help and runbook.
-
-**Action items.**
-
-1. CLI help text and runbook must call out `VI-03` prominently alongside `VE-23` — it is the only warning an operator can get about destroyed hand edits.
-
-### 13.4 Market Evangelist (Latest-in-Market / Ecosystem)
-
-**Endorses.** Single-process-first — matches how Ruff, dbt-core, and Pylance shipped. Stable JSON shapes for every result (via `SerializerPort`) mean downstream consumers (CI systems, diff reviewers, future report generators the user might build) get a frozen contract. Deterministic output is the prerequisite for any downstream automation.
-
-**Objections.** None open. Golden-snapshot coverage is tracked in the consolidated action list (§13.6).
-
-### 13.5 Optimization Engineer
-
-**Endorses.** Frozen dataclasses for result objects — reproducible and profileable. Sink dedupe is O(1) via a hash set. Single-threaded v1 is the right call — measure before parallelizing, no speculative thread-safety.
-
-**Objections.**
-
-- *O1 — "Will frozen dataclasses thrash the allocator on 10k-proc domains?"* Not measured as a problem in comparable tools (mypy, Ruff). If a hotspot emerges post-v1, `slots=True` is a one-line fix.
-- *O2 — "BFS frontier sort at every level is O(N log N)."* Real domain sizes are ~5–10k procs; sort cost is negligible vs I/O.
-- *O3 — "5–10 min runtime guarantee is soft."* Intentional. v1 prioritizes correctness; benchmark harness and phase budgets are deferred to [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09.
-
-**Action items.**
-
-1. Record baseline wall-clock per phase on the large-domain fixture once stage 3 completes (observational, not gating).
-
-### 13.6 Consolidated Verdict
-
-| Dimension | Verdict |
-|---|---|
-| Architectural soundness | Ship stages 0–5 as spec'd. No stage 6. |
-| Determinism | Enforced by design; golden tests on JSON shapes. |
-| Diagnostic contract | Single emitter/collector spine; emission-order preservation + O(1) dedupe; `--strict` is an exit-code-only policy, never a severity rewrite. |
-| Inter-service contract | Typed dataclasses + no inter-service imports; import-linter enforces. |
-| User ergonomics | `VI-03` is the single warning-channel for destroyed hand edits — 13.3 O4 is an accepted sharp edge, not a solved problem. |
-| Extensibility | **None.** Chopper has no plugin host, no MCP adapter, no AI advisor, no extension seams — permanently out of scope (§7, §16 Q1). |
-| Concurrency | Single-threaded, single-user, no locks — closed decision, not a deferral. |
-| Performance | Correctness first; 5–10 min runtime acceptable in v1; benchmarks deferred. |
-| Risk to v1 delivery | Low — the plan organizes existing stage work; no new scope. |
-
-**Consolidated action items (de-duplicated across all reviewers).**
-
-1. **Import-linter contracts** for the stage layering described in §3.
-2. **Golden snapshots** for the JSON shape of every public dataclass crossing a service boundary: `Diagnostic`, `RunResult`, `CompiledManifest`, `DependencyGraph`, `TrimReport`, `AuditManifest`. Treated as public contracts; any shape change is a breaking change per §14.2.
-3. **Operator-facing docs** must call out `VI-03` prominently alongside `VE-23` — the only warning channel for destroyed hand edits.
-4. **Observational benchmarks** per phase on the large-domain fixture once Stage 3 completes (not gating).
+**Removed.** The Day-0 devil's-advocate review is now [`docs/DAY0_REVIEW.md`](DAY0_REVIEW.md), and its action items have been absorbed into this plan (via the A1–A9 cuts), the bible, the diagnostic registry, and [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). The multi-reviewer panel served its purpose at planning time; perpetuating it here would only drift out of sync with the single-sweep review record.
 
 ---
 
-## 14. Contributor Playbook — Adding or Replacing a Feature
+## 14. Contributor Playbook
 
-This is what "isolated feature development" looks like in practice.
-
-### 14.1 Add a brand-new service (rare)
-
-1. Decide which phase the feature belongs to. If it does not fit the 7 phases, revisit the design with the bible before coding.
-2. Create `src/chopper/<package>/service.py` with a class exposing `run(ctx, ...) -> Result`.
-3. Declare new result dataclasses in `core/models.py` (frozen).
-4. Register any new diagnostic codes in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before emitting them.
-5. Wire the service into `orchestrator/runner.py` at the correct phase boundary.
-6. Write unit tests under `tests/unit/<package>/` using `make_test_context()` (§10.2) for the port layer.
-7. Add an integration fixture under `tests/fixtures/` and an acceptance test under `tests/integration/`.
-8. Add a golden snapshot for any new public JSON shape.
-9. Run `make check` then `make ci` before pushing.
-
-### 14.2 Rewrite an existing service end-to-end
-
-1. Keep the `run(...)` signature and result dataclass identical.
-2. Delete the module's internals; re-implement behind the same class.
-3. Run the service's unit tests — they exercise the port-adapter boundary, so a correct rewrite passes unchanged.
-4. Run golden snapshots — these validate that user-visible JSON shapes did not drift.
-5. If a signature change is truly required, treat it as a breaking change: update the orchestrator wiring in `runner.py`, every affected service test, and any golden snapshots that bind the old shape — all in the same commit. There is no separate version number to bump; the commit is the contract change.
-
-### 14.3 Add a new diagnostic code
-
-1. Open [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) and take the lowest available reserved slot in the correct `<FAMILY><SEV>` band.
-2. Fill in the registry row (code, phase, source, exit, description, hint).
-3. Add a matching constant in `core/diagnostics.py`.
-4. Emit it from the owning service only via `ctx.diag.emit(...)`.
-5. Reference it by **code only** in other docs — never paraphrase.
-
-### 14.4 Add a new adapter (for example, `JSONLProgress`)
-
-1. Create `src/chopper/adapters/progress_jsonl.py`.
-2. Implement the `ProgressSink` Protocol — no inheritance required.
-3. Wire selection into the CLI or test harness.
-4. No changes to services, orchestrator, or `core/`.
+**Moved.** The playbook for adding services, rewriting existing ones, registering diagnostic codes, and adding adapters now lives at [`CONTRIBUTING.md`](../CONTRIBUTING.md) at the repository root — the conventional location for contributor-facing guidance. This keeps the architecture document about design and the contributor document about process.
 
 ---
 
 ## 15. Adoption Roadmap (Stage-Aligned)
 
-How this plan maps onto the existing Stage 0–5 build model in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md).
-
-| Stage | Current Scope | Architecture Plan Adds |
-|---|---|---|
-| **Stage 0** — `core/` | Shared frozen models, diagnostics, protocols, serialization | Add `ChopperContext` + `RunConfig`; finalize ports (`FileSystemPort`, `DiagnosticSink`, `ProgressSink`, `ClockPort`, `AuditStore`, `SerializerPort`, `TableRenderer`). **No `LockPort`, no `PluginHost`.** Codes `VE-25` and `VE-26` activated. `VE-16`, `VE-24`, `VI-04`, `VI-05` retired in registry. Import-linter contracts in place. |
-| **Stage 1** — `parser/` | `parse_file()` returns `list[ProcEntry]`; `ParserService` wraps it (§9.2) | Service consumes `FileSystemPort` + `ClockPort`. Latin-1 fallback path tied to `PW-02`. Duplicate proc `PE-01` last-wins contract enforced. Backslash continuation `PW-05` tokenizer state. |
-| **Stage 2** — `config/`+`compiler/` | Config loading, P3 merge, P4 BFS | Services expose `run(ctx, ...) -> Result`. `depends_on` cycle → `VE-25`; `depends_on` prerequisite missing → `VE-15`; feature order is **not** required (out-of-order allowed). Unresolvable `--project` paths → hard crash with `VE-13`, exit 2. |
-| **Stage 3** — `trimmer/`+`generators/`+`audit/` | Trim state machine, run-file emission, `.chopper/` | `AuditStore` is the only writer under `.chopper/`. `--dry-run` gates P5. P5a→P5b gate prevents Generator from writing into half-trimmed tree. Filesystem errors during trim surface as `VE-26` with rollback. |
-| **Stage 4** — `validator/` | Pre- and post-trim validation | Two services — `PreValidatorService.run` at P1, `PostValidatorService.run` at P6 — each emitting only to `DiagnosticSink`. |
-| **Stage 5** — `cli/` | `validate`, `trim`, `cleanup` | CLI builds `ChopperContext`, calls `ChopperRunner`, owns the `TableRenderer`, and computes the exit code from `sink.finalize()` per §8.2 rule 4. Zero business logic in CLI. `--strict` is applied only at exit-code computation — never by rewriting severities. |
+**Superseded.** The stage-by-stage implementation roadmap — DoD, test gates, demo checkpoints, exit criteria — now lives in [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). That document is the single source of truth for engineering handoff sequencing; this section no longer duplicates it.
 
 **There is no Stage 6 and none is planned.** Plugin host, MCP, AI advisor: permanently out of scope (§7, §16 Q1).
-
-**No stage 0–5 change is required beyond what the bible and project conventions already demand.**
 
 ---
 
@@ -886,13 +754,13 @@ Questions raised during planning. All are resolved for v1.
 
 ### Q2 — Hand-edit preservation (CLOSED — not supported)
 
-**Chopper does not preserve hand edits.** There is no `--preserve-hand-edits` flag, no stash path, no `.chopper/hand_edits/` directory. When re-trim detects that `<domain>/` diverges from the last generated output, `DomainStateService` emits `VI-03 domain-hand-edited`, discards the divergence, and rebuilds from `<domain>_backup/`.
+**Chopper does not preserve hand edits.** There is no `--preserve-hand-edits` flag, no stash path, no `.chopper/hand_edits/` directory, and no `VI-03` diagnostic to detect divergence. When re-trim runs, `DomainStateService` rebuilds `<domain>/` from `<domain>_backup/` unconditionally. The CLI prints a fixed pre-flight warning every run (*"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."*); operators who ran Chopper once have been warned once and are responsible for committing or stashing hand edits before the next run.
 
-**Rationale.** The single source of truth for the trimmed domain is `<domain>_backup/` plus the JSON selection. Shipping an automatic stash would encourage operators to rely on it as a versioning system, which it is not. Operators who want to keep hand edits commit or stash them **in their own VCS** before running `chopper trim`. `VI-03` is the explicit warning that any in-place edits to `<domain>/` are about to be destroyed.
+**Rationale.** The single source of truth for the trimmed domain is `<domain>_backup/` plus the JSON selection. Shipping an automatic stash would encourage operators to rely on it as a versioning system, which it is not. A diagnostic-level detector (the retired `VI-03 domain-hand-edited`) would require storing a content hash between runs — complexity with no payoff, since the fixed pre-flight warning already informs every user every time.
 
 ### Q3 — Concurrency / locking (CLOSED — not supported)
 
-**Chopper has no lock and no concurrency guard.** There is no `.chopper/.lock`, no `LockPort`, no `VE-24`, no stale-lock recovery, no `VI-05`. Chopper is a single-user push-button tool: one operator, one invocation, one on-disk domain, one result. If two operators race the same checkout on the same filesystem, the second invocation sees a half-written `DomainStateService` state and aborts through the normal `VE-23` / filesystem-error path. That is the intended failure mode, not a bug to guard against.
+**Chopper has no lock and no concurrency guard.** There is no `.chopper/.lock`, no `LockPort`, no dedicated concurrency diagnostic, and no stale-lock recovery. Chopper is a single-user push-button tool: one operator, one invocation, one on-disk domain, one result. If two operators race the same checkout on the same filesystem, the second invocation sees a half-written `DomainStateService` state and aborts through the normal `VE-21` / filesystem-error path. That is the intended failure mode, not a bug to guard against.
 
 **Rationale.** Adding locks buys nothing: the real hazard (two concurrent writers on the same disk) is an operator-level contract violation that no cooperative file lock can fully prevent. Removing locks eliminates an entire category of stale-lock, crash-recovery, and cross-platform `fcntl` / `msvcrt` complexity.
 

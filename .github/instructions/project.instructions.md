@@ -132,27 +132,35 @@ make ci     # Full gate: all code quality + all test suites
 
 ## Architecture Overview
 
-The codebase executes a **7-phase pipeline**:
+> **Naming note — two uses of "F1/F2/F3" in this codebase:**
+> - **Capability classes** (the bible §2.1): `F1` = file-level trimming, `F2` = proc-level trimming, `F3` = run-file generation. These are the three user-facing feature sets. When the user or the bible says "F1/F2/F3 working", this is what they mean.
+> - **Pipeline phases** (this project): the internal execution sequence uses `P0–P7` labels — **never** `F1–F7`. Using `F-labels` for phases causes confusion with the capability classes above.
+
+The codebase executes an **8-phase pipeline (P0–P7)**:
 
 ```
-F1 (Parse JSON)  →  F2 (Parse Tcl)  →  F3 (Merge & Trace)  →  F4 (Flow Actions)
+P0 (Domain State)  →  P1 (Config + Pre-Validate)  →  P2 (Parse Tcl)  →  P3 (Compile)
    ↓
-F5 (Run File Gen)  →  F6 (Validate Post)  →  F7 (Write & Audit)
+P4 (Trace BFS)  →  P5 (Build Output)  →  P6 (Post-Validate)  →  P7 (Audit)
 ```
+
+All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run **through** this same pipeline. F1/F2 decisions are computed in P3 (compile); F3 stage generation is emitted in P5.
 
 **Core Modules** in `src/chopper/`:
 
 | Module | Responsibility | Key Files | Phase |
 |--------|-----------------|-----------|-------|
-| `parser/` | Tcl static analysis; tokenize, extract proc defs, track namespaces | `parse.py`, `tokenizer.py` | F2 |
-| `compiler/` | Merge JSON, trace proc dependencies (breadth-first), apply feature selections | `merge.py`, `trace.py`, `compiler.py` | F3–F4 |
-| `trimmer/` | State machine to delete marked files/procs, rewrite Tcl | `trimmer.py` | F5 |
-| `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `validator.py` | F1, F6 |
-| `config/` | JSON/TOML schema loading and validation | `loaders.py`, `settings.py` | F1 |
-| `cli/` | Command-line interface layer | `main.py`, `commands.py`, `render.py` | User layer |
-| `core/` | Shared models (frozen dataclasses), errors, diagnostics, protocols, serialization | `models.py`, `errors.py`, `diagnostics.py`, `protocols.py`, `serialization.py` | All |
-| `audit/` | Backup, restore, audit trail artifacts | `audit.py` | F7 |
-| `generators/` | Run file generation | `run_file.py` | F5 |
+| `parser/` | Tcl static analysis; tokenize, extract proc defs, track namespaces | `service.py`, `tokenizer.py`, `proc_extractor.py`, `namespace_tracker.py`, `call_extractor.py` | P2 |
+| `compiler/` | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions | `merge_service.py`, `trace_service.py`, `per_source.py`, `aggregate.py`, `flow_actions.py` | P3–P4 |
+| `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place | `service.py`, `file_writer.py`, `proc_dropper.py` | P5 |
+| `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `functions.py` (validate_pre, validate_post) | P1, P6 |
+| `config/` | JSON/TOML schema loading, path resolution, depends_on topo-sort | `service.py`, `loaders.py`, `schemas.py`, `resolver.py`, `depends_on.py` | P1 |
+| `cli/` | Command-line interface layer (three subcommands: validate, trim, cleanup) | `main.py`, `commands.py`, `render.py` | User layer |
+| `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization | `models.py`, `errors.py`, `diagnostics.py`, `protocols.py`, `context.py`, `serialization.py` | All |
+| `audit/` | Write `.chopper/` bundle on every run (success and failure) | `service.py`, `writers.py`, `hashing.py` | P7 |
+| `generators/` | F3 run-file (`<stage>.tcl`) and optional stack-file emission | `service.py`, `stage_emitter.py`, `stack_emitter.py` | P5 |
+| `orchestrator/` | Phase loop, domain-state detection, phase-gate logic | `runner.py`, `domain_state.py`, `gates.py` | All |
+| `adapters/` | Concrete port implementations (filesystem, diagnostic sink, progress) | `fs_local.py`, `fs_memory.py`, `sink_collecting.py`, `progress_rich.py` | All |
 
 **`tests/` layout:**
 

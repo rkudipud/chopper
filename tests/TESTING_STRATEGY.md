@@ -246,10 +246,10 @@ Scenario numbering is stable within this document; each scenario below names the
 | 17 | `--strict` escalates `VW-16 step-source-missing` to ERROR | Stage 4 | exit code 1 when F3 references trimmed step file |
 | 18 | Feature name uniqueness (`VE-14 duplicate-feature-name`) | Stage 4 | ERROR when two features share same `name` |
 | 19 | Empty base JSON (`VI-01 empty-base-json`) | Stage 4 | INFO diagnostic; no crash |
-| 20 | `template_script` reserved in v1 (not executed) | Stage 4 | Field accepted by schema; no script execution; `VE-18` fires only on symlink escape |
+| 20 | `template_script` field removed in v1 | Stage 4 | Schema rejects `options.template_script` as `additionalProperties: false`; domain owners run their own generation scripts outside Chopper (see `FD-12`) |
 | 21 | Dry-run artifact set | Stage 2 | `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt` all emitted with documented fields; no domain files written |
 | **22** | **Re-trim idempotency** | Stage 3 | `compiled_manifest.json` hash identical across two identical-input runs; trimmed files byte-identical |
-| 23 | Additive model — cross-source FE veto | Stage 2 | Feature `procedures.exclude` cannot remove a base `procedures.include`; `VW-10 cross-source-fe-vetoed` warning emitted; proc retained |
+| 23 | Additive model — cross-source FE veto | Stage 2 | Feature `procedures.exclude` cannot remove a base `procedures.include`; `VW-19 cross-source-fe-vetoed` warning emitted; proc retained |
 | 24 | Additive model — cross-source PE veto | Stage 2 | Feature `procedures.exclude` cannot remove another feature's explicit `procedures.include`; `VW-18 cross-source-pe-vetoed` warning emitted; proc retained |
 | 25 | Additive model — same-source FE/PE conflict | Stage 2 | Same feature lists a proc in both `procedures.include` and `procedures.exclude`; `VW-11 fe-pe-same-source-conflict` warning emitted; include wins |
 | 26 | F3 `flow_actions` ordering authoritative | Stage 2 | Last feature's `flow_actions` append order is preserved in compiled manifest; reordering CLI features changes `flow_actions` but leaves F1/F2 merged sets unchanged |

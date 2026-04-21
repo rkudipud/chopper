@@ -17,6 +17,81 @@ Skip any of the above and the stage gate will fail.
 
 ---
 
+## End-to-End Engineering Picture
+
+**What Chopper does in one sentence:** Load base+feature JSONs → parse domain Tcl → compute what to keep (F1 files, F2 procs, F3 stages) → write trimmed domain to disk.
+
+**The simplicity constraint:** The system is a local single-process Python CLI that reads ≤1 GB from disk, writes a trimmed domain, and exits. No locks. No concurrency. No network. No plugins. Three ports only (FileSystem, DiagnosticSink, ProgressSink). If a design decision requires more than that, stop and challenge it first.
+
+**What "F1/F2/F3 working" means end-to-end:**
+
+| Capability | Input | Core algorithm | Output |
+|---|---|---|---|
+| **F1** — file trimming | `files.include`/`exclude` globs in JSON | R1 L1/L2/L3 cross-source merge → `FULL_COPY`/`REMOVE` per file | Files copied or not copied into rebuilt domain |
+| **F2** — proc trimming | `procedures.include`/`exclude` in JSON + parsed Tcl | Tokenizer → proc extractor → namespace tracker → R1 merge → `PROC_TRIM` | Files rewritten with unwanted proc bodies deleted |
+| **F3** — run-file gen | `stages` in base JSON + `flow_actions` in feature JSONs | Stage merge algorithm → `<stage>.tcl` emitter | `<stage>.tcl` files written into rebuilt domain |
+
+**The trace (call tree) is diagnostic only.** Traced callees appear in `dependency_graph.json` and `TW-*` warnings to help domain owners decide what to add to `procedures.include`. They are never automatically copied. This is an inviolable design decision.
+
+**End-to-end journey of a `chopper trim` invocation:**
+
+```
+1. CLI parses args; resolves domain_root, backup_root, audit_root
+2. P0 (DomainStateService): detect which of 4 backup/domain cases applies → DomainState
+3. P1 (ConfigService): load + validate base JSON + feature JSONs → LoadedConfig
+   → validate_pre() emits any VE-*/VW-* for bad files/procs/globs → abort if errors
+4. P2 (ParserService): tokenize + proc-extract every .tcl in domain → ParseResult
+   → PE-*/PW-*/PI-* diagnostics; abort if errors
+5. P3 (CompilerService): apply R1 L1/L2/L3 across all sources → CompiledManifest
+   → every file gets a treatment: FULL_COPY, PROC_TRIM, GENERATED, or REMOVE
+   → every PROC_TRIM file gets a keep-set of proc names
+6. P4 (TracerService): BFS from CompiledManifest.proc_decisions → DependencyGraph
+   → TW-* warnings for ambiguous/unresolved/dynamic/cycle; reporting-only
+7. P5a (TrimmerService): read from _backup, write to domain per manifest decisions
+   → FULL_COPY: byte-identical copy; PROC_TRIM: rewrite with spans deleted; REMOVE: skip
+8. P5b (GeneratorService): emit <stage>.tcl files per F3 stage specs
+9. P6 (validate_post): re-tokenize rewritten files; emit VW-05/VW-06/VW-08 if dangling refs
+10. P7 (AuditService): write .chopper/ bundle — always, even on failure
+```
+
+---
+
+## Milestone Map
+
+| Milestone | What ships | How to verify |
+|---|---|---|
+| **M0 — Foundation** | `core/` imports clean; serialization deterministic; diagnostic registry guarded | `make check` green; REPL demo from Stage 0 DoD |
+| **M1 — Parser** | `parse_file()` handles all 17+ edge-case fixtures; `ParserService.run()` deterministic | Parser-fixture matrix green; golden snapshot committed |
+| **M2 — Config+Compile** | All 11 `json_kit/examples/*/` load cleanly; compiled manifests byte-stable | `chopper validate` on all examples; golden manifests |
+| **M3 — Trim** | `mini_domain` trimmed correctly; second trim is idempotent (Case 2) | Live trim + re-trim demo; `FULL_COPY` hash-equal to backup |
+| **M4 — F3 + Audit** | `<stage>.tcl` files correct; `.chopper/` bundle present on success and failure | F3 example 10 run; forced-error audit test |
+| **M5 — Validator** | All VE-*/VW-* codes fire exactly where specified | `chopper validate` on known-bad JSONs; post-trim dangling-ref test |
+| **M6 — CLI + E2E** | All 28+ TESTING_STRATEGY.md scenarios pass; coverage thresholds met | `make ci` green; `fev_formality_real` live trim demo |
+
+Each milestone = one stage gate green + demo checkpoint verified. No milestone is declared done until a second review pass confirms it.
+
+---
+
+## Cross-Stage Handoff Map
+
+Use this table when assigning work. It shows which document is authoritative for each stage and where the main implementation risks live.
+
+| Stage | Primary deliverable | Read first | Main risk / pitfall source |
+|---|---|---|---|
+| Stage 0 | Core models, diagnostics, context, serialization | `ARCHITECTURE_PLAN.md` §5–§10 | `IMPLEMENTATION_ROADMAP.md` phase contract + serialization rules |
+| Stage 1 | Parser utility + parser service | `TCL_PARSER_SPEC.md` | `RISKS_AND_PITFALLS.md` TC-01, TC-02, P-01..P-18 |
+| Stage 2a | Config loading and schema resolution | `chopper_description.md` §5.1, §6 | `RISKS_AND_PITFALLS.md` config / validation pitfalls |
+| Stage 2b | Compiler merge + tracer BFS | `chopper_description.md` §5.3–§5.4 | `RISKS_AND_PITFALLS.md` compiler pitfalls + tracing fixtures |
+| Stage 3a | Domain state + trimmer | `chopper_description.md` §2.8, §5.2.1 | `RISKS_AND_PITFALLS.md` trimmer pitfalls, especially P-13..P-20 |
+| Stage 3b | F3 run-file generation | `chopper_description.md` F3 sections + flow-action rules | `RISKS_AND_PITFALLS.md` F3-related validation pitfalls |
+| Stage 3c | Audit bundle | `chopper_description.md` audit artifact sections | `IMPLEMENTATION_ROADMAP.md` Stage 3c DoD + determinism tests |
+| Stage 4 | Pre/post validation | `DIAGNOSTIC_CODES.md` + bible validation sections | `RISKS_AND_PITFALLS.md` validator pitfalls |
+| Stage 5 | CLI + orchestrator + end-to-end wiring | `CLI_HELP_TEXT_REFERENCE.md` + `ARCHITECTURE_PLAN.md` §6 | `tests/TESTING_STRATEGY.md` named scenarios |
+
+No stage should invent behavior locally. If the stage owner cannot find the contract in the docs above, the correct action is to update the docs before writing code.
+
+---
+
 ## Stage-0 prerequisites (before any code)
 
 ### Scope lock sanity check
@@ -51,6 +126,23 @@ Verify:
 - Coverage threshold file enforces 78% overall (parser 85% / compiler 80% / trimmer 80%).
 - `import-linter` config present at repo root (see Stage-0 deliverable below); if absent, author it per [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §3 dependency rule.
 
+### Phase execution contract
+
+Implementation follows the phase-gate policy in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2. Engineers do not invent local error-handling rules.
+
+| Phase | Primary owner | Errors gate? | Dry-run behavior |
+|---|---|---|---|
+| P0 Domain state | `DomainStateService` | No diagnostics gate here; CLI/domain-state failures surface before useful work starts | Same as live run |
+| P1 Config + pre-validate | `ConfigService` + `validate_pre` | **Yes** — `VE-*` abort before parser | Same as live run |
+| P2 Parse | `ParserService` | **Yes** — `ERROR`-severity parse diagnostics abort before P3 | Same as live run |
+| P3 Compile | `CompilerService` | **Yes** — manifest contradictions must not reach trim | Same as live run |
+| P4 Trace | `TracerService` | No — `TW-*` are reporting-only warnings | Same as live run |
+| P5 Build output | `TrimmerService` + `GeneratorService` | **Yes** — trim/write failures abort success path | **Skipped for domain writes** |
+| P6 Post-validate | `validate_post` | **Yes on errors only** — warnings remain warnings | Runs synthetic, manifest-derivable checks only |
+| P7 Audit | `AuditService` | Never masks the primary failure | Still emits report artifacts |
+
+`--strict` is an exit-code policy only. It does not rewrite warning severity.
+
 ---
 
 ## Stage 0 — `core/` foundation
@@ -61,14 +153,14 @@ Verify:
 
 | File | Contains |
 |---|---|
-| `src/chopper/core/__init__.py` | Public re-exports: all dataclasses + `Diagnostic` + `Severity` + `Phase` + `ChopperContext` + `RunConfig` |
-| `src/chopper/core/models.py` | All frozen dataclasses from [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.1: `ProcEntry`, `CallSite`, `ParsedFile`, `ParseResult`, `LoadedConfig`, `BaseJson`, `FeatureJson`, `ProjectJson`, `FileTreatment` (enum), `Provenance`, `ProcDecision`, `CompiledManifest`, `StageSpec`, `Edge`, `DependencyGraph`, `FileOutcome`, `TrimReport`, `GeneratedArtifact`, `AuditArtifact`, `AuditManifest`, `DomainState`, `RunResult`, `FileStat` |
-| `src/chopper/core/diagnostics.py` | `Severity`, `Phase`, `Diagnostic` (frozen), `DiagnosticSummary`, compile-time code registry validator loaded from `DIAGNOSTIC_CODES.md` |
+| `src/chopper/core/__init__.py` | Public re-exports: all dataclasses + `Diagnostic` + `Severity` + `Phase` + `ChopperContext` + `RunConfig` + `dump_model` |
+| `src/chopper/core/models.py` | All frozen dataclasses from [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.1 (after `DAY0_REVIEW.md` A1–A9 cuts): `ProcEntry`, `CallSite`, `ParsedFile`, `ParseResult`, `LoadedConfig`, `BaseJson`, `FeatureJson`, `ProjectJson`, `FileTreatment` (enum), `Provenance`, `ProcDecision`, `CompiledManifest`, `StageSpec`, `Edge`, `DependencyGraph`, `FileOutcome`, `TrimReport`, `GeneratedArtifact`, `AuditArtifact`, `AuditManifest`, `DomainState`, `RunResult`, `FileStat`. **No `RunMode` enum** (cut per A7; CLI dispatches on subcommand). |
+| `src/chopper/core/diagnostics.py` | `Severity`, `Phase`, `Diagnostic` (frozen, keeps `dedupe_bucket` per A6), `DiagnosticSummary`, compile-time code registry validator loaded from `DIAGNOSTIC_CODES.md` |
 | `src/chopper/core/errors.py` | `ChopperError` (base), `ConfigurationError`, `ParserError`, `CompilerError`, `TrimmerError`, `AuditError` — programmer-error channel only (not user-facing) |
-| `src/chopper/core/protocols.py` | All port `Protocol` definitions per [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §5 (after applying `DAY0_REVIEW.md` cuts) |
-| `src/chopper/core/context.py` | `RunConfig`, `ChopperContext` (both frozen) per [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1 |
+| `src/chopper/core/protocols.py` | The three port `Protocol` definitions per [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §5 (after `DAY0_REVIEW.md` cuts): `FileSystemPort`, `DiagnosticSink`, `ProgressSink`. **No `ClockPort` / `SerializerPort` / `AuditStore` / `TableRenderer`** (cut per A2–A5). |
+| `src/chopper/core/context.py` | `RunConfig`, `PresentationConfig` (with `verbose` / `quiet` / `plain` only), `ChopperContext` (bundle of `config` + `fs` + `diag` + `progress`) per [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1 |
 | `src/chopper/core/result.py` | `RunResult` and any per-phase result aliases (may be folded into `models.py`) |
-| `src/chopper/core/serialization.py` | `dump_model(obj) -> str`, `load_model(cls, data) -> obj`; uses `dataclasses.asdict` with deterministic sort |
+| `src/chopper/core/serialization.py` | `dump_model(obj) -> str`, `load_model(cls, data) -> obj`; uses deterministic recursive key-sort for mappings, preserves list order, encodes `Path` as POSIX strings and `Enum` as `.value`, and keeps `None` as JSON `null`. Replaces the removed `SerializerPort`. |
 | `importlinter.ini` or `pyproject.toml` contract | Enforce: `cli → orchestrator → services → core`; `core` imports only stdlib; no circular imports |
 
 **Definition of done (DoD).**
@@ -84,6 +176,7 @@ Verify:
 
 - `tests/unit/core/test_models_frozen.py` — every model is frozen (`dataclasses.FrozenInstanceError` on mutation).
 - `tests/unit/core/test_serialization_roundtrip.py` — every public model round-trips through `dump_model / load_model`.
+- `tests/unit/core/test_serialization_determinism.py` — serializing the same object twice produces byte-identical output.
 - `tests/unit/core/test_diagnostic_registry.py` — valid codes construct; unknown codes raise; registry loading matches the `DIAGNOSTIC_CODES.md` active rows.
 - `tests/unit/core/test_context_frozen.py` — `ChopperContext` and `RunConfig` reject field reassignment.
 
@@ -94,13 +187,13 @@ Verify:
 **Owner risk to watch.**
 
 - Diagnostic registry loading at import time — cache it; do not re-parse `DIAGNOSTIC_CODES.md` on every `Diagnostic(...)` call.
-- `JsonSerde` / `dump_model()` must sort dict keys recursively for golden-stable output.
+- `dump_model()` must sort dict keys recursively for golden-stable output, preserve list order exactly, POSIX-normalize `Path`, encode `Enum` via `.value`, and serialize `None` as JSON `null`.
 
 ---
 
 ## Stage 1 — `parser/` (the crown jewel)
 
-**Goal.** Ship `parse_file(domain_path, file_path, on_diagnostic)` returning `list[ProcEntry]`, and `ParserService.run(ctx, files)` wrapping it into `ParseResult`.
+**Goal.** Ship the pure parser utility `parse_file(file_path, text, on_diagnostic)` returning `list[ProcEntry]`, and `ParserService.run(ctx, files)` wrapping it into `ParseResult` after reading file content through `ctx.fs`.
 
 **This is the highest-risk module.** TC-01 (proc boundary), TC-02 (canonical naming), and 10+ pitfalls live here. Do not start without green fixtures.
 
@@ -114,8 +207,12 @@ Verify:
 | `src/chopper/parser/proc_extractor.py` | Proc detection algorithm per [`TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §4 |
 | `src/chopper/parser/dpa_associator.py` | DPA / comment-banner association per [`TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §5 |
 | `src/chopper/parser/call_extractor.py` | Raw call-token + source-ref extraction with SNORT suppression filters (bible §5.4.1 R3 hybrid) |
-| `src/chopper/parser/parse_file.py` | The public `parse_file()` utility |
+| `src/chopper/parser/parse_file.py` | The pure `parse_file(file_path, text, on_diagnostic)` utility |
 | `src/chopper/parser/service.py` | `ParserService.run(ctx, files)` — reads via `ctx.fs`, fans out to `parse_file`, assembles global proc index |
+
+**Parser service contract.**
+
+`ParserService.run(ctx, files: Sequence[Path]) -> ParseResult` is the public parser API. It reads files via `ctx.fs`, calls `parse_file(file_path=..., text=..., on_diagnostic=ctx.diag.emit)`, preserves lexicographic POSIX order, and returns a deterministic `ParseResult`. `parse_file()` never performs filesystem I/O itself.
 
 **DoD.**
 
@@ -161,16 +258,16 @@ Verify:
 | `src/chopper/config/schemas.py` | `jsonschema` Draft-07 validators for base/feature/project |
 | `src/chopper/config/loaders.py` | `load_base(path)`, `load_feature(path)`, `load_project(path)` — raise `ConfigurationError` on schema failure |
 | `src/chopper/config/resolver.py` | Path resolution: project-JSON mode vs `--base/--features` mode; enforce "no `..`, no absolute paths" at the schema boundary |
-| `src/chopper/config/depends_on.py` | Topological sort over feature `depends_on`; detect cycles → `VE-25`; detect missing prerequisites → `VE-15` |
+| `src/chopper/config/depends_on.py` | Topological sort over feature `depends_on`; detect cycles → `VE-22`; detect missing prerequisites → `VE-15` |
 | `src/chopper/config/service.py` | `ConfigService.run(ctx, state) -> LoadedConfig` |
 
 **DoD.**
 
 - All three schemas validate all 11 `json_kit/examples/*/` fixtures successfully.
 - Malformed JSON (trailing commas, BOM) → `VE-01 missing-schema` or schema error.
-- `depends_on` cycle → `VE-25`.
+- `depends_on` cycle → `VE-22`.
 - `depends_on` prerequisite missing from project selection → `VE-15` (order **not** enforced).
-- Duplicate feature entries → `VE-20`; duplicate feature names → `VE-14`.
+- Duplicate feature entries → `VE-18`; duplicate feature names → `VE-14`.
 - `--project` path resolution failures → `VE-13` and the runner is never entered.
 - CLI conflict (`--project` with `--base/--features`) → `VE-11` (handled by CLI, not here — but document the boundary).
 - `LoadedConfig.features` is topo-sorted; `project.features[]` order is preserved as the tie-breaker.
@@ -197,7 +294,7 @@ Verify:
 | File | Contains |
 |---|---|
 | `src/chopper/compiler/per_source.py` | Step 1–2 of bible §5.3: per-source file partition into `FI_literal`, `FI_glob`, `FE`, `PI`, `PE` and per-file L2 classification into `NONE` / `WHOLE` / `TRIM(keep_set)` |
-| `src/chopper/compiler/aggregate.py` | Step 3 of bible §5.3: cross-source L1 + L3 aggregation, `VW-09`..`VW-13`, `VW-10`/`VW-19`, `VW-18` (per DAY0_REVIEW F1 outcome) |
+| `src/chopper/compiler/aggregate.py` | Step 3 of bible §5.3: cross-source L1 + L3 aggregation, `VW-09`..`VW-13`, `VW-19`, `VW-18` |
 | `src/chopper/compiler/provenance.py` | Per-file `input_sources`, `vetoed_entries`, `surviving_procs` |
 | `src/chopper/compiler/merge_service.py` | `CompilerService.run(ctx, loaded, parsed) -> CompiledManifest` |
 | `src/chopper/compiler/trace.py` | BFS expansion per bible §5.4: sorted frontier, namespace resolution candidates, `TW-01`..`TW-04` emission |
@@ -207,7 +304,7 @@ Verify:
 **DoD.**
 
 - Bible §4 R1 matrix rows 1–16 handled correctly (unit test per row).
-- Cross-source `VW-10`/`VW-19`/`VW-18` vetoes emitted exactly once per authoring conflict.
+- Cross-source `VW-19` / `VW-18` vetoes emitted exactly once per authoring conflict.
 - BFS frontier is lex-sorted; cycles terminate via visited-set and emit `TW-04`.
 - `PI+` is reporting-only; `CompiledManifest.file_decisions` and `proc_decisions` are frozen before `TracerService.run()` is called (enforced by order in `runner.py`).
 - F3 `flow_actions` respect feature order in `project.features[]`.
@@ -217,7 +314,7 @@ Verify:
 **Test gate.**
 
 - `tests/unit/compiler/test_r1_matrix.py` — 16 rows × matrix scenarios.
-- `tests/unit/compiler/test_cross_source_veto.py` — VW-10/19/18 emissions.
+- `tests/unit/compiler/test_cross_source_veto.py` — `VW-19` / `VW-18` emissions.
 - `tests/unit/compiler/test_trace_bfs.py` — frontier pop order, cycle, ambiguous, unresolved, dynamic (covers the 6 tracing_domain sub-fixtures).
 - `tests/unit/compiler/test_flow_actions.py` — F3 action vocabulary.
 - `tests/golden/compiler/compiled_manifest_*.json` — golden snapshots for each `json_kit/examples/*/` scenario.
@@ -243,9 +340,9 @@ Verify:
 
 | File | Contains |
 |---|---|
-| `src/chopper/orchestrator/domain_state.py` | `DomainStateService.run(ctx) -> DomainState` — edge-case matrix from bible §2.8 (4 cases, `VE-23`, `VI-03`) |
+| `src/chopper/orchestrator/domain_state.py` | `DomainStateService.run(ctx) -> DomainState` — edge-case matrix from bible §2.8 (4 cases, `VE-21` for case 4; hand-edited domains on re-trim discard silently with fixed CLI pre-flight warning) |
 | `src/chopper/trimmer/file_writer.py` | Write verbatim (`FULL_COPY`) or atomic-drop (`PROC_TRIM`) |
-| `src/chopper/trimmer/proc_dropper.py` | Given proc spans (including DPA blocks and comment banners), rewrite file content with targeted procs removed; emit `VE-29` on span misalignment |
+| `src/chopper/trimmer/proc_dropper.py` | Given proc spans (including DPA blocks and comment banners), rewrite file content with targeted procs removed; emit `VE-26` on span misalignment |
 | `src/chopper/trimmer/service.py` | `TrimmerService.run(ctx, manifest, state) -> TrimReport` |
 
 **DoD.**
@@ -254,7 +351,7 @@ Verify:
 - Dry-run does not call `ctx.fs.write_text` / `rename` / `remove`.
 - `FULL_COPY` bytes are identical to source (hash-compare).
 - `PROC_TRIM` removes exactly the specified procs + their DPA blocks + adjacent doc-comment banners; no trailing blank-line clutter.
-- `VE-26` / `VE-27` / `VE-28` / `VE-29` fire exactly where specified in the registry.
+- `VE-23` / `VE-24` / `VE-25` / `VE-26` fire exactly where specified in the registry.
 - P5a failure leaves `<domain>_backup/` intact; re-invocation resumes from backup via Case 2.
 - Coverage ≥ 80%.
 
@@ -271,7 +368,7 @@ Verify:
 
 **Owner risks.**
 
-- Proc-span atomic drop must align parser line ranges to byte offsets exactly. If parser output is stale relative to the file on disk, emit `VE-29` and abort — do not guess.
+- Proc-span atomic drop must align parser line ranges to byte offsets exactly. If parser output is stale relative to the file on disk, emit `VE-26` and abort — do not guess.
 - First-trim backup copies **exclude** `.chopper/` — move pre-existing `.chopper/` aside, re-create fresh post-trim.
 
 ---
@@ -292,7 +389,7 @@ Verify:
 
 - Every `StageSpec.steps` string is emitted verbatim — no interpretation, no validation of content (R4 "plain strings by design").
 - `flow_actions` sequencing respects `project.features[]` order.
-- `@n` suffix resolution + `VE-10` / `VE-21` / `VE-22` emission works.
+- `@n` suffix resolution + `VE-10` / `VE-19` / `VE-20` emission works.
 - Generated files are copied into the rebuilt `<domain>/`, not written to a staging tree.
 - Coverage ≥ 80%.
 
@@ -393,7 +490,7 @@ Whether these are free functions or service classes depends on DAY0_REVIEW A9 de
 - Three subcommands dispatch correctly; `--help` text matches [`CLI_HELP_TEXT_REFERENCE.md`](CLI_HELP_TEXT_REFERENCE.md).
 - Exit codes match [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §8.2 rule 4: 0 / 1 / 2 / 3.
 - `--strict` affects only the final exit-code computation (never rewrites severity).
-- `--dry-run` skips P5 + P5b + part of P6 per runner gating.
+- `--dry-run` skips domain-write work in P5, still runs synthetic P6 checks, and still emits audit artifacts.
 - `--project` is mutually exclusive with `--base/--features` (→ `VE-11`).
 - Unhandled exception → audit bundle + `.chopper/internal-error.log` + exit 3.
 - No library code calls `print`. Rendering happens in `cli/render.py` only.
@@ -453,7 +550,7 @@ Do not start Stage N+1 before Stage N's gate is green. If a gate fails, stop and
 | Golden snapshot differs between runs | Sort keys in `dump_model()`? Iteration order in compiler aggregation? | Missing sort on set/dict iteration |
 | Parser flakes on a new fixture | Tokenizer state re-check | P-01 quote context drift or P-07 comment braces |
 | Trace cycle not caught | Visited-set updated **before** frontier append? | BFS visited-set bug |
-| `VE-29 proc-atomic-drop-failed` fires in Stage 3a | Parser output stale vs file on disk? | Parser must be re-run from scratch on each invocation — cache only inside one run |
+| `VE-26 proc-atomic-drop-failed` fires in Stage 3a | Parser output stale vs file on disk? | Parser must be re-run from scratch on each invocation — cache only inside one run |
 | Audit missing on failure | `AuditService` called from `finally`? | Runner wiring |
 | Exit code 1 when `--strict` is off but warnings present | `--strict` gating in `finalize()` | `--strict` is exit-code-only policy |
 | `import-linter` fails | Sibling-module import added? | Violation of dependency rule in §3 |
@@ -470,4 +567,4 @@ Do not start Stage N+1 before Stage N's gate is green. If a gate fails, stop and
 
 **When adding a diagnostic.** Register in [`DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) first. Lowest reserved slot. Then add constant in `core/diagnostics.py`. Then emit.
 
-**When stuck.** [`RISKS_AND_PITFALLS.md`](RISKS_AND_PITFALLS.md) per-module section. Worked example in bible §5.4. Corner-case catalog in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §12.
+**When stuck.** [`RISKS_AND_PITFALLS.md`](RISKS_AND_PITFALLS.md) per-module section. Worked example in bible §5.4. Named integration scenarios in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md) §5.

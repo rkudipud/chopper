@@ -1,9 +1,8 @@
 # Chopper — Diagnostic Codes Registry
 
-> **Status:** Authoritative Source of Truth
-> **Resolves:** E-01 (FINAL_PRODUCTION_REVIEW.md)
-
-All diagnostic codes used by Chopper are registered here. Implementation code MUST use constants from `src/chopper/core/diagnostics.py` derived from this registry. Adding a new code requires updating this file first.
+> **Status:** Authoritative Source of Truth.
+>
+> All diagnostic codes used by Chopper are registered here. Implementation code MUST use constants from `src/chopper/core/diagnostics.py` derived from this registry. Adding a new code requires updating this file first (lowest available slot; never renumber existing active codes).
 
 ## Naming Convention
 
@@ -19,16 +18,16 @@ All codes follow the pattern **`<FAMILY><SEV>-<NN>`**:
 
 Each code also carries a **`slug`** — a kebab-case label that provides a stable human-readable identifier alongside the numeric code. Verbose and human-facing output displays the slug; machine output, JSON, and the Python constants registry use the numeric code.
 
-Reserved rows (marked `—`) are intentionally blank — fill them sequentially when new codes are needed; never renumber existing ones.
+Reserved rows (marked `—`) are intentionally blank — fill them sequentially when new codes are needed; never renumber existing ones. The registry has **no retired codes** in v1; if a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
 
 ## Code Space Summary
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01–VE-30 | 26 | 4 (retired: VE-16, VE-24; + 2 free: VE-30 and 1 mid-range) | 30 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-20 | 17 | 3 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
-| `VI` Validation Info | VI-01–VI-05 | 3 | 2 (retired: VI-04, VI-05) | 5 | Advisory notices; no action required |
-| `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 3) |
+| `VE` Validation Errors | VE-01–VE-30 | 26 | 4 | 30 | Schema, path, action, ordering, filesystem failures — block output |
+| `VW` Validation Warnings | VW-01–VW-20 | 18 | 1 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
+| `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
+| `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 3 | 7 | 10 | Fatal parse failures; file skipped or partial |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
@@ -38,7 +37,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 ## 1. Validation Errors — `VE-01` through `VE-30`
 
-> Phase 1 = Pre-Trim · Phase 2 = Post-Trim. All errors block output generation (exit 1) unless noted.
+> Phase 1 = Pre-Trim · Phase 6 = Post-Trim · Phase 5 = Trim. All errors block output generation (exit 1) unless noted.
 
 | Code | Slug | Phase | Source | Exit | Description | Recovery Hint |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -54,24 +53,21 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-10 | `occurrence-suffix-overflow` | 1 | compiler | 1 | `@n` suffix where `n` exceeds actual occurrence count for that step string | Reduce `@n` or verify the step appears enough times |
 | VE-11 | `conflicting-cli-options` | 1 | cli | **2** | `--project` provided alongside `--base` or `--features` | Use `--project` alone or `--base`/`--features` alone |
 | VE-12 | `project-schema-invalid` | 1 | schema | 1 | Project JSON fails `chopper/project/v1` schema validation | Fix project JSON: requires `$schema`, `project`, `domain`, `base` |
-| VE-13 | `project-path-unresolvable` | 1 | cli | **2** | `base` or `features` paths in project JSON cannot be resolved to existing files. Owned by the **CLI pre-runner check** (before `ChopperRunner.run()` starts): Chopper renders the offending path(s) via the CLI's `TableRenderer`, emits the diagnostic on stderr (text or JSONL depending on `--json`), and exits 2 without entering the pipeline. | Fix the paths in the project JSON (relative to the domain root; no `..`, no absolute paths) and re-run |
+| VE-13 | `project-path-unresolvable` | 1 | cli | **2** | `base` or `features` paths in project JSON cannot be resolved to existing files. Owned by the **CLI pre-runner check**: Chopper prints the offending path(s) on stderr and exits 2 without entering the pipeline. | Fix the paths in the project JSON (relative to the domain root; no `..`, no absolute paths) and re-run |
 | VE-14 | `duplicate-feature-name` | 1 | compiler | 1 | Two or more selected features have the same `name` field | Rename one feature or remove the duplicate |
 | VE-15 | `missing-depends-on-feature` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite is not selected in project `features` | Add the prerequisite feature to the project or remove the dependency declaration |
-| VE-16 | `depends-on-out-of-order` | — | — | — | **RETIRED.** Feature order in `project.features` is no longer required to match `depends_on` order. Dependencies are checked after *all* feature JSONs are loaded: if a `depends_on` prerequisite is missing from the project selection, `VE-15` fires. Out-of-order placement is allowed. | — |
-| VE-17 | `brace-error-post-trim` | 2 | validator | **3** | Post-trim re-tokenization of a rewritten `.tcl` file reports brace imbalance. This is an **internal-consistency assertion**: `PE-02` already rejects pre-existing imbalanced files in P2, so the only way P6 sees one is if the trimmer itself introduced it (programmer error). Exit 3 signals "Chopper broke," not "user input is bad." | File a bug with the offending path and the `trim_report.json`; restore `<domain>_backup/` and re-run |
-| VE-18 | `template-script-path-escapes` | 1 | validator | 1 | `options.template_script` resolves (via `Path.resolve()`) to a path outside the domain root (symlink escape) or fails the schema path-shape check. The field itself is reserved and not executed in v1; only path safety is validated. | Fix the path or remove the option |
-| VE-19 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory. Comparison is **case-insensitive** (`Path.cwd().name.casefold() == project.domain.casefold()`): operators authoring on Windows and running on Linux grid nodes are tolerated. | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
-| VE-20 | `duplicate-feature-entry` | 1 | validator | 1 | Same feature path appears more than once in project `features[]` | Remove duplicate entries; feature order must be unique |
-| VE-21 | `occurrence-suffix-zero` | 1 | compiler | 1 | `@0` used on an action `reference` — `@n` is 1-based | Use `@1` for the first occurrence, or omit `@n` entirely |
-| VE-22 | `ambiguous-step-target` | 1 | compiler | 1 | `replace_step` / `remove_step` targets a duplicate step string without `@n` disambiguation | Add `@n` to the `reference` to pick a specific occurrence |
-| VE-23 | `no-domain-or-backup` | 1 | cli | 2 | Neither `<domain>/` nor `<domain>_backup/` exists at invocation — nothing to trim | Verify you are in the correct working directory; restore the domain from version control |
-| VE-24 | `concurrent-invocation` | — | — | — | **RETIRED.** Chopper has no lock and no concurrency guard. It is a single-user, single-invocation push-button tool against a single on-disk domain. Two operators racing the same checkout is an operator-level contract violation; Chopper does not attempt to detect or prevent it. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q3. | — |
-| VE-25 | `feature-depends-on-cycle` | 1 | compiler | 1 | Selected features form a `depends_on` cycle; topological sort is not possible | Break the cycle by removing or reordering `depends_on` declarations in the offending feature JSONs |
-| VE-26 | `filesystem-error-during-trim` | 5 | trimmer | 1 | Filesystem operation failed during P5 trim (permission denied, disk full, read-only FS, missing parent directory, cross-device rename). No staging is used; on failure, `<domain>/` is left in whatever half-rebuilt state the failure produced and `<domain>_backup/` is untouched. Re-invocation detects this state as Case 2 (re-trim) and rebuilds `<domain>/` from `<domain>_backup/`. Audit bundle is still written to `.chopper/` on a best-effort basis. | Verify filesystem permissions and available space; re-run Chopper to resume from backup, or run `rm -rf <domain> && mv <domain>_backup <domain>` to reset manually |
-| VE-27 | `backup-contents-missing` | 5 | trimmer | 1 | A file named in `CompiledManifest` as `FULL_COPY` or `PROC_TRIM` was not found under `<domain>_backup/` at P5. Manifest is out of sync with the backup tree (typically because the backup was hand-edited between runs). | Re-create the domain from version control and re-run; do not hand-edit `<domain>_backup/` |
-| VE-28 | `domain-write-failed` | 5 | trimmer | 1 | Write to the rebuilt `<domain>/` failed mid-operation (partial write, post-write size mismatch, directory-vs-file collision). Distinct from `VE-26` which covers OS-reported errors; `VE-28` covers semantic-integrity failures (the write returned OK but the result is wrong). | Inspect `trim_report.json` for the offending path; re-run to resume from `<domain>_backup/` |
-| VE-29 | `proc-atomic-drop-failed` | 5 | trimmer | 1 | The trimmer could not align a proc's byte span with its parser-reported line range during atomic deletion. Typically caused by DPA-block or comment-banner lookahead drift between P2 and P5 (files were edited between parse and trim, or parser output is stale). | Re-run Chopper end-to-end (parser output will be regenerated); if it persists, file a parser bug with the offending file |
-| — | — | — | — | — | **VE-30 reserved** | — |
+| VE-16 | `brace-error-post-trim` | 6 | validator | **3** | Post-trim re-tokenization of a rewritten `.tcl` file reports brace imbalance. This is an **internal-consistency assertion**: `PE-02` already rejects pre-existing imbalanced files in P2, so the only way P6 sees one is if the trimmer itself introduced it (programmer error). Exit 3 signals "Chopper broke," not "user input is bad." | File a bug with the offending path and the `trim_report.json`; restore `<domain>_backup/` and re-run |
+| VE-17 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory. Comparison is **case-insensitive** (`Path.cwd().name.casefold() == project.domain.casefold()`): operators authoring on Windows and running on Linux grid nodes are tolerated. | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
+| VE-18 | `duplicate-feature-entry` | 1 | validator | 1 | Same feature path appears more than once in project `features[]` | Remove duplicate entries; feature order must be unique |
+| VE-19 | `occurrence-suffix-zero` | 1 | compiler | 1 | `@0` used on an action `reference` — `@n` is 1-based | Use `@1` for the first occurrence, or omit `@n` entirely |
+| VE-20 | `ambiguous-step-target` | 1 | compiler | 1 | `replace_step` / `remove_step` targets a duplicate step string without `@n` disambiguation | Add `@n` to the `reference` to pick a specific occurrence |
+| VE-21 | `no-domain-or-backup` | 1 | cli | **2** | Neither `<domain>/` nor `<domain>_backup/` exists at invocation — nothing to trim | Verify you are in the correct working directory; restore the domain from version control |
+| VE-22 | `feature-depends-on-cycle` | 1 | compiler | 1 | Selected features form a `depends_on` cycle; topological sort is not possible | Break the cycle by removing or reordering `depends_on` declarations in the offending feature JSONs |
+| VE-23 | `filesystem-error-during-trim` | 5 | trimmer | 1 | Filesystem operation failed during P5 trim (permission denied, disk full, read-only FS, missing parent directory, cross-device rename). No staging is used; on failure, `<domain>/` is left in whatever half-rebuilt state the failure produced and `<domain>_backup/` is untouched. Re-invocation detects this state as Case 2 (re-trim) and rebuilds `<domain>/` from `<domain>_backup/`. Audit bundle is still written to `.chopper/` on a best-effort basis. | Verify filesystem permissions and available space; re-run Chopper to resume from backup, or run `rm -rf <domain> && mv <domain>_backup <domain>` to reset manually |
+| VE-24 | `backup-contents-missing` | 5 | trimmer | 1 | A file named in `CompiledManifest` as `FULL_COPY` or `PROC_TRIM` was not found under `<domain>_backup/` at P5. Manifest is out of sync with the backup tree (typically because the backup was hand-edited between runs). | Re-create the domain from version control and re-run; do not hand-edit `<domain>_backup/` |
+| VE-25 | `domain-write-failed` | 5 | trimmer | 1 | Write to the rebuilt `<domain>/` failed mid-operation (partial write, post-write size mismatch, directory-vs-file collision). Distinct from `VE-23` which covers OS-reported errors; `VE-25` covers semantic-integrity failures (the write returned OK but the result is wrong). | Inspect `trim_report.json` for the offending path; re-run to resume from `<domain>_backup/` |
+| VE-26 | `proc-atomic-drop-failed` | 5 | trimmer | 1 | The trimmer could not align a proc's byte span with its parser-reported line range during atomic deletion. Typically caused by DPA-block or comment-banner lookahead drift between P2 and P5 (files were edited between parse and trim, or parser output is stale). | Re-run Chopper end-to-end (parser output will be regenerated); if it persists, file a parser bug with the offending file |
+| — | — | — | — | — | **VE-27 through VE-30 reserved** | — |
 
 ---
 
@@ -85,21 +81,22 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-02 | `proc-in-include-and-exclude` | 1 | compiler | 0 | Same proc listed in both include and exclude across inputs | Explicit include wins; review if exclude is intentional |
 | VW-03 | `glob-matches-nothing` | 1 | validator | 0 | Glob pattern in `files.include` resolved to zero files | Pattern may be stale or mistyped |
 | VW-04 | `feature-domain-mismatch` | 1 | validator | 0 | Feature JSON `domain` field does not match selected base domain | Feature may be domain-agnostic; verify intended use |
-| VW-05 | `dangling-proc-call` | 2 | validator | 0 | Surviving proc calls another proc not present in trimmed output or `common/` | Add missing proc to `procedures.include` or accept the dangling reference |
-| VW-06 | `source-file-removed` | 2 | validator | 0 | `iproc_source`/`source` references a file that was removed | Add missing file to `files.include` or remove the sourcing call |
-| VW-07 | `run-file-step-trimmed` | 2 | validator | 0 | F3-generated run file references a step file that was trimmed away | Add step file to `files.include` or remove the step from stage |
-| VW-08 | `file-empty-after-trim` | 2 | trimmer | 0 | File survived trim but lost all proc definitions; exists as blank/comment-only | Expected if only top-level code mattered; review if file should be in `files.include` |
-| VW-09 | `fi-pi-overlap` | 1 | compiler | 0 | File is in `files.include` and also has procs in `procedures.include`; PI entries are redundant on FULL_COPY files | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include` |
-| VW-10 | `cross-source-fe-vetoed` | 1 | compiler | 0 | File is in one source's `files.exclude` but survives because another source (base or another feature) contributes the file via FI, PI, or PE. The excluding source's FE entry is discarded. Features are purely additive and cannot remove content contributed by other sources. | Remove the redundant `files.exclude` entry, or verify the other source's inclusion is intentional |
+| VW-05 | `dangling-proc-call` | 6 | validator | 0 | Surviving proc calls another proc not present in trimmed output | Add missing proc to `procedures.include` or accept the dangling reference |
+| VW-06 | `source-file-removed` | 6 | validator | 0 | `iproc_source`/`source` references a file that was removed | Add missing file to `files.include` or remove the sourcing call |
+| VW-07 | `run-file-step-trimmed` | 6 | validator | 0 | F3-generated run file references a step file that was trimmed away | Add step file to `files.include` or remove the step from stage |
+| VW-08 | `file-empty-after-trim` | 5 | trimmer | 0 | File survived trim but lost all proc definitions; exists as blank/comment-only | Expected if only top-level code mattered; review if file should be in `files.include` |
+| VW-09 | `fi-pi-overlap` | 1 | compiler | 0 | File is in `files.include` and also has procs in `procedures.include`; PI entries are redundant on `FULL_COPY` files | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include` |
+| ~~VW-10~~ | RETIRED | — | — | — | Slot retired pre-v1; reassigned to VW-19. Do not reuse. | — |
 | VW-11 | `fe-pe-same-source-conflict` | 1 | compiler | 0 | Within a single JSON source, the same file appears in both `files.exclude` and `procedures.exclude` with no matching `procedures.include`. Both are removal-within-this-source signals; this source contributes nothing for the file (other sources may still contribute). | Within one JSON, use `files.exclude` alone to drop a file, or `procedures.exclude` alone to keep it with some procs removed |
 | VW-12 | `pi-pe-same-file` | 1 | compiler | 0 | Same file has procs in both `procedures.include` and `procedures.exclude`; PI takes precedence, PE ignored for this file | Choose one model per file: additive (PI) or subtractive (PE), not both |
 | VW-13 | `pe-removes-all-procs` | 1 | compiler | 0 | All procs excluded from file via `procedures.exclude`; file survives as comment/blank-only | Consider using `files.exclude` to remove the entire file instead |
-| VW-14 | `step-file-missing` | 2 | validator | 0 | F3 step string is a bare `.tcl` filename but the target file did not survive trim (cross-validate) | Add the file to `files.include` or remove the step |
-| VW-15 | `step-proc-missing` | 2 | validator | 0 | F3 step string is a bare proc name but the proc did not survive trim (cross-validate) | Add the proc to `procedures.include` or remove the step |
-| VW-16 | `step-source-missing` | 2 | validator | 0 | F3 step contains `source` / `iproc_source` with a literal file path that did not survive trim | Add the sourced file to `files.include` or remove the step |
-| VW-17 | `external-reference` | 2 | validator | 0 | Surviving code references a path outside the domain boundary (not an error; informational for cross-domain awareness) | Verify the external dependency is intentional; no action required if expected |
+| VW-14 | `step-file-missing` | 6 | validator | 0 | F3 step string is a bare `.tcl` filename but the target file did not survive trim (cross-validate) | Add the file to `files.include` or remove the step |
+| VW-15 | `step-proc-missing` | 6 | validator | 0 | F3 step string is a bare proc name but the proc did not survive trim (cross-validate) | Add the proc to `procedures.include` or remove the step |
+| VW-16 | `step-source-missing` | 6 | validator | 0 | F3 step contains `source` / `iproc_source` with a literal file path that did not survive trim | Add the sourced file to `files.include` or remove the step |
+| VW-17 | `external-reference` | 6 | validator | 0 | Surviving code references a path outside the domain boundary (not an error; informational for cross-domain awareness) | Verify the external dependency is intentional; no action required if expected |
 | VW-18 | `cross-source-pe-vetoed` | 1 | compiler | 0 | A source lists proc `p` of file `F` in `procedures.exclude`, but `p` survives because another source contributes `F` whole-file or includes `p` explicitly via `procedures.include`. The PE entry from the excluding source is discarded. Features cannot strip procs from content contributed by other sources. | Remove the redundant PE entry, or align with the other source's include intent |
-| — | — | — | — | — | **VW-19 through VW-20 reserved** | — |
+| VW-19 | `cross-source-fe-vetoed` | 1 | compiler | 0 | File is in one source's `files.exclude` but survives because another source (base or another feature) contributes the file via FI, PI, or PE. The excluding source's FE entry is discarded. Features are purely additive and cannot remove content contributed by other sources. | Remove the redundant `files.exclude` entry, or verify the other source's inclusion is intentional |
+| — | — | — | — | — | **VW-20 reserved** | — |
 
 ---
 
@@ -110,30 +107,30 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Code | Slug | Phase | Source | Exit | Description | Recovery Hint |
 | --- | --- | --- | --- | --- | --- | --- |
 | VI-01 | `empty-base-json` | 1 | validator | 0 | Base JSON has no `files`, `procedures`, or `stages` blocks | May be intentional for feature-driven flow; review if draft |
-| VI-02 | `top-level-tcl-only` | 2 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
-| VI-03 | `domain-hand-edited` | 1 | cli | 0 | Re-trim detected that `<domain>/` contents diverged from the last generated output; rebuild from `_backup` will discard local edits. Chopper does **not** preserve hand edits — the single source of truth for the trimmed domain is `<domain>_backup/` plus the JSON selection. | Commit or stash local edits **before** re-running Chopper; once the rebuild starts, the divergent content is gone. |
-| VI-04 | `hand-edits-stashed` | — | — | — | **RETIRED.** `--preserve-hand-edits` is not supported — no stash path exists. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q2. | — |
-| VI-05 | `stale-lock-recovered` | — | — | — | **RETIRED.** Chopper has no lock file, so there is nothing to go stale. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q3. | — |
+| VI-02 | `top-level-tcl-only` | 5 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
+| — | — | — | — | — | **VI-03 through VI-05 reserved** | — |
+
+> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of bible §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* This replaces a previously-proposed `VI-03 domain-hand-edited` code. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 closed decisions.
 
 ---
 
 ## 4. Trace Warnings — `TW-01` through `TW-10`
 
-> All trace codes are warnings (exit 0). Emitted during Phase 3 (Merge & Trace) by the compiler.
+> All trace codes are warnings (exit 0). Emitted during Phase 4 (Trace) by the compiler.
 
 | Code | Slug | Source | Exit | Description | Recovery Hint |
 | --- | --- | --- | --- | --- | --- |
 | TW-01 | `ambiguous-proc-match` | compiler | 0 | Proc call token resolves to multiple canonical procs in the domain (ambiguous namespace match) | Disambiguate with namespace-qualified name in source or add explicit `procedures.include` |
 | TW-02 | `unresolved-proc-call` | compiler | 0 | No in-domain proc matches after namespace resolution; assumed external or cross-domain | If the proc is needed, add it explicitly or verify it lives in external libraries or stdlib |
 | TW-03 | `dynamic-call-form` | compiler | 0 | Dynamic or syntactically unresolvable call form (`$cmd`, `eval`, `uplevel`) — cannot statically trace | Add missing dependency explicitly to `procedures.include` if needed; review call site |
-| TW-04 | `cycle-in-call-graph` | compiler | 0 | Cycle detected in proc call graph (e.g., A → B → A or self-recursion A → A) | Both procs are included (conservative approach); review for correctness and intentionality |
+| TW-04 | `cycle-in-call-graph` | compiler | 0 | Cycle detected in proc call graph (e.g., A → B → A or self-recursion A → A) | Both procs are included in the reported call tree (reporting-only); survival requires explicit include |
 | — | — | — | — | **TW-05 through TW-10 reserved** | — |
 
 ---
 
 ## 5. Parse Errors — `PE-01` through `PE-10`
 
-> Parse errors (exit 1) block the file from being fully indexed. The file is skipped or yields partial results.
+> Parse errors (exit 1 when gated) block the file from being fully indexed. Per-file return-value contract: see [`TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1.
 
 | Code | Slug | Source | Exit | Description | Recovery Hint | Parser spec § |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -154,7 +151,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | PW-02 | `utf8-decode-failure` | parser | 0 | UTF-8 decode failed on file; fell back to Latin-1 encoding | Convert file to UTF-8 if possible; may cause character misinterpretation in comments | §2 |
 | PW-03 | `non-brace-body` | parser | 0 | Proc with non-brace body (e.g., quoted body `proc foo "..."`) — skipped | Rewrite proc with brace-delimited body `proc foo {...}`; provides better scoping | §4.3 |
 | PW-04 | `computed-namespace-name` | parser | 0 | `namespace eval` with computed name (contains `$`); body NOT parsed for procs | Use literal namespace name if procs inside need static indexing; dynamic namespaces are skipped | §4.2 step 3 |
-| PW-05 | `backslash-continuation` | parser | 0 | Multi-line definition with backslash continuation (e.g., `define_proc_attributes ...\\`) detected | Line counts may be offset at continuation points; file still parsed correctly | §3.2 |
+| PW-05 | `backslash-continuation` | parser | 0 | Multi-line definition with backslash continuation detected | Line counts may be offset at continuation points; file still parsed correctly | §3.2 |
 | PW-06 | `multi-value-set` | parser | 0 | Variable assignment contains multiple space-separated values (preprocessor-like `set list "VAL1 VAL2"`) | Stored as single string value; if dynamic expansion needed, verify list structure in code | — |
 | PW-07 | `dynamic-array-index` | parser | 0 | Array element assignment with dynamic index (e.g., `set arr($var) value`) — index not resolvable at parse time | If index is computed at runtime, key may be missed; use static indices for critical lookups | — |
 | PW-08 | `deep-nesting` | parser | 0 | Deeply nested scopes detected (depth > 8 levels); parser state machine complexity increased | Proc likely still indexed; review if body contains nested proc definitions (unsupported in Tcl) | — |
@@ -183,11 +180,10 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 - **Exit 0** — Does not fail the run. Reported in output unless suppressed. `--strict` does **not** rewrite severity; it only forces the CLI to exit 1 if any nominal `WARNING` is present. `VI-*` advisories never flip the exit code.
 - **Exit 1** — Validation or parse failure; output generation is blocked.
-- **Exit 2** — CLI / pre-pipeline fatal: `VE-11` conflicting options, `VE-13` unresolvable `--project` paths, `VE-23` missing domain + backup.
-- **Exit 3** — Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2; `AuditService` still writes `.chopper/internal-error.log`.
-- **Retired codes** (`VE-16`, `VE-24`, `VI-04`, `VI-05`) retain their slot numbers for historical continuity and are never re-assigned. New codes take the lowest unused slot.
-- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope for Chopper (see [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 Q1 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
+- **Exit 2** — CLI / pre-pipeline fatal: `VE-11` conflicting options, `VE-13` unresolvable `--project` paths, `VE-21` missing domain + backup.
+- **Exit 3** — Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2; the audit writer still emits `.chopper/internal-error.log`. `VE-16` also exits 3 as an internal-consistency assertion.
+- **No retired codes in v1.** The registry is compact. If a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
+- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope (see [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
 - Every code constant must be defined in `src/chopper/core/diagnostics.py` before use in implementation.
-- Every code carries a kebab-case **`slug`** for human-facing display (e.g., `"duplicate-proc-definition"`). The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.
-- When adding a new code: pick the lowest available reserved slot in the correct `<FAMILY><SEV>` band, assign a slug, update this table and the summary above, then implement the constant.
-- **VW-10 re-assignment (2026-04-19):** `VW-10` was briefly retired (old slug `fi-pe-overlap`) when FI+PE was still modeled as a conflict. Under the purely additive feature model, FI+PE within a single source is a valid L2.2 authoring pattern, so the old semantics are dead. `VW-10` has been re-assigned to `cross-source-fe-vetoed` to report feature `files.exclude` entries that are discarded because another source contributes the file. The companion code `VW-18 cross-source-pe-vetoed` covers the same cross-source veto for `procedures.exclude`.
+- Every code carries a kebab-case **`slug`** for human-facing display. The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.
+- When adding a new code: pick the lowest available reserved slot in the correct `<FAMILY><SEV>` band, assign a slug, update the registry table and the summary above, then implement the constant.
