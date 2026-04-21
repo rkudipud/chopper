@@ -21,7 +21,7 @@ if (-not (Test-Path "$scriptDir/pyproject.toml")) {
 
 $venvDir = Join-Path $scriptDir ".venv"
 $pythonCmd = "python"  # Windows auto-resolves to python.exe
-$proxy = "http://proxy-chain.intel.com:928"
+$proxy = "http://proxy-chain.intel.com:912"
 
 Write-Host "=== Chopper Dev Environment Setup ===" -ForegroundColor Cyan
 Write-Host "Platform: Windows (PowerShell)" -ForegroundColor Cyan
@@ -46,12 +46,13 @@ if (Test-Path $activateScript) {
 
 # Configure pip proxy (optional, skip if -NoProxy)
 if (-not $NoProxy) {
-echo "[3/4] Configuring pip and Git proxy..." -ForegroundColor Yellow
+Write-Host "[3/4] Configuring pip and Git proxy..." -ForegroundColor Yellow
     try {
         pip config set global.proxy "$proxy" --quiet 2>$null
         pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>$null
         # Configure Git proxy
-
+        git config --global http.proxy "$proxy"
+        git config --global https.proxy "$proxy"
     } catch {
         Write-Host "  (Proxy config skipped)" -ForegroundColor Gray
     }

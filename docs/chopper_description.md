@@ -175,7 +175,8 @@ domain_X/
 ├── jsons/
 │   ├── base.json
 │   └── features/
-│       └── ...
+│       ├── <feature_a>.feature.json
+│       └── <feature_b>.feature.json
 ├── *.tcl
 ├── *_procs.tcl
 ├── vars.tcl
@@ -288,7 +289,7 @@ It may contain any subset of the F1, F2, and F3 sections. Omitted capability blo
 
 By default, the curated base JSON is stored at `jsons/base.json` under the selected domain.
 
-**Minimal valid example** (from `json_kit/examples/01_base_files_only/base.json`):
+**Minimal valid example** (from `json_kit/examples/01_base_files_only/jsons/base.json`):
 
 ```json
 {
@@ -309,7 +310,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 }
 ```
 
-**Full example with all three sections** (from `json_kit/examples/07_base_full/base.json`):
+**Full example with all three sections** (from `json_kit/examples/07_base_full/jsons/base.json`):
 
 ```json
 {
@@ -375,7 +376,7 @@ It may contain any subset of the F1, F2, and F3 sections. Omitted capability blo
 
 By default, curated feature JSONs are stored under `jsons/features/` under the selected domain.
 
-**Example** (from `json_kit/examples/08_base_plus_one_feature/feature_dft.json`):
+**Example** (from `json_kit/examples/08_base_plus_one_feature/jsons/features/dft.feature.json`):
 
 ```json
 {
@@ -445,7 +446,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 The **Project JSON** is the reproducible project-specific selection file.
 Schema: `json_kit/schemas/project-v1.schema.json`
 
-**Example** (from `json_kit/examples/08_base_plus_one_feature/project.json`):
+**Example** (from `json_kit/examples/08_base_plus_one_feature/project.json`, with `jsons/base.json` and `jsons/features/dft.feature.json` as siblings):
 
 ```json
 {
@@ -1071,7 +1072,7 @@ chopper trim --base jsons/base.json
 
 # Base + features
 chopper trim --base jsons/base.json \
-  --features jsons/features/feature_dft.json,jsons/features/feature_power.json
+  --features jsons/features/dft.feature.json,jsons/features/power.feature.json
 
 # Project JSON at a user-supplied path (same result as equivalent resolved --base/--features)
 chopper trim --project configs/project_abc.json
@@ -1418,8 +1419,8 @@ domain/
 │   ├── chopper_run.json              ← run metadata (who, when, how, exit code)
 │   ├── input_base.json               ← exact copy of base JSON used
 │   ├── input_features/               ← exact copies of feature JSONs (ordered)
-│   │   ├── 01_feature_dft.json
-│   │   └── 02_feature_power.json
+│   │   ├── 01_dft.feature.json
+│   │   └── 02_power.feature.json
 │   ├── input_project.json            ← optional; present only when --project is used
 │   ├── compiled_manifest.json        ← frozen P3 output: file/proc treatments + reasons
 │   ├── dependency_graph.json         ← P4 output: call-tree edges, PI+, TW-* warnings
@@ -1471,7 +1472,7 @@ This is the first artifact to read when investigating a trim result. It answers:
   "domain_path": "/tools/domains/fev_formality",
   "backup_path": "/tools/domains/fev_formality_backup",
   "base_json": "jsons/base.json",
-  "feature_jsons": ["jsons/features/feature_dft.json", "jsons/features/feature_power.json"],
+  "feature_jsons": ["jsons/features/dft.feature.json", "jsons/features/power.feature.json"],
   "project_json": "configs/project_abc.json",
   "project_name": "ABC_tapeout",
   "project_owner": "jdoe",
@@ -1510,7 +1511,7 @@ This is the P3 output. It is the single source of truth for what Chopper decided
 | `path` | string | Domain-relative file path |
 | `treatment` | string | `full-copy`, `proc-trim`, `generated`, `remove` |
 | `reason` | string | Why this treatment was chosen (e.g., `fi-literal`, `pi-additive`, `pe-subtractive`, `fe-glob-pruned`, `default-exclude`) |
-| `input_sources` | string[] | Which inputs referenced this file (e.g., `["base:files.include", "feature_dft:procedures.include"]`) |
+| `input_sources` | string[] | Which inputs referenced this file, keyed by source (base or feature `name`). For features, the key is the feature's `name` field, not the filename (e.g., `["base:files.include", "dft:procedures.include"]`) |
 | `surviving_procs` | string[] \| null | For `proc-trim` files: canonical names of procs that survive. Null for other treatments. |
 | `excluded_procs` | string[] \| null | For `proc-trim` files using PE model: canonical names of procs removed. Null otherwise. |
 | `proc_model` | string \| null | `additive` (PI), `subtractive` (PE), or null if not proc-trimmed |
@@ -2354,13 +2355,13 @@ Equivalent resolved selections must produce the same trimmed output whether they
   "release_branch": "project_abc_rtm",
   "base": "jsons/base.json",
   "features": [
-    "jsons/features/scan_common.json",
-    "jsons/features/feature_dft.json",
-    "jsons/features/feature_power.json"
+    "jsons/features/scan_common.feature.json",
+    "jsons/features/dft.feature.json",
+    "jsons/features/power.feature.json"
   ],
   "notes": [
-    "scan_common is ordered ahead of feature_dft because DFT inserts steps into scan-owned setup content",
-    "feature_power remains enabled because compare_lp is replaced by the selected feature set"
+    "scan_common is ordered ahead of dft because DFT inserts steps into scan-owned setup content",
+    "power remains enabled because compare_lp is replaced by the selected feature set"
   ]
 }
 ```
@@ -2888,6 +2889,7 @@ This log records the conscious design decisions that shaped the current document
 | 2026-04-20 | Docs-hygiene pass. Reframed implementation timeline in terms of stage boundaries tied to module dependency order (Stage 0 `core/` → Stage 1 `parser/` → Stage 2 `compiler/` → Stage 3 `trimmer/` → Stage 4 `validator/` → Stage 5 `cli/`) across `AGENTS.md`, `tests/TESTING_STRATEGY.md`, `tests/FIXTURE_CATALOG.md`, `tests/GOLDEN_FILE_GUIDE.md`, `tests/fixtures/gen_large_domain.py`, and `tests/integration/crash_harness.py`, replacing the previous Day/Sprint/Week labels which implied calendar time. Removed `Status: Draft` / `Author:` / `Last Updated:` banners from the live spec set (the revision history is the living record of authorship and currency). Folded `TCL_PARSER_SPEC.md` §11 "Addendum A" into the main body: A.1 (PE-01 timing and error-message format) became new §6.3 so the timing rule sits next to the §6.1 invariants it enforces, and A.2 (namespace-resolution cross-reference) was dropped as redundant with §5.3.1. The general rule against Addendum sections in specs is recorded as a **Documentation Convention** in `AGENTS.md` (with rationale) so it is discoverable to future authors rather than buried in this log. |
 | 2026-04-20 | Consolidated `AGENTS.md` into `.github/instructions/project.instructions.md` and deleted the root `AGENTS.md`. The split between an "agent instructions" file (`AGENTS.md`) and a "project conventions" file (`.github/instructions/project.instructions.md`) had become a distinction without a difference — both held the same category of guardrail (architecture, critical principles, code style, testing standards, module guidance, diagnostic-code rules). Keeping two files meant rules drifted and contributors had to hunt. The consolidated file is the single entry point applied to every file (`applyTo: '**'`) so Copilot and humans read the same source. Updated live pointers in `README.md` and `docs/chopper_description.md` (§9.x, §11.x cross-reference table). Revision-history mentions of `AGENTS.md` in this log and in `TCL_PARSER_SPEC.md` are kept as historical references; only the active pointer in TCL_PARSER_SPEC Rev 11 was retargeted. |
 | 2026-04-20 | Embedded two narrative walkthroughs into §5 so the pipeline contract is understandable without cross-referencing code or test fixtures. Added §5.2.1 "End-to-End Walkthrough" expanding the compact P0–P7 ASCII diagram into the concrete data flow each phase consumes, produces, and hands off (run context → proc index → compiled manifest → dependency graph → staging → audit bundle). Added §5.4.1 "Per-File Parsing to Global Call Tree" making the parser-to-tracer handoff explicit: per-file `parse_file()` returns `list[ProcEntry]` with unresolved `calls` / `source_refs`; the compiler concatenates them into one flat global `dict[canonical_name, ProcEntry]` walked in lexicographic order; P4 BFS resolves call tokens against that index under the deterministic namespace contract, emitting `TW-01`/`TW-02`/`TW-03`/`TW-04` as warranted. No normative behavior changed — this is documentation of already-contracted semantics that were previously only discoverable by reading §5.4 step-by-step plus the §6 proc-index contract. A dedicated `docs/TECHNICAL_IMPLEMENTATION.md` covering service wiring, global data stores, and diagnostic routing will be authored as a separate peer document; §5.3.1 now links to it by name. |
+| 2026-04-21 | Re-synchronised chopper docs with `json_kit/` 1.0.2, which standardised feature JSON filenames to `<feature_name>.feature.json` and moved example instances under `jsons/` subdirectories. Updated every `json_kit/examples/*` citation in `chopper_description.md` (§3.1 base minimal/full examples, §3.2 feature example, §3.3 project example) to reference the `jsons/base.json` and `jsons/features/<name>.feature.json` layout. Replaced stale `feature_<name>.json` tokens in §5.1.1 CLI invocation examples, §5.5 audit-artifact tree (`input_features/01_dft.feature.json`, `02_power.feature.json`), the `chopper_run.json` example (`feature_jsons`), the `compiled_manifest.json` `input_sources` row (keyed by feature `name`, not filename), and the §6.6 extended project example (`scan_common.feature.json`, `dft.feature.json`, `power.feature.json`). Expanded §2.5 per-domain tree to show the `<feature>.feature.json` filename convention directly. No schema fields, diagnostic codes, or merge/trace semantics changed — this was a naming- and path-only alignment pass triggered by the json_kit release, cascading the new convention into every subordinate chopper doc reference. |
 
 ---
 
