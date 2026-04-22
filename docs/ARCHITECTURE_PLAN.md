@@ -115,7 +115,7 @@ src/chopper/
 │   └── service.py               # AuditService.run(...)
 │
 ├── validator/                   # Stage 4 — Pre+post validation (P1, P6)
-│   └── functions.py              # validate_pre(ctx, loaded), validate_post(ctx, manifest, rewritten)
+│   └── functions.py              # validate_pre(ctx, loaded), validate_post(ctx, manifest, graph, rewritten)
 │
 ├── orchestrator/                # Composes the services; owns phase loop
 │   ├── runner.py                # ChopperRunner
@@ -161,7 +161,7 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `TracerService` | P4 | `ctx, manifest, parsed` → `DependencyGraph` | `compiler/trace_service.py` |
 | `TrimmerService` | P5a | `ctx, manifest, parsed, state` → `TrimReport` | `trimmer/service.py` |
 | `GeneratorService` | P5b | `ctx, manifest` → `tuple[GeneratedArtifact, ...]` | `generators/service.py` |
-| `validate_post` (function) | P6 | `ctx, manifest, rewritten` → emits diagnostics | `validator/functions.py` |
+| `validate_post` (function) | P6 | `ctx, manifest, graph, rewritten` → emits diagnostics | `validator/functions.py` |
 | `AuditService` | P7 | `ctx, record` → `AuditManifest` | `audit/service.py` |
 
 **Every service has exactly one public method named `run(...)`.** Pre- and post-validation are plain module-level functions (`validate_pre`, `validate_post` in `validator/functions.py`) — they read inputs and emit diagnostics; no service class is warranted (per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A9). Every other pipeline step is a service class with one `run()` method.
@@ -327,12 +327,12 @@ def run(ctx: ChopperContext) -> RunResult:
             if _has_errors(ctx, Phase.P5_TRIM): return _abort(ctx, state, manif, graph)
             GeneratorService().run(ctx, manif)                          # P5b — writes directly via ctx.fs;
                                                                         # returns artifact records for audit only
-            validate_post(ctx, manif, rewritten)                        # P6 — re-tokenizes only rewritten files
+            validate_post(ctx, manif, graph, rewritten)                 # P6 — re-tokenizes only rewritten files
             if _has_errors(ctx, Phase.P6_POSTVALIDATE): return _abort(ctx, state, manif, graph)
         else:
             # Dry-run P6: manifest-derivable checks only (VW-05, VW-06, VW-14..VW-17);
             # filesystem re-read checks (VE-16, VE-23) are skipped because nothing was rewritten.
-            validate_post(ctx, manif, rewritten=())
+            validate_post(ctx, manif, graph, rewritten=())
         return _build_result(ctx, manif, graph, exit_code=0)
     finally:
         # P7 audit always runs — even on exceptions, even on early return.
@@ -623,7 +623,7 @@ class AuditManifest:
 | `TrimmerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, state: DomainState) -> TrimReport` |
 | `GeneratorService.run` | `(ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is a manifest record consumed by `AuditService` for audit artifacts. The runner does not re-write the returned content. |
 | `validate_pre` | `(ctx, loaded) -> None` — plain module function in `validator/functions.py`; emits diagnostics. |
-| `validate_post` | `(ctx, manifest, rewritten: Sequence[Path]) -> None` — plain module function; emits diagnostics. |
+| `validate_post` | `(ctx, manifest, graph, rewritten: Sequence[Path]) -> None` — plain module function; emits diagnostics. `graph` is the P4 :class:`DependencyGraph`; VW-05 / VW-06 read resolved edges from it to detect calls/source-refs into trimmed-away procs/files without re-parsing. |
 | `AuditService.run` | `(ctx: ChopperContext, record: RunRecord) -> AuditManifest` — the runner assembles a :class:`RunRecord` in its `finally` block with whatever phase outputs were produced (manifest / graph / trim_report may be ``None``) and hands it to the audit service, which writes every artifact under `ctx.config.audit_root` via `ctx.fs.write_text()`. |
 
 ### 9.3 Communication rules

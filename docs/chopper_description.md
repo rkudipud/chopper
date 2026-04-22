@@ -1869,7 +1869,7 @@ Chopper has two validation phases that run within the pipeline:
 | Phase | When | Service | Input | What it checks |
 |---|---|---|---|---|
 | **Phase 1** (within P1) | Pre-trim | `validate_pre(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, cross-source veto detection |
-| **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, rewritten_paths)` | `CompiledManifest` + sequence of paths the trimmer actually rewrote | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); scans surviving procs for dangling-proc-call (`VW-05`), source-file-removed (`VW-06`), and F3 cross-validation (`VW-14`–`VW-17`) |
+| **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, graph, rewritten_paths)` | `CompiledManifest` + `DependencyGraph` + sequence of paths the trimmer actually rewrote | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); reads the P4 dependency graph to find surviving procs whose resolved calls or `source`/`iproc_source` edges point into trimmed-away targets (`VW-05`, `VW-06`); classifies F3 step tokens against the manifest for cross-validate (`VW-14`–`VW-17`) |
 
 Phase 2 input contract: `rewritten_paths` contains only files the trimmer touched during P5 (copied-and-edited or newly generated). Files copied verbatim from `<domain>_backup/` are **not** re-tokenized — they were already validated at P2 and the trimmer did not change them.
 
