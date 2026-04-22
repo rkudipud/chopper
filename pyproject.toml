@@ -96,8 +96,9 @@ type = "layers"
 # cosmetic.
 layers = [
     "(chopper.cli)",
-    "(chopper.orchestrator)",
-    "chopper.parser | (chopper.config) | (chopper.compiler) | (chopper.trimmer) | (chopper.generators) | (chopper.validator) | (chopper.audit)",
+    "chopper.orchestrator",
+    "chopper.parser | chopper.config | chopper.compiler | chopper.trimmer | chopper.generators | (chopper.validator) | chopper.audit",
+    "chopper.adapters",
     "chopper.core",
 ]
 
@@ -109,7 +110,16 @@ type = "forbidden"
 # forbid. Each subsequent stage (parser, config, compiler, …) adds its
 # module to the list in the same PR that introduces the module.
 source_modules = ["chopper.core"]
-forbidden_modules = ["chopper.parser"]
+forbidden_modules = [
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.audit",
+    "chopper.orchestrator",
+    "chopper.adapters",
+]
 
 [[tool.importlinter.contracts]]
 name = "Services are independent (no sibling-to-sibling imports)"
@@ -129,5 +139,14 @@ type = "forbidden"
 # the first adapter). Contract is declared now with an empty forbidden list
 # so the layered-architecture story is visible in config; entries are added
 # as each service module lands.
-source_modules = ["chopper.core"]
-forbidden_modules = []
+source_modules = ["chopper.adapters"]
+forbidden_modules = [
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.audit",
+    "chopper.orchestrator",
+    "chopper.cli",
+]

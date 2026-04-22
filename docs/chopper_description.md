@@ -1360,9 +1360,9 @@ proc step_b {} {
 proc recursive {} { recursive }   ;# cycle terminator
 
 # file: utils_a.tcl
-proc util_ns::helper {} { return 1 }
+proc helper {} { return 1 }
 # file: utils_b.tcl
-proc other_ns::helper {} { return 2 }
+proc helper {} { return 2 }
 ```
 
 JSON selection:
@@ -1376,7 +1376,7 @@ BFS trace (P4) with frontier `[main]`, visited `{}`:
 | Step | Pop | Resolve calls | Emit | Enqueue | Visited after step |
 |---|---|---|---|---|---|
 | 1 | `flow.tcl::main` | `step_a` → `flow.tcl::step_a` (resolved); `step_b` → `flow.tcl::step_b` (resolved); `$dyn_cmd` → unresolvable | `TW-03 dynamic-call-form` at `flow.tcl::main` | `step_a`, `step_b` (lex-sorted) | `{main}` |
-| 2 | `flow.tcl::step_a` | `helper` → **two matches** (`util_ns::helper`, `other_ns::helper`); `recursive` → `flow.tcl::recursive` (resolved) | `TW-01 ambiguous-proc-match` at `flow.tcl::step_a` line N listing both candidates | `recursive` | `{main, step_a}` |
+| 2 | `flow.tcl::step_a` | `helper` → **two matches** (`utils_a.tcl::helper`, `utils_b.tcl::helper` both have qualified name `helper`); `recursive` → `flow.tcl::recursive` (resolved) | `TW-01 ambiguous-proc-match` at `flow.tcl::step_a` line N listing both candidates | `recursive` | `{main, step_a}` |
 | 3 | `flow.tcl::step_b` | `missing_util` → **zero matches** after namespace search | `TW-02 unresolved-proc-call` at `flow.tcl::step_b` line N | (none) | `{main, step_a, step_b}` |
 | 4 | `flow.tcl::recursive` | `recursive` → already in visited set | `TW-04 cycle-in-call-graph` listing cycle path `recursive → recursive` | (none — visited-set terminates) | `{main, step_a, step_b, recursive}` |
 | 5 | (frontier empty) | — | — | — | — |
@@ -1384,10 +1384,10 @@ BFS trace (P4) with frontier `[main]`, visited `{}`:
 **Outcomes:**
 
 - **Trimmed `flow.tcl` contains only `main`.** Procs `step_a`, `step_b`, `recursive` appear as nodes in `dependency_graph.json` (reachable from PI via trace), but only `main` is named in `procedures.include`, so only `main` is copied. `step_a`/`step_b`/`recursive` are logged in `trim_report.json` as **traced-only (PT)**, not surviving.
-- **Neither `util_ns::helper` nor `other_ns::helper` is copied.** Both were candidates for an ambiguous match but neither was selected (ambiguity is a warning, not a resolution); neither is named in any `procedures.include` entry.
+- **Neither `utils_a.tcl::helper` nor `utils_b.tcl::helper` is copied.** Both were candidates for an ambiguous match but neither was selected (ambiguity is a warning, not a resolution); neither is named in any `procedures.include` entry.
 - **`utils_a.tcl` and `utils_b.tcl` are removed from the trimmed domain** (not in `files.include`, no proc named from them is in `procedures.include`).
 - **Diagnostic set emitted by P4:** `{TW-01, TW-02, TW-03, TW-04}`. All are warnings; P4 never blocks P5.
-- **To retain `step_a` and `recursive`** the author adds them to `procedures.include`. To retain one of the ambiguous `helper` procs the author uses the fully-qualified name (`util_ns::helper`). To retain `utils_a.tcl` whole the author adds it to `files.include`.
+- **To retain `step_a` and `recursive`** the author adds them to `procedures.include`. To retain one of the ambiguous `helper` procs the author names it explicitly in `procedures.include` (keyed by its canonical `file::qualified_name`, e.g. `{"file": "utils_a.tcl", "procs": ["helper"]}`). To retain `utils_a.tcl` whole the author adds it to `files.include`.
 
 **Worked example (trace is logging, not copying):**
 

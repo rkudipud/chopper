@@ -159,10 +159,10 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `ParserService` | P2 | `(ctx: ChopperContext, files: Sequence[Path]) -> ParseResult` | `parser/service.py` |
 | `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` — **Two-pass implementation required.** Pass 1: iterate `loaded.features` in topo-sort order and collect per-source contribution sets (FI, FE, PI, PE per source). Pass 2: apply R1 L1/L2/L3 cross-source resolution on the collected sets. F1/F2 output must be identical regardless of feature declaration order; only F3 `flow_actions` sequencing depends on order. Never apply excludes as a sequential mutating pass over a shared set — that makes F1/F2 order-dependent. |
 | `TracerService` | P4 | `ctx, manifest, parsed` → `DependencyGraph` | `compiler/trace_service.py` |
-| `TrimmerService` | P5a | `ctx, manifest, state` → `TrimReport` | `trimmer/service.py` |
+| `TrimmerService` | P5a | `ctx, manifest, parsed, state` → `TrimReport` | `trimmer/service.py` |
 | `GeneratorService` | P5b | `ctx, manifest` → `tuple[GeneratedArtifact, ...]` | `generators/service.py` |
 | `validate_post` (function) | P6 | `ctx, manifest, rewritten` → emits diagnostics | `validator/functions.py` |
-| `AuditService` | P7 | `ctx, manifest, graph` → `AuditManifest` | `audit/service.py` |
+| `AuditService` | P7 | `ctx, record` → `AuditManifest` | `audit/service.py` |
 
 **Every service has exactly one public method named `run(...)`.** Pre- and post-validation are plain module-level functions (`validate_pre`, `validate_post` in `validator/functions.py`) — they read inputs and emit diagnostics; no service class is warranted (per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A9). Every other pipeline step is a service class with one `run()` method.
 
@@ -323,7 +323,7 @@ def run(ctx: ChopperContext) -> RunResult:
                                                                         # TW-* are warnings by definition;
                                                                         # internal invariant violations raise → exit 3)
         if not ctx.config.dry_run:
-            rewritten = TrimmerService().run(ctx, manif, state)         # P5a — writes directly via ctx.fs
+            rewritten = TrimmerService().run(ctx, manif, parsed, state) # P5a — writes directly via ctx.fs
             if _has_errors(ctx, Phase.P5_TRIM): return _abort(ctx, state, manif, graph)
             GeneratorService().run(ctx, manif)                          # P5b — writes directly via ctx.fs;
                                                                         # returns artifact records for audit only
@@ -340,7 +340,7 @@ def run(ctx: ChopperContext) -> RunResult:
         # unconditionally, and the other artifacts only if their producing phase completed.
         # chopper_run.json records `artifacts_present: string[]` listing which files were written.
         try:
-            AuditService().run(ctx, manif, graph)
+            AuditService().run(ctx, _build_record(ctx, manif, graph, ...))
         except Exception:
             # Audit itself failed (disk full, perms). Log to stderr only;
             # never mask the primary failure. Exit code is unaffected.
@@ -615,16 +615,16 @@ class AuditManifest:
 
 | Service | Signature |
 |---|---|
-| `DomainStateService.run` | `(ctx) -> DomainState` |
-| `ConfigService.run` | `(ctx, state) -> LoadedConfig` |
+| `DomainStateService.run` | `(ctx: ChopperContext) -> DomainState` |
+| `ConfigService.run` | `(ctx: ChopperContext, state: DomainState) -> LoadedConfig` |
 | `ParserService.run` | `(ctx: ChopperContext, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. |
-| `CompilerService.run` | `(ctx, loaded, parsed) -> CompiledManifest` |
-| `TracerService.run` | `(ctx, manifest, parsed) -> DependencyGraph` |
-| `TrimmerService.run` | `(ctx, manifest, state) -> TrimReport` |
-| `GeneratorService.run` | `(ctx, manifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is a manifest record consumed by `AuditService` for audit artifacts. The runner does not re-write the returned content. |
+| `CompilerService.run` | `(ctx: ChopperContext, loaded: LoadedConfig, parsed: ParseResult) -> CompiledManifest` |
+| `TracerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult) -> DependencyGraph` |
+| `TrimmerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, state: DomainState) -> TrimReport` |
+| `GeneratorService.run` | `(ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is a manifest record consumed by `AuditService` for audit artifacts. The runner does not re-write the returned content. |
 | `validate_pre` | `(ctx, loaded) -> None` — plain module function in `validator/functions.py`; emits diagnostics. |
 | `validate_post` | `(ctx, manifest, rewritten: Sequence[Path]) -> None` — plain module function; emits diagnostics. |
-| `AuditService.run` | `(ctx, manifest, graph) -> AuditManifest` |
+| `AuditService.run` | `(ctx: ChopperContext, record: RunRecord) -> AuditManifest` — the runner assembles a :class:`RunRecord` in its `finally` block with whatever phase outputs were produced (manifest / graph / trim_report may be ``None``) and hands it to the audit service, which writes every artifact under `ctx.config.audit_root` via `ctx.fs.write_text()`. |
 
 ### 9.3 Communication rules
 

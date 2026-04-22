@@ -31,6 +31,7 @@ each stage may not depend on a later stage's shapes (ARCHITECTURE_PLAN.md
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
@@ -38,19 +39,28 @@ from typing import Literal
 __all__ = [
     "AddStageAction",
     "AddStepAction",
+    "AuditArtifact",
+    "AuditManifest",
     "BaseJson",
     "BaseOptions",
+    "CompiledManifest",
+    "DependencyGraph",
     "DomainState",
+    "Edge",
     "FeatureJson",
     "FeatureMetadata",
+    "FileOutcome",
+    "FileProvenance",
     "FileStat",
     "FileTreatment",
     "FilesSection",
     "FlowAction",
+    "GeneratedArtifact",
     "LoadFromAction",
     "LoadedConfig",
     "ParseResult",
     "ParsedFile",
+    "ProcDecision",
     "ProcEntry",
     "ProcEntryRef",
     "ProceduresSection",
@@ -59,7 +69,10 @@ __all__ = [
     "RemoveStepAction",
     "ReplaceStageAction",
     "ReplaceStepAction",
+    "RunRecord",
     "StageDefinition",
+    "StageSpec",
+    "TrimReport",
 ]
 
 
@@ -619,3 +632,561 @@ class LoadedConfig:
         posix = [p.as_posix() for p in self.surface_files]
         if posix != sorted(posix):
             raise ValueError("LoadedConfig.surface_files must be sorted by POSIX form")
+
+
+# ---------------------------------------------------------------------------
+# Stage 2b — Compiler outputs (P3 frozen manifest).
+# ---------------------------------------------------------------------------
+#
+# Authoritative prose:   bible §§4 (R1/L1/L2/L3), 5.3, 5.5.3.
+# Authoritative shape:   ARCHITECTURE_PLAN.md §9.1 (``CompiledManifest``).
+#
+# The compiler (``CompilerService.run``) consumes a :class:`LoadedConfig` and
+# a :class:`ParseResult` and emits exactly one :class:`CompiledManifest`.
+# The manifest is frozen on construction — every downstream phase (trace,
+# trim, generate, post-validate, audit) reads it but must not mutate it
+# (bible §5.4 "frozen-manifest invariant").
+
+
+@dataclass(frozen=True)
+class ProcDecision:
+    """One surviving proc recorded in the compiled manifest.
+
+    Bible §5.5.3: every entry in ``procedures.surviving`` carries its
+    canonical name, its source file, and the JSON source that caused it
+    to survive. ``selection_source`` is a stable string of the form
+    ``"<source_key>:<json_field>"``:
+
+    * ``source_key`` is ``"base"`` for the base JSON, or the feature's
+      ``name`` field for a feature JSON.
+    * ``json_field`` is one of ``"files.include"`` (whole-file inclusion
+      contributed this proc), ``"procedures.include"`` (explicit PI
+      named the proc), or ``"procedures.exclude"`` (same-source PE
+      kept the file as ``PROC_TRIM`` minus the excluded procs).
+
+    When multiple sources contribute a proc the winner reported here is
+    the first one encountered in compiler iteration order (bible §5.3
+    "Iteration order (emission determinism)"): base first, then each
+    feature in topo-sorted order.
+    """
+
+    canonical_name: str
+    source_file: Path
+    selection_source: str
+
+    def __post_init__(self) -> None:
+        if "::" not in self.canonical_name:
+            raise ValueError(
+                f"ProcDecision.canonical_name must be '<file>::<qualified_name>', got {self.canonical_name!r}"
+            )
+        if ":" not in self.selection_source:
+            raise ValueError(
+                f"ProcDecision.selection_source must be '<source_key>:<json_field>', got {self.selection_source!r}"
+            )
+
+
+@dataclass(frozen=True)
+class FileProvenance:
+    """Per-file provenance record written into the compiled manifest.
+
+    Mirrors the fields of a single entry in ``compiled_manifest.json``
+    under the top-level ``files`` array (bible §5.5.3):
+
+    * ``path`` — domain-relative POSIX path of the file.
+    * ``treatment`` — the authoritative :class:`FileTreatment` value.
+    * ``reason`` — kebab-case tag naming the winning same-source rule.
+      One of: ``"fi-literal"``, ``"fi-glob"``, ``"pi-additive"``,
+      ``"pe-subtractive"``, ``"fi-and-pe"``, ``"default-exclude"``.
+    * ``input_sources`` — stable tuple of ``"<source_key>:<json_field>"``
+      tags recording every non-NONE, non-fully-vetoed contribution to
+      this file. Lex-sorted for determinism.
+    * ``vetoed_entries`` — tuple of ``"<source_key>:<json_field>"`` tags
+      identifying authoring intents discarded by L3 (cross-source veto:
+      every ``VW-18`` PE and ``VW-19`` FE vetoed by another source's
+      include). Lex-sorted.
+    * ``proc_model`` — ``"additive"`` if ``PROC_TRIM`` surviving procs
+      were driven by ``procedures.include`` entries, ``"subtractive"``
+      if driven by same-source ``procedures.exclude`` entries, or
+      ``None`` for ``FULL_COPY`` / ``GENERATED`` / ``REMOVE``.
+    """
+
+    path: Path
+    treatment: FileTreatment
+    reason: str
+    input_sources: tuple[str, ...] = ()
+    vetoed_entries: tuple[str, ...] = ()
+    proc_model: Literal["additive", "subtractive"] | None = None
+
+    def __post_init__(self) -> None:
+        if self.input_sources != tuple(sorted(self.input_sources)):
+            raise ValueError("FileProvenance.input_sources must be lex-sorted")
+        if self.vetoed_entries != tuple(sorted(self.vetoed_entries)):
+            raise ValueError("FileProvenance.vetoed_entries must be lex-sorted")
+        if self.proc_model is not None and self.treatment is not FileTreatment.PROC_TRIM:
+            raise ValueError(
+                f"FileProvenance.proc_model is only valid for PROC_TRIM files (got treatment={self.treatment})"
+            )
+
+
+@dataclass(frozen=True)
+class StageSpec:
+    """One resolved F3 stage in the compiled manifest.
+
+    This is the post-``flow_actions`` artifact consumed by
+    :class:`~chopper.generators.GeneratorService` at P5b. Structurally
+    identical to :class:`StageDefinition` (the schema-hydrated authoring
+    record); the type distinction exists so signatures make it clear
+    whether a stage has been through the resolver.
+
+    Invariants enforced in ``__post_init__``:
+
+    1. ``name`` is non-empty.
+    2. ``steps`` is non-empty — a stage with zero steps cannot produce a
+       runnable ``<stage>.tcl`` (bible §3.6). The compiler raises
+       ``VE-08`` earlier if authors emit an empty stage; this check
+       catches programmer-error drift in the resolver itself.
+    """
+
+    name: str
+    load_from: str = ""
+    steps: tuple[str, ...] = ()
+    dependencies: tuple[str, ...] = ()
+    exit_codes: tuple[int, ...] = ()
+    command: str | None = None
+    inputs: tuple[str, ...] = ()
+    outputs: tuple[str, ...] = ()
+    run_mode: Literal["serial", "parallel"] = "serial"
+    language: Literal["tcl", "python"] = "tcl"
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("StageSpec.name must be non-empty")
+        if not self.steps:
+            raise ValueError(f"StageSpec.steps must be non-empty (stage {self.name!r})")
+
+
+@dataclass(frozen=True)
+class CompiledManifest:
+    """Frozen output of :class:`~chopper.compiler.CompilerService` (P3).
+
+    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. This dataclass is
+    the single source of truth driving every later phase:
+
+    * ``file_decisions`` — maps every relevant domain-relative file to
+      its :class:`FileTreatment`. Relevant files are: every parsed file
+      (by ``parsed.files`` keys), plus every extra literal path named
+      by any source that the parser did not cover (non-``.tcl``
+      companions such as config files surface here). Lex-sorted by
+      POSIX form.
+    * ``proc_decisions`` — maps every surviving proc's ``canonical_name``
+      to a :class:`ProcDecision`. For ``FULL_COPY`` files every parsed
+      proc appears here; for ``PROC_TRIM`` files only the kept subset
+      appears. Keyed by ``canonical_name`` so the trimmer (P5) can
+      membership-test per parsed proc in O(1). Lex-sorted.
+    * ``provenance`` — per-file :class:`FileProvenance` records, with
+      the same key set as ``file_decisions``. Lex-sorted.
+    * ``stages`` — resolved F3 stages, in execution order. Empty when
+      no base stage is declared; populated by
+      :mod:`chopper.compiler.flow_resolver` when the base JSON declares
+      at least one stage (bible §§3.6, 6.7).
+
+    Invariants enforced by ``__post_init__``:
+
+    1. All three mapping field keys are lex-sorted by POSIX form.
+    2. ``provenance`` and ``file_decisions`` have identical key sets.
+    3. Every ``provenance[F].treatment`` equals ``file_decisions[F]``
+       (no provenance/decision drift).
+    """
+
+    file_decisions: dict[Path, FileTreatment] = field(default_factory=dict)
+    proc_decisions: dict[str, ProcDecision] = field(default_factory=dict)
+    provenance: dict[Path, FileProvenance] = field(default_factory=dict)
+    stages: tuple[StageSpec, ...] = ()
+
+    def __post_init__(self) -> None:
+        fd_keys = [p.as_posix() for p in self.file_decisions]
+        if fd_keys != sorted(fd_keys):
+            raise ValueError("CompiledManifest.file_decisions must be lex-sorted by POSIX form")
+        if list(self.proc_decisions.keys()) != sorted(self.proc_decisions.keys()):
+            raise ValueError("CompiledManifest.proc_decisions keys must be lex-sorted")
+        pv_keys = [p.as_posix() for p in self.provenance]
+        if pv_keys != sorted(pv_keys):
+            raise ValueError("CompiledManifest.provenance must be lex-sorted by POSIX form")
+        if set(self.provenance.keys()) != set(self.file_decisions.keys()):
+            raise ValueError("CompiledManifest.provenance keys must match file_decisions keys")
+        for path, treatment in self.file_decisions.items():
+            pv_treatment = self.provenance[path].treatment
+            if pv_treatment is not treatment:
+                raise ValueError(
+                    f"CompiledManifest: provenance/decision mismatch for {path!r}: "
+                    f"file_decisions={treatment}, provenance.treatment={pv_treatment}"
+                )
+
+
+# ---------------------------------------------------------------------------
+# Stage 2c — Tracer outputs (P4).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Edge:
+    """One caller → callee edge recorded by :class:`TracerService` (P4).
+
+    An edge is created per call-token occurrence: if the same caller token
+    matches the same callee three times, three :class:`Edge` records
+    appear, each with its own ``line`` and ``token``. Deduplication is a
+    visited-set property, not an edge-set property (bible §5.4, "Frontier
+    and visited-set semantics").
+
+    * ``caller`` — canonical proc name of the proc whose body contains the
+      token. For file-level ``source`` / ``iproc_source`` edges emitted
+      from a proc body, ``caller`` is still the enclosing proc's canonical
+      name.
+    * ``callee`` — canonical proc name of the resolved callee for
+      ``kind="proc_call"``; the domain-relative POSIX path (as a string)
+      for ``kind in {"source", "iproc_source"}``; empty string when
+      ``status != "resolved"``.
+    * ``kind`` — ``"proc_call"``, ``"source"``, or ``"iproc_source"``.
+    * ``status`` — ``"resolved"``, ``"ambiguous"``, ``"unresolved"``, or
+      ``"dynamic"`` (bible §5.5.4 per-edge entry).
+    * ``token`` — the raw call token the parser extracted. Retained for
+      diagnostic rendering and for downstream tooling that wants to show
+      the user what was written on the page.
+    * ``line`` — 1-indexed source line at which the token was recorded.
+      When the parser does not retain per-token line numbers, the tracer
+      stamps the enclosing proc's ``body_start_line`` as a fallback.
+    * ``diagnostic_code`` — the ``TW-*`` code associated with this edge
+      when ``status != "resolved"``; ``None`` for resolved edges.
+    """
+
+    caller: str
+    callee: str
+    kind: Literal["proc_call", "source", "iproc_source"]
+    status: Literal["resolved", "ambiguous", "unresolved", "dynamic"]
+    token: str
+    line: int
+    diagnostic_code: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.status == "resolved" and not self.callee:
+            raise ValueError("Edge.callee is required when status == 'resolved'")
+        if self.status == "resolved" and self.diagnostic_code is not None:
+            raise ValueError("Edge.diagnostic_code must be None for resolved edges")
+        if self.status != "resolved" and self.diagnostic_code is None:
+            raise ValueError(f"Edge.diagnostic_code is required when status == {self.status!r}")
+        if self.line < 1:
+            raise ValueError(f"Edge.line must be 1-indexed positive, got {self.line}")
+
+
+@dataclass(frozen=True)
+class DependencyGraph:
+    """Frozen output of :class:`~chopper.compiler.TracerService` (P4).
+
+    Authoritative shape: bible §5.4 and §5.5.4. The graph is
+    **reporting-only** — it never influences trimming. Its purpose is to
+    let the domain owner see what their JSON selection transitively
+    depends on.
+
+    * ``pi_seeds`` — the PI set that seeded the BFS walk (every canonical
+      proc name in ``manifest.proc_decisions`` at the time P4 started).
+      Lex-sorted.
+    * ``nodes`` — every canonical proc name reached by the walk (i.e.,
+      PI+). Includes seeds plus every resolved callee. Lex-sorted.
+    * ``reachable_from_includes`` — frozenset form of ``nodes``, exposed
+      for O(1) membership tests by downstream consumers (trim report).
+    * ``pt`` — ``nodes − pi_seeds`` (the traced-only set). Lex-sorted.
+    * ``edges`` — every ``Edge`` recorded during the walk, sorted by
+      ``(caller, kind, line, token, callee)`` so snapshot output is
+      byte-stable.
+    * ``unresolved_tokens`` — tuple of ``(caller, token, line,
+      diagnostic_code)`` for every edge whose status is not ``"resolved"``;
+      a convenience view derived from ``edges``. Kept frozen and
+      lex-sorted.
+
+    Invariants enforced in ``__post_init__``:
+
+    1. ``nodes`` is lex-sorted and unique.
+    2. ``pi_seeds`` ⊆ ``nodes`` and is lex-sorted.
+    3. ``pt`` = ``nodes − pi_seeds`` exactly, lex-sorted.
+    4. ``reachable_from_includes`` == ``frozenset(nodes)``.
+    5. ``edges`` is sorted by ``(caller, kind, line, token, callee)``.
+    """
+
+    pi_seeds: tuple[str, ...]
+    nodes: tuple[str, ...]
+    pt: tuple[str, ...]
+    edges: tuple[Edge, ...]
+    reachable_from_includes: frozenset[str]
+    unresolved_tokens: tuple[tuple[str, str, int, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        if list(self.nodes) != sorted(self.nodes):
+            raise ValueError("DependencyGraph.nodes must be lex-sorted")
+        if len(set(self.nodes)) != len(self.nodes):
+            raise ValueError("DependencyGraph.nodes must be unique")
+        if list(self.pi_seeds) != sorted(self.pi_seeds):
+            raise ValueError("DependencyGraph.pi_seeds must be lex-sorted")
+        if not set(self.pi_seeds).issubset(set(self.nodes)):
+            raise ValueError("DependencyGraph.pi_seeds must be a subset of nodes")
+        expected_pt = tuple(sorted(set(self.nodes) - set(self.pi_seeds)))
+        if self.pt != expected_pt:
+            raise ValueError(
+                f"DependencyGraph.pt must equal (nodes − pi_seeds), sorted; got {self.pt!r}, expected {expected_pt!r}"
+            )
+        if self.reachable_from_includes != frozenset(self.nodes):
+            raise ValueError("DependencyGraph.reachable_from_includes must equal frozenset(nodes)")
+        edge_keys = [(e.caller, e.kind, e.line, e.token, e.callee) for e in self.edges]
+        if edge_keys != sorted(edge_keys):
+            raise ValueError("DependencyGraph.edges must be sorted by (caller, kind, line, token, callee)")
+
+
+# ---------------------------------------------------------------------------
+# Stage 3a — Trimmer outputs (P5a).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FileOutcome:
+    """Per-file audit record produced by :class:`TrimmerService` (P5a).
+
+    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. One outcome is
+    emitted for every file the manifest reasoned over, regardless of
+    treatment — ``REMOVE`` files appear too (with ``bytes_out=0`` and
+    empty proc tuples) so the audit bundle has a complete ledger.
+
+    * ``path`` — domain-relative POSIX path.
+    * ``treatment`` — the :class:`FileTreatment` copied from the manifest.
+    * ``bytes_in`` — size before trim. ``0`` when the file did not exist
+      in backup (e.g. ``GENERATED`` treatment).
+    * ``bytes_out`` — size after trim. ``0`` for ``REMOVE`` treatment.
+    * ``procs_kept`` — canonical names of every proc retained in the
+      output, lex-sorted.
+    * ``procs_removed`` — canonical names of every proc deleted from
+      the output, lex-sorted. Empty for ``FULL_COPY`` / ``REMOVE``.
+    """
+
+    path: Path
+    treatment: FileTreatment
+    bytes_in: int
+    bytes_out: int
+    procs_kept: tuple[str, ...]
+    procs_removed: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.bytes_in < 0 or self.bytes_out < 0:
+            raise ValueError(
+                "FileOutcome byte counts must be non-negative, "
+                f"got bytes_in={self.bytes_in}, bytes_out={self.bytes_out}"
+            )
+        if list(self.procs_kept) != sorted(self.procs_kept):
+            raise ValueError("FileOutcome.procs_kept must be lex-sorted")
+        if list(self.procs_removed) != sorted(self.procs_removed):
+            raise ValueError("FileOutcome.procs_removed must be lex-sorted")
+        if self.treatment is FileTreatment.REMOVE and self.bytes_out != 0:
+            raise ValueError("FileOutcome: REMOVE treatment requires bytes_out == 0")
+        if self.treatment in (FileTreatment.FULL_COPY, FileTreatment.REMOVE) and self.procs_removed:
+            raise ValueError(f"FileOutcome: treatment {self.treatment} must not list procs_removed")
+
+
+@dataclass(frozen=True)
+class TrimReport:
+    """Frozen output of :class:`~chopper.trimmer.TrimmerService` (P5a).
+
+    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Drives
+    ``.chopper/trim_report.{json,txt}`` at P7.
+
+    Invariants enforced in ``__post_init__``:
+
+    1. ``outcomes`` is lex-sorted by POSIX path.
+    2. The five aggregate counts equal the derived totals from
+       ``outcomes``. This catches drift between the file-writer loop
+       and the summary stamper.
+    """
+
+    outcomes: tuple[FileOutcome, ...]
+    files_copied: int
+    files_trimmed: int
+    files_removed: int
+    procs_kept_total: int
+    procs_removed_total: int
+    rebuild_interrupted: bool = False
+
+    def __post_init__(self) -> None:
+        paths = [o.path.as_posix() for o in self.outcomes]
+        if paths != sorted(paths):
+            raise ValueError("TrimReport.outcomes must be lex-sorted by POSIX path")
+
+        expected_copied = sum(1 for o in self.outcomes if o.treatment is FileTreatment.FULL_COPY)
+        expected_trimmed = sum(1 for o in self.outcomes if o.treatment is FileTreatment.PROC_TRIM)
+        expected_removed = sum(1 for o in self.outcomes if o.treatment is FileTreatment.REMOVE)
+        expected_kept = sum(len(o.procs_kept) for o in self.outcomes)
+        expected_removed_procs = sum(len(o.procs_removed) for o in self.outcomes)
+
+        if self.files_copied != expected_copied:
+            raise ValueError(f"TrimReport.files_copied mismatch: got {self.files_copied}, derived {expected_copied}")
+        if self.files_trimmed != expected_trimmed:
+            raise ValueError(f"TrimReport.files_trimmed mismatch: got {self.files_trimmed}, derived {expected_trimmed}")
+        if self.files_removed != expected_removed:
+            raise ValueError(f"TrimReport.files_removed mismatch: got {self.files_removed}, derived {expected_removed}")
+        if self.procs_kept_total != expected_kept:
+            raise ValueError(
+                f"TrimReport.procs_kept_total mismatch: got {self.procs_kept_total}, derived {expected_kept}"
+            )
+        if self.procs_removed_total != expected_removed_procs:
+            raise ValueError(
+                f"TrimReport.procs_removed_total mismatch: got {self.procs_removed_total}, "
+                f"derived {expected_removed_procs}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Stage 3b — Generator outputs (P5b).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class GeneratedArtifact:
+    """One file emitted by :class:`~chopper.generators.GeneratorService` (P5b).
+
+    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Per bible §P5b / §3.6,
+    generated run files live alongside normal domain files and are
+    subject to post-trim validation at P6.
+
+    * ``path`` — domain-relative POSIX path where the file was written.
+    * ``kind`` — output kind per bible §3.6. Only ``"tcl"`` is emitted in
+      v1 (``<stage>.tcl`` run files). ``"stack"`` and ``"csv"`` are
+      reserved for optional stack-file and manifest emissions.
+    * ``content`` — the full generated text. Kept on the record so the
+      audit writer hashes exactly the emitted bytes.
+    * ``source_stage`` — the :class:`StageSpec.name` that produced this
+      artifact, for audit correlation.
+    """
+
+    path: Path
+    kind: Literal["stack", "tcl", "csv"]
+    content: str
+    source_stage: str
+
+    def __post_init__(self) -> None:
+        if not self.source_stage:
+            raise ValueError("GeneratedArtifact.source_stage must be non-empty")
+
+
+# ---------------------------------------------------------------------------
+# Stage 3c — Audit bundle (P7).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AuditArtifact:
+    """One file written under ``.chopper/`` by :class:`AuditService`.
+
+    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Each artifact carries
+    its own sha256 hash so downstream reviewers can verify byte-stability
+    without re-running Chopper.
+
+    * ``name`` — basename under ``.chopper/`` (e.g. ``"trim_report.json"``).
+      Bible §5.5.1 reserves a fixed vocabulary of names; entries in
+      :attr:`AuditManifest.artifacts` must be lex-sorted by this field.
+    * ``path`` — absolute path the file was written to. Always under
+      :attr:`RunConfig.audit_root`.
+    * ``size`` — byte length of the written content.
+    * ``sha256`` — hex-encoded SHA-256 of the content bytes (UTF-8).
+    """
+
+    name: str
+    path: Path
+    size: int
+    sha256: str
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("AuditArtifact.name must be non-empty")
+        if self.size < 0:
+            raise ValueError(f"AuditArtifact.size must be non-negative, got {self.size}")
+        if len(self.sha256) != 64 or any(c not in "0123456789abcdef" for c in self.sha256):
+            raise ValueError(f"AuditArtifact.sha256 must be a 64-char hex string, got {self.sha256!r}")
+
+
+@dataclass(frozen=True)
+class AuditManifest:
+    """Inventory of every file :class:`AuditService` wrote under ``.chopper/``.
+
+    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Bible §5.5.2 specifies
+    the closed fields the runner will render into ``chopper_run.json``;
+    this record is the in-memory projection of that content plus the
+    ``artifacts`` inventory used by downstream tooling.
+
+    * ``run_id`` — UUID v4 for this run. Stamped on every artifact.
+    * ``started_at`` / ``ended_at`` — UTC timestamps bounding the run.
+    * ``exit_code`` — the runner's final exit code (0/1/2/3).
+    * ``artifacts`` — every :class:`AuditArtifact` written this run,
+      lex-sorted by ``name``.
+    * ``diagnostic_counts`` — mapping of severity → count, produced by
+      :meth:`DiagnosticSink.finalize`.
+    """
+
+    run_id: str
+    started_at: datetime
+    ended_at: datetime
+    exit_code: int
+    artifacts: tuple[AuditArtifact, ...]
+    diagnostic_counts: dict[str, int] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.run_id:
+            raise ValueError("AuditManifest.run_id must be non-empty")
+        if self.exit_code not in (0, 1, 2, 3):
+            raise ValueError(f"AuditManifest.exit_code must be 0/1/2/3, got {self.exit_code}")
+        if self.ended_at < self.started_at:
+            raise ValueError("AuditManifest.ended_at must be >= started_at")
+        names = [a.name for a in self.artifacts]
+        if names != sorted(names):
+            raise ValueError("AuditManifest.artifacts must be lex-sorted by name")
+        if len(set(names)) != len(names):
+            raise ValueError("AuditManifest.artifacts must have unique names")
+
+
+@dataclass(frozen=True)
+class RunRecord:
+    """Runtime snapshot handed to :class:`AuditService` at P7.
+
+    Bundling the inputs into one record keeps the service signature
+    stable as the bundle grows; the runner builds this once in its
+    ``finally`` block and passes it in. Every field is ``Optional``
+    because P7 runs even when earlier phases aborted (bible §5.5.10).
+
+    Field-to-artifact mapping:
+
+    * ``chopper_run.json`` consumes ``run_id``, ``command``,
+      ``started_at``, ``ended_at``, ``exit_code``, ``state``, ``loaded``.
+    * ``compiled_manifest.json`` consumes ``manifest``.
+    * ``dependency_graph.json`` consumes ``graph``.
+    * ``trim_report.json`` / ``.txt`` consume ``manifest``, ``graph``,
+      ``trim_report``, plus the diagnostic snapshot from ``ctx.diag``.
+    * ``diagnostics.json`` consumes the diagnostic snapshot only.
+    * ``trim_stats.json`` consumes ``parsed``, ``trim_report``,
+      ``manifest``.
+    * ``input_*`` files consume ``loaded`` (for source paths).
+    """
+
+    run_id: str
+    command: Literal["validate", "trim", "cleanup"]
+    started_at: datetime
+    ended_at: datetime
+    exit_code: int
+    state: DomainState | None = None
+    loaded: LoadedConfig | None = None
+    parsed: ParseResult | None = None
+    manifest: CompiledManifest | None = None
+    graph: DependencyGraph | None = None
+    trim_report: TrimReport | None = None
+    generated_artifacts: tuple[GeneratedArtifact, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.run_id:
+            raise ValueError("RunRecord.run_id must be non-empty")
+        if self.exit_code not in (0, 1, 2, 3):
+            raise ValueError(f"RunRecord.exit_code must be 0/1/2/3, got {self.exit_code}")
+        if self.ended_at < self.started_at:
+            raise ValueError("RunRecord.ended_at must be >= started_at")
