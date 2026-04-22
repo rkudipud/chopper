@@ -89,10 +89,10 @@ class ChopperRunner:
 
             # P2 — Parse.
             ctx.progress.phase_started(Phase.P2_PARSE)
-            # surface_files are domain-relative; resolve against the
-            # domain root before handing them to the parser.
-            resolved_files = tuple(ctx.config.domain_root / p for p in loaded.surface_files)
-            parsed = ParserService().run(ctx, resolved_files)
+            # Paths are domain-relative throughout the pipeline; the
+            # parser resolves against ``domain_root`` at the I/O
+            # boundary (see ``ParserService._resolve_for_read``).
+            parsed = ParserService().run(ctx, loaded.surface_files)
             ctx.progress.phase_done(Phase.P2_PARSE)
             if has_errors(ctx, Phase.P2_PARSE):
                 exit_code = 1

@@ -280,6 +280,26 @@ class ParserService:
         procs = parse_file(path, text, on_diagnostic=ctx.diag.emit)
         return ParsedFile(path=path, procs=tuple(procs), encoding=encoding)
 
+    @staticmethod
+    def _resolve_for_read(ctx: ChopperContext, path: Path) -> Path:
+        """Return the filesystem path to hand to :meth:`FileSystemPort.read_text`.
+
+        ``path`` is stored in domain-relative form everywhere downstream
+        (canonical names, ParsedFile keys, diagnostics). When the port
+        is a real-disk adapter (:class:`LocalFS`), it cannot resolve a
+        bare relative path without a base. The parser owns that
+        resolution here by prepending ``ctx.config.domain_root`` when
+        ``path`` is relative.
+
+        :class:`InMemoryFS` stores its keys under relative paths that
+        happen to live under the domain root too (tests seed files at
+        ``DOMAIN / "a.tcl"``), so prepending the domain root is safe
+        for both adapters.
+        """
+        if path.is_absolute() or path.anchor:
+            return path
+        return ctx.config.domain_root / path
+
     def _read_with_fallback(self, ctx: ChopperContext, path: Path) -> tuple[str, Literal["utf-8", "latin-1"]]:
         """UTF-8 decode with Latin-1 fallback per TCL_PARSER_SPEC §7.7.
 
@@ -292,11 +312,12 @@ class ParserService:
         :class:`UnicodeDecodeError`. Latin-1 is a total 8-bit decoder,
         so the second call never fails on well-formed bytes.
         """
+        read_path = self._resolve_for_read(ctx, path)
         try:
-            text = ctx.fs.read_text(path, encoding="utf-8")
+            text = ctx.fs.read_text(read_path, encoding="utf-8")
             return text, "utf-8"
         except UnicodeDecodeError:
-            text = ctx.fs.read_text(path, encoding="latin-1")
+            text = ctx.fs.read_text(read_path, encoding="latin-1")
             ctx.diag.emit(
                 Diagnostic.build(
                     "PW-02",

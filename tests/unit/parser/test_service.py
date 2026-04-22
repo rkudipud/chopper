@@ -22,13 +22,31 @@ class _InMemoryFS:
     Holds a mapping of :class:`Path` → raw ``bytes``. ``read_text``
     decodes with the requested encoding, so ``UnicodeDecodeError``
     surfaces naturally and exercises the service's fallback path.
+
+    Tests key files by domain-relative path; :meth:`read_text` accepts
+    either relative or absolute (``domain_root`` prefixed) paths so it
+    mirrors the production adapters' tolerance after the parser's
+    I/O-boundary absolutization fix.
     """
 
-    def __init__(self, files: dict[Path, bytes]) -> None:
+    def __init__(self, files: dict[Path, bytes], *, domain_root: Path | None = None) -> None:
         self._files = files
+        self._domain_root = domain_root
+
+    def _lookup(self, path: Path) -> bytes:
+        if path in self._files:
+            return self._files[path]
+        if self._domain_root is not None:
+            try:
+                rel = path.relative_to(self._domain_root)
+            except ValueError:
+                raise KeyError(path) from None
+            if rel in self._files:
+                return self._files[rel]
+        raise KeyError(path)
 
     def read_text(self, path: Path, *, encoding: str = "utf-8") -> str:
-        return self._files[path].decode(encoding)
+        return self._lookup(path).decode(encoding)
 
     # Unused by ParserService but required for protocol satisfaction.
     def write_text(self, path: Path, content: str, *, encoding: str = "utf-8") -> None: ...  # pragma: no cover
@@ -78,7 +96,12 @@ def _make_ctx(files: dict[Path, bytes], domain_root: Path = Path("dom")) -> tupl
         strict=False,
         dry_run=False,
     )
-    ctx = ChopperContext(config=cfg, fs=_InMemoryFS(files), diag=sink, progress=_NullProgress())
+    ctx = ChopperContext(
+        config=cfg,
+        fs=_InMemoryFS(files, domain_root=domain_root),
+        diag=sink,
+        progress=_NullProgress(),
+    )
     return ctx, sink
 
 
