@@ -107,7 +107,7 @@
             "$ref": "#/$defs/procEntry"
           },
           "minItems": 1,
-          "description": "Proc-level excludes from this feature. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE). Does not remove explicit procedures.include entries from any source (emits VW-18 cross-source-pe-vetoed) and does not remove whole-file includes (emits VW-10 cross-source-fe-vetoed). Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
+          "description": "Proc-level excludes from this feature. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE). Does not remove explicit procedures.include entries from any source, and does not remove procs from files that are whole-file included by another source (emits VW-18 cross-source-pe-vetoed when vetoed). Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
         }
       }
     },
