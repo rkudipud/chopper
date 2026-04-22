@@ -1,0 +1,309 @@
+"""Parser service — the boundary layer around the pure parser utilities.
+
+This module provides two public surfaces:
+
+* :func:`parse_file` — a pure, callback-driven utility per TCL_PARSER_SPEC §2.1.
+  It accepts already-decoded text, runs the tokenizer and proc extractor,
+  and forwards registered :class:`~chopper.core.diagnostics.Diagnostic`
+  records through an optional ``on_diagnostic`` callback. It returns a
+  plain ``list[ProcEntry]`` and has zero knowledge of
+  :class:`~chopper.core.context.ChopperContext` or the filesystem port.
+  Unit tests target this directly.
+
+* :class:`ParserService` — the orchestrator-facing service per
+  ARCHITECTURE_PLAN.md §9.2. It owns the filesystem read (through
+  ``ctx.fs``), UTF-8 → Latin-1 fallback (emitting ``PW-02``), and the
+  **path-normalization contract**: every :class:`~pathlib.Path` supplied
+  in ``files`` is normalized to the domain-relative POSIX form before it
+  is handed to :func:`parse_file`. The canonical-name prefix on every
+  :class:`~chopper.core.models.ProcEntry` is therefore always a
+  domain-relative POSIX path.
+
+Diagnostic translation (single source: docs/DIAGNOSTIC_CODES.md):
+
+* Tokenizer structural errors (``negative_depth`` / ``unclosed_braces``)
+  map to ``PE-02 unbalanced-braces``.
+* ``ExtractorDiagnostic.kind`` values map to their registered codes per
+  the ``_DIAG_CODE_MAP`` table below.
+* UTF-8 decode failure maps to ``PW-02 utf8-decode-failure``.
+
+Every diagnostic emitted here is constructed via
+:meth:`chopper.core.diagnostics.Diagnostic.build`, so slug / severity /
+source are always registry-derived. The service never invents codes and
+never constructs a :class:`Diagnostic` by hand.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.models import ParsedFile, ParseResult, ProcEntry
+
+from .proc_extractor import ExtractorDiagnostic, ExtractorDiagnosticKind, extract_procs
+from .tokenizer import TokenizerError, tokenize
+
+if TYPE_CHECKING:
+    from chopper.core.context import ChopperContext
+
+__all__ = [
+    "DiagnosticCollector",
+    "ParserService",
+    "parse_file",
+]
+
+
+DiagnosticCollector = Callable[[Diagnostic], None]
+"""Callback type forwarded into :func:`parse_file`.
+
+Matches the signature TCL_PARSER_SPEC §11 mandates: takes a single
+:class:`Diagnostic` and returns ``None``. The service layer wires this
+to ``ctx.diag.emit``; tests wire it to a list-accumulator.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic-code translation
+# ---------------------------------------------------------------------------
+#
+# ExtractorDiagnostic.kind is a :class:`Literal` (see proc_extractor); the
+# map below converts each literal to the registered code. Adding a new
+# ExtractorDiagnostic kind requires adding an entry here AND registering the
+# code in docs/DIAGNOSTIC_CODES.md (enforced by scripts/check_diagnostic_registry.py).
+
+_DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
+    "computed-proc-name": "PW-01",
+    "non-brace-body": "PW-03",
+    "computed-namespace-name": "PW-04",
+    "duplicate-proc-definition": "PE-01",
+    "dpa-name-mismatch": "PW-11",
+    "dpa-orphan": "PI-04",
+}
+
+
+# ---------------------------------------------------------------------------
+# parse_file — pure utility per TCL_PARSER_SPEC §2.1
+# ---------------------------------------------------------------------------
+
+
+def parse_file(
+    file_path: Path,
+    text: str,
+    on_diagnostic: DiagnosticCollector | None = None,
+) -> list[ProcEntry]:
+    """Parse a Tcl file and extract proc definitions (pure utility).
+
+    :param file_path: Domain-relative :class:`~pathlib.Path` recorded on
+        every returned :class:`~chopper.core.models.ProcEntry`. The caller
+        (:class:`ParserService`) is responsible for normalizing this to
+        the domain-relative POSIX form before invocation.
+    :param text: Already-decoded file content. The service layer owns the
+        decode step so this utility can stay purely textual and trivially
+        unit-testable.
+    :param on_diagnostic: Optional callback invoked once per
+        :class:`Diagnostic`. When ``None``, diagnostics are silently
+        discarded.
+    :returns: List of :class:`ProcEntry` records. Empty list is a valid
+        outcome (spec §2.1.1 rows 1, 4).
+
+    Contract table (TCL_PARSER_SPEC §2.1.1):
+
+    * Tokenizer error (``negative_depth`` / ``unclosed_braces``) → emit
+      ``PE-02`` and return ``[]`` regardless of any procs extracted.
+    * Otherwise, run the proc extractor; translate each
+      :class:`ExtractorDiagnostic` to the registered code and forward.
+    """
+    tok_result = tokenize(text)
+    if tok_result.errors:
+        # §2.1.1 row 5: any structural brace error → emit PE-02 and
+        # return []. Only emit once per file, at the first offending line.
+        first_err: TokenizerError = tok_result.errors[0]
+        if on_diagnostic is not None:
+            on_diagnostic(
+                Diagnostic.build(
+                    "PE-02",
+                    phase=Phase.P2_PARSE,
+                    message=f"Unbalanced braces: {first_err.kind.replace('_', ' ')}",
+                    path=file_path,
+                    line_no=first_err.line_no,
+                    hint="Check for missing or extra '}' in the file",
+                )
+            )
+        return []
+
+    result = extract_procs(file_path, text)
+    if on_diagnostic is not None:
+        for ext_diag in result.diagnostics:
+            on_diagnostic(_translate_extractor_diagnostic(ext_diag, file_path))
+
+    return list(result.procs)
+
+
+def _translate_extractor_diagnostic(ext_diag: ExtractorDiagnostic, file_path: Path) -> Diagnostic:
+    """Map an :class:`ExtractorDiagnostic` to a registered :class:`Diagnostic`."""
+    code = _DIAG_CODE_MAP[ext_diag.kind]
+    message = _message_for(ext_diag)
+    return Diagnostic.build(
+        code,
+        phase=Phase.P2_PARSE,
+        message=message,
+        path=file_path,
+        line_no=ext_diag.line_no,
+    )
+
+
+def _message_for(ext_diag: ExtractorDiagnostic) -> str:
+    """Human-readable single-line message for an extractor diagnostic."""
+    if ext_diag.kind == "computed-proc-name":
+        return f"Computed proc name skipped: {ext_diag.detail}"
+    if ext_diag.kind == "non-brace-body":
+        return f"Proc '{ext_diag.detail}' has non-brace body; skipped"
+    if ext_diag.kind == "computed-namespace-name":
+        return f"Computed namespace name; body not parsed: {ext_diag.detail}"
+    if ext_diag.kind == "duplicate-proc-definition":
+        return ext_diag.detail
+    if ext_diag.kind == "dpa-name-mismatch":
+        return ext_diag.detail
+    if ext_diag.kind == "dpa-orphan":
+        return f"define_proc_attributes with no preceding proc: {ext_diag.detail}"
+    # Unreachable if _DIAG_CODE_MAP and ExtractorDiagnosticKind stay in sync.
+    raise AssertionError(f"unmapped extractor diagnostic kind: {ext_diag.kind!r}")
+
+
+# ---------------------------------------------------------------------------
+# ParserService — orchestrator-facing service
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ParserService:
+    """P2 service wrapping :func:`parse_file`.
+
+    Contract per ARCHITECTURE_PLAN.md §9.2:
+
+    1. Read each file through ``ctx.fs.read_text`` (never
+       :meth:`pathlib.Path.read_text` directly) — the filesystem port is
+       the only I/O surface.
+    2. Attempt UTF-8 decode first; on :class:`UnicodeDecodeError`, retry
+       with Latin-1 and emit ``PW-02``. Latin-1 always succeeds on any
+       byte sequence.
+    3. Normalize every input :class:`Path` to a domain-relative POSIX
+       string. Rejecting absolute paths or upward traversal is the
+       caller's responsibility (compiler / config layer); at this stage
+       we assume inputs are already within the domain.
+    4. Forward every diagnostic emitted by :func:`parse_file` into
+       ``ctx.diag.emit``.
+    5. Build :class:`~chopper.core.models.ParsedFile` per file and
+       :class:`~chopper.core.models.ParseResult` for the domain.
+
+    The service is a frozen dataclass with no fields — per
+    ARCHITECTURE_PLAN.md §9.3 services are stateless, and instantiating
+    via ``ParserService()`` makes the unit simple to substitute in tests.
+    """
+
+    def run(self, ctx: ChopperContext, files: Sequence[Path]) -> ParseResult:
+        """Parse every file in ``files`` and return the aggregate result.
+
+        :param ctx: Run context with ``fs`` and ``diag`` ports bound.
+        :param files: Paths to parse. Each is normalized to the
+            domain-relative POSIX form before being recorded on the
+            resulting :class:`ProcEntry` records.
+        :returns: :class:`ParseResult` with the per-file map and the
+            canonical-name index.
+
+        Ordering:
+
+        * The ``files`` iterable is **not** required to be sorted on input.
+        * The returned :attr:`ParseResult.files` mapping is built in
+          lexicographic POSIX-path order so downstream consumers that
+          iterate it (e.g. audit hashing) observe a deterministic view.
+        * The returned :attr:`ParseResult.index` is sorted
+          lexicographically by canonical-name at construction per
+          :class:`ParseResult` invariant 2.
+        """
+        # Normalize once, then work with the normalized paths throughout.
+        normalized: list[Path] = [self._normalize(ctx, raw) for raw in files]
+        # Dedup while preserving order: duplicates could occur from glob
+        # overlap in the caller. Using dict.fromkeys keeps the first seen.
+        unique_sorted = sorted(dict.fromkeys(normalized), key=lambda p: p.as_posix())
+
+        parsed_files: dict[Path, ParsedFile] = {}
+        index: dict[str, ProcEntry] = {}
+
+        for path in unique_sorted:
+            parsed = self._parse_one(ctx, path)
+            parsed_files[path] = parsed
+            for proc in parsed.procs:
+                # The extractor already guarantees unique canonical names
+                # within a file (see PE-01 dedup). Cross-file collisions
+                # are impossible because canonical names embed the path.
+                index[proc.canonical_name] = proc
+
+        # Reconstruct the index in lex order to satisfy ParseResult
+        # invariant 2.
+        sorted_index = {k: index[k] for k in sorted(index.keys())}
+        return ParseResult(files=parsed_files, index=sorted_index)
+
+    @staticmethod
+    def _normalize(ctx: ChopperContext, raw: Path) -> Path:
+        """Return the domain-relative POSIX form of ``raw``.
+
+        If ``raw`` is absolute, compute its form relative to
+        ``ctx.config.domain_root``. If ``raw`` is already relative, it is
+        assumed to be domain-relative (the caller's contract) and
+        returned unchanged except for :meth:`Path` normalization (``.``
+        removal, separator canonicalization).
+
+        The return value is still a :class:`Path`; the POSIX form
+        surfaces via :meth:`Path.as_posix` when the canonical-name is
+        assembled in :class:`ProcEntry`.
+        """
+        if raw.is_absolute():
+            try:
+                return raw.relative_to(ctx.config.domain_root)
+            except ValueError:
+                # Path lies outside domain_root — keep as-is. The
+                # compiler / config layer is responsible for rejecting
+                # such paths with a VE-06; the parser does not gate.
+                return raw
+        # Collapse any leading "./" and OS-specific separators via Path
+        # round-trip. `Path("a/b/c.tcl")` already stores components in a
+        # normalized form on all platforms.
+        return Path(*raw.parts)
+
+    def _parse_one(self, ctx: ChopperContext, path: Path) -> ParsedFile:
+        """Read ``path`` through ``ctx.fs``, decode, parse, emit diagnostics."""
+        text, encoding = self._read_with_fallback(ctx, path)
+        procs = parse_file(path, text, on_diagnostic=ctx.diag.emit)
+        return ParsedFile(path=path, procs=tuple(procs), encoding=encoding)
+
+    def _read_with_fallback(self, ctx: ChopperContext, path: Path) -> tuple[str, Literal["utf-8", "latin-1"]]:
+        """UTF-8 decode with Latin-1 fallback per TCL_PARSER_SPEC §7.7.
+
+        Returns ``(text, encoding)`` where ``encoding`` is the label
+        recorded on :class:`ParsedFile` (``"utf-8"`` or ``"latin-1"``).
+        Emits ``PW-02`` exactly once per file on fallback.
+
+        Implementation note: :class:`FileSystemPort.read_text` accepts an
+        ``encoding`` kwarg; we call it twice if the first raises
+        :class:`UnicodeDecodeError`. Latin-1 is a total 8-bit decoder,
+        so the second call never fails on well-formed bytes.
+        """
+        try:
+            text = ctx.fs.read_text(path, encoding="utf-8")
+            return text, "utf-8"
+        except UnicodeDecodeError:
+            text = ctx.fs.read_text(path, encoding="latin-1")
+            ctx.diag.emit(
+                Diagnostic.build(
+                    "PW-02",
+                    phase=Phase.P2_PARSE,
+                    message="UTF-8 decode failed; falling back to Latin-1",
+                    path=path,
+                    hint="Consider re-encoding the file as UTF-8",
+                )
+            )
+            return text, "latin-1"

@@ -512,26 +512,37 @@ Call extraction (`call_extractor.py`) consumes the **already-tokenized command-p
 Within each command-position token, regex is permitted (and encouraged) for the *downstream* classification work: identifying the shape of the first word (bare vs `::`-qualified vs dynamic), applying the SNORT-derived 4-level suppression cascade in §5.5, and extracting DPA proc-name arguments. SNORT's `_IsProcFoundInLine()` has been proven on Intel EDA codebases for 15+ years and its regex patterns are reused verbatim inside this layer. The invariant is only this: **regex operates on token values, never on raw file lines.** Using raw-line regex re-introduces the false-positive classes that the tokenizer already eliminated (quoted strings, comments, nested bodies).
 
 ```
-For each command-position token in body (already filtered to PROC_BODY context):
-  1. Skip if the tokenizer flagged this token as a comment or inside a quoted string.
-  2. Apply the 4-level suppression cascade (§5.5) to the first word only.
-     Suppressed tokens are discarded silently.
-  3. Classify the first word via regex:
-     a. Bare `[a-zA-Z_][a-zA-Z0-9_:]*`              → candidate proc call
-     b. `::`-prefixed absolute qualified form        → candidate proc call
-     c. Starts with `$` / contains `${...}` / `[...]` → dynamic dispatch; emit PW-03 / TW-03 at trace time
-     d. Known control structure (if, for, foreach, foreach_in_collection, while, switch, catch, try)
-        → recurse into body argument(s). Recursion depth is bounded by brace nesting in the
-          source file, which is finite. Implementations should use an iterative or stack-based
-          approach to avoid Python stack overflow on deeply nested control structures.
-  4. For bracketed sub-expressions [cmd ...] already isolated by the tokenizer:
-     a. Extract `cmd` as a candidate proc call (same regex classification as step 3).
-     b. Only the first word of the bracketed command is a call candidate; arguments are not.
-  5. NEVER extract second-or-later tokens of a command as call candidates. The DPA proc name
-     in `define_proc_attributes <name> ...` is the canonical trap — see pitfall P-35.
+For each WORD token t in tokens[body_lbrace_idx + 1 : body_rbrace_idx]:
+  1. If t.at_command_position is True — t is a first-word candidate:
+     a. If t.value in {"source", "iproc_source"} — extract the literal path argument
+        via flag-aware scan (§5.4) and append to source_refs. Mark the flag/path
+        token indices as consumed so they are not re-scanned as calls below.
+     b. Else apply the §5.5 suppression cascade. If not suppressed, classify t.value
+        against the first-word regex (bare / ::-qualified), reject dynamic names
+        (contains `$`, starts with `[`), reject TCL_BUILTINS, and add the canonical
+        form (leading `::` stripped) to calls.
+  2. Whether t was first-word or not, and whether or not it was suppressed, if t is
+     a WORD token not marked consumed, regex-scan t.value for `\[<name>` embedded
+     bracket calls. Each match's first word is classified via the same path as 1b
+     and added to calls when it passes. This uniformly handles §5.3 step 4 for free
+     (non-cmd) arg tokens AND §5.5 Level 3's "embedded [real_call] inside a log
+     string" exception.
+  3. NEVER extract second-or-later tokens of a command as call candidates. The DPA
+     proc name in `define_proc_attributes <name> ...` is the canonical trap — see
+     pitfall P-35. Suppression at step 1b on `define_proc_attributes`,
+     `set_app_var`, `set`, `info`, etc. is achieved by those first words being
+     members of TCL_BUILTINS (so step 1b's classifier returns None) or LOG_PROC_NAMES
+     (so §5.5 suppresses), plus the walk never reads their argument tokens as
+     first-word candidates because `Token.at_command_position` is False there.
+
+At the end, return (tuple(sorted(calls)), tuple(source_refs)). `calls` is
+deduplicated and lex-sorted (§6.1 invariant 5); `source_refs` preserves source
+order without dedup (§6.1 invariant 6).
 ```
 
-**Why this ordering.** The tokenizer eliminates ~90% of false positives structurally (quotes, comments, brace bodies); the SNORT suppression cascade eliminates the remaining content-dependent false positives (log-string mentions, option-flag arguments, vendor commands). Running regex first on raw lines inverts this and recreates the exact class of bugs SNORT spent 15 years fixing.
+**Why this ordering — and why there is no explicit "recurse into control-flow body" step.** The tokenizer eliminates ~90% of false positives structurally (quotes, comments, brace bodies); the SNORT suppression cascade eliminates the remaining content-dependent false positives (log-string mentions, option-flag arguments, vendor commands). Running regex first on raw lines inverts this and recreates the exact class of bugs SNORT spent 15 years fixing.
+
+Control-structure bodies (`if`, `foreach`, `foreach_in_collection`, `while`, `switch`, `catch`, `try`) do **not** need an explicit recursion step. The tokenizer re-establishes `at_command_position == True` at every brace-depth transition — the first WORD after a `NEWLINE` or `{`-transition inside any body is automatically a command-position token, regardless of how deeply nested. The flat body walk above therefore visits every in-body command without recursion, which also eliminates the stack-overflow risk noted in the original phrasing and removes an entire class of "skip-to-command-boundary" bugs where a top-level scan would fast-forward past control-flow body contents. See [IMPLEMENTATION_DECISION_LOG.md](IMPLEMENTATION_DECISION_LOG.md) entry **D-1e-01** for the incident and resolution.
 
 
 ### 5.3.1 Deterministic Proc Name Resolution Contract

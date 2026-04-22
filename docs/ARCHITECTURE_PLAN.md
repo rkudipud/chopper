@@ -156,7 +156,7 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `DomainStateService` | P0 | `ctx` → `DomainState` | `orchestrator/domain_state.py` |
 | `ConfigService` | P1 | `ctx, state` → `LoadedConfig` | `config/service.py` |
 | `validate_pre` (function) | P1 | `ctx, loaded` → emits diagnostics | `validator/functions.py` |
-| `ParserService` | P2 | `ctx, files` → `ParseResult` | `parser/service.py` |
+| `ParserService` | P2 | `(ctx: ChopperContext, files: Sequence[Path]) -> ParseResult` | `parser/service.py` |
 | `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` — **Two-pass implementation required.** Pass 1: iterate `loaded.features` in topo-sort order and collect per-source contribution sets (FI, FE, PI, PE per source). Pass 2: apply R1 L1/L2/L3 cross-source resolution on the collected sets. F1/F2 output must be identical regardless of feature declaration order; only F3 `flow_actions` sequencing depends on order. Never apply excludes as a sequential mutating pass over a shared set — that makes F1/F2 order-dependent. |
 | `TracerService` | P4 | `ctx, manifest, parsed` → `DependencyGraph` | `compiler/trace_service.py` |
 | `TrimmerService` | P5a | `ctx, manifest, state` → `TrimReport` | `trimmer/service.py` |
@@ -617,7 +617,7 @@ class AuditManifest:
 |---|---|
 | `DomainStateService.run` | `(ctx) -> DomainState` |
 | `ConfigService.run` | `(ctx, state) -> LoadedConfig` |
-| `ParserService.run` | `(ctx, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. |
+| `ParserService.run` | `(ctx: ChopperContext, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. |
 | `CompilerService.run` | `(ctx, loaded, parsed) -> CompiledManifest` |
 | `TracerService.run` | `(ctx, manifest, parsed) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx, manifest, state) -> TrimReport` |

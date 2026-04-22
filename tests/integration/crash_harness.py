@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import functools
 import threading
+from collections.abc import Callable
 from importlib import import_module
 from pathlib import Path
-from typing import Callable
 
 # ---------------------------------------------------------------------------
 # Injection point registry
