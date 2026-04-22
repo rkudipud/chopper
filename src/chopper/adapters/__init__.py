@@ -21,5 +21,15 @@ from __future__ import annotations
 
 from chopper.adapters.fs_local import LocalFS
 from chopper.adapters.fs_memory import InMemoryFS
+from chopper.adapters.progress_rich import RichProgress, RichUnavailableError
+from chopper.adapters.progress_silent import SilentProgress
+from chopper.adapters.sink_collecting import CollectingSink
 
-__all__ = ["InMemoryFS", "LocalFS"]
+__all__ = [
+    "CollectingSink",
+    "InMemoryFS",
+    "LocalFS",
+    "RichProgress",
+    "RichUnavailableError",
+    "SilentProgress",
+]

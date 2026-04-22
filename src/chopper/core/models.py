@@ -36,6 +36,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
+from chopper.core.diagnostics import DiagnosticSummary
+
 __all__ = [
     "AddStageAction",
     "AddStepAction",
@@ -70,6 +72,7 @@ __all__ = [
     "ReplaceStageAction",
     "ReplaceStepAction",
     "RunRecord",
+    "RunResult",
     "StageDefinition",
     "StageSpec",
     "TrimReport",
@@ -1190,3 +1193,38 @@ class RunRecord:
             raise ValueError(f"RunRecord.exit_code must be 0/1/2/3, got {self.exit_code}")
         if self.ended_at < self.started_at:
             raise ValueError("RunRecord.ended_at must be >= started_at")
+
+
+@dataclass(frozen=True)
+class RunResult:
+    """Typed result returned by :meth:`ChopperRunner.run`.
+
+    The CLI's :mod:`chopper.cli.render` layer consumes this record and
+    renders a human-readable summary; it also maps
+    :attr:`exit_code` to the process exit status. Every optional field
+    is ``None`` when the producing phase did not complete — the same
+    contract :class:`RunRecord` honours for P7.
+
+    ``exit_code`` follows bible §8.2 rule 4:
+
+    * ``0`` — success, no warnings, no errors.
+    * ``1`` — at least one ``ERROR`` diagnostic, **or** ``--strict``
+      was set and at least one ``WARNING`` diagnostic was emitted.
+    * ``2`` — CLI / environment error (missing domain, bad flags,
+      user-facing ``VE-21`` Case 4, etc.).
+    * ``3`` — internal programmer error (raised :class:`ChopperError`).
+    """
+
+    exit_code: int
+    summary: DiagnosticSummary
+    state: DomainState | None = None
+    loaded: LoadedConfig | None = None
+    parsed: ParseResult | None = None
+    manifest: CompiledManifest | None = None
+    graph: DependencyGraph | None = None
+    trim_report: TrimReport | None = None
+    generated_artifacts: tuple[GeneratedArtifact, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.exit_code not in (0, 1, 2, 3):
+            raise ValueError(f"RunResult.exit_code must be 0/1/2/3, got {self.exit_code}")

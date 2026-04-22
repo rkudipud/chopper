@@ -14,5 +14,7 @@ bible §8.2.
 from __future__ import annotations
 
 from chopper.orchestrator.domain_state import DomainStateService
+from chopper.orchestrator.gates import has_errors
+from chopper.orchestrator.runner import ChopperRunner
 
-__all__ = ["DomainStateService"]
+__all__ = ["ChopperRunner", "DomainStateService", "has_errors"]

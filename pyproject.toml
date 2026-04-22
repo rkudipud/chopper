@@ -32,6 +32,9 @@ dev = [
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project.scripts]
+chopper = "chopper.cli.main:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -95,9 +98,9 @@ type = "layers"
 # Once Stage 5 is complete every layer is populated and the parens become
 # cosmetic.
 layers = [
-    "(chopper.cli)",
+    "chopper.cli",
     "chopper.orchestrator",
-    "chopper.parser | chopper.config | chopper.compiler | chopper.trimmer | chopper.generators | (chopper.validator) | chopper.audit",
+    "chopper.parser | chopper.config | chopper.compiler | chopper.trimmer | chopper.generators | chopper.validator | chopper.audit",
     "chopper.adapters",
     "chopper.core",
 ]
@@ -116,8 +119,10 @@ forbidden_modules = [
     "chopper.compiler",
     "chopper.trimmer",
     "chopper.generators",
+    "chopper.validator",
     "chopper.audit",
     "chopper.orchestrator",
+    "chopper.cli",
     "chopper.adapters",
 ]
 
@@ -146,6 +151,7 @@ forbidden_modules = [
     "chopper.compiler",
     "chopper.trimmer",
     "chopper.generators",
+    "chopper.validator",
     "chopper.audit",
     "chopper.orchestrator",
     "chopper.cli",
