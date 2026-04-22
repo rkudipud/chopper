@@ -6,7 +6,7 @@ applyTo: '**'
 
 Authoritative conventions and guardrails for working in this codebase. Read this file at the start of every task. Add new rules here as patterns are discovered; never scatter project-level conventions across ad-hoc comments or other docs.
 
-**Chopper v2** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes a 7-phase compilation pipeline: parse JSON → parse Tcl → merge & trace dependencies → apply decisions → generate output → validate → audit. The codebase is **docs-first, spec-driven** — all implementation details are pre-specified.
+**Chopper v2** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes an 8-phase pipeline (`P0`-`P7`): domain state → config + pre-validate → parse Tcl → compile → trace → build output → post-validate → audit. The codebase is **docs-first, spec-driven** — all implementation details are pre-specified.
 
 ---
 
@@ -246,7 +246,7 @@ See [docs/chopper_description.md](../../docs/chopper_description.md) §5.4 for t
 
 All authoritative documentation lives under [docs/](../../docs/). Before implementing, consult these in order:
 
-1. **[docs/chopper_description.md](../../docs/chopper_description.md)** — Single source of truth for product behavior, the 7-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
+1. **[docs/chopper_description.md](../../docs/chopper_description.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
 2. **[docs/TCL_PARSER_SPEC.md](../../docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
 3. **[docs/RISKS_AND_PITFALLS.md](../../docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
 4. **[docs/DIAGNOSTIC_CODES.md](../../docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
@@ -329,7 +329,6 @@ JSON/TOML schema loading.
 
 - Uses `jsonschema` library
 - Schemas defined in `json_kit/schemas/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`
-- Authoring contract uses schema IDs `chopper/base/v1`, `chopper/feature/v1`, and `chopper/project/v1`. Do not assume a given checkout contains the full `json_kit/schemas/` bundle unless the files are actually present.
 
 ---
 

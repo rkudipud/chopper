@@ -594,7 +594,7 @@ Chopper ships F1/F2/F3 as first-class capabilities; domain owners choose which c
 
 The trim workflow supports both direct CLI mode and project JSON mode.
 
-All examples below assume Chopper is invoked from the domain root. The current working directory is the operational domain root and `jsons/base.json` plus `jsons/features/*.json` are resolved from there.
+All examples below assume Chopper is invoked from the domain root. The current working directory is the operational domain root and `jsons/base.json` plus `jsons/features/*.feature.json` are resolved from there.
 
 **Direct CLI mode (base ± features):**
 
@@ -1046,7 +1046,7 @@ Chopper always rebuilds from a clean backup rather than editing in place.
 
 ## 5. Pipeline, Compilation, and Workflow
 
-Chopper executes a **seven-phase pipeline**. Every invocation — live trim or dry-run — follows the same decision sequence. The difference is operational: live trim rewrites the domain in P5 and emits the audit bundle in P7, while `--dry-run` suppresses domain mutations, runs only manifest-derivable post-validation checks in P6, and still emits report artifacts in `.chopper/`.
+Chopper executes an **eight-phase pipeline**. Every invocation — live trim or dry-run — follows the same decision sequence. The difference is operational: live trim rewrites the domain in P5 and emits the audit bundle in P7, while `--dry-run` suppresses domain mutations, runs only manifest-derivable post-validation checks in P6, and still emits report artifacts in `.chopper/`.
 
 ### 5.1 Input Modes
 
@@ -1055,10 +1055,10 @@ Chopper supports three input modes. Exactly one mode is used per invocation.
 | Mode | CLI Form | Description |
 |---|---|---|
 | **Base-only** | `--base jsons/base.json` | Trim using only the base JSON, no features |
-| **Base + Features** | `--base jsons/base.json --features jsons/features/f1.json,jsons/features/f2.json` | Trim using base JSON with one or more feature overlays |
+| **Base + Features** | `--base jsons/base.json --features jsons/features/f1.feature.json,jsons/features/f2.feature.json` | Trim using base JSON with one or more feature overlays |
 | **Project** | `--project <path-to-project.json>` | A single project JSON that packages the same base path, ordered feature paths, project metadata, and selection rationale in one file |
 
-By default, owner-curated base and feature JSONs live under the current working directory, which is the domain root for normal operation, at `jsons/base.json` and `jsons/features/*.json`. Project JSON has no fixed home and is always passed explicitly to `--project`.
+By default, owner-curated base and feature JSONs live under the current working directory, which is the domain root for normal operation, at `jsons/base.json` and `jsons/features/*.feature.json`. Project JSON has no fixed home and is always passed explicitly to `--project`.
 
 `--project` is mutually exclusive with `--base` and `--features`. Providing both is `VE-11` (`conflicting-cli-options`, exit code 2).
 
@@ -1087,7 +1087,7 @@ chopper trim --project configs/project_abc.json
 chopper trim --dry-run --project configs/project_abc.json
 ```
 
-### 5.2 Seven-Phase Pipeline
+### 5.2 Eight-Phase Pipeline
 
 ```
   P0  Detect trim state        first trim vs re-trim (backup detection)
@@ -1841,7 +1841,7 @@ Write-safety does **not** use a staging tree or atomic promotion. Chopper writes
 
 ### 5.7 Dry-Run vs Live Trim
 
-Both modes execute the same seven-phase pipeline. The only difference is which phases write to disk.
+Both modes execute the same eight-phase pipeline. The only difference is which phases write to disk.
 
 | Phase | Live trim | `--dry-run` |
 |---|---|---|
@@ -1938,7 +1938,7 @@ The engine boundary between presentation (CLI today, GUI later) and domain logic
 - Services accept `ctx` plus typed inputs they declare; never print to stdout/stderr directly.
 - Services surface outcomes through `ctx.diag.emit(...)` and `ctx.progress.*`; never raise for user-visible conditions.
 - A future GUI does **not** require new engine services; it binds the same context shape and consumes the same typed results and audit artifacts as the CLI.
-- `cleanup` is the one exception to the runner pattern: it is a standalone CLI action that deletes `<domain>_backup/` and does not enter the seven-phase pipeline.
+- `cleanup` is the one exception to the runner pattern: it is a standalone CLI action that deletes `<domain>_backup/` and does not enter the eight-phase pipeline.
 
 #### 5.11.3 Future GUI Integration Surface
 
@@ -2166,7 +2166,7 @@ Glob patterns support three special characters to match multiple files:
 
 Full normalization, glob expansion, deduplication, and manifest-emission rules are implemented in `src/chopper/compiler/` (see also the R1 interaction matrix in §4).
 
-By default, owner-curated configuration JSONs live under the selected domain at `jsons/base.json` and `jsons/features/*.json`.
+By default, owner-curated configuration JSONs live under the selected domain at `jsons/base.json` and `jsons/features/*.feature.json`.
 
 ### 6.4 Base JSON Structure
 
@@ -2479,7 +2479,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 |---|---|---|
 | `owner` | string | Domain deployment owner for this project |
 | `release_branch` | string | Git branch name for this project trim |
-| `features` | array of strings | List of feature JSON paths (resolved relative to the current working directory / domain root). Default expected location pattern: `jsons/features/*.json`. Order is authoritative for F3 `flow_actions` sequencing only; F1/F2 merges are order-independent. |
+| `features` | array of strings | List of feature JSON paths (resolved relative to the current working directory / domain root). Default expected location pattern: `jsons/features/*.feature.json`. Order is authoritative for F3 `flow_actions` sequencing only; F1/F2 merges are order-independent. |
 | `notes` | array of strings | Human-readable notes explaining feature ordering or selection rationale |
 
 **Path resolution rules:**
@@ -2487,7 +2487,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 - `base` and `features` paths are resolved relative to the current working directory, not relative to the project JSON file location.
 - **The operator MUST `cd` into the domain root before running `chopper trim --project <path>`.** The project JSON can live anywhere — `configs/`, outside the repo, anywhere on disk — but its `base` and `features` strings reference paths under the domain root, not under the project JSON's own location.
 - `..` is **forbidden** in `base` and `features` strings (per §6.3.1). Absolute paths are also forbidden. Project JSONs stored outside the domain (e.g., `configs/project_abc.json` at the repo root) must still express their `base`/`features` as domain-relative paths such as `jsons/base.json`.
-- The default expected curated JSON layout under the domain root is `jsons/base.json` and `jsons/features/*.json`.
+- The default expected curated JSON layout under the domain root is `jsons/base.json` and `jsons/features/*.feature.json`.
 - All other path rules from §6.3.1 apply (forward slashes, no absolute paths).
 - The project JSON `domain` field is compared case-insensitively against the basename of the current working directory (see §5.1). If `--domain` is provided with `--project`, it must resolve to that same directory. Mismatches are reported as `VE-17`.
 

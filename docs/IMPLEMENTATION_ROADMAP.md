@@ -69,7 +69,7 @@ Skip any of the above and the stage gate will fail.
 | **M3 — Trim** | `mini_domain` trimmed correctly; second trim is idempotent (Case 2) | Live trim + re-trim demo; `FULL_COPY` hash-equal to backup |
 | **M4 — F3 + Audit** | `<stage>.tcl` files correct; `.chopper/` bundle present on success and failure | F3 example 10 run; forced-error audit test |
 | **M5 — Validator** | All VE-*/VW-* codes fire exactly where specified | `chopper validate` on known-bad JSONs; post-trim dangling-ref test |
-| **M6 — CLI + E2E** | All 30 named TESTING_STRATEGY scenarios pass; coverage thresholds met | `make ci` green; `fev_formality_real` live trim demo |
+| **M6 — CLI + E2E** | All 25 active TESTING_STRATEGY scenarios pass; coverage thresholds met | `make ci` green; `fev_formality_real` live trim demo |
 
 Each milestone = one stage gate green + demo checkpoint verified. No milestone is declared done until a second review pass confirms it.
 
@@ -106,7 +106,7 @@ Per the build-out plan, each stage is assigned to one primary implementer agent 
 | Stage 3b — generators (F3) | `SWE` | `SWE` | Straight-line emission given a frozen `CompiledManifest`. |
 | Stage 3c — audit | `SWE` | `SWE` | Fixed seven-artifact list + determinism contract. Mechanical once `core.serialization` is stable. |
 | Stage 4 — validator | `SWE` | `SWE` | Registry-driven; each `VE-*` / `VW-*` has a single emission site keyed off the manifest. |
-| Stage 5 — CLI + E2E | `SWE` | `Devils Advocate` | Integration-heavy. The Devils-Advocate review runs the full 30-scenario matrix from `tests/TESTING_STRATEGY.md` §5 and the `fev_formality_real` acceptance trim. |
+| Stage 5 — CLI + E2E | `SWE` | `Devils Advocate` | Integration-heavy. The Devils-Advocate review runs the 25 active scenarios from `tests/TESTING_STRATEGY.md` §5 and the `fev_formality_real` acceptance trim. |
 
 **Review gate rule.** The reviewer agent **MUST** be a different agent instance than the primary implementer. The reviewer owns the exit-gate DoD: green `make ci`, green `make docs-gate`, every fixture in scope passing, and every new diagnostic emission traceable to an Active row in `docs/DIAGNOSTIC_CODES.md`. The reviewer blocks the milestone close until all boxes are ticked.
 
@@ -244,6 +244,7 @@ Implementation follows the phase-gate policy in [`ARCHITECTURE_PLAN.md`](ARCHITE
 - Namespace stack produces `utils.tcl::a::b::helper` canonical names per D3 test vectors.
 - `ParserService.run()` iterates files in lexicographic POSIX order.
 - `make check` green; `make test-parser` (new target) green; parser-module coverage ≥ 85%.
+- **Mandatory acceptance gate — `fev_formality_real`.** Parsing `tests/fixtures/fev_formality_real/default_fm_procs.tcl` must succeed: all procs indexed with correct `start_line`/`end_line`, DPA blocks associated (`dpa_start_line`/`dpa_end_line` not None), comment banners associated (`comment_start_line`/`comment_end_line` not None), and the golden `ParseResult` snapshot committed. Stage 1 is **not complete** until this file parses correctly. This fixture simultaneously exercises P-32 (nested default-value args), P-33 (DPA atomicity with backslash continuation), P-34 (banner atomicity), P-35 (DPA false-dependency guard), and P-36 (`foreach_in_collection`). Partial passes (some procs correct, some wrong spans) do not count.
 
 **Test gate.**
 
@@ -371,6 +372,7 @@ Implementation follows the phase-gate policy in [`ARCHITECTURE_PLAN.md`](ARCHITE
 - Dry-run does not call `ctx.fs.write_text` / `rename` / `remove`.
 - `FULL_COPY` bytes are identical to source (hash-compare).
 - `PROC_TRIM` removes exactly the specified procs + their DPA blocks + adjacent doc-comment banners; no trailing blank-line clutter.
+- **Proc drop-range ordering.** For each `PROC_TRIM` file, the trimmer collects all drop-ranges (`comment_start_line` through `dpa_end_line`, or `start_line` through `end_line` when DPA/banner are absent) and sorts them in **descending** order by start line before applying deletions. Deletions are applied from the bottom of the file upward. Applying them top-down would invalidate all lower parser span coordinates after the first deletion. Test: verify multi-proc drop leaves the file with correct content regardless of the order procs appear in the manifest. See `RISKS_AND_PITFALLS.md` P-37.
 - `VE-23` / `VE-24` / `VE-25` / `VE-26` fire exactly where specified in the registry.
 - P5a failure leaves `<domain>_backup/` intact; re-invocation resumes from backup via Case 2.
 - Coverage ≥ 80%.

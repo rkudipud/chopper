@@ -39,12 +39,7 @@
         "cross_validate": {
           "type": "boolean",
           "default": true,
-          "description": "Whether to cross-validate F3 output against F1/F2 results"
-        },
-        "template_script": {
-          "type": "string",
-          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)[^\\\\]*$",
-          "description": "Reserved (v1): domain-relative path to a script under the selected domain root. The field is retained in the schema for forward compatibility but Chopper v1 does not execute it. When present, Chopper validates the path shape (forward slashes, no '..' traversal, no absolute paths) and that, after `Path.resolve()`, the real path stays within the domain root (symlink escape check, `VE-18`). Any runtime execution semantics are out of scope for v1."
+          "description": "Whether post-trim validation emits the documented F3 cross-validation warnings (VW-14, VW-15, VW-16)."
         }
       },
       "additionalProperties": false

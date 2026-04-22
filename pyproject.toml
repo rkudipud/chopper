@@ -50,7 +50,7 @@ addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-u
 
 [tool.hypothesis]
 # Start conservative; raise once CI budget profiling confirms headroom. See
-# HANDOFF_REVIEW_20260421.md S-9 for rationale.
+# docs/FINAL_HANDOFF_REVIEW.md S-9 for rationale.
 max_examples = 200
 print_blob = true
 

@@ -1,9 +1,9 @@
-"""Lock the named-scenario count in tests/TESTING_STRATEGY.md §5.
+"""Lock the active-scenario count in tests/TESTING_STRATEGY.md §5.
 
-Per HANDOFF_REVIEW_20260421.md PR-2, the scenario table in
+Per docs/FINAL_HANDOFF_REVIEW.md PR-2, the scenario table in
 `tests/TESTING_STRATEGY.md` §5 is the single source of truth for the
-integration-scenario roster. Any drift between the table and the roadmap
-milestone count (currently 30) is a documentation bug.
+integration-scenario roster. Deferred crash-injection scenarios remain named
+for planning purposes but are not part of the active gate.
 
 This test parses the scenario table directly and asserts the row count
 matches ``EXPECTED_SCENARIO_COUNT``. Adding, removing, or splitting a

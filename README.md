@@ -5,7 +5,7 @@
 ## Quick Links
 
 - **[.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)** — Project conventions, architecture overview, critical principles, diagnostic-code rules, editing conventions
-- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 7-phase pipeline, R1 merge rules, requirements
+- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 8-phase pipeline, R1 merge rules, requirements
 - **[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md)** — How the bible is built: hexagonal layout, ports, context/config, orchestrator
 - **[docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)** — Stage-by-stage delivery plan (Stage 0 → Stage 5)
 - **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
@@ -181,6 +181,8 @@ make type-check     # mypy static type check
 
 ## Verifying Your Setup
 
+The repository is still in docs-first buildout mode. Setup verification checks package importability and tests, not a live `chopper` console entry point.
+
 After running setup:
 
 ```bash
@@ -190,8 +192,8 @@ python --version
 # Check pip
 pip --version
 
-# Check Chopper CLI
-chopper --help
+# Check package import
+python -c "import chopper"
 
 # Run tests
 pytest
@@ -200,7 +202,7 @@ pytest
 Expected output:
 - Python 3.13+ with `(.venv)` in your prompt
 - pip from `.venv` directory
-- Chopper CLI help text
+- package import succeeds with no exception
 - Pytest discovers and runs tests
 
 ---
@@ -256,17 +258,6 @@ Add-Content -Path $PROFILE -Value ". 'C:\path\to\chopper_v2\setup.ps1'"
 # Check if venv is active (should show .venv path)
 which python    # Unix/Linux/macOS
 Get-Command python  # PowerShell
-```
-
-### `make` not found on Windows
-
-`make check` and `make ci` require GNU Make. On stock Windows shells, run the equivalent tools directly from `.venv\Scripts\` until Make is installed.
-
-```powershell
-.\.venv\Scripts\ruff.exe check src/ tests/
-.\.venv\Scripts\ruff.exe format --check src/ tests/
-.\.venv\Scripts\mypy.exe src/
-.\.venv\Scripts\pytest.exe tests\unit\ -v
 ```
 
 If not active, re-run setup:
@@ -369,7 +360,7 @@ For full details, see [.github/instructions/project.instructions.md](.github/ins
 ## Additional Resources
 
 - **[Makefile](Makefile)** — Build and test commands
-- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 7-phase pipeline, R1 merge rules, requirements
+- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 8-phase pipeline, R1 merge rules, requirements
 - **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
 - **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Tcl parser engineering baseline
 - **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks and implementation pitfalls

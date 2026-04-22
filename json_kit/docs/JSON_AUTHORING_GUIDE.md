@@ -126,7 +126,6 @@ Equivalent JSON stage definition:
 | `tool` | string | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | string | No | Human-readable summary |
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
-| `options.template_script` | string | No | Reserved (v1): domain-relative script path. Schema-validated for path safety but not executed in v1. |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |

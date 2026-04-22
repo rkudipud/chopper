@@ -3,4 +3,4 @@
 # PE-02 brace imbalance (there are no braces), and that downstream
 # phases handle `procs_in = 0` without division-by-zero in trim_stats.
 #
-# This fixture drives scenario S-7 from HANDOFF_REVIEW_20260421.md.
+# This fixture drives scenario S-7 from docs/FINAL_HANDOFF_REVIEW.md.

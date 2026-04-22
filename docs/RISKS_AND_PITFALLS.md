@@ -810,7 +810,7 @@ base_path = Path.cwd() / "jsons/base.json"
 - CLI layer assumes the current working directory is the domain root
 - CLI layer loads project JSON, extracts `base` and `features` fields
 - Resolves all paths relative to `Path.cwd()`
-- Default expected curated JSON locations under the domain are `jsons/base.json` and `jsons/features/*.json`
+- Default expected curated JSON locations under the domain are `jsons/base.json` and `jsons/features/*.feature.json`
 - The project JSON file itself can live anywhere (e.g., `configs/`, `projects/`, outside the repo)
 - The project JSON `domain` field must match `Path.cwd().name`
 - If `--domain` is accepted, verify that it resolves to the same path as `Path.cwd()`

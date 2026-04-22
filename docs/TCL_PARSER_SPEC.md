@@ -1023,7 +1023,7 @@ assert any(d.code == "PE-01" for d in diags)
 
 ### 8.5 Parser-to-Pipeline Integration
 
-The parser is Phase 2 of Chopper's 7-phase pipeline. `list[ProcEntry]` is its sole typed output contract. Two downstream consumers use it for different purposes.
+The parser is Phase 2 of Chopper's 8-phase pipeline. `list[ProcEntry]` is its sole typed output contract. Two downstream consumers use it for different purposes.
 
 #### 8.5.1 Fields Used by the Trimmer (Phase 5)
 

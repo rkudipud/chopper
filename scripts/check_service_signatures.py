@@ -3,7 +3,7 @@ signature that disagrees with the canonical table in
 ``docs/ARCHITECTURE_PLAN.md`` §9.2.
 
 This is the doc↔code single-source-of-truth gate described in
-``HANDOFF_REVIEW_20260421.md`` PR-4. Agents that silently change a service
+``docs/FINAL_HANDOFF_REVIEW.md`` PR-4. Agents that silently change a service
 signature (param order, types, return type) fail this check.
 
 Extraction approach:

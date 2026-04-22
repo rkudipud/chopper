@@ -27,7 +27,7 @@ A scenario tagged with a stage must pass before that module is declared complete
 | `validator/` | ≥ 75% branch | ✅ |
 | `core/` | ≥ 80% branch | ✅ |
 | `config/` | ≥ 85% branch | ✅ |
-| `ui/` | ≥ 70% line | ✅ |
+| `cli/` | ≥ 70% line | ✅ |
 | **Project-wide minimum** | **≥ 78% line** | ✅ `--cov-fail-under=78` |
 
 Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
@@ -45,12 +45,12 @@ Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 ### 2.2 Integration Tests (`tests/integration/`)
 
 - Use the `ChopperSubprocess` harness (§4) and mini-domain fixtures (§3).
-- Test full end-to-end pipelines: scan → validate → trim → cleanup.
+- Test full end-to-end pipelines: validate → trim → cleanup.
 - Named scenarios (see §5).
 
 ### 2.3 Property Tests (`tests/property/`)
 
-- Use `hypothesis` (configured in `pyproject.toml` with `max_examples=500`).
+- Use `hypothesis` (configured in `pyproject.toml` with `max_examples=200`).
 - See §6 for property definitions.
 
 ---
@@ -154,7 +154,7 @@ class ChopperSubprocess:
     Usage::
 
         runner = ChopperSubprocess(domain_path)
-        result = runner.trim("--base", "jsons/base.json")
+        result = runner.trim()
         result.assert_success()
     """
 
@@ -177,9 +177,6 @@ class ChopperSubprocess:
 
     def trim(self, *extra_args: str) -> RunResult:
         return self.run("trim", "--base", "jsons/base.json", *extra_args)
-
-    def scan(self, *extra_args: str) -> RunResult:
-        return self.run("scan", *extra_args)
 
     def validate(self, *extra_args: str) -> RunResult:
         return self.run("validate", "--base", "jsons/base.json", *extra_args)
@@ -242,7 +239,7 @@ Scenario numbering is stable within this document; each scenario below names the
 | 13 | Include-wins enforcement | Stage 2 | PI+ always superset of PI |
 | 14 | Trace cycle (A→B→A) | Stage 2 | `TW-04 cycle-in-call-graph` WARNING emitted listing the cycle path; BFS terminates via visited-set; cycle procs appear in `dependency_graph.json` only when already reachable from explicit PI — they are NOT auto-copied into the trimmed domain |
 | 15 | Empty domain (no procs) | Stage 2 | 0 procs after trim; no error |
-| 16 | NFS lock detection log | Stage 3 | WARNING logged when lock path is on NFS mount |
+| 16 | Re-trim discards manual edits | Stage 3 | Fixed pre-flight warning emitted; rerun rebuilds from `<domain>_backup/` rather than preserving edits in `<domain>/` |
 | 17 | `--strict` escalates `VW-16 step-source-missing` to ERROR | Stage 4 | exit code 1 when F3 references trimmed step file |
 | 18 | Feature name uniqueness (`VE-14 duplicate-feature-name`) | Stage 4 | ERROR when two features share same `name` |
 | 19 | Empty base JSON (`VI-01 empty-base-json`) | Stage 4 | INFO diagnostic; no crash |

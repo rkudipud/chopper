@@ -2,7 +2,7 @@
 references a code that is not an Active row in ``docs/DIAGNOSTIC_CODES.md``.
 
 This is the doc↔code single-source-of-truth gate described in
-``HANDOFF_REVIEW_20260421.md`` PR-4. Agents that invent new diagnostic codes
+``docs/FINAL_HANDOFF_REVIEW.md`` PR-4. Agents that invent new diagnostic codes
 without registering them in the bible registry fail this check.
 
 The script is intentionally tiny and dependency-free so it can run in the

@@ -52,14 +52,14 @@ The user's ask was phrased as "service-oriented, context-aware." Taken literally
 | Option | Fit for Chopper | Verdict |
 |---|---|---|
 | Flat monolith (everything in one package, phases call each other) | Ships fast, but couples phases and kills isolated feature work | **Reject** |
-| **Modular monolith + Hexagonal (ports/adapters) + Pipeline** | Matches the 7-phase bible contract, preserves determinism, enables isolated stage work | **Recommended** |
+| **Modular monolith + Hexagonal (ports/adapters) + Pipeline** | Matches the 8-phase bible contract, preserves determinism, enables isolated stage work | **Recommended** |
 | Networked microservices | Requires IPC, serialization, process lifecycle — zero business benefit for a <1 GB, 5-min run | Reject |
 | Event-driven bus | Eventual consistency inside a deterministic pipeline is a contradiction | Reject |
 | Serverless / lambda | Anti-fit for filesystem-heavy workloads on VLSI checkouts | Reject |
 
 **Why the recommendation wins:**
 
-- Preserves the bible's 7-phase contract (P0–P7) and determinism guarantees.
+- Preserves the bible's 8-phase contract (P0–P7) and determinism guarantees.
 - Aligns 1:1 with the Stage 0–5 build model in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md).
 - Cross-module data flow is typed frozen dataclasses — services cannot corrupt each other's state.
 
