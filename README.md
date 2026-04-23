@@ -12,7 +12,6 @@
 
 Instead of editing Tcl by hand and hoping you caught every dependency, you write JSON to say which files, which procedures, and which run-script stages survive. Chopper parses your domain, compiles your selections, traces the call graph for visibility, trims the domain on disk, generates run scripts if needed, and writes a full audit bundle for review.
 
-> Inspired by the works of **SNORT** by Mike McCurdy and **FlowBuilder** by Stelian Alupoaei.
 
 ---
 
