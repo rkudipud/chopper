@@ -17,7 +17,7 @@ from chopper.adapters import (
     RichUnavailableError,
     SilentProgress,
 )
-from chopper.cli.render import render_result
+from chopper.cli.render import render_cleanup_message, render_result
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.protocols import ProgressSink
 from chopper.orchestrator import ChopperRunner
@@ -119,17 +119,17 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     """
 
     if not getattr(args, "confirm", False):
-        print("chopper cleanup: --confirm is required; refusing to remove backup")
+        render_cleanup_message("chopper cleanup: --confirm is required; refusing to remove backup")
         return 2
 
     domain_root = _resolve_domain_root(args)
     backup_root = domain_root.with_name(domain_root.name + "_backup")
     if not backup_root.exists():
-        print(f"chopper cleanup: no backup to remove at {backup_root.as_posix()}")
+        render_cleanup_message(f"chopper cleanup: no backup to remove at {backup_root.as_posix()}")
         return 0
 
     import shutil
 
     shutil.rmtree(backup_root)
-    print(f"chopper cleanup: removed {backup_root.as_posix()}")
+    render_cleanup_message(f"chopper cleanup: removed {backup_root.as_posix()}")
     return 0

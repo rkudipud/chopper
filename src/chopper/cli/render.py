@@ -18,7 +18,7 @@ from typing import TextIO
 from chopper.core.diagnostics import Diagnostic, Severity
 from chopper.core.models import RunResult
 
-__all__ = ["render_diagnostics", "render_result"]
+__all__ = ["render_cleanup_message", "render_diagnostics", "render_result"]
 
 
 _SEVERITY_LABEL = {
@@ -57,3 +57,17 @@ def render_result(
     out = stream if stream is not None else sys.stderr
     s = result.summary
     out.write(f"Summary: {s.errors} error(s), {s.warnings} warning(s), {s.infos} info(s); exit {result.exit_code}\n")
+
+
+def render_cleanup_message(message: str, stream: TextIO | None = None) -> None:
+    """Write a user-facing ``chopper cleanup`` status line to ``stdout``.
+
+    Cleanup is a direct filesystem operation — it does not enter
+    :class:`~chopper.orchestrator.runner.ChopperRunner`, so there are no
+    diagnostics to render. The caller provides the prose; this helper
+    centralises the output channel (``stdout``) so ``cli/render.py``
+    remains the single place library code talks to the user.
+    """
+
+    out = stream if stream is not None else sys.stdout
+    out.write(f"{message}\n")
