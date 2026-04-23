@@ -1,6 +1,6 @@
 # Chopper — User Manual
 
-Practical reference for day-to-day operators. For detailed behavior, see [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md). For architecture, see [`TECHNICAL_GUIDE.md`](TECHNICAL_GUIDE.md).
+Practical reference for day-to-day operators. This guide is about running Chopper safely and efficiently, not about JSON merge theory or internal code structure. For detailed behavior, see [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md). For architecture, see [`TECHNICAL_GUIDE.md`](TECHNICAL_GUIDE.md). For the code-level implementation walkthrough, see [`IMPLEMENTATION_GUIDE.md`](IMPLEMENTATION_GUIDE.md).
 
 ---
 

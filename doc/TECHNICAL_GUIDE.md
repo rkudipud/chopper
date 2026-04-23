@@ -1,6 +1,6 @@
 # Chopper — Technical Guide
 
-Architecture overview for developers integrating, extending, or debugging Chopper. For the full specification, see [`../technical_docs/chopper_description.md`](../technical_docs/chopper_description.md) and [`../technical_docs/ARCHITECTURE_PLAN.md`](../technical_docs/ARCHITECTURE_PLAN.md).
+Architecture overview for developers integrating, extending, or debugging Chopper. This is the short architectural map: use it to understand the system shape, major modules, ports, diagnostics, and runtime phases without reading every service in detail. For the code-level walkthrough, diagrams, and test-system explanation, see [`IMPLEMENTATION_GUIDE.md`](IMPLEMENTATION_GUIDE.md). For the full specification, see [`../technical_docs/chopper_description.md`](../technical_docs/chopper_description.md) and [`../technical_docs/ARCHITECTURE_PLAN.md`](../technical_docs/ARCHITECTURE_PLAN.md).
 
 ---
 

@@ -1,6 +1,6 @@
 # Chopper — Behavior Guide
 
-How Chopper decides what survives, what to watch out for, and how to solve common authoring problems. Written for domain owners who already know the CLI (see [`USER_MANUAL.md`](USER_MANUAL.md)).
+How Chopper decides what survives, what to watch out for, and how to solve common authoring problems. Written for domain owners who already know the CLI (see [`USER_MANUAL.md`](USER_MANUAL.md)). This guide explains decision rules and authoring consequences, not the internal service layout. For the code walkthrough, use [`IMPLEMENTATION_GUIDE.md`](IMPLEMENTATION_GUIDE.md).
 
 ---
 
