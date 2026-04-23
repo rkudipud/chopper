@@ -57,10 +57,44 @@ Start with the docs that match your role:
 | --- | --- | --- |
 | [doc/README.md](doc/README.md) | Operators, JSON authors, integrators | Entry point to the user-facing docs |
 | [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md) | Engineers reading the code | Full implementation walkthrough with architecture, service flow, tests, and Mermaid diagrams |
+| [.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md) | Copilot users analyzing customer domains | Chopper-aware custom agent for codebase scanning, JSON authoring, Chopper runs, log analysis, and trim guidance |
 | [json_kit/README.md](json_kit/README.md) | JSON authors | Standalone authoring kit with schemas, examples, and validator |
 | [technical_docs/chopper_description.md](technical_docs/chopper_description.md) | Engineers | Authoritative behavior and pipeline specification |
 | [technical_docs/CLI_HELP_TEXT_REFERENCE.md](technical_docs/CLI_HELP_TEXT_REFERENCE.md) | Engineers, doc writers | Canonical CLI wording and option reference |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Development workflow, design constraints, and PR checklist |
+
+## Use the Chopper Domain Companion Agent
+
+The repo ships with a custom agent at [.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md).
+
+It comes with embedded Chopper knowledge and a guided workflow for:
+
+- understanding whether Chopper fits the user’s trimming goal
+- scanning a target codebase and confirming the real domain boundary
+- identifying entry points, proc libraries, utilities, configs, and optional flows
+- building a call-tree understanding without confusing external tool commands with domain proc calls
+- authoring and refining `base.json`, feature JSONs, and `project.json`
+- running `chopper validate` and `chopper trim --dry-run`
+- analyzing `.chopper/` artifacts like `compiled_manifest.json`, `dependency_graph.json`, `diagnostics.json`, and `trim_report.json`
+- helping users understand why the output differs from intent
+- suggesting JSON changes and codebase changes that make trimming more reliable
+
+The agent is collaborative by design: it asks for the user’s goal, confirms the domain boundary, identifies mandatory versus optional flows, and only then recommends boundaries or JSON edits. It explicitly knows the critical Chopper rules like default-exclude, explicit-include-wins, and trace-is-reporting-only.
+
+### Use it in VS Code GitHub Copilot
+
+Open this repository in VS Code, then open GitHub Copilot Chat.
+
+If your VS Code Copilot setup shows repository custom agents in the agent picker, select `Chopper Domain Companion` and ask for help directly.
+
+Suggested prompts:
+
+- "Analyze my customer codebase under `path/to/domain/` and tell me whether Chopper is a good fit."
+- "Scan this repo, identify the real domain boundary and entry points, and help me author `base.json`, feature JSONs, and `project.json`."
+- "Run `chopper validate` and `chopper trim --dry-run`, then explain the `.chopper/` outputs and tell me what JSON changes I should make."
+- "Read `compiled_manifest.json`, `dependency_graph.json`, and `trim_report.json`, explain why the output differs from my intent, and propose the next JSON edits."
+
+If your Copilot setup does not surface repo custom agents automatically, open [.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md) and use it as the instruction source for the same workflow.
 
 ## Repository Layout
 
