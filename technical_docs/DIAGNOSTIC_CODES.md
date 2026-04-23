@@ -18,7 +18,7 @@ All codes follow the pattern **`<FAMILY><SEV>-<NN>`**:
 
 Each code also carries a **`slug`** — a kebab-case label that provides a stable human-readable identifier alongside the numeric code. Verbose and human-facing output displays the slug; machine output, JSON, and the Python constants registry use the numeric code.
 
-Reserved rows (marked `—`) are intentionally blank — fill them sequentially when new codes are needed; never renumber existing ones. The registry has **no retired codes** in v1; if a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
+Reserved rows (marked `—`) are intentionally blank — fill them sequentially when new codes are needed; never renumber existing ones. The registry has **no retired codes**; if a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
 
 ## Code Space Summary
 
@@ -182,7 +182,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 - **Exit 1** — Validation or parse failure; output generation is blocked.
 - **Exit 2** — CLI / pre-pipeline fatal: `VE-11` conflicting options, `VE-13` unresolvable `--project` paths, `VE-21` missing domain + backup.
 - **Exit 3** — Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2; the audit writer still emits `.chopper/internal-error.log`. `VE-16` also exits 3 as an internal-consistency assertion.
-- **No retired codes in v1.** The registry is compact. If a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
+- **No retired codes.** The registry is compact. If a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
 - **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope (see [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
 - Every code constant must be defined in `src/chopper/core/diagnostics.py` before use in implementation.
 - Every code carries a kebab-case **`slug`** for human-facing display. The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.

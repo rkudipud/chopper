@@ -1,12 +1,12 @@
-# Chopper v2
+# Chopper
 
 Chopper is a Python CLI for trimming VLSI EDA tool-flow domains down to the files, Tcl procedures, and generated run scripts a project actually needs. Selection is driven by JSON, execution is deterministic, and every run writes an audit bundle under `.chopper/` for review.
 
+Release details live in [VERSION.md](VERSION.md).
+
 Inspired by the works of SNORT by Mike McCurdy and FlowBuilder by Stelian Alupoaei.
 
-## What It Does
-
-Chopper supports three capability classes that can be used independently or together:
+## Product Summary
 
 | Capability | Purpose |
 | --- | --- |
@@ -14,17 +14,40 @@ Chopper supports three capability classes that can be used independently or toge
 | `F2` | Keep or drop individual Tcl procedures inside a file |
 | `F3` | Generate `<stage>.tcl` run files from JSON stage definitions |
 
-The CLI surface is intentionally small:
+Supported operator commands:
 
-- `chopper validate` runs the read-only analysis path.
-- `chopper trim` runs the full pipeline.
-- `chopper cleanup --confirm` removes the backup directory after the trim window closes.
+- `chopper validate`
+- `chopper trim`
+- `chopper cleanup --confirm`
 
 Global flags such as `--plain`, `--strict`, `-v`, and `-q` always go before the subcommand.
 
-## Quick Start
+## Standard Procedure
 
-Chopper requires Python 3.11+ at runtime. The provided setup scripts create a local `.venv`, activate it, and install the development dependencies.
+### Inputs
+
+- A domain root
+- A base JSON or project JSON
+- Optional feature JSONs
+- Optional stage definitions when generated run scripts are required
+
+### Procedure
+
+1. Bootstrap the environment.
+2. Run `chopper validate`.
+3. Run `chopper trim --dry-run`.
+4. Review `.chopper/compiled_manifest.json`, `.chopper/dependency_graph.json`, and `.chopper/trim_report.txt`.
+5. Run live `chopper trim` only after the dry-run result matches intent.
+
+Example:
+
+```text
+chopper validate --project configs/project_abc.json
+chopper trim --dry-run --project configs/project_abc.json
+chopper trim --project configs/project_abc.json
+```
+
+### Environment Setup
 
 | Platform | Command |
 | --- | --- |
@@ -39,29 +62,28 @@ After setup, confirm the CLI is available:
 chopper --help
 ```
 
-Typical first run:
+## Outputs You Review
 
-```text
-chopper validate --project configs/project_abc.json
-chopper trim --dry-run --project configs/project_abc.json
-chopper trim --project configs/project_abc.json
-```
+| Artifact | Purpose |
+| --- | --- |
+| `.chopper/chopper_run.json` | Run metadata and outcome |
+| `.chopper/compiled_manifest.json` | Final file/proc/stage decisions |
+| `.chopper/dependency_graph.json` | Trace graph and reporting-only dependencies |
+| `.chopper/trim_report.txt` | Human-readable trim summary |
+| `.chopper/diagnostics.json` | All diagnostics for the run |
 
-Use `--dry-run` before a live trim when you want the compiled manifest, trace graph, and trim report without rebuilding domain content.
-
-## Repo Guide
-
-Start with the docs that match your role:
+## Documentation Set
 
 | Path | Audience | Purpose |
 | --- | --- | --- |
 | [doc/README.md](doc/README.md) | Operators, JSON authors, integrators | Entry point to the user-facing docs |
-| [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md) | Engineers reading the code | Full implementation walkthrough with architecture, service flow, tests, and Mermaid diagrams |
-| [.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md) | Copilot users analyzing customer domains | Chopper-aware custom agent for codebase scanning, JSON authoring, Chopper runs, log analysis, and trim guidance |
+| [doc/USER_MANUAL.md](doc/USER_MANUAL.md) | Operators | Task-oriented operating guide |
+| [doc/BEHAVIOR_GUIDE.md](doc/BEHAVIOR_GUIDE.md) | JSON authors | Merge logic, tracing behavior, and authoring patterns |
+| [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) | Integrators and contributors | Short architecture and pipeline map |
+| [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md) | Engineers reading the code | Code-level implementation walkthrough |
 | [json_kit/README.md](json_kit/README.md) | JSON authors | Standalone authoring kit with schemas, examples, and validator |
 | [technical_docs/chopper_description.md](technical_docs/chopper_description.md) | Engineers | Authoritative behavior and pipeline specification |
-| [technical_docs/CLI_HELP_TEXT_REFERENCE.md](technical_docs/CLI_HELP_TEXT_REFERENCE.md) | Engineers, doc writers | Canonical CLI wording and option reference |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Development workflow, design constraints, and PR checklist |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Development workflow and quality gates |
 
 ## Use the Chopper Domain Companion Agent
 

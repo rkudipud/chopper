@@ -561,7 +561,7 @@ F3 generates stage-based run files from JSON stage definitions. Users who want g
 | Behavior | Description |
 |---|---|
 | **Input unit** | Ordered `stages` array in base JSON; `flow_actions` in feature JSONs |
-| **Output unit** | `<stage>.tcl` (when stages are defined). Any scheduler stack file remains manually authored in v1. |
+| **Output unit** | `<stage>.tcl` (when stages are defined). Any scheduler stack file remains manually authored. |
 | **Purpose** | Build clean project-facing run orchestration for domains that want generated run scripts with injectable step sequences |
 
 **`stageDefinition` fields:**
@@ -1513,7 +1513,7 @@ This is the first artifact to read when investigating a trim result. It answers:
 
 | Field | Type | Description |
 |---|---|---|
-| `chopper_version` | string | Chopper version (e.g., `"0.1.0"`) |
+| `chopper_version` | string | Chopper version string |
 | `run_id` | string | UUID v4 unique to this run |
 | `command` | string | Subcommand executed: `trim`, `validate`, `cleanup` |
 | `mode` | string | `live` or `dry-run` |
@@ -1538,7 +1538,7 @@ This is the first artifact to read when investigating a trim result. It answers:
 
 ```json
 {
-  "chopper_version": "0.1.0",
+  "chopper_version": "<package-version>",
   "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "command": "trim",
   "mode": "live",
@@ -1908,11 +1908,11 @@ Chopper's Python coding standards live in §5.12 below. GUI-readiness and the wi
 
 ### 5.11 GUI Readiness and Wire Protocol
 
-Chopper v1 is CLI-only. However, the architecture **must** enable a future GUI without rewriting the engine. This section defines the provisions that v1 implementation must satisfy so that GUI-based file selection, proc selection, trim statistics, JSON viewing, dependency-graph visualization, and diagnostic browsing can be layered on top later.
+Chopper is CLI-only. However, the architecture **must** enable a future GUI without rewriting the engine. This section defines the provisions that the current implementation must satisfy so that GUI-based file selection, proc selection, trim statistics, JSON viewing, dependency-graph visualization, and diagnostic browsing can be layered on top later.
 
 #### 5.11.1 Architectural Requirements for GUI Enablement
 
-The following rules are **non-negotiable in v1** even though no GUI ships:
+The following rules are **non-negotiable** even though no GUI ships:
 
 1. **Typed pipeline results.** The runner returns a frozen `RunResult`; individual phases exchange frozen dataclasses such as `ParseResult`, `CompiledManifest`, `DependencyGraph`, and `TrimReport`. No phase returns pre-rendered strings.
 2. **Structured progress events.** Progress flows through `ProgressSink` with explicit phase and step notifications. The CLI renders them today; a GUI can render the same events later.
@@ -1920,7 +1920,7 @@ The following rules are **non-negotiable in v1** even though no GUI ships:
 4. **Deterministic serialization.** Core models are serializable through `dump_model()` in `src/chopper/core/serialization.py`, which is already the source for audit artifacts. A future GUI can consume the same shapes without changing the engine.
 5. **No presentation in core logic.** The compiler, parser, trimmer, validator, and audit writer never import terminal-rendering libraries or format user-facing output.
 6. **CLI rendering stays thin.** Human output lives in `cli/render.py`; engine code stays presentation-agnostic.
-7. **Machine output is deferred, not promised.** V1 does not freeze a `--json` CLI mode or a GUI wire protocol. If structured stdout/stderr is needed later, it enters through [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output), not via an undocumented side channel.
+7. **Machine output is deferred, not promised.** Chopper does not freeze a `--json` CLI mode or a GUI wire protocol here. If structured stdout/stderr is needed later, it enters through [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output), not via an undocumented side channel.
 
 #### 5.11.2 Service Layer Contract
 
@@ -1942,12 +1942,12 @@ The engine boundary between presentation (CLI today, GUI later) and domain logic
 
 #### 5.11.3 Future GUI Integration Surface
 
-V1 freezes the **data surface**, not a transport protocol. The future GUI can be added in one of two ways:
+The current design freezes the **data surface**, not a transport protocol. The future GUI can be added in one of two ways:
 
 1. **In-process Python integration** using `ChopperRunner.run(ctx)` plus the same ports the CLI binds today.
 2. **Structured CLI transport** added later through [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output) once the pipeline and artifact shapes have proven stable.
 
-What is already stable in v1 is the engine-facing surface:
+What is already stable is the engine-facing surface:
 
 - `RunConfig` and `PresentationConfig`
 - `ChopperContext`
@@ -1971,9 +1971,9 @@ Audit artifacts use this contract today. A future GUI or machine-readable fronte
 
 #### 5.11.5 GUI-Relevant Data Surfaces
 
-The following data is already produced by the v1 pipeline and available as typed, serializable models. A future GUI would consume these directly:
+The following data is already produced by the current pipeline and available as typed, serializable models. A future GUI would consume these directly:
 
-| GUI Feature | Data Source | v1 Artifact |
+| GUI Feature | Data Source | Current Artifact |
 |---|---|---|
 | **File selection browser** | `CompiledManifest.files` — per-file treatment, reason, input sources | `compiled_manifest.json` |
 | **Proc selection browser** | `CompiledManifest.procs` — per-proc decision, source file, keep reason | `compiled_manifest.json` |
@@ -1984,7 +1984,7 @@ The following data is already produced by the v1 pipeline and available as typed
 | **Stage/flow viewer** | `CompiledManifest.flow_stages` — resolved stage sequence after flow actions | `compiled_manifest.json` |
 | **Audit trail viewer** | `chopper_run.json` — run metadata, timestamps, exit code | `chopper_run.json` |
 
-**No additional artifacts or data models are needed for GUI enablement.** The v1 pipeline already produces everything a GUI would need. The only future work is the presentation layer itself.
+**No additional artifacts or data models are needed for GUI enablement.** The current pipeline already produces everything a GUI would need. The only future work is the presentation layer itself.
 
 #### 5.11.6 Extension Points for a Future Frontend
 
@@ -1996,7 +1996,7 @@ The extension surface is deliberately small:
 | `ProgressSink` | `phase_started()`, `phase_done()`, `step()` | Progress panels, spinners, CI silence, or future GUI status widgets |
 | `DiagnosticSink` | `emit()`, `snapshot()`, `finalize()` | Diagnostic collection and presentation-independent reporting |
 
-Rendering itself is **not** a protocol in v1. The CLI renders directly in `cli/render.py`; a future GUI will render from typed data without requiring a `TableRenderer` abstraction.
+Rendering itself is **not** a protocol here. The CLI renders directly in `cli/render.py`; a future GUI will render from typed data without requiring a `TableRenderer` abstraction.
 
 #### 5.11.7 What v1 Must NOT Do
 
@@ -2039,7 +2039,7 @@ Chopper is a Python ≥ 3.13 CLI. The rules below are authoritative for every fi
 
 - **No `print()` in library code.** Any module under `src/chopper/{parser,compiler,trimmer,validator,core,config,audit,generators}` that calls `print()` is a review-blocking defect. The CLI and test harnesses may print.
 - All user-facing outcomes go through `ctx.diag.emit(Diagnostic(...))` (§5.11.1). Every code is registered in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
-- **There is no internal structured-logging channel in v1.** Chopper has exactly two output surfaces for the operator: the `DiagnosticSink` (user-facing outcomes) and the `ProgressSink` (phase transitions and progress events). Library modules do not carry a logger handle and do not emit `log.info` / `log.debug` events. Every observation worth surfacing to a user is a diagnostic; every observation worth surfacing to downstream tooling is an audit artifact. Crash traces for programmer errors are written to `.chopper/internal-error.log` by the runner's final `except` block (§8.3, exit code 3).
+- **There is no internal structured-logging channel.** Chopper has exactly two output surfaces for the operator: the `DiagnosticSink` (user-facing outcomes) and the `ProgressSink` (phase transitions and progress events). Library modules do not carry a logger handle and do not emit `log.info` / `log.debug` events. Every observation worth surfacing to a user is a diagnostic; every observation worth surfacing to downstream tooling is an audit artifact. Crash traces for programmer errors are written to `.chopper/internal-error.log` by the runner's final `except` block (§8.3, exit code 3).
 
 #### 5.12.5 Errors and Exceptions
 
@@ -2260,7 +2260,7 @@ This base example intentionally shows:
 - Raw `source` usage, normal step files, and optional step references
 - Stage-level `load_from` (required), optional `dependencies`, `exit_codes`, `command`, `inputs`, `outputs`, `language`, and `run_mode`
 
-For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Chopper emits only the generated `<stage>.tcl` scripts in v1; use this mapping when you need to author or maintain a scheduler stack file manually.
+For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Chopper emits only the generated `<stage>.tcl` scripts; use this mapping when you need to author or maintain a scheduler stack file manually.
 
 **Validation rule:** an entry in `procedures.include` or `procedures.exclude` with an empty `procs` array (`"procs": []`) is a **hard error (`VE-03`)**. For include: if the author intended to keep the whole file, the correct action is to move the file into `files.include`. For exclude: if there's nothing to exclude, omit the entry entirely. Chopper rejects empty procs arrays during validation and dry-run, with an actionable error message.
 
@@ -2469,7 +2469,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 |---|---|---|
 | `$schema` | string | Must be `"chopper/project/v1"` |
 | `project` | string | Project identifier (e.g., `PROJECT_ABC`) |
-| `domain` | string | Domain identifier. In v1 it must match the basename of the current working directory, which is the operational domain root. |
+| `domain` | string | Domain identifier. It must match the basename of the current working directory, which is the operational domain root. |
 | `base` | string | Path to the base JSON file (resolved relative to the current working directory / domain root). Default expected location: `jsons/base.json`. |
 
 **Optional fields:**
@@ -2980,9 +2980,9 @@ This log records the conscious design decisions that shaped the current document
 | Date | Change |
 |---|---|
 | 2024-06-01 | Initial draft. |
-| 2026-04 | Consolidated review pass: removed `common/` infrastructure references; removed `template_script` execution contract (schema field retained for forward compatibility, not executed in v1); replaced archived forward-references with links to the live `technical_docs/*.md`; promoted Trim Workflow to §3.7; added Rule L1 (The Law of Explicit Include) and the treatment-token vocabulary to §4; added backup edge-case matrix to §2.8 with `VE-23` and `VI-03`; added GUI-readiness sections §8.3–8.5; added FR-38–FR-41 (service layer, JSON serialization, ProgressSink, diagnostic stability); rewrote FR-23 to name concrete audit artifacts; registered `VE-19`–`VE-23`, `VW-14`–`VW-17`, `VI-03`, `PE-03` in the diagnostic registry. |
+ | 2026-04 | Consolidated review pass: removed `common/` infrastructure references; removed `template_script` execution contract (schema field retained for forward compatibility, not executed at that point); replaced archived forward-references with links to the live `technical_docs/*.md`; promoted Trim Workflow to §3.7; added Rule L1 (The Law of Explicit Include) and the treatment-token vocabulary to §4; added backup edge-case matrix to §2.8 with `VE-23` and `VI-03`; added GUI-readiness sections §8.3–8.5; added FR-38–FR-41 (service layer, JSON serialization, ProgressSink, diagnostic stability); rewrote FR-23 to name concrete audit artifacts; registered `VE-19`–`VE-23`, `VW-14`–`VW-17`, `VI-03`, `PE-03` in the diagnostic registry. |
 | 2026-04-19 | Locked in purely additive feature semantics. R1 rewritten around provenance-aware cross-source aggregation with rules L1 (explicit include wins cross-source), L2 (same-source authoring conveniences), L3 (base inviolable, features additive-only). P3 algorithm in §5.3 rewritten to classify per-source contributions (WHOLE / TRIM / NONE) and then aggregate across sources with full provenance recorded on every manifest entry. Feature ordering scoped to F3 `flow_actions` sequencing only; F1/F2 merges declared order-independent. FR-08 rewritten. Q13 and Q19 updated. New §11.6 FAQ entries for cross-source include/exclude disagreements. Diagnostic registry: `VW-10` un-retired and re-assigned to `cross-source-fe-vetoed`; `VW-11` scoped to same-source as `fe-pe-same-source-conflict`; new `VW-18 cross-source-pe-vetoed` added; VW active count 15 → 17. Project-v1 schema `features` description rewritten to reflect additive-only semantics and F3-only ordering authority. |
-| 2026-04-19 | Public-surface cleanup to eliminate schema/doc contradictions. Removed `_draft` field entirely from `json_kit/schemas/base-v1.schema.json` and `json_kit/docs/JSON_AUTHORING_GUIDE.md`: scan mode and draft-JSON generation were considered and explicitly rejected (see OOS-04) — domain owners author JSONs manually and `--dry-run` is the authoring feedback loop. Rewrote `options.template_script` schema description to state the field is reserved in v1 and not executed; narrowed `VE-18 template-script-path-escapes` to Phase 1 static path validation (symlink/containment only). Updated RISKS_AND_PITFALLS.md TC-09 to match. Corrected stale non-registry diagnostic codes in schemas and authoring guide: feature-v1 `V-19` → `VW-04 feature-domain-mismatch`; authoring-guide `V-19 family` → `VE-15`/`VE-16`. |
+ | 2026-04-19 | Public-surface cleanup to eliminate schema/doc contradictions. Removed `_draft` field entirely from `json_kit/schemas/base-v1.schema.json` and `json_kit/docs/JSON_AUTHORING_GUIDE.md`: scan mode and draft-JSON generation were considered and explicitly rejected (see OOS-04) — domain owners author JSONs manually and `--dry-run` is the authoring feedback loop. Rewrote `options.template_script` schema description to state the field is reserved at that point and not executed; narrowed `VE-18 template-script-path-escapes` to Phase 1 static path validation (symlink/containment only). Updated RISKS_AND_PITFALLS.md TC-09 to match. Corrected stale non-registry diagnostic codes in schemas and authoring guide: feature-v1 `V-19` → `VW-04 feature-domain-mismatch`; authoring-guide `V-19 family` → `VE-15`/`VE-16`. |
 | 2026-04-19 | Scan-mode artifact purge across the live surface. Rewrote `tests/TESTING_STRATEGY.md` Scenario 14 to cite registered `TW-04 cycle-in-call-graph` instead of a fictional code, and Scenario 21 to assert the dry-run artifact set (`compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`) rather than the removed `diff_report.json`. Extended the scenario table with six additive-model scenarios (23–28) covering cross-source FE/PE vetoes (`VW-10`, `VW-18`), same-source FE/PE conflict (`VW-11`), F3 `flow_actions` ordering authority, F1/F2 merge order-independence, and per-entry provenance in the compiled manifest. Replaced remaining ad-hoc parser diagnostic code strings with authoritative registry codes across `tests/FIXTURE_CATALOG.md`, `technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md`, and `tests/fixtures/tracing_domain/dynamic.tcl`. OOS-04 in §2.1 and Q15 in §11 remain as the definitional statements of record for the scan-mode rejection. |
 | 2026-04-20 | Propagated the "trace is reporting-only" contract so the PI+/PT semantics are unmistakable at every authoring and implementation surface. Added a concrete worked example to §5.4 showing `foo` (listed in `procedures.include`) is copied while `bar` (reached only via trace) appears in `dependency_graph.json` and `trim_report.json` but is not copied. Promoted Scenario 14 in `tests/TESTING_STRATEGY.md` from a "no diagnostic" assertion to a real `TW-04 cycle-in-call-graph` assertion that also pins the no-auto-copy rule. Rewrote `technical_docs/RISKS_AND_PITFALLS.md` Pitfall P-09 to strike the stale "`procedures.exclude` filters trace-derived proc candidates" mental model — under the additive L1/L2/L3 model, trace never adds survivors and PE is a same-source proc-trimming instruction governed by VW-09/VW-10/VW-11/VW-12/VW-18. Added Critical Principle #7 ("Trace Is Reporting-Only (Never Copies)") to `AGENTS.md`. Added a pull-quote callout to `json_kit/docs/JSON_AUTHORING_GUIDE.md` merge-semantics section. No diagnostic-registry changes were required. |
 | 2026-04-20 | Docs-hygiene pass. Reframed implementation timeline in terms of stage boundaries tied to module dependency order (Stage 0 `core/` → Stage 1 `parser/` → Stage 2 `compiler/` → Stage 3 `trimmer/` → Stage 4 `validator/` → Stage 5 `cli/`) across `AGENTS.md`, `tests/TESTING_STRATEGY.md`, `tests/FIXTURE_CATALOG.md`, `tests/GOLDEN_FILE_GUIDE.md`, `tests/fixtures/gen_large_domain.py`, and `tests/integration/crash_harness.py`, replacing the previous Day/Sprint/Week labels which implied calendar time. Removed `Status: Draft` / `Author:` / `Last Updated:` banners from the live spec set (the revision history is the living record of authorship and currency). Folded `TCL_PARSER_SPEC.md` §11 "Addendum A" into the main body: A.1 (PE-01 timing and error-message format) became new §6.3 so the timing rule sits next to the §6.1 invariants it enforces, and A.2 (namespace-resolution cross-reference) was dropped as redundant with §5.3.1. The general rule against Addendum sections in specs is recorded as a **Documentation Convention** in `AGENTS.md` (with rationale) so it is discoverable to future authors rather than buried in this log. |

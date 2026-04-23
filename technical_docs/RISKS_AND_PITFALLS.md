@@ -804,7 +804,7 @@ base_path = Path.cwd() / "jsons/base.json"
 # Result: fev_formality/jsons/base.json (correct)
 ```
 
-**Correct Behavior:** `base` and `features` paths inside a project JSON are resolved relative to the current working directory, which is the operational domain root in v1, NOT relative to the project JSON file location.
+**Correct Behavior:** `base` and `features` paths inside a project JSON are resolved relative to the current working directory, which is the operational domain root, NOT relative to the project JSON file location.
 
 **Implementation Requirement:**
 - CLI layer assumes the current working directory is the domain root
@@ -970,7 +970,7 @@ These fields flow through `ConfigService` → `CompiledManifest` and are written
 # Which root wins?
 ```
 
-**Correct Behavior:** The current working directory is the domain root in v1. The project JSON `domain` field is a consistency identifier and must match `Path.cwd().name`. If `--domain` is provided alongside `--project`, it must resolve to the same directory as `Path.cwd()`; otherwise Chopper exits with code 2.
+**Correct Behavior:** The current working directory is the domain root. The project JSON `domain` field is a consistency identifier and must match `Path.cwd().name`. If `--domain` is provided alongside `--project`, it must resolve to the same directory as `Path.cwd()`; otherwise Chopper exits with code 2.
 
 **Implementation Requirement:**
 - Use `Path.cwd()` as the verified domain root for project path resolution

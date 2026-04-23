@@ -19,7 +19,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Domain identifier. In v1 operators are expected to invoke Chopper from the domain root, so this field is a consistency and audit identifier that must match the current working directory basename."
+      "description": "Domain identifier. Operators are expected to invoke Chopper from the domain root, so this field is a consistency and audit identifier that must match the current working directory basename."
     },
     "owner": {
       "type": "string",

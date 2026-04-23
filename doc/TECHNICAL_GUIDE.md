@@ -51,7 +51,7 @@ src/chopper/
 ├── compiler/        R1 merge algorithm, BFS trace, F3 flow-actions                   (P3, P4)
 ├── trimmer/         File copier, proc dropper, state machine                         (P5)
 ├── validator/       Pre- and post-trim validation (plain module functions)           (P1, P6)
-├── generators/      F3 run-file emitter (`<stage>.tcl` only in v1)                   (P5)
+├── generators/      F3 run-file emitter (`<stage>.tcl` only)                          (P5)
 ├── audit/           .chopper/ bundle writers, SLOC counter, hashing                  (P7)
 ├── orchestrator/    ChopperRunner, phase-gate logic, domain-state detection          (all)
 ├── adapters/        Concrete port implementations (fs, sinks, progress)              (all)
@@ -225,7 +225,7 @@ A CI script (`scripts/check_service_signatures.py`) also verifies that service s
 | Memory | Whole-file reads (no streaming) |
 | Parallelism | Single-threaded |
 
-Performance was deliberately deprioritized in v1 in favor of correctness and determinism. A `make bench` harness is deferred (`FD-09`).
+Performance was deliberately deprioritized in favor of correctness and determinism. A `make bench` harness is deferred (`FD-09`).
 
 ---
 

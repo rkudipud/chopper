@@ -1,6 +1,6 @@
 # Implementation Decision Log
 
-Tracking log for non-obvious implementation decisions, detours, and spec clarifications encountered during the Chopper v2 buildout. Each entry records **what** was decided, **why**, and **where** the outcome lives so future readers can reconstruct the reasoning without rereading the full conversation history.
+Tracking log for non-obvious implementation decisions, detours, and spec clarifications encountered during the Chopper buildout. Each entry records **what** was decided, **why**, and **where** the outcome lives so future readers can reconstruct the reasoning without rereading the full conversation history.
 
 Entries are keyed `D-<stage>-<nn>` where `<stage>` tracks the roadmap checkpoint (`0`, `1a`, `1b`, …). Within a stage, numbering starts at `01`. Entries are **append-only**; if a decision is reversed, file a new entry that references the old one — never edit the old one in place.
 

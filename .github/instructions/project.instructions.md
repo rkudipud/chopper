@@ -6,7 +6,7 @@ applyTo: '**'
 
 Authoritative conventions and guardrails for working in this codebase. Read this file at the start of every task. Add new rules here as patterns are discovered; never scatter project-level conventions across ad-hoc comments or other docs.
 
-**Chopper v2** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes an 8-phase pipeline (`P0`-`P7`): domain state → config + pre-validate → parse Tcl → compile → trace → build output → post-validate → audit. The codebase is **docs-first, spec-driven** — all implementation details are pre-specified.
+**Chopper** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes an 8-phase pipeline (`P0`-`P7`): domain state → config + pre-validate → parse Tcl → compile → trace → build output → post-validate → audit. The codebase is **docs-first, spec-driven** — all implementation details are pre-specified.
 
 ---
 
@@ -58,7 +58,7 @@ When you (or a reviewer, or a user comment) identify something Chopper "should m
 
 1. Open [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md).
 2. Add a new `FD-xx` entry at the next unused number in the appropriate category section.
-3. State: what the idea is, why it was considered, why it is not in v1, and what would change in the bible if it were adopted.
+3. State: what the idea is, why it was considered, why it is not in the current design, and what would change in the bible if it were adopted.
 4. Do **not** implement it. Do **not** stub it. Do **not** reserve a diagnostic code, port, or namespace for it.
 5. Flag the user for review in the same turn.
 
@@ -480,6 +480,15 @@ def test_parser_undefined_proc():
 ---
 
 ## Editing Conventions
+
+### Agent Local Memory Files
+
+Agents in this repository use workspace-local memory files under `.github/agent_memory/`.
+
+- On first invocation, if an agent-specific memory file does not exist, create it.
+- On later invocations, read that file before planning or implementation.
+- Update it after milestones, validations, and important decisions.
+- Do not rely on external memory systems or proprietary memory tooling.
 
 ### No Addendums
 

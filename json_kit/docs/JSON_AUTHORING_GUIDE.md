@@ -108,7 +108,7 @@ Equivalent JSON stage definition:
 }
 ```
 
-> **What Chopper emits in v1:**  
+> **What Chopper emits:**  
 > Chopper writes the generated `<stage>.tcl` file only. It does not auto-write a scheduler stack file. Use the field mapping above when you need to maintain a stack file by hand.
 >
 > **Note on `load_from` vs `dependencies`:**  

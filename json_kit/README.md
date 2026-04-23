@@ -22,7 +22,7 @@ Chopper trims EDA tool domain codebases via three JSON configuration files:
 
 You author these JSONs now. When Chopper is released, you run `chopper trim --project project.json` and it does the rest.
 
-If your JSON defines `stages`, Chopper emits generated `<stage>.tcl` run files. Scheduler stack files are still manual authoring in v1; use the same stage fields as the source for those files when your environment requires them.
+If your JSON defines `stages`, Chopper emits generated `<stage>.tcl` run files. Scheduler stack files remain manually authored; use the same stage fields as the source for those files when your environment requires them.
 
 ---
 

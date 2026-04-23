@@ -78,100 +78,161 @@ chopper --plain --strict trim --project configs/project_abc.json
 
 ---
 
-## Common Workflows
+## Operating Tasks
 
-### 1. First-time trim (direct mode)
+### Task 1. Validate a Selection Before You Trim
+
+Inputs:
+
+- Domain root directory
+- Either `jsons/base.json` or `project.json`
+
+Procedure:
+
+Direct mode:
 
 ```text
 cd /path/to/my_domain
 chopper validate --base jsons/base.json
-chopper trim --dry-run --base jsons/base.json
-chopper trim --base jsons/base.json
 ```
 
-What happens:
-
-1. `my_domain/` is renamed to `my_domain_backup/` (your original, untouched)
-2. A new trimmed `my_domain/` is built from it
-3. `.chopper/` audit bundle is written inside `my_domain/`
-
-### 2. First-time trim (project mode)
-
-Keep your selection reproducible by wrapping it in a project JSON:
-
-```json
-{
-  "$schema": "chopper/project/v1",
-  "project": "PROJECT_ABC",
-  "domain": "my_domain",
-  "base": "jsons/base.json",
-  "features": ["jsons/features/dft.feature.json"]
-}
-```
-
-Then:
+Project mode:
 
 ```text
-chopper validate --project configs/project_abc.json
-chopper trim --dry-run --project configs/project_abc.json
-chopper trim --project configs/project_abc.json
+cd /path/to/my_domain
+chopper validate --project project.json
 ```
 
-### 3. Re-trim (iterative authoring)
+Expected Output:
 
-You've edited JSONs and want to rebuild. Just run `trim` again:
+- No domain files are renamed, copied, or removed
+- `.chopper/` is refreshed with analysis artifacts
+- Schema, file-target, proc-target, trace, and manifest-derived validation issues are reported before any rebuild
 
-```text
-chopper trim --base jsons/base.json
-```
+Common Failure Modes:
 
-Chopper detects `my_domain_backup/` exists and rebuilds `my_domain/` from it. **Any hand-edits to `my_domain/` are discarded** — the CLI prints a warning every re-trim so you can't miss it. Commit or move hand-edits before re-running.
+- `VE-17`: the JSON `domain` field does not match the operational domain directory
+- `VE-03`: a `procEntry` contains an empty `procs` list
+- `PW-01`: Tcl uses computed proc names and Chopper cannot index them safely
 
-### 4. End-of-window cleanup
+### Task 2. Preview the Trim With `--dry-run`
 
-When the 2-week trim window closes and you're ready to finalize:
+Inputs:
 
-```text
-chopper cleanup --confirm
-```
+- A validated base JSON or project JSON
 
-This deletes `my_domain_backup/` permanently. `--confirm` is mandatory — there's no default.
-
-### 5. Dry run (no writes)
-
-Prefix any trim with `--dry-run`:
+Procedure:
 
 ```text
 chopper trim --dry-run --base jsons/base.json
 ```
 
-What `--dry-run` means in practice:
+Or:
 
-1. Chopper still loads JSONs, parses Tcl, compiles file/proc decisions, runs the trace phase, and runs post-validation checks that can be derived from the manifest
-2. Chopper does **not** rename `<domain>/` to `<domain>_backup/`
-3. Chopper does **not** copy, remove, or rewrite domain content files
-4. Chopper does **not** write generated `<stage>.tcl` files into the domain
-5. Chopper **does** update `.chopper/` inside the domain so you can inspect reports
+```text
+chopper trim --dry-run --project project.json
+```
 
-Use `--dry-run` whenever you change JSON authoring and want to confirm the outcome before touching the domain itself.
+Expected Output:
 
----
+- Chopper compiles file/proc decisions and runs the trace phase
+- Chopper does **not** rename `<domain>/` to `<domain>_backup/`
+- Chopper does **not** rewrite domain content files
+- Chopper does **not** write generated `<stage>.tcl` files into the domain
+- `.chopper/compiled_manifest.json`, `.chopper/dependency_graph.json`, and `.chopper/trim_report.txt` are available for review
 
-## Generated Stage Files and Manual Stack Files
+Common Failure Modes:
 
-If you define `stages`, Chopper's live `trim` command writes one generated `<stage>.tcl` file per resolved stage into the trimmed domain.
+- Operators assume dry-run is write-free; it still refreshes `.chopper/`
+- Feature order is wrong for F3 `flow_actions`, so the generated-stage plan is not what you expected
 
-What to expect:
+### Task 3. Execute the First Live Trim
 
-| You define | Live `trim` writes | `validate` / `trim --dry-run` writes | Notes |
-| --- | --- | --- | --- |
-| No `stages` | No generated run files | No generated run files | F1/F2 only |
-| `stages` in base only | One `<stage>.tcl` per base stage | No domain run files; audit bundle still shows generated entries | Use this when you want Chopper-authored run scripts |
-| `stages` plus feature `flow_actions` | One `<stage>.tcl` per final compiled stage | No domain run files; audit bundle still shows generated entries | Feature order matters for F3 only |
+Inputs:
 
-Stack files are different: Chopper does **not** auto-write scheduler stack files in v1. If your environment needs a stack file, keep authoring it manually from the same stage metadata.
+- Dry-run output reviewed and accepted
+- Original domain still present at `<domain>/`
 
-| Stage field | Stack line you author manually |
+Procedure:
+
+Direct mode:
+
+```text
+chopper trim --base jsons/base.json
+```
+
+Project mode:
+
+```text
+chopper trim --project project.json
+```
+
+Expected Output:
+
+1. Chopper renames `my_domain/` to `my_domain_backup/`
+2. Chopper builds a new trimmed `my_domain/`
+3. Chopper writes `.chopper/` inside the rebuilt domain
+4. If `stages` are defined, Chopper writes one generated `<stage>.tcl` file per resolved stage
+
+Common Failure Modes:
+
+- The operator runs live trim before checking `.chopper/compiled_manifest.json`
+- The wrong domain root is active when the command starts
+
+### Task 4. Re-Trim After Updating JSON
+
+Inputs:
+
+- Existing `<domain>_backup/`
+- Updated JSON selection files
+
+Procedure:
+
+```text
+chopper trim --base jsons/base.json
+```
+
+Or:
+
+```text
+chopper trim --project project.json
+```
+
+Expected Output:
+
+- Chopper rebuilds `<domain>/` from `<domain>_backup/`
+- Hand-edits inside the trimmed `<domain>/` are discarded
+- A fresh `.chopper/` bundle is written for the new run
+
+Common Failure Modes:
+
+- Operators edit files directly inside the trimmed domain and expect those changes to survive a re-trim
+- Backup content no longer matches the manifest assumptions, which can trigger backup-content diagnostics
+
+### Task 5. Use Stage JSON and Manual Stack Files Correctly
+
+Inputs:
+
+- Base or feature JSON containing `stages` or `flow_actions`
+
+Procedure:
+
+1. Define stage names, command lines, dependencies, and steps in JSON
+2. Run `chopper validate` or `chopper trim --dry-run`
+3. Inspect `.chopper/compiled_manifest.json` for `GENERATED` entries
+4. Run live `chopper trim` when the compiled stage plan is correct
+
+Expected Output:
+
+| You define | Live `trim` writes | Validation and dry-run show |
+| --- | --- | --- |
+| No `stages` | No generated run files | No generated run files |
+| `stages` in base only | One `<stage>.tcl` per base stage | Generated entries in the manifest |
+| `stages` plus feature `flow_actions` | One `<stage>.tcl` per final compiled stage | Generated entries in the manifest |
+
+Stack files stay manual. Use the same stage metadata to author scheduler lines yourself:
+
+| Stage field | Manual stack line |
 | --- | --- |
 | `name` | `N <name>` |
 | `command` | `J <command>` |
@@ -181,15 +242,28 @@ Stack files are different: Chopper does **not** auto-write scheduler stack files
 | `outputs` | `O <artifact>` |
 | `run_mode` | `R <value>` |
 
-If you want proof that F3 will generate scripts before a live trim, inspect `.chopper/compiled_manifest.json` after `validate` or `trim --dry-run` and look for entries whose treatment is `GENERATED`.
+Common Failure Modes:
 
----
+- Expecting Chopper to auto-write the scheduler stack file
+- Confusing `load_from` with scheduler dependency ordering
 
-## How to Use the JSON Examples
+### Task 6. Start From the Correct JSON Example
 
-Treat `json_kit/examples/` as starting templates, not as drop-in configs. Pick the closest example, copy it into your domain, then replace every placeholder with your real file paths, proc names, and stage steps.
+Inputs:
 
-| Need | Start with | What you copy |
+- A customer domain you want to trim
+- The `json_kit/examples/` folder
+
+Procedure:
+
+1. Pick the nearest example pattern from the table below
+2. Copy the example JSON into your domain root
+3. Replace every placeholder with actual domain paths, proc names, and stage steps
+4. Run `chopper validate`
+5. Run `chopper trim --dry-run`
+6. Run live `chopper trim` only after the reports match your intent
+
+| Need | Start with | What to copy |
 | --- | --- | --- |
 | File trimming only | `json_kit/examples/01_base_files_only/` | `jsons/base.json` |
 | Proc trimming only | `json_kit/examples/02_base_procs_only/` | `jsons/base.json` |
@@ -202,28 +276,36 @@ Treat `json_kit/examples/` as starting templates, not as drop-in configs. Pick t
 | Feature dependency chain | `json_kit/examples/10_chained_features_depends_on/` | `jsons/` and `project.json` |
 | Project mode without features | `json_kit/examples/11_project_base_only/` | `jsons/base.json` and `project.json` |
 
-Recommended customer workflow:
+Expected Output:
 
-1. Copy the nearest example into your domain root.
-2. Change the `domain` field to the actual domain directory name.
-3. Replace example include globs, proc lists, and stage steps with real domain content.
-4. Run `chopper validate` first.
-5. Run `chopper trim --dry-run` and inspect `.chopper/trim_report.txt` plus `.chopper/compiled_manifest.json`.
-6. Run live `chopper trim` only after the dry-run output matches your intent.
+- The chosen template gives you the correct starting structure without guessing field shapes
+- Validation errors point to your real domain data, not to template placeholders
 
-If you prefer direct mode, copy only `jsons/base.json` and run:
+Common Failure Modes:
+
+- Copying an example and running it unchanged
+- Choosing a files-only example when the domain actually needs proc trimming or stage generation
+
+### Task 7. Remove the Backup When the Trim Window Closes
+
+Inputs:
+
+- A domain with an existing `<domain>_backup/`
+
+Procedure:
 
 ```text
-chopper validate --base jsons/base.json
-chopper trim --dry-run --base jsons/base.json
+chopper cleanup --confirm
 ```
 
-If you prefer project mode, also copy `project.json` and run:
+Expected Output:
 
-```text
-chopper validate --project project.json
-chopper trim --dry-run --project project.json
-```
+- `<domain>_backup/` is deleted permanently
+
+Common Failure Modes:
+
+- Running cleanup before the team agrees the trim window is over
+- Omitting `--confirm`
 
 ---
 
@@ -329,7 +411,7 @@ Save as `jsons/base.json`:
 }
 ```
 
-That's it. Run `chopper trim --base jsons/base.json` from `my_domain/`.
+That is enough to start. Run `chopper validate --base jsons/base.json` first, then `chopper trim --dry-run --base jsons/base.json`, and only then run live `chopper trim --base jsons/base.json`.
 
 More patterns are in [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md).
 

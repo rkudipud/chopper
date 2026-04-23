@@ -1,4 +1,4 @@
-# Contributing to Chopper v2
+# Contributing to Chopper
 
 This guide covers the practical workflow for contributing code or documentation to Chopper. Product overview, user setup, and the documentation map stay in [README.md](README.md); this file is only for contributor-specific guidance.
 

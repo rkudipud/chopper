@@ -1,4 +1,4 @@
-# Chopper v2 — Modular Service Architecture Plan
+# Chopper — Modular Service Architecture Plan
 
 **Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`technical_docs/chopper_description.md`](chopper_description.md) ("the bible"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the bible, the bible wins and this plan is edited in place.
 
@@ -469,7 +469,7 @@ The CLI is the **only** layer that formats for humans. Libraries stay silent.
 
 ### 8.5 Retired code slots
 
-**There are no retired codes in v1.** Chopper is still in its ideation phase; the registry in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is compact with no historical gaps. If a code is ever removed post-release, its slot will be marked `RETIRED` there and never reused. There is no `X*` plugin family — see §7 and §16 Q1.
+**There are no retired codes.** Chopper is still in its ideation phase; the registry in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is compact with no historical gaps. If a code is ever removed post-release, its slot will be marked `RETIRED` there and never reused. There is no `X*` plugin family — see §7 and §16 Q1.
 
 ---
 
@@ -634,7 +634,7 @@ class AuditManifest:
 2. **All I/O through ports.** A service that reads a file calls `ctx.fs.read_text(path)`, never `path.read_text()`. Makes every service unit-testable with `InMemoryFS`.
 3. **Failure propagation.** A service either completes and returns its result (possibly with emitted diagnostics) or raises. Exceptions are the programmer-error channel. User-facing failures are diagnostics plus a phase gate.
 4. **Phase boundaries.** After each service returns, the orchestrator calls `_has_errors(ctx, phase)` (§6.2) against `ctx.diag.snapshot()`. If any `ERROR`-severity diagnostic with the matching `phase` is present and the phase is gating (P1, P3, P6), the orchestrator stops, jumps to P7 audit, and returns a non-zero `RunResult`. Severity is never rewritten; `--strict` is a separate CLI-only policy (§8.2 rule 4). See bible §5.2.
-5. **No hidden channels.** No event bus, no callback registry, no queue between services in v1. Data flows only through typed return values.
+5. **No hidden channels.** No event bus, no callback registry, no queue between services. Data flows only through typed return values.
 6. **Determinism discipline for user data.** Every `Mapping` / `set` / `frozenset` that crosses a service boundary and represents user data (proc indexes, file decisions, graph nodes/edges) is either (a) replaced at construction by a `tuple` sorted on a documented key, or (b) iterated through a sorted view at every read site. Golden tests enforce this. *Diagnostics are the explicit exception* — their order is emission order (§8.2 rule 3), which is deterministic by virtue of single-threaded sequential phase execution.
 
 ### 9.4 What this buys
@@ -698,11 +698,11 @@ def make_test_context(
 
 ## 11. Determinism, Concurrency, and Performance Envelope
 
-- **Determinism is a first-class invariant.** All map/set iteration over user data is replaced with sorted sequences before emission (bible §5.4 BFS lex-sort rule). Non-negotiable in v1.
+- **Determinism is a first-class invariant.** All map/set iteration over user data is replaced with sorted sequences before emission (bible §5.4 BFS lex-sort rule). Non-negotiable.
 - **Diagnostic order is emission order.** Because v1 is single-threaded and phase order is fixed (§6.2), emission order is reproducible without any sort. `CollectingSink` preserves it verbatim (§8.3).
 - **Concurrency.** **Chopper is single-threaded. Period.** No thread pools, no `asyncio`, no `multiprocessing`, no background workers, no locks of any kind — not in the sink, not around `.chopper/`, not around the domain tree. Chopper is a single-user push-button tool: one operator runs it against one on-disk domain, it finishes, and it exits. If two operators race the same checkout, the second invocation will observe a half-written `DomainStateService` state and abort through normal diagnostics — that is the intended failure mode, not a bug to guard against with locking. This is a closed design decision, not a deferral.
 - **Memory envelope.** ≤1 GB domain → whole-file reads acceptable (bible §11 NFR-06). No streaming.
-- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable in v1. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09).
+- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09).
 
 ---
 

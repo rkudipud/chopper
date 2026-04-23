@@ -1,13 +1,13 @@
-# Chopper v2 Buildout Command Center
+# Chopper Buildout Command Center
 
-This document provides activation prompts for the Chopper v2 buildout agents.
+This document provides activation prompts for the Chopper buildout agents.
 
 ---
 
 ## Agent Roster
 
 | Agent | Purpose | Use For |
-|-------|---------|---------|
+| --- | --- | --- |
 | **Chopper Buildout Agent** | Master orchestrator | Planning, milestone tracking, drift detection |
 | **Chopper Stage Builder** | Implementation agent | Actual code writing, test-first development |
 | **Devils Advocate** | Quality challenger | Final review before milestone sign-off |
@@ -18,17 +18,17 @@ This document provides activation prompts for the Chopper v2 buildout agents.
 
 ### Start Fresh Buildout
 
-```
+```text
 @workspace /chopper-buildout
 
-Begin Chopper v2 Stage 0 implementation.
+Begin Chopper Stage 0 implementation.
 
-1. Query Memory Palace for current state
+1. Read `.github/agent_memory/chopper-buildout.md` if present; otherwise create it from `.github/agent_memory/README.md`
 2. Read technical_docs/chopper_description.md §5.12 and §8.1
 3. Create todo list for Stage 0 (core/ module)
 4. Implement frozen dataclasses per ARCHITECTURE_PLAN.md §9.1
 5. Run `make check` after each file
-6. Log progress to Memory Palace
+6. Update `.github/agent_memory/chopper-buildout.md`
 
 Quality gates:
 - 85% coverage for core/
@@ -38,12 +38,12 @@ Quality gates:
 
 ### Continue From Last Session
 
-```
+```text
 @workspace /chopper-buildout
 
-Resume Chopper v2 buildout.
+Resume Chopper buildout.
 
-1. Query Memory Palace: mempalace_kg_query("chopper_v2 current focus")
+1. Read `.github/agent_memory/chopper-buildout.md`
 2. Identify last completed milestone
 3. Continue from next incomplete stage
 4. Do not stop until current stage complete
@@ -51,7 +51,7 @@ Resume Chopper v2 buildout.
 
 ### Stage-Specific Implementation
 
-```
+```text
 @workspace /chopper-stage-builder
 
 Implement Stage [N]: [module name]
@@ -59,9 +59,10 @@ Implement Stage [N]: [module name]
 Bible reference: technical_docs/chopper_description.md §[X.X]
 
 Pre-implementation:
-1. Read bible section and quote requirements
-2. Check DIAGNOSTIC_CODES.md for needed codes
-3. Check RISKS_AND_PITFALLS.md for pitfalls P-XX
+1. Ensure `.github/agent_memory/chopper-stage-builder.md` exists; if missing, create it from `.github/agent_memory/README.md`
+2. Read bible section and quote requirements
+3. Check DIAGNOSTIC_CODES.md for needed codes
+4. Check RISKS_AND_PITFALLS.md for pitfalls P-XX
 
 Implementation:
 1. Write test skeleton FIRST
@@ -72,15 +73,15 @@ Implementation:
 Post-implementation:
 1. Verify coverage >= [threshold]%
 2. Run drift detection checklist
-3. Update Memory Palace
+3. Update `.github/agent_memory/chopper-stage-builder.md`
 ```
 
 ### Milestone Quality Review
 
-```
+```text
 @workspace /devils-advocate
 
-Review Stage [N] implementation for Chopper v2.
+Review Stage [N] implementation for Chopper.
 
 1. Verify all code traces to bible sections
 2. Check for scope-lock violations
@@ -94,7 +95,7 @@ Review Stage [N] implementation for Chopper v2.
 
 ## Stage Implementation Order
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Stage 0: core/     →  Stage 1: parser/   →  Stage 2: compiler/ │
 │  (Foundation)          (Tcl Analysis)         (Merge + Trace)   │
@@ -152,7 +153,7 @@ git diff tests/golden/  # Must show NO changes
 ## Document Quick Reference
 
 | Document | Purpose | Check For |
-|----------|---------|-----------|
+| --- | --- | --- |
 | `technical_docs/chopper_description.md` | **THE BIBLE** | Requirements, FR-xx, §x.x |
 | `technical_docs/ARCHITECTURE_PLAN.md` | How to build | Module structure, §9.x models |
 | `technical_docs/TCL_PARSER_SPEC.md` | Parser rules | State machine, §3.0 |
@@ -194,7 +195,7 @@ Run this after EVERY implementation:
 
 ### If Stuck
 
-```
+```text
 1. STOP coding
 2. Re-read the bible section
 3. Check RISKS_AND_PITFALLS.md for relevant pitfall
@@ -204,7 +205,7 @@ Run this after EVERY implementation:
 
 ### If Tests Fail
 
-```
+```text
 1. Read failure message carefully
 2. Check if spec misunderstanding (re-read bible)
 3. Check if edge case (look in pitfalls)
@@ -214,7 +215,7 @@ Run this after EVERY implementation:
 
 ### If Drift Detected
 
-```
+```text
 1. STOP immediately
 2. Identify what was added beyond spec
 3. DELETE the extra code
@@ -224,30 +225,20 @@ Run this after EVERY implementation:
 
 ---
 
-## Memory Palace Integration
+## Local Memory File Workflow
 
 ### Session Start
 
-```python
-mempalace_status()
-mempalace_kg_query("chopper_v2 active-context")
-mempalace_kg_timeline(limit=5)
-```
+1. Ensure `.github/agent_memory/` exists.
+2. Use `.github/agent_memory/chopper-buildout.md` for the buildout agent.
+3. If the file is missing, create it from `.github/agent_memory/README.md`.
+4. Read it before planning or implementation.
 
 ### After Milestone
 
-```python
-mempalace_diary_write(
-    agent_name="Chopper Buildout Agent",
-    topic="milestone",
-    entry="STAGE:0|core.complete+all.gates.pass|⭐⭐⭐"
-)
-mempalace_kg_add(
-    entity="chopper-stage-0-complete",
-    fact="Core models implemented. Coverage 87%. All quality gates pass.",
-    timestamp="2026-04-22"
-)
-```
+1. Update the same file with what completed.
+2. Record the next concrete action.
+3. Record the validation result and any blockers.
 
 ---
 

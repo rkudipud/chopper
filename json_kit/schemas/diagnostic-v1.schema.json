@@ -50,7 +50,7 @@
     "message": {
       "type": "string",
       "minLength": 1,
-      "description": "Single-line human-readable message. No embedded newlines; consumers render on one line unless they explicitly wrap. Not localized in v1."
+      "description": "Single-line human-readable message. No embedded newlines; consumers render on one line unless they explicitly wrap. Not localized."
     },
     "path": {
       "type": ["string", "null"],
