@@ -1,6 +1,12 @@
-# Chopper — Behavior Guide
+# 🧠 Chopper — Behavior Guide
 
-How Chopper decides what survives, what to watch out for, and how to solve common authoring problems. Written for domain owners who already know the CLI (see [`USER_MANUAL.md`](USER_MANUAL.md)). This guide explains decision rules and authoring consequences, not the internal service layout. For the code walkthrough, use [`IMPLEMENTATION_GUIDE.md`](IMPLEMENTATION_GUIDE.md).
+![Audience](https://img.shields.io/badge/audience-JSON%20authors%20%7C%20domain%20owners-0a7a3d)
+![Topics](https://img.shields.io/badge/topics-merge%20rules%20%7C%20tracing%20%7C%20JSON%20patterns%20%7C%20FAQ-8a3ffc)
+
+How Chopper decides what survives, what to watch out for, and how to solve common authoring problems. Written for domain owners who already know the CLI.
+
+> [!NOTE]
+> Assumes you know the CLI. For command reference see [USER_MANUAL.md](USER_MANUAL.md). For the code walkthrough see [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md).
 
 ---
 
@@ -19,11 +25,14 @@ How Chopper decides what survives, what to watch out for, and how to solve commo
 
 ## 1. Mental Model in 60 Seconds
 
-Chopper is a **static, additive trimmer**. Three facts you must internalize:
+Chopper is a **static, additive trimmer**.
 
-1. **Default is exclude.** If no JSON keeps a file, it gets removed. There is no "keep everything unless I say otherwise" mode.
-2. **Explicit include always wins.** If any JSON says "keep `foo.tcl`", nothing else can remove it. Features cannot override the base's inclusions.
-3. **Tracing is reporting-only.** The call-graph trace produces warnings and `dependency_graph.json` so you understand coupling, but it **never auto-copies** procs into the output. Only procs you listed explicitly survive.
+> [!IMPORTANT]
+> **Three rules that govern everything:**
+>
+> 1. 🚫 **Default is exclude.** If no JSON keeps a file, it gets removed. There is no “keep everything unless I say otherwise” mode.
+> 2. ✅ **Explicit include always wins.** If any JSON says “keep `foo.tcl`”, nothing else can remove it. Features cannot override the base’s inclusions.
+> 3. 🔍 **Tracing is reporting-only.** The call-graph trace produces warnings and `dependency_graph.json` so you understand coupling, but it **never auto-copies** procs into the output. Only procs you listed explicitly survive.
 
 Everything else in this guide is a consequence of these three rules.
 
@@ -93,9 +102,10 @@ Tracing runs in phase P4 and produces:
 
 - `dependency_graph.json` — who calls whom
 - `TW-01`..`TW-04` warnings for ambiguous / cyclic / unresolved calls
-- The "PI+" set in `trim_report.json` — every proc reachable from your explicit includes
+- The “PI+” set in `trim_report.json` — every proc reachable from your explicit includes
 
-**It does not copy traced procs.** This is the most-missed point in Chopper.
+> [!IMPORTANT]
+> **Tracing does not copy traced procs.** This is the most-missed point in Chopper. Only procs you explicitly listed in `procedures.include` (or files you listed in `files.include`) survive in the trimmed output.
 
 ### Worked example
 
@@ -241,14 +251,16 @@ After trim: `my_domain/main.tcl` exists with those steps in order.
 
 ### The filesystem is static during a run
 
-Chopper assumes no process touches `<domain>/` or `<domain>_backup/` while it runs. No locks, no mtime polling. If you edit files mid-run, behavior is undefined. **Run Chopper against a quiesced domain.**
+> [!WARNING]
+> Chopper assumes no process touches `<domain>/` or `<domain>_backup/` while it runs. No locks, no mtime polling. If you edit files mid-run, behavior is undefined. **Run Chopper against a quiesced domain.**
 
 ### Re-trim always rebuilds from backup
 
-Every re-trim discards the current `<domain>/` and rebuilds from `<domain>_backup/`. Hand-edits to `<domain>/` between runs are lost. The CLI prints a warning every re-trim so you can't miss it. If you want to persist a tweak, either:
-
-1. Add it to the source files in `<domain>_backup/` (then re-trim picks it up), or
-2. Commit the trimmed `<domain>/` to git and re-apply after trim.
+> [!WARNING]
+> Every re-trim **discards** the current `<domain>/` and rebuilds from `<domain>_backup/`. Hand-edits to `<domain>/` between runs are lost. The CLI prints a warning every re-trim. If you want to persist a tweak, either:
+>
+> 1. Add it to the source files in `<domain>_backup/` (then re-trim picks it up), or
+> 2. Commit the trimmed `<domain>/` to git and re-apply after trim.
 
 ### Tracing is bounded to the domain path
 
@@ -430,9 +442,13 @@ Include:
 
 ---
 
-## See Also
+---
 
-- [`USER_MANUAL.md`](USER_MANUAL.md) — CLI reference and installation
-- [`TECHNICAL_GUIDE.md`](TECHNICAL_GUIDE.md) — Architecture and module layout
-- [`../json_kit/examples/`](../json_kit/examples/) — 11 progressive worked examples
-- [`../technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md) — Full diagnostic registry
+## 🔗 See Also
+
+| 📖 Resource | Purpose |
+| --- | --- |
+| [USER_MANUAL.md](USER_MANUAL.md) | CLI reference and installation |
+| [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | Architecture and module layout |
+| [../json_kit/examples/](../json_kit/examples/) | 11 progressive worked examples |
+| [../technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md) | Full diagnostic registry |

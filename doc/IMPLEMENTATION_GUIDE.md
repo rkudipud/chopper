@@ -1,14 +1,16 @@
-# Chopper — Implementation Guide
+# 🧱 Chopper — Implementation Guide
 
-This is the code-level guide to how Chopper is actually built. Use it when you want to understand the real implementation, not just the user-facing behavior. It explains the runtime flow, module arrangement, service boundaries, communication paths, tests, and the best order to read the code.
+![Audience](https://img.shields.io/badge/audience-engineers%20%7C%20contributors-8a3ffc)
+![Topics](https://img.shields.io/badge/topics-runtime%20flow%20%7C%20services%20%7C%20testing%20%7C%20code%20reading-555555)
 
-This guide deliberately goes deeper than [`TECHNICAL_GUIDE.md`](TECHNICAL_GUIDE.md). The technical guide gives the short architecture map; this guide explains how the actual code is arranged and how execution moves through it.
+Code-level guide to how Chopper is actually built. Use it when you want to understand the real implementation, not just user-facing behavior.
 
-For day-to-day CLI usage, see [USER_MANUAL.md](USER_MANUAL.md). For merge rules and JSON authoring behavior, see [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md). For the shorter architecture summary, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
+> [!NOTE]
+> For the short architecture map, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md). For day-to-day CLI usage, see [USER_MANUAL.md](USER_MANUAL.md). For JSON authoring behavior, see [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md).
 
 ---
 
-## 1. What Chopper Is
+## 1. ✂️ What Chopper Is
 
 Chopper is a single-process Python CLI that trims a domain directory into a smaller, project-specific form.
 
@@ -29,7 +31,7 @@ The implementation is organized around an 8-phase pipeline `P0` through `P7`, se
 
 ---
 
-## 2. Big Picture Architecture
+## 2. 🗺️ Big Picture Architecture
 
 ```mermaid
 flowchart LR
@@ -52,11 +54,12 @@ flowchart LR
     P5 --> Trimmed[trimmed domain]
 ```
 
-The important implementation choice is that Chopper is not event-driven and not plugin-based. The CLI builds a `ChopperContext`, hands it to `ChopperRunner`, and the runner executes each phase in order.
+> [!NOTE]
+> Chopper is not event-driven and not plugin-based. The CLI builds a `ChopperContext`, hands it to `ChopperRunner`, and the runner executes each phase in order.
 
 ---
 
-## 3. Repository Layout
+## 3. 🗂️ Repository Layout
 
 ### Runtime code
 
@@ -85,7 +88,7 @@ The important implementation choice is that Chopper is not event-driven and not 
 
 ---
 
-## 4. The Main Runtime Flow
+## 4. ⚡ The Main Runtime Flow
 
 ### 4.1 CLI entry
 
@@ -170,11 +173,12 @@ sequenceDiagram
     CLI-->>U: rendered diagnostics + summary
 ```
 
-One implementation detail is easy to miss: audit writing happens in the runner's `finally` block. That means P7 still runs after earlier failures, as long as writing the audit bundle itself does not crash the process.
+> [!TIP]
+> Audit writing happens in the runner’s `finally` block. P7 still runs after earlier failures, as long as writing the audit bundle itself does not crash the process.
 
 ---
 
-## 5. Phase-by-Phase Implementation
+## 5. 🛣️ Phase-by-Phase Implementation
 
 ### P0 — Domain state
 
@@ -355,7 +359,7 @@ Important implementation detail:
 
 ---
 
-## 6. Service and Communication Boundaries
+## 6. 🔄 Service and Communication Boundaries
 
 Chopper is intentionally built around a narrow set of runtime boundaries.
 
@@ -416,7 +420,7 @@ flowchart LR
 
 ---
 
-## 7. How to Use Chopper in Practice
+## 7. 💻 How to Use Chopper in Practice
 
 The easiest safe operating loop is:
 
@@ -457,7 +461,7 @@ Operational notes:
 
 ---
 
-## 8. How the Tests Work
+## 8. 🧪 How the Tests Work
 
 The test suite is layered to match the architecture.
 
@@ -562,7 +566,7 @@ These fixtures are not just sample data. They encode the specific parser, compil
 
 ---
 
-## 9. How to Run the Checks
+## 9. 🛠️ How to Run the Checks
 
 Primary commands:
 
@@ -591,7 +595,10 @@ What the quality gates cover:
 
 ---
 
-## 10. Reading Order for the Code
+## 10. 📚 Reading Order for the Code
+
+> [!TIP]
+> Follow the same control flow the program uses. Start at the CLI entry, trace through the runner, then explore each phase service.
 
 If you want to understand the implementation efficiently, read in this order:
 
@@ -613,7 +620,7 @@ That order follows the same control flow the program itself uses.
 
 ---
 
-## 11. Key Design Choices in the Implementation
+## 11. 💡 Key Design Choices
 
 ### Single orchestrator
 
@@ -637,7 +644,7 @@ The runner always attempts P7 in `finally`, which means even partial failures st
 
 ---
 
-## 12. What to Look At When Something Breaks
+## 12. 🔍 What to Look At When Something Breaks
 
 | Symptom | First places to inspect |
 | --- | --- |
@@ -652,15 +659,16 @@ The runner always attempts P7 in `finally`, which means even partial failures st
 
 ---
 
-## 13. Final Mental Model
+## 13. 🎯 Final Mental Model
 
-The most accurate way to think about Chopper is:
-
-- a CLI front end
-- feeding one run context
-- into one sequential orchestrator
-- across frozen, typed phase outputs
-- with filesystem, diagnostics, and progress injected as ports
-- and a test suite that mirrors those same boundaries
+> [!TIP]
+> The most accurate way to think about Chopper:
+>
+> - a CLI front end
+> - feeding one run context
+> - into one sequential orchestrator
+> - across frozen, typed phase outputs
+> - with filesystem, diagnostics, and progress injected as ports
+> - and a test suite that mirrors those same boundaries
 
 If you keep that model in mind, the codebase becomes much easier to read. Most modules are small because each one is responsible for exactly one phase or one narrow helper layer inside that phase.

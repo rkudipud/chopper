@@ -1,10 +1,17 @@
-# Chopper — User Manual
+# 📘 Chopper — User Manual
 
-Practical reference for day-to-day operators. This guide is about running Chopper safely and efficiently, not about JSON merge theory or internal code structure. For detailed behavior, see [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md). For architecture, see [`TECHNICAL_GUIDE.md`](TECHNICAL_GUIDE.md). For the code-level implementation walkthrough, see [`IMPLEMENTATION_GUIDE.md`](IMPLEMENTATION_GUIDE.md).
+![Audience](https://img.shields.io/badge/audience-domain%20owners%20%7C%20operators-0a7a3d)
+![Commands](https://img.shields.io/badge/commands-validate%20%7C%20trim%20%7C%20cleanup-8a3ffc)
+![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
+
+Practical reference for day-to-day operators. This guide is about running Chopper safely and efficiently, not about JSON merge theory or internal code structure.
+
+> [!NOTE]
+> For JSON authoring behavior, see [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md). For architecture, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md). For the code-level walkthrough, see [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md).
 
 ---
 
-## What Chopper Does
+## ✂️ What Chopper Does
 
 Chopper trims a VLSI EDA tool-flow domain down to a project-specific subset. You describe what you want to keep in JSON; Chopper produces a minimal, audit-ready domain directory.
 
@@ -18,7 +25,7 @@ It supports three capability classes, used individually or together:
 
 ---
 
-## Installation
+## 🛠️ Installation
 
 ```powershell
 # Windows (PowerShell 5.1+)
@@ -41,17 +48,12 @@ Verify:
 chopper --help
 ```
 
-Fresh-user path:
-
-1. Open a shell in your domain directory, or stay elsewhere and pass `--domain PATH`
-2. Run `chopper validate ...`
-3. Run `chopper trim --dry-run ...`
-4. Read `.chopper/trim_report.txt` and `.chopper/dependency_graph.json`
-5. Run live `chopper trim ...` only when the dry-run output matches your intent
+> [!TIP]
+> **First-time workflow:** open a shell in your domain directory (or pass `--domain PATH`), then: (1) run `chopper validate`, (2) run `chopper trim --dry-run`, (3) read `.chopper/trim_report.txt` and `.chopper/dependency_graph.json`, (4) run live `chopper trim` **only** when the dry-run output matches your intent.
 
 ---
 
-## The Three Subcommands
+## ⚡ The Three Subcommands
 
 ```text
 chopper validate    # Check JSONs are well-formed and targets exist
@@ -70,15 +72,12 @@ What each one really does:
 | `trim` | Full live run: analysis plus filesystem rebuild, stage generation, post-validation, and audit writing | Yes |
 | `cleanup --confirm` | Deletes `<domain>_backup/` permanently | Yes |
 
-Global options such as `--plain`, `--strict`, `-v`, and `-q` belong before the subcommand:
-
-```text
-chopper --plain --strict trim --project configs/project_abc.json
-```
+> [!IMPORTANT]
+> Global flags `--plain`, `--strict`, `-v`, and `-q` must appear **before** the subcommand — e.g., `chopper --plain --strict trim --project configs/project_abc.json`.
 
 ---
 
-## Operating Tasks
+## 📋 Operating Tasks
 
 ### Task 1. Validate a Selection Before You Trim
 
@@ -109,11 +108,8 @@ Expected Output:
 - `.chopper/` is refreshed with analysis artifacts
 - Schema, file-target, proc-target, trace, and manifest-derived validation issues are reported before any rebuild
 
-Common Failure Modes:
-
-- `VE-17`: the JSON `domain` field does not match the operational domain directory
-- `VE-03`: a `procEntry` contains an empty `procs` list
-- `PW-01`: Tcl uses computed proc names and Chopper cannot index them safely
+> [!WARNING]
+> **Common failure modes:** `VE-17` — the JSON `domain` field does not match the operational domain directory. `VE-03` — a `procEntry` contains an empty `procs` list. `PW-01` — Tcl uses computed proc names and Chopper cannot index them safely.
 
 ### Task 2. Preview the Trim With `--dry-run`
 
@@ -141,10 +137,8 @@ Expected Output:
 - Chopper does **not** write generated `<stage>.tcl` files into the domain
 - `.chopper/compiled_manifest.json`, `.chopper/dependency_graph.json`, and `.chopper/trim_report.txt` are available for review
 
-Common Failure Modes:
-
-- Operators assume dry-run is write-free; it still refreshes `.chopper/`
-- Feature order is wrong for F3 `flow_actions`, so the generated-stage plan is not what you expected
+> [!WARNING]
+> **Common failure modes:** Dry-run is not write-free — it still refreshes `.chopper/` (that is expected). Feature order matters for F3 `flow_actions` — check the compiled stage plan before trimming live.
 
 ### Task 3. Execute the First Live Trim
 
@@ -174,10 +168,8 @@ Expected Output:
 3. Chopper writes `.chopper/` inside the rebuilt domain
 4. If `stages` are defined, Chopper writes one generated `<stage>.tcl` file per resolved stage
 
-Common Failure Modes:
-
-- The operator runs live trim before checking `.chopper/compiled_manifest.json`
-- The wrong domain root is active when the command starts
+> [!IMPORTANT]
+> **Always validate and dry-run first.** Run live trim only after reviewing `.chopper/compiled_manifest.json` and confirming the domain root is correct.
 
 ### Task 4. Re-Trim After Updating JSON
 
@@ -309,7 +301,7 @@ Common Failure Modes:
 
 ---
 
-## All CLI Flags
+## 🎛️ All CLI Flags
 
 ### Global (apply to every subcommand)
 
@@ -360,7 +352,7 @@ chopper cleanup [--domain PATH] --confirm
 
 ---
 
-## Exit Codes
+## 🔢 Exit Codes
 
 | Code | Meaning |
 | --- | --- |
@@ -369,11 +361,12 @@ chopper cleanup [--domain PATH] --confirm
 | `2` | CLI or environment precondition failure, such as bad flag usage or an unrecoverable domain/backup state. |
 | `3` | Internal programmer error. Capture stderr plus the `.chopper/` bundle and file a bug. |
 
-`--strict` turns exit `0` with warnings into exit `1`.
+> [!TIP]
+> Use `--strict` in CI pipelines so any warning causes a non-zero exit.
 
 ---
 
-## The `.chopper/` Audit Bundle
+## 📦 The `.chopper/` Audit Bundle
 
 Every run writes `.chopper/` inside the current domain. Contents:
 
@@ -392,11 +385,12 @@ Every run writes `.chopper/` inside the current domain. Contents:
 
 Even `validate` and `trim --dry-run` update `.chopper/`. Treat it as run output, not as proof that the domain was rebuilt.
 
-You can safely commit `.chopper/` alongside trimmed domain content, or gitignore it — it's rewritten every run.
+> [!NOTE]
+> `validate` and `trim --dry-run` also update `.chopper/`. Treat it as run output, not as proof that the domain was rebuilt. You can safely commit it or gitignore it — it is rewritten every run.
 
 ---
 
-## Minimum JSON You Need to Start
+## 🔧 Minimum JSON to Start
 
 Save as `jsons/base.json`:
 
@@ -413,11 +407,12 @@ Save as `jsons/base.json`:
 
 That is enough to start. Run `chopper validate --base jsons/base.json` first, then `chopper trim --dry-run --base jsons/base.json`, and only then run live `chopper trim --base jsons/base.json`.
 
-More patterns are in [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md).
+> [!TIP]
+> More JSON patterns, caveats, and best-known methods are in [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md).
 
 ---
 
-## Troubleshooting
+## 🔍 Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -434,9 +429,11 @@ Full diagnostic registry: [`../technical_docs/DIAGNOSTIC_CODES.md`](../technical
 
 ---
 
-## Where to Go Next
+## 🔗 Where to Go Next
 
-- **How Chopper decides what survives, JSON patterns, and FAQs** → [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md)
-- **Pipeline, modules, ports** → [`TECHNICAL_GUIDE.md`](TECHNICAL_GUIDE.md)
-- **JSON schemas and worked examples** → [`../json_kit/`](../json_kit/)
-- **Full spec (for contributors)** → [`../technical_docs/`](../technical_docs/)
+| 📖 Resource | Purpose |
+| --- | --- |
+| [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md) | How Chopper decides what survives, JSON patterns, and FAQs |
+| [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | Pipeline, modules, ports, and diagnostic codes |
+| [../json_kit/](../json_kit/) | JSON schemas and 11 worked examples |
+| [../technical_docs/](../technical_docs/) | Full specification (for contributors) |

@@ -1,21 +1,20 @@
-# Chopper JSON Kit — Standalone Package
+# 🧰 Chopper JSON Kit — Standalone Package
 
-**Version:** 1.0.2  
-**Date:** April 2026  
-**Status:** Shippable before Chopper runtime
+![Version](https://img.shields.io/badge/version-1.0.2-0a7a3d)
+![Status](https://img.shields.io/badge/status-shippable%20standalone-0f62fe)
+![Schemas](https://img.shields.io/badge/schemas-base%20%7C%20feature%20%7C%20project-8a3ffc)
 
-This package gives teams everything needed to author, validate, and organize Chopper JSON files — no Chopper installation required.
-
-You can hand off this folder by itself before the Chopper runtime ships. It is intentionally self-contained: examples, schemas, authoring docs, agent instructions, setup scripts, and the local validator all live under `json_kit/`. When the full Chopper runtime is present, Chopper reads its schema files from `json_kit/schemas/`.
+> [!NOTE]
+> This package is **self-contained**. You can hand off this folder before the Chopper runtime ships. When Chopper is installed, it reads its schema files from `json_kit/schemas/` automatically.
 
 ---
 
-## What Is This?
+## 🔍 What Is This?
 
 Chopper trims EDA tool domain codebases via three JSON configuration files:
 
 | File | Purpose |
-|------|---------|
+| --- | --- |
 | **Base JSON** | Defines the minimal viable flow for a domain (files, procs, stages) |
 | **Feature JSON** | Extends or overrides the base for optional or project-specific scenarios |
 | **Project JSON** | Selects and orders one base + zero or more features for a specific trim run |
@@ -26,9 +25,9 @@ If your JSON defines `stages`, Chopper emits generated `<stage>.tcl` run files. 
 
 ---
 
-## Package Contents
+## 📂 Package Contents
 
-```
+```text
 json_kit/
 ├── AGENTS.md                        ← AI agent instructions (GitHub Copilot / Copilot Chat)
 ├── README.md                        ← You are here
@@ -61,9 +60,9 @@ json_kit/
 
 ---
 
-## 10-Minute Quick Start
+## 🚀 10-Minute Quick Start
 
-### 0. Bootstrap Python environment on tcsh/csh systems
+### 0. Bootstrap Python environment
 
 ```tcsh
 source setup.csh
@@ -77,16 +76,13 @@ Windows PowerShell:
 . .\setup.ps1
 ```
 
-Pass `-NoProxy` to skip proxy configuration on environments that do not use the Intel proxy:
-
-```powershell
-. .\setup.ps1 -NoProxy
-```
+> [!TIP]
+> Pass `-NoProxy` to skip Intel proxy config on environments that don't need it: `. .\setup.ps1 -NoProxy`
 
 ### 1. Choose your starting example
 
 | Your situation | Start with |
-|---------------|-----------|
+| --- | --- |
 | Need to trim files only | `examples/01_base_files_only/` |
 | Need proc-level surgical trimming | `examples/02_base_procs_only/` |
 | Have existing stack files to translate into stage JSON | `examples/03_base_stages_only/` |
@@ -135,7 +131,8 @@ chopper validate --project project.json
 chopper trim --dry-run --project project.json
 ```
 
-If you are translating an existing scheduler stack file, copy the stage names, command lines, dependencies, exit codes, inputs, and outputs into `stages`. Chopper will generate `<stage>.tcl`; keep the scheduler stack file itself under your own control.
+> [!IMPORTANT]
+> Run `chopper validate` before `chopper trim`. Dry-run first, live trim only when the report matches intent.
 
 ### 3. Validate against schemas (one command)
 
@@ -164,7 +161,9 @@ The script validates Base/Feature/Project JSONs based on `$schema`, prints clear
 
 The agent follows an 8-phase process: discover domain structure → extract stack-file stage definitions → extract and classify procs → split base vs. feature content → author base JSON → author feature JSONs → author project JSON → validate. Collaboration checkpoints are built in — the agent pauses after key findings to confirm before finalizing JSON decisions.
 
-## Self-Contained Handoff Contract
+---
+
+## 📦 Self-Contained Handoff Contract
 
 If you copy only `json_kit/` to another machine or repository, the folder still works as an authoring kit as long as Python and `jsonschema` are available.
 
@@ -187,11 +186,11 @@ Chopper does not need the examples or authoring docs to execute a trim; those ar
 
 ---
 
-## Where to Put Your JSON Files
+## 📁 Where to Put Your JSON Files
 
 The authoritative layout is:
 
-```
+```text
 <domain_root>/
 ├── jsons/
 │   ├── base.json
@@ -220,23 +219,28 @@ Chopper is invoked from `<domain_root>/`, so all paths in every JSON are relativ
 
 ---
 
-## Key Rules (Quick Reference)
+## 🔑 Key Rules (Quick Reference)
 
 **Naming scheme:** Base JSON is `jsons/base.json`; feature JSONs are `jsons/features/<feature_name>.feature.json`.
 
-1. **`$schema` is always required** and must be the exact literal string (e.g., `"chopper/base/v1"`).
-2. **Base needs at least one of:** `files`, `procedures`, `stages`.
-3. **Arrays must never be empty** when present — `minItems: 1` is enforced by schema.
-4. **Paths:** forward slashes only, no `..`, no `//`, no absolute paths.
-5. **`depends_on`** uses feature `name` values, not file paths.
-6. **Project feature order** must satisfy all `depends_on` declarations (prerequisites first). F1/F2 file and proc merging is order-independent; only F3 `flow_actions` sequencing depends on feature order.
-7. **`load_from` ≠ `dependencies`:** `load_from` = data predecessor for run script; `dependencies` = stack `D` line (scheduler order).
-8. **`flow_actions`** (feature only) modify the base flow at the stage level: insert, remove, or replace steps and entire stages. Actions are applied in feature order and each action sees the cumulative result of all previous features.
-9. **`metadata`** (feature only) is documentation-only: `owner`, `tags`, `wiki`, `related_ivars`, `related_appvars`. Chopper never evaluates these fields — they are preserved in audit output only.
+| Rule | Detail |
+| --- | --- |
+| `$schema` required | Must be the exact literal string (e.g., `"chopper/base/v1"`). |
+| Base needs content | At least one of `files`, `procedures`, `stages`. |
+| Non-empty arrays | `minItems: 1` enforced by schema — never pass an empty array. |
+| Paths format | Forward slashes only; no `..`, `//`, or absolute paths. |
+| `depends_on` values | Use feature `name` values, not file paths. |
+| Feature order | Must satisfy all `depends_on` prerequisites; F3 `flow_actions` are applied in order. |
+| `load_from` vs `dependencies` | `load_from` = data predecessor for run script; `dependencies` = scheduler `D` line. |
+| `flow_actions` scope | Feature-only; modify base flow at stage level (insert/remove/replace). Applied cumulatively in feature order. |
+| `metadata` scope | Feature-only; documentation fields only — Chopper never evaluates them. |
+
+> [!IMPORTANT]
+> **`$schema` is always required.** JSONs without it will fail schema validation immediately.
 
 ---
 
-## Input Interaction Matrix
+## 📊 Input Interaction Matrix
 
 Chopper has four input sets per file. Mixing them creates ambiguity — this matrix resolves all 16 combinations.
 
@@ -245,14 +249,14 @@ Chopper has four input sets per file. Mixing them creates ambiguity — this mat
 **Proc-selection models (choose one per file):**
 
 | Model | Input | Meaning | Surviving procs |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Additive** | PI | "Keep only these procs" | PI procs from this file |
 | **Subtractive** | PE | "Keep the file but remove these procs" | All procs minus PE procs |
 
 **Per-file interaction matrix:**
 
 | # | FI | FE | PI | PE | Treatment | Surviving procs | Warning |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | — | — | — | — | `REMOVE` | — | — |
 | 2 | ✓ | — | — | — | `FULL_COPY` | all | — |
 | 3 | — | ✓ | — | — | `REMOVE` | — | — |
@@ -271,6 +275,7 @@ Chopper has four input sets per file. Mixing them creates ambiguity — this mat
 | 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only | `VW-12` |
 
 **Key rules:**
+
 - **PE downgrades FULL_COPY:** FI + PE → `PROC_TRIM` (case 9). A file with 100 procs and 4 in PE → 96 survive.
 - **FE + PE = both remove:** neither says "keep" → file is removed (case 12). Use PE alone if you want to keep the file.
 - **PI wins over PE:** if both reference the same file, PI takes precedence (cases 7, 10, 13, 16).
@@ -279,19 +284,25 @@ Chopper has four input sets per file. Mixing them creates ambiguity — this mat
 
 ---
 
-## Where to Start
+## 🧰 Where to Start
 
-- **Using GitHub Copilot / Copilot Chat?** → Open a chat session — `AGENTS.md` is loaded automatically as agent context
-- **Using another AI assistant?** → Open [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) as a system prompt
-- **Reading docs?** → [`docs/JSON_AUTHORING_GUIDE.md`](docs/JSON_AUTHORING_GUIDE.md)
-- **Copying an example?** → [`examples/`](examples/) — pick the folder matching your scenario
-- **Analyzing a domain codebase?** → Open [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) and follow Phase 1
-- **Validating existing JSONs?** → Run `python validate_jsons.py <path>` from the repo root
+| Situation | Go Here |
+| --- | --- |
+| Using GitHub Copilot / Copilot Chat | Open a chat session — `AGENTS.md` is loaded automatically |
+| Using another AI assistant | Open [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) as a system prompt |
+| Reading docs | [`docs/JSON_AUTHORING_GUIDE.md`](docs/JSON_AUTHORING_GUIDE.md) |
+| Copying an example | [`examples/`](examples/) — pick the folder matching your scenario |
+| Analyzing a domain codebase | Open [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) and follow Phase 1 |
+| Validating existing JSONs | Run `python validate_jsons.py <path>` from the repo root |
 
-## Getting Help
+---
 
-- `validate_jsons.py` — one-command schema validation for any file/folder
-- `docs/JSON_AUTHORING_GUIDE.md` — full field reference, all rules, decision flowchart
-- `agent/DOMAIN_ANALYZER.md` — step-by-step domain analysis instructions for AI assistants
-- `examples/` — working JSON files for every combination
-- Schema files in `schemas/` are the authoritative validators — when in doubt, validate
+## 🔗 Getting Help
+
+| Resource | Purpose |
+| --- | --- |
+| `validate_jsons.py` | One-command schema validation for any file or folder |
+| [`docs/JSON_AUTHORING_GUIDE.md`](docs/JSON_AUTHORING_GUIDE.md) | Full field reference, all rules, decision flowchart |
+| [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md) | Step-by-step domain analysis instructions for AI assistants |
+| [`examples/`](examples/) | Working JSON files for every combination |
+| `schemas/` | Authoritative validators — when in doubt, validate |

@@ -1,10 +1,16 @@
-# Chopper — Technical Guide
+# 🗃️ Chopper — Technical Guide
 
-Architecture overview for developers integrating, extending, or debugging Chopper. This is the short architectural map: use it to understand the system shape, major modules, ports, diagnostics, and runtime phases without reading every service in detail. For the code-level walkthrough, diagrams, and test-system explanation, see [`IMPLEMENTATION_GUIDE.md`](IMPLEMENTATION_GUIDE.md). For the full specification, see [`../technical_docs/chopper_description.md`](../technical_docs/chopper_description.md) and [`../technical_docs/ARCHITECTURE_PLAN.md`](../technical_docs/ARCHITECTURE_PLAN.md).
+![Audience](https://img.shields.io/badge/audience-integrators%20%7C%20contributors-8a3ffc)
+![Topics](https://img.shields.io/badge/topics-architecture%20%7C%20pipeline%20%7C%20ports%20%7C%20diagnostics-555555)
+
+Architecture overview for developers integrating, extending, or debugging Chopper. This is the short architectural map.
+
+> [!NOTE]
+> For the code-level walkthrough with diagrams, see [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md). For the full specification, see [../technical_docs/chopper_description.md](../technical_docs/chopper_description.md).
 
 ---
 
-## System Shape
+## 🗂️ System Shape
 
 Chopper is a single-process, single-threaded Python CLI. It reads JSON inputs and Tcl source files from disk, and produces a trimmed domain directory plus an audit bundle.
 
@@ -16,11 +22,12 @@ Chopper is a single-process, single-threaded Python CLI. It reads JSON inputs an
                  └────────────────────────────────────┘
 ```
 
-No network, no daemon, no plugin host, no parallelism. Deterministic output byte-for-byte given the same inputs.
+> [!NOTE]
+> No network, no daemon, no plugin host, no parallelism. Deterministic output byte-for-byte given the same inputs.
 
 ---
 
-## The 8-Phase Pipeline
+## 🛣️ The 8-Phase Pipeline
 
 Every live `trim` run executes this sequence:
 
@@ -41,7 +48,7 @@ Phases are executed sequentially by `ChopperRunner.run(ctx)` in `src/chopper/orc
 
 ---
 
-## Module Layout
+## 🧱 Module Layout
 
 ```text
 src/chopper/
@@ -62,7 +69,7 @@ Each service package depends only on `core/` and its own submodules. No cross-se
 
 ---
 
-## Data Flow
+## 🔄 Data Flow
 
 ### ChopperContext: the per-run container
 
@@ -99,7 +106,7 @@ The CLI renderer consumes `RunResult` plus the diagnostic snapshot from the sink
 
 ---
 
-## Ports and Adapters
+## 🔌 Ports and Adapters
 
 Chopper uses a narrow hexagonal layout. Three ports live in `src/chopper/core/protocols.py`:
 
@@ -125,7 +132,7 @@ This keeps the port surface narrow and the project free of speculative abstracti
 
 ---
 
-## Diagnostics
+## 📢 Diagnostics
 
 Every user-visible outcome goes through `ctx.diag.emit(Diagnostic(...))`. Every diagnostic has a stable code from the registry in [`../technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md).
 
@@ -148,11 +155,12 @@ Codes are registered exclusively in the registry file; the code constants in `sr
 | Info | 0 | No change |
 | Internal error (uncaught) | 3 | No change |
 
-`--strict` is **exit-code policy only** — it never rewrites `Diagnostic.severity`.
+> [!IMPORTANT]
+> `--strict` is **exit-code policy only** — it never rewrites `Diagnostic.severity`.
 
 ---
 
-## Determinism Contract
+## ✅ Determinism Contract
 
 Chopper guarantees byte-identical output for identical inputs. This is enforced by:
 
@@ -168,7 +176,7 @@ Property tests in `tests/property/` assert determinism by running the same input
 
 ---
 
-## Testing Layout
+## 🧪 Testing Layout
 
 ```text
 tests/
@@ -190,7 +198,7 @@ make ci      # full: all quality gates + all test suites
 
 ---
 
-## Build and Quality Gates
+## 🏗️ Build and Quality Gates
 
 ### Makefile targets
 
@@ -216,7 +224,7 @@ A CI script (`scripts/check_service_signatures.py`) also verifies that service s
 
 ---
 
-## Performance Envelope
+## 📈 Performance Envelope
 
 | Dimension | Target |
 | --- | --- |
@@ -229,7 +237,7 @@ Performance was deliberately deprioritized in favor of correctness and determini
 
 ---
 
-## Error Handling Model
+## 🛡️ Error Handling Model
 
 Three layers:
 
@@ -241,7 +249,7 @@ No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
 ---
 
-## The `.chopper/` Audit Bundle
+## 📦 The `.chopper/` Audit Bundle
 
 Written by `audit/service.py` in P7. Always runs, even on prior phase failure (inputs may be `None`; each writer tolerates missing data).
 
@@ -264,19 +272,22 @@ All JSON written with deterministic key order, UTF-8, and a trailing newline.
 
 ---
 
-## Extension Points (for Contributors)
+## 🔧 Extension Points (for Contributors)
 
 ### Adding a diagnostic code
 
-1. Open [`../technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md) and claim the lowest reserved slot in the appropriate family.
-2. Fill in the registry row.
-3. Mirror in `src/chopper/core/_diagnostic_registry.py`.
-4. Reference by code (e.g., `VE-42`) from services and tests.
-5. `make check` — the registry-mirror CI check will catch any drift.
+> [!TIP]
+> Claim the lowest reserved slot in the correct `<FAMILY><SEV>` band from the registry — never renumber existing rows.
+
+1. Fill in the registry row.
+2. Mirror in `src/chopper/core/_diagnostic_registry.py`.
+3. Reference by code (e.g., `VE-42`) from services and tests.
+4. `make check` — the registry-mirror CI check will catch any drift.
 
 ### Adding a capability
 
-Not allowed without a spec edit. See `.github/instructions/project.instructions.md` §1 ("Closed Decisions") and §2 ("Single Authority: The Bible") for the scope-lock policy. Proposals go to [`../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) as `FD-xx` entries.
+> [!WARNING]
+> **Not allowed without a spec edit.** See `.github/instructions/project.instructions.md` §1 (“Closed Decisions”) and §2 (“Single Authority: The Bible”) for the scope-lock policy. Proposals go to [../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) as `FD-xx` entries.
 
 ### Hot spots for future work
 
@@ -288,11 +299,13 @@ Tracked in [`../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../technical_doc
 
 ---
 
-## Where to Go Next
+## 🔗 Where to Go Next
 
-- **Day-to-day operator reference** → [`USER_MANUAL.md`](USER_MANUAL.md)
-- **JSON authoring patterns and FAQ** → [`BEHAVIOR_GUIDE.md`](BEHAVIOR_GUIDE.md)
-- **Full specification** → [`../technical_docs/chopper_description.md`](../technical_docs/chopper_description.md)
-- **Architecture plan** → [`../technical_docs/ARCHITECTURE_PLAN.md`](../technical_docs/ARCHITECTURE_PLAN.md)
-- **Parser spec** → [`../technical_docs/TCL_PARSER_SPEC.md`](../technical_docs/TCL_PARSER_SPEC.md)
-- **Risks and pitfalls** → [`../technical_docs/RISKS_AND_PITFALLS.md`](../technical_docs/RISKS_AND_PITFALLS.md)
+| 📖 Resource | Purpose |
+| --- | --- |
+| [USER_MANUAL.md](USER_MANUAL.md) | Day-to-day operator reference |
+| [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md) | JSON authoring patterns and FAQ |
+| [../technical_docs/chopper_description.md](../technical_docs/chopper_description.md) | Full specification |
+| [../technical_docs/ARCHITECTURE_PLAN.md](../technical_docs/ARCHITECTURE_PLAN.md) | Architecture plan |
+| [../technical_docs/TCL_PARSER_SPEC.md](../technical_docs/TCL_PARSER_SPEC.md) | Parser spec |
+| [../technical_docs/RISKS_AND_PITFALLS.md](../technical_docs/RISKS_AND_PITFALLS.md) | Risks and pitfalls |
