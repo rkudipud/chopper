@@ -7,8 +7,8 @@ This file is the canonical location for product release naming and release-numbe
 | Field | Value |
 | --- | --- |
 | Product name | Chopper |
-| Release channel | Alpha |
-| Release version | 0.1.0a1 |
+| Release channel | Stable |
+| Release version | 0.2.0 |
 | Release date | 2026-04-23 |
 
 ## Version-Carrying Files
