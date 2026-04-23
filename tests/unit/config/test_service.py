@@ -373,3 +373,50 @@ class TestDeterminism:
         svc = ConfigService()
         with pytest.raises((FrozenInstanceError, AttributeError)):
             svc.some_field = 1  # type: ignore[attr-defined]
+
+
+# ------------------------------------------------------------------
+# Extracted from test_final_coverage_push.py (module-aligned consolidation).
+# ------------------------------------------------------------------
+
+
+def test_config_service_collects_surface_files_from_all_sections() -> None:
+    """Cover all four harvest paths in ``_collect_surface_files``: each
+    section (files.include, files.exclude, procedures.include,
+    procedures.exclude) populated on at least one source."""
+    from chopper.config.service import _collect_surface_files
+    from chopper.core.models import (
+        BaseJson,
+        FeatureJson,
+        FilesSection,
+        ProceduresSection,
+        ProcEntryRef,
+    )
+
+    base = BaseJson(
+        source_path=Path("/dom/base.json"),
+        domain="demo",
+        files=FilesSection(include=("main.tcl", "lib/*.tcl")),
+        procedures=ProceduresSection(),
+    )
+    feat = FeatureJson(
+        source_path=Path("/dom/f1.feature.json"),
+        name="extra",
+        files=FilesSection(
+            include=("extra.tcl",),
+            exclude=("unwanted.tcl", "skip/*.tcl"),
+        ),
+        procedures=ProceduresSection(
+            include=(ProcEntryRef(file=Path("extra.tcl"), procs=("good",)),),
+            exclude=(ProcEntryRef(file=Path("extra.tcl"), procs=("bad",)),),
+        ),
+    )
+    surface = _collect_surface_files(base, [feat])
+    posix = {p.as_posix() for p in surface}
+    # Literal include + exclude from both sources captured.
+    assert "main.tcl" in posix
+    assert "extra.tcl" in posix
+    assert "unwanted.tcl" in posix
+    # Glob entries excluded.
+    assert "lib/*.tcl" not in posix
+    assert "skip/*.tcl" not in posix

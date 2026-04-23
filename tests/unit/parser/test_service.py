@@ -8,7 +8,9 @@ import pytest
 
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import FileStat
+from chopper.core.models import (
+    FileStat,
+)
 from chopper.parser.service import ParserService, parse_file
 
 # ---------------------------------------------------------------------------
@@ -306,6 +308,223 @@ class TestPathNormalization:
         assert any(cn.endswith("::foo") for cn in result.index.keys())
 
 
+# ---------------------------------------------------------------------------
+# Real-world scenario tests — pathologies observed in production Synopsys
+# Formality Tcl: CRLF line endings, ``define_proc_attributes`` blocks joined
+# by backslash continuation, proc bodies opened at column 0, single-line
+# banner comments.  Snippets are copied verbatim from real scripts.
+# ---------------------------------------------------------------------------
+
+# ``define_proc_attributes`` backslash-continuation block, CRLF line endings.
+# Before the parser fixed its ``text.split('\\n')`` bug, ``\\r`` leaked into
+# the continuation detector and the DPA block was misread as orphan + name
+# mismatch (PI-04 + PW-11 fired spuriously).  This is the regression guard.
+_REAL_DPA_CRLF = (
+    b"proc match_nd_to_1d {args} {\r\n"
+    b"  # body\r\n"
+    b"}\r\n"
+    b"\r\n"
+    b"define_proc_attributes match_nd_to_1d \\\r\n"
+    b' -info "Create user matches for reference ND ports/bbox_pins" \\\r\n'
+    b" -define_args {\\\r\n"
+    b'  {-type "Types to match" type list optional}\r\n'
+    b" }\r\n"
+)
+
+# Column-0 proc body + banner comment, copied verbatim from the real
+# ``dangle_dont_verify_par`` proc in the production flow.  The body is NOT
+# indented — parser must still identify boundaries by brace balance alone.
+_REAL_COLUMN_ZERO_BODY = (
+    b"# Added for 3rd round of DMR 1p0\r\n"
+    b"proc dangle_dont_verify_par {infile outfile} {\r\n"
+    b"# Define the flexible pattern to search for\r\n"
+    b"set pattern {# .*/([^/]+) is dangling feedthrough port\\.}\r\n"
+    b"\r\n"
+    b"# Open the input file for reading\r\n"
+    b"set input_fileId [open $infile r]\r\n"
+    b"\r\n"
+    b"# Read the input file line by line\r\n"
+    b"while {[gets $input_fileId line] != -1} {\r\n"
+    b"    puts $output_fileId $line\r\n"
+    b"}\r\n"
+    b"\r\n"
+    b"close $input_fileId\r\n"
+    b"}\r\n"
+)
+
+
+class TestRealWorldScenarios:
+    """Pathologies lifted verbatim from production Synopsys Formality Tcl."""
+
+    def test_dpa_with_crlf_and_backslash_continuation(self) -> None:
+        """CRLF + ``\\``-continued ``define_proc_attributes`` must attach silently.
+
+        Regression guard: ``proc_extractor`` used to split on ``\\n`` without
+        stripping trailing ``\\r`` on Windows line endings, so the
+        continuation detector never recognised the block and spuriously
+        emitted ``PI-04`` (orphan DPA) + ``PW-11`` (DPA name mismatch).
+        """
+        a = Path("procs.tcl")
+        ctx, sink = _make_ctx({a: _REAL_DPA_CRLF})
+        result = ParserService().run(ctx, [a])
+        codes = sorted({d.code for d in sink.emissions})
+        assert codes == [], f"CRLF + DPA continuation regressed: {codes}"
+        proc = next(iter(result.index.values()))
+        assert proc.short_name == "match_nd_to_1d"
+        # DPA range must cover lines 5–8 of the CRLF source (1-indexed).
+        assert proc.dpa_start_line == 5
+        assert proc.dpa_end_line == 8
+
+    def test_column_zero_proc_body_parses_as_single_proc(self) -> None:
+        """Unindented proc body — brace balance alone must bound the proc.
+
+        Real script ``dangle_dont_verify_par`` opens its body at column 0
+        with blank lines sprinkled through.  Parser must still return
+        exactly one proc with a well-ordered body span.
+        """
+        a = Path("dangle.tcl")
+        ctx, sink = _make_ctx({a: _REAL_COLUMN_ZERO_BODY})
+        result = ParserService().run(ctx, [a])
+        assert [d.code for d in sink.emissions] == []
+        procs = list(result.index.values())
+        assert len(procs) == 1
+        proc = procs[0]
+        assert proc.short_name == "dangle_dont_verify_par"
+        # Banner comment on the line immediately preceding ``proc``.
+        assert proc.comment_start_line == 1
+        assert proc.comment_end_line == 1
+        # Well-ordered span invariant holds for column-0 bodies too.
+        assert proc.start_line <= proc.body_start_line
+        assert proc.body_start_line <= proc.body_end_line
+        assert proc.body_end_line <= proc.end_line
+
+
+# ``swap_to_current_instance`` — verbatim from the production Formality
+# flow.  Pathological traits:
+#   * body indented with leading tabs AND leading spaces (mixed whitespace);
+#   * deeply nested if/elseif/else chain with inline ``regexp`` bodies that
+#     themselves contain ``{ ... }`` groupings the tokenizer must treat as
+#     literal brace pairs, not body terminators;
+#   * trailing ``close $outputFile`` on the last line before the outer ``}``.
+_REAL_SWAP_PROC = (
+    "proc swap_to_current_instance {infile outfile} {\n"
+    "\t# Open the input file for reading\n"
+    "\tset inputFile [open $infile r]\n"
+    "\tset fileData [read $inputFile]\n"
+    "\tclose $inputFile\n"
+    "\t\n"
+    '\tset lines [split $fileData "\\n"]\n'
+    "\tset modifiedLines {}\n"
+    "\tset previousLineWasContainerR 0\n"
+    "\tset previousLineWasDesignRef 0\n"
+    "\t\n"
+    "\tforeach line $lines {\n"
+    "\t    if {$previousLineWasContainerR && $previousLineWasDesignRef && [regexp {\\sset\\s} $line]} {\n"
+    '\t        lappend modifiedLines "current_instance \\$ref_instance_query"\n'
+    "\t        lappend modifiedLines $line\n"
+    "\t        set previousLineWasContainerR 0\n"
+    "\t        set previousLineWasDesignRef 0\n"
+    "\t    } elseif {$previousLineWasContainerR && [regexp {current_design \\$ref} $line]} {\n"
+    "\t        set previousLineWasDesignRef 1\n"
+    "\t    } elseif {[regexp {current_container r} $line]} {\n"
+    "\t        set previousLineWasContainerR 1\n"
+    "\t    } else {\n"
+    "\t        lappend modifiedLines $line\n"
+    "\t    }\n"
+    "\t}\n"
+    "\t\n"
+    '\tset modifiedData [join $modifiedLines "\\n"]\n'
+    "\tset outputFile [open $outfile w]\n"
+    "\tputs $outputFile $modifiedData\n"
+    "\tclose $outputFile\n"
+    "}\n"
+)
+
+
+# ``handle_change_direction`` — verbatim from the production Formality
+# flow.  Pathological traits:
+#   * body opens at column 0 (no indentation at all);
+#   * ``puts $outputFile "current_instance \\$impl..."`` lines contain
+#     *string literals* that look like Tcl code — the parser must NOT
+#     misread them as embedded procs or extra brace opens;
+#   * embedded literal ``{`` inside a ``puts`` argument string.
+_REAL_HANDLE_CHANGE_DIRECTION = (
+    "proc handle_change_direction {infile outfile} {\n"
+    "set inputFile [open $infile r]\n"
+    "set outputFile [open $outfile w]\n"
+    "\n"
+    'set previousLine ""\n'
+    "while {[gets $inputFile line] != -1} {\n"
+    "    if {[regexp {set_direction (\\S+) in} $previousLine match1 port_name1]} {\n"
+    "        if {[regexp {set_dont_verify_points (\\S+)} $line match2 port_name2] && $port_name1 eq $port_name2} {\n"
+    '            puts $outputFile "current_instance \\$impl_instance_query"\n'
+    '            puts $outputFile " set rp \\[get_ports -quiet $port_name1\\]"\n'
+    '            puts $outputFile " if { \\[sizeof_collection \\$rp\\] ==0 } {"\n'
+    '            puts $outputFile " set rp \\[get_pins -quiet $port_name1\\]"\n'
+    '            puts $outputFile " }"\n'
+    '            set previousLine ""\n'
+    "            continue\n"
+    "        }\n"
+    "    }\n"
+    '    if {$previousLine ne ""} {\n'
+    "        puts $outputFile $previousLine\n"
+    "    }\n"
+    "    set previousLine $line\n"
+    "}\n"
+    "\n"
+    "close $inputFile\n"
+    "close $outputFile\n"
+    "}\n"
+)
+
+
+class TestRealWorldMessyFormatting:
+    """Pathological indentation + embedded-code-as-string from production procs."""
+
+    def test_mixed_tab_space_indented_body_with_nested_regexp_braces(self) -> None:
+        """``swap_to_current_instance``: tab-indented body with nested
+        ``regexp { ... }`` literal brace groups must not confuse the
+        body-brace counter.  One proc out, well-ordered span.
+        """
+        a = Path("swap.tcl")
+        ctx, sink = _make_ctx({a: _REAL_SWAP_PROC.encode("utf-8")})
+        result = ParserService().run(ctx, [a])
+        assert [d.code for d in sink.emissions] == []
+        procs = list(result.index.values())
+        assert len(procs) == 1
+        assert procs[0].short_name == "swap_to_current_instance"
+        assert procs[0].start_line == 1
+        # Closing ``}`` is the last line of the snippet.
+        assert procs[0].end_line == _REAL_SWAP_PROC.count("\n")
+
+    def test_column_zero_body_with_tcl_code_inside_puts_strings(self) -> None:
+        """``handle_change_direction``: column-0 body where ``puts``
+        emits *strings* containing literal ``current_instance``,
+        ``set rp``, ``if { ... }``.  These are string payloads, not
+        nested procs — parser must see exactly one proc.
+        """
+        a = Path("handle.tcl")
+        ctx, sink = _make_ctx({a: _REAL_HANDLE_CHANGE_DIRECTION.encode("utf-8")})
+        result = ParserService().run(ctx, [a])
+        assert [d.code for d in sink.emissions] == []
+        procs = list(result.index.values())
+        assert len(procs) == 1, (
+            f"puts-with-tcl-looking-string misread as multiple procs: {[p.short_name for p in procs]}"
+        )
+        assert procs[0].short_name == "handle_change_direction"
+
+    def test_absolute_outside_domain_kept_asis(self) -> None:
+        # An absolute path outside domain_root is handed through unchanged;
+        # the parser does not gate these (the compiler/config layer emits
+        # VE-06 for this condition). We just verify no exception occurs.
+        domain = Path("/tmp/dom").resolve()
+        outside = Path("/elsewhere/a.tcl")
+        ctx, _ = _make_ctx({outside: b"proc foo {} {}\n"}, domain_root=domain)
+        result = ParserService().run(ctx, [outside])
+        # ProcEntry built; canonical name uses the original absolute POSIX form.
+        assert any(cn.endswith("::foo") for cn in result.index.keys())
+
+
 class TestDiagnosticForwarding:
     def test_pe01_forwarded(self) -> None:
         a = Path("a.tcl")
@@ -353,3 +572,13 @@ class TestPublicShape:
         assert "parse_file" in __all__
         assert "ParserService" in __all__
         assert "DiagnosticCollector" in __all__
+
+
+# ------------------------------------------------------------------
+# Extracted from test_final_coverage_push.py (module-aligned consolidation).
+# ------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------
+# Extracted from test_small_modules_torture.py (module-aligned consolidation).
+# ------------------------------------------------------------------

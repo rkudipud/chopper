@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import IntEnum, StrEnum
@@ -10,7 +11,10 @@ from pathlib import Path
 import pytest
 
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import DomainState, FileTreatment
+from chopper.core.models import (
+    DomainState,
+    FileTreatment,
+)
 from chopper.core.serialization import dump_model, loads
 
 
@@ -158,3 +162,41 @@ class TestRejectUnsupported:
         a = dump_model({"xs": {1, "a"}})
         b = dump_model({"xs": {"a", 1}})
         assert a == b
+
+
+# ------------------------------------------------------------------
+# Extracted from test_final_coverage_push.py (module-aligned consolidation).
+# ------------------------------------------------------------------
+
+
+def test_serialization_encodes_intenum_via_value() -> None:
+    """``IntEnum`` values must serialise via ``.value`` (line 49). Use a
+    plain Enum with non-int value because dataclasses.asdict pre-converts
+    IntEnum to int already."""
+    from enum import Enum
+
+    from chopper.core.serialization import dump_model
+
+    class Color(Enum):
+        RED = "red"
+        BLUE = "blue"
+
+    @dataclass(frozen=True)
+    class Thing:
+        color: Color
+
+    text = dump_model(Thing(color=Color.RED))
+    payload = json.loads(text)
+    assert payload["color"] == "red"
+
+
+# ------------------------------------------------------------------
+# Extracted from test_small_modules_torture.py (module-aligned consolidation).
+# ------------------------------------------------------------------
+
+
+def test_serialization_encodes_timedelta_as_seconds() -> None:
+    from chopper.core.serialization import _encode
+
+    td = timedelta(hours=1, minutes=30)
+    assert _encode(td) == 5400.0

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from chopper.config.loaders import (
     load_base,
     load_feature,
@@ -431,3 +433,36 @@ class TestTopoSort:
     def test_empty_list(self) -> None:
         result = topo_sort_features([], Path("p.json"), lambda _: None)
         assert result == []
+
+
+# ------------------------------------------------------------------
+# Extracted from test_small_modules_torture.py (module-aligned consolidation).
+# ------------------------------------------------------------------
+
+
+def test_load_base_emits_ve03_for_empty_procs_array_in_exclude() -> None:
+    from chopper.config.loaders import load_base
+
+    diagnostics: list[Diagnostic] = []
+
+    def _emit(d: Diagnostic) -> None:
+        diagnostics.append(d)
+
+    raw = {
+        "$schema": "chopper/base/v1",
+        "domain": "d",
+        "procedures": {
+            "exclude": [
+                {"file": "lib/empty.tcl", "procs": []},  # empty → VE-03
+            ],
+        },
+    }
+    load_base(raw, Path("/cfg/base.json"), _emit)
+    assert any(d.code == "VE-03" for d in diagnostics)
+
+
+def test_load_flow_action_unmapped_action_raises() -> None:
+    from chopper.config.loaders import _load_flow_action
+
+    with pytest.raises(AssertionError, match="unmapped flow action kind"):
+        _load_flow_action({"action": "completely_made_up"})

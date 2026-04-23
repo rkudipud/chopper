@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chopper.adapters.fs_memory import InMemoryFS
+from chopper.adapters import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import CompiledManifest, FileProvenance, FileTreatment, StageSpec
+from chopper.core.models import (
+    CompiledManifest,
+    FileProvenance,
+    FileTreatment,
+    StageSpec,
+)
 from chopper.generators import GeneratorService
 from chopper.generators.stage_emitter import emit_stage_tcl, stage_output_path
 
@@ -150,3 +155,8 @@ def test_service_no_stages_returns_empty_tuple() -> None:
     assert GeneratorService().run(ctx, manifest) == ()
     # No writes.
     assert not fs.exists(DOMAIN)
+
+
+# ------------------------------------------------------------------
+# Extracted from test_small_modules_torture.py (module-aligned consolidation).
+# ------------------------------------------------------------------

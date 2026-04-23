@@ -1,9 +1,0 @@
-N fev_fm_rtl2apr
-J -xt vw Ifev_fm_shell -B BLOCK -T fev_fm_rtl2apr
-I $ward/runs/BLOCK/TECH/release/latest/finish/$ivar(design_name).pt.v.gz $ward/runs/BLOCK/TECH/release/latest/finish/$ivar(design_name).upf 
-L 0 3 5
-D
-
-N promote_fev_fm_rtl2apr
-J vw $ward/global/snps/fev_formality/promote.tcl -B BLOCK -T fev_fm_rtl2apr -force
-D fev_fm_rtl2apr

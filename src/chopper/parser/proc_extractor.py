@@ -156,7 +156,10 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
         return ExtractorResult(procs=(), diagnostics=())
 
     tokens = tok_result.tokens
-    lines = text.split("\n")  # 0-indexed; source line N → lines[N-1]
+    # 0-indexed; source line N → lines[N-1].  Strip trailing ``\r`` so CRLF
+    # inputs do not leak ``\r`` into downstream continuation / DPA analyzers
+    # (P-02 backslash continuation must match regardless of line-ending style).
+    lines = [ln.rstrip("\r") for ln in text.split("\n")]
     tracker = NamespaceTracker()
     procs: list[ProcEntry] = []
     diagnostics: list[ExtractorDiagnostic] = []

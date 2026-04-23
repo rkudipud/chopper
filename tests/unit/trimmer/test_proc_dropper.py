@@ -145,3 +145,97 @@ def test_drop_last_proc_leaves_no_trailing_blank() -> None:
     text = "proc kept {} {}\nproc last {} {\n  body\n}\n"
     proc = _mk("last", start=2, end=4)
     assert drop_procs(text, [proc]) == "proc kept {} {}\n"
+
+
+# ---------------------------------------------------------------------------
+# Real-world structural-fidelity tests
+#
+# The guarantee under test: when Chopper drops some procs from a file, every
+# surviving proc (including its banner comment and any associated DPA block)
+# must appear in the output byte-identical to the input — same indentation
+# (column-0 bodies, tab-indented bodies), same blank lines, same comments.
+# Snippets below are copied verbatim from production Synopsys Formality Tcl.
+# ---------------------------------------------------------------------------
+
+from chopper.parser.service import parse_file  # noqa: E402  (test-local helper import)
+
+# Two real procs in one file.  ``dangle_dont_verify`` (drop target) has a
+# tab-indented body; ``dangle_dont_verify_par`` (keep target) has its body
+# opened at column 0 and contains blank lines.  Both carry a single-line
+# banner comment (``# Added for 3rd round of DMR 1p0``).  This is the exact
+# formatting style we encounter in the wild.
+_REAL_TWO_PROCS = (
+    "# Added for 3rd round of DMR 1p0\n"
+    "proc dangle_dont_verify {infile outfile} {\n"
+    "\t# Define the flexible pattern to search for\n"
+    "\tset pattern {# .*/([^/]+) is dangling feedthrough port\\.}\n"
+    "\n"
+    "\tset input_fileId [open $infile r]\n"
+    "\tset output_fileId [open $outfile w]\n"
+    "\n"
+    "\twhile {[gets $input_fileId line] != -1} {\n"
+    "\t\tif {[regexp $pattern $line match extracted]} {\n"
+    '\t\t\tputs $output_fileId "matched $extracted"\n'
+    "\t\t} else {\n"
+    "\t\t\tputs $output_fileId $line\n"
+    "\t\t}\n"
+    "\t}\n"
+    "\n"
+    "\tclose $input_fileId\n"
+    "\tclose $output_fileId\n"
+    "}\n"
+    "\n"
+    "# Added for 3rd round of DMR 1p0\n"
+    "proc dangle_dont_verify_par {infile outfile} {\n"
+    "# Column-0 body: this is how the real file is formatted.\n"
+    "set pattern {# .*/([^/]+) is dangling feedthrough port\\.}\n"
+    "\n"
+    "set input_fileId [open $infile r]\n"
+    "set output_fileId [open $outfile w]\n"
+    "\n"
+    "while {[gets $input_fileId line] != -1} {\n"
+    "    puts $output_fileId $line\n"
+    "}\n"
+    "\n"
+    "close $input_fileId\n"
+    "close $output_fileId\n"
+    "}\n"
+)
+
+
+def test_real_world_dropping_one_proc_preserves_other_verbatim() -> None:
+    """After dropping ``dangle_dont_verify``, ``dangle_dont_verify_par``
+    (body, banner comment, blank lines, column-0 indentation) must appear
+    byte-identical in the surviving text.
+    """
+    procs = parse_file(Path("dangle.tcl"), _REAL_TWO_PROCS)
+    assert {p.short_name for p in procs} == {"dangle_dont_verify", "dangle_dont_verify_par"}
+    drop = next(p for p in procs if p.short_name == "dangle_dont_verify")
+    keep = next(p for p in procs if p.short_name == "dangle_dont_verify_par")
+
+    # The exact bytes that must survive, read from the input via the
+    # ``keep`` proc's own line span (banner comment line 1 above).
+    source_lines = _REAL_TWO_PROCS.split("\n")
+    keep_start = keep.comment_start_line if keep.comment_start_line is not None else keep.start_line
+    expected_block = "\n".join(source_lines[keep_start - 1 : keep.end_line])
+
+    result = drop_procs(_REAL_TWO_PROCS, [drop])
+    assert expected_block in result, "kept proc block was altered by the dropper; expected verbatim preservation"
+    # And the dropped proc must be fully gone (neither banner nor body).
+    assert "proc dangle_dont_verify {" not in result
+    assert "# Define the flexible pattern to search for" not in result
+
+
+def test_real_world_drop_removes_banner_of_dropped_proc() -> None:
+    """The banner comment belonging to the dropped proc must go with it."""
+    procs = parse_file(Path("dangle.tcl"), _REAL_TWO_PROCS)
+    drop = next(p for p in procs if p.short_name == "dangle_dont_verify_par")
+    assert drop.comment_start_line is not None
+    result = drop_procs(_REAL_TWO_PROCS, [drop])
+    # The surviving ``dangle_dont_verify`` keeps its own banner, but the
+    # second banner (above ``_par``) is gone.
+    assert result.count("# Added for 3rd round of DMR 1p0") == 1
+    assert "proc dangle_dont_verify_par" not in result
+    assert "Column-0 body" not in result
+    # The first proc's tab-indented body must still be present verbatim.
+    assert "\t\tif {[regexp $pattern $line match extracted]} {\n" in result

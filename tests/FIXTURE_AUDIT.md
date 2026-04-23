@@ -20,7 +20,8 @@
 | [`fixtures/mini_domain/`](fixtures/mini_domain/) | Minimal valid multi-file domain (3 procs, 2 files, 1 feature) for end-to-end integration | **Populated** (see `FIXTURE_CATALOG.md`). |
 | [`fixtures/namespace_domain/`](fixtures/namespace_domain/) | Namespace resolution test cases across files | **Populated** (see `FIXTURE_CATALOG.md`). |
 | [`fixtures/tracing_domain/`](fixtures/tracing_domain/) | BFS trace fixtures (direct, cycle, ambiguous, dynamic) | **Populated** — 6 fixtures (see [§3](#3-tracing-domain-fixtures)). |
-| [`fixtures/fev_formality_real/`](fixtures/fev_formality_real/) | Real EDA code from a production FEV/Formality flow | **Populated** — 23 files. Drives H3 real-code coverage (see [§4](#4-real-code-coverage-fev_formality_real)). |
+
+Real-world Tcl pathologies from production Synopsys Formality flows (CRLF line endings, ``define_proc_attributes`` backslash continuation, column-0 proc bodies, banner-comment preservation through trimming) are embedded inline in [`unit/parser/test_service.py::TestRealWorldScenarios`](unit/parser/test_service.py) and [`unit/trimmer/test_proc_dropper.py`](unit/trimmer/test_proc_dropper.py) rather than kept as a bulk corpus fixture — this keeps the regression guards co-located with the code that enforces them.
 
 Helpers at the root of `fixtures/`:
 
@@ -113,30 +114,14 @@ These three fixtures plus an expected `dependency_graph.json` per-fixture are St
 
 ---
 
-## 4. Real-Code Coverage (`fev_formality_real/`)
+## 4. Real-World Coverage (Inline)
 
-Per [`DAY0_REVIEW.md`](../docs/DAY0_REVIEW.md) H3, `fixtures/fev_formality_real/` contains 23 files from a real FEV / Formality production flow. This is where Chopper's parser and compiler meet real-world Tcl:
+Real production Synopsys Formality patterns are exercised via inline byte-literal snippets in the unit tests rather than a bulk fixture directory:
 
-- `default_fm_procs.tcl` — 100% DPA coverage on every proc; structured-comment blocks; realistic argument patterns.
-- `fev_fm_*.tcl` — flow drivers with `source`/`iproc_source` patterns, multi-namespace definitions, conditional `if` blocks around config settings.
-- `fev_fm_*.stack` — stack-flow declaration files (input to F3).
-- `prepare_fev_formality.tcl`, `promote.tcl`, `vars.tcl` — domain bootstrap.
-- `utils/` — shared helper procs.
+- [`unit/parser/test_service.py::TestRealWorldScenarios`](unit/parser/test_service.py) — CRLF line endings + ``define_proc_attributes`` backslash-continuation regression (was spuriously emitting `PI-04` + `PW-11`); column-0 proc bodies (as seen in the ``dangle_dont_verify_par`` production proc).
+- [`unit/trimmer/test_proc_dropper.py`](unit/trimmer/test_proc_dropper.py) — structural-fidelity guarantee: after dropping one proc from a real multi-proc file, every kept proc (including its banner comment, blank lines, tab-indented or column-0 body) must appear byte-identical in the output.
 
-### 4.1 Integration scenarios to build on this fixture
-
-Stage 3 / Stage 5 must add end-to-end scenarios (beyond the 28 named scenarios in [`TESTING_STRATEGY.md`](TESTING_STRATEGY.md) §5) that exercise this domain:
-
-1. **Parse every `.tcl` file.** Assert zero `PE-*`; catalogue every emitted `PW-*` / `PI-*` against the file it was raised in. This is a contract test for the parser — if a real file triggers a `PE-*`, either the parser is wrong or the file is malformed (investigate both).
-2. **F1 trim:** include a single flow driver (`fev_fm_rtl2gate.tcl`), exclude the rest. Assert the trimmed domain still references only surviving files via `source` / `iproc_source` (any missing target should emit `VW-06`).
-3. **F2 trim:** include `default_fm_procs.tcl` whole, plus a small subset of procs from a flow driver. Assert the subset survives and unreferenced procs are removed from the flow-driver file.
-4. **F3 stage generation:** author a feature JSON that adds a `.stack` entry; assert the generated `run.tcl` references only surviving procs; trigger `VW-14` / `VW-15` / `VW-16` by referencing a trimmed step.
-
-These scenarios become entries 29–32 in `TESTING_STRATEGY.md` §5 once Stage 3 begins.
-
-### 4.2 Fabricated + real blending
-
-The fixture is intentionally mixed: real production code is the parser workload, fabricated minimal JSONs select subsets of it. This matches the production shape — operators never ship a fabricated domain but always author JSONs against a real one. Golden snapshots pin the exact `compiled_manifest.json` / `dependency_graph.json` emitted against the real code so any parser or compiler drift is caught immediately.
+Snippets are copied verbatim from production scripts and kept small and representative. When a new real-world pathology surfaces, add it as an inline constant next to an existing scenario — do not reintroduce a bulk corpus directory.
 
 ---
 

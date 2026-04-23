@@ -260,6 +260,100 @@ class TestControlFlowBodies:
         src = "proc foo {} {\n    foreach_in_collection item [all_latches] {\n        process_cell $item\n    }\n}\n"
         assert "process_cell" in _calls(src)
 
+
+# ---------------------------------------------------------------------------
+# Real-world nested proc-call graph — verbatim from production Synopsys
+# Formality Tcl (``add_fm_td_constraints``).  This proc invokes four other
+# user procs (``swap_to_current_instance``, ``handle_change_direction``,
+# ``dangle_dont_verify``, ``dangle_dont_verify_par``) amid heavy builtin
+# noise (``file exists``, ``foreach``, ``regexp``, ``get_attribute``,
+# ``get_cells``, ``current_design``, ``puts``, ``source``).  The extractor
+# must surface the four user-proc call sites and suppress the builtins.
+# ---------------------------------------------------------------------------
+
+_REAL_ADD_FM_TD_CONSTRAINTS = """proc add_fm_td_constraints { side variant design } {
+    iproc_msg -info "add_fm_td_constraints procedure is invoked from file: [lindex [info frame 6] 5]"
+
+    global ivar env ref impl ref_instance_query impl_instance_query RTL_SFP module_name
+    set task $ivar(task)
+
+    if { [info exists ivar($task,td_constraints)] && (!$ivar($task,td_constraints)) } {
+        return
+    }
+
+    current_container i
+
+    if { $side eq "REF" } {
+        set ivar_side "golden"
+    } else {
+        set ivar_side "revised"
+    }
+
+    set path $ivar($task,fev_dot_tcl_path)
+
+    if { [file exists "$path/${design}_fev_fm.tcl"] } {
+        set bfile "$path/${design}_fev_fm.tcl"
+    } else {
+        set bfile ""
+    }
+
+    if { [file exists $bfile] } {
+        set RTL_SFP 0
+        set outfile "outputs/${design}_fev_fm.tcl"
+        dangle_dont_verify_par $bfile $outfile
+        source -echo -verbose $outfile
+    }
+
+    if { [info exists ivar($task,$design,black_box)] && $ivar($task,$design,black_box) != "" } {
+        foreach module $ivar($task,$design,black_box) {
+            set bfile "$path/../../collateral/td/$module/${module}_fev_fm.tcl"
+
+            if { [file exists $bfile] } {
+                set temp_file "outputs/${module}_fev_fm_temp.tcl"
+                set temp_file1 "outputs/${module}_fev_fm_temp1.tcl"
+                set outfile "outputs/${module}_fev_fm.tcl"
+
+                swap_to_current_instance $bfile $temp_file
+                handle_change_direction $temp_file $temp_file1
+                dangle_dont_verify $temp_file1 $outfile
+
+                current_design $ref
+                set bbox_instances [get_attribute [get_cells -hier -filter "hdl_design_name==$module"] full_name]
+                if {$bbox_instances ne ""} {
+                    foreach ref_bbox $bbox_instances {
+                        regexp {^[^/]+/[^/]+/[^/]+/(.*)} $ref_bbox -> front_trimmed_bbox_instance
+                        source -echo -verbose $outfile
+                    }
+                }
+            }
+        }
+    }
+}
+"""
+
+
+class TestRealWorldNestedProcCalls:
+    """Verbatim production proc that dispatches to four other user procs.
+
+    This is the canonical fixture for the chopper call-graph: any regression
+    where the extractor either drops a user-proc call or treats a builtin as
+    a user proc fails here.
+    """
+
+    def test_add_fm_td_constraints_surfaces_four_user_proc_calls(self) -> None:
+        calls = _calls(_REAL_ADD_FM_TD_CONSTRAINTS)
+        # All four user-proc invocations must be captured.
+        assert "dangle_dont_verify" in calls
+        assert "dangle_dont_verify_par" in calls
+        assert "swap_to_current_instance" in calls
+        assert "handle_change_direction" in calls
+
+    def test_add_fm_td_constraints_suppresses_tcl_builtins(self) -> None:
+        calls = set(_calls(_REAL_ADD_FM_TD_CONSTRAINTS))
+        # Builtins must not pollute the call set.
+        for builtin in ("set", "if", "foreach", "return", "file", "regexp", "global"):
+            assert builtin not in calls, f"builtin {builtin!r} leaked into calls"
+
     def test_calls_inside_catch_body(self) -> None:
         src = "proc foo {} {\n    catch {\n        risky_call\n    } err\n}\n"
         assert "risky_call" in _calls(src)
@@ -339,3 +433,8 @@ class TestConstants:
     def test_eda_flow_commands_nonempty(self) -> None:
         assert "current_design" in EDA_FLOW_COMMANDS
         assert "read_verilog" in EDA_FLOW_COMMANDS
+
+
+# ------------------------------------------------------------------
+# Extracted from test_final_coverage_push.py (module-aligned consolidation).
+# ------------------------------------------------------------------
