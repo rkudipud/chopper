@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/diagnostic/v1",
-  "title": "Chopper Diagnostic v1",
+  "title": "Chopper Diagnostic",
   "description": "Wire-format schema for a single Diagnostic record as serialized by `src/chopper/core/serialization.py`. Contract surface between the Chopper engine and any downstream consumer (CI dashboards, GUI, external tooling). Every field that appears in `diagnostics.json` or on the stderr JSONL stream (future FD-10) MUST validate against this schema. All severities, exit codes, slugs, and recovery hints are authoritative in `technical_docs/DIAGNOSTIC_CODES.md`; this schema pins only the on-wire shape.",
   "type": "object",
   "required": ["code", "slug", "severity", "phase", "source", "message"],

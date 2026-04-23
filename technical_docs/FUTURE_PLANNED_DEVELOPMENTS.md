@@ -22,7 +22,7 @@ These items have been evaluated and **permanently excluded**. They will not be i
 
 ### FD-01: Advanced Namespace Resolution
 
-The following Tcl namespace features are out of scope for v1 and are never guessed. They emit `TW-03` (unresolvable call form) when encountered:
+The following Tcl namespace features are out of scope and are never guessed. They emit `TW-03` (unresolvable call form) when encountered:
 
 - `namespace import`
 - Command path lookup (`namespace path`)
@@ -82,18 +82,6 @@ Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON
 
 ---
 
-### FD-09: Performance Benchmark Harness and Phase Budgets
-
-v1 accepts a 5–10 minute runtime for a typical domain; optimization is explicitly deferred until the core pipeline is verified end-to-end. Post-v1, add:
-
-- A `make bench` target that runs the `tests/fixtures/gen_large_domain.py` fixture through `chopper validate` and `chopper trim --dry-run` and records P50 / P95 wall-clock per phase.
-- A phase-time budget table (% of total) kept next to the benchmark harness so regressions are visible at review time.
-- Opt-in parser concurrency (`--jobs N`) using a bounded thread pool with sorted result merge to preserve determinism.
-- Optional `slots=True` on hot frozen dataclasses if allocator pressure shows up in profiling.
-
-**Deferred because:** premature optimization before correctness is verified risks locking in bugs. The determinism contract (§11 of the plan) is the prerequisite for any meaningful benchmarking.
-
-**Source:** [`technical_docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §11, §13.5
 
 ---
 
@@ -109,15 +97,7 @@ Post-v1, this is ~50 lines of code in `cli/render.py` plus a test fixture — `R
 
 ---
 
-### FD-11: Multi-Platform Domain Support
 
-Chopper v1 runs on Linux grid nodes against domains authored on Windows. Authoring happens on either OS, trimming runs only on Linux. The `project.domain` field is case-folded for this reason (bible §5.1, `VE-17`).
-
-A future version might support trimming domains that live on Windows filesystems directly (case-insensitive, different path semantics, CRLF line endings). That would require a canonical internal path representation across OSes, a line-ending policy for the trimmer, and cross-OS golden fixtures.
-
-**Deferred because:** the v1 operator runs one command on one Linux grid node. Adding a cross-OS trim mode would double the fixture matrix and require contractual decisions about CRLF handling that have no v1 user.
-
-**Source:** `DAY0_REVIEW.md` response to case-fold discussion.
 
 ---
 

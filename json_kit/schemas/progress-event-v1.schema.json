@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/progress-event/v1",
-  "title": "Chopper ProgressEvent v1",
+  "title": "Chopper ProgressEvent",
   "description": "Wire-format schema for a single ProgressSink event, serialized as one JSON object per line (JSONL) on stderr when a machine-output transport is negotiated. v1 does NOT ship a stderr JSONL mode — that is deferred to FD-10 — but the on-wire shape is frozen here so tests can round-trip and so a future GUI can consume without re-specifying. Each event corresponds to one ProgressSink method call: phase_started / phase_done / step. Authoritative method signatures live in technical_docs/ARCHITECTURE_PLAN.md §5.",
   "type": "object",
   "required": ["schema", "run_id", "event", "timestamp", "phase"],

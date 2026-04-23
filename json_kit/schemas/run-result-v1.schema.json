@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/run-result/v1",
-  "title": "Chopper RunResult v1",
+  "title": "Chopper RunResult",
   "description": "Wire-format schema for the summary object emitted by ChopperRunner.run(ctx). This is the 'outer' payload a future GUI or CI tool consumes — it is intentionally compact. The full manifest and dependency graph live in their own audit artifacts under `.chopper/` (compiled_manifest.json, dependency_graph.json); this schema pins only the summary surface so that downstream tooling can render a run outcome without deserializing megabytes of manifest data. Authoritative field definitions live in ARCHITECTURE_PLAN.md §9.1 (RunResult, AuditManifest) and bible §5.5. This schema is the single contract between the CLI and any potential GUI, ensuring both can evolve independently while remaining compatible; CI validates every RunResult against this schema, so breaking changes surface immediately.",
   "type": "object",
   "required": [
