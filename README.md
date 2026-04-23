@@ -107,23 +107,6 @@ If your Copilot setup does not surface repo custom agents automatically, open [.
 | `technical_docs/` | Full engineering specification, architecture, diagnostics, and risks |
 | `scripts/` | Repo validation helpers used in local checks and CI |
 
-## Development Checks
+## Contributing
 
-The main local quality gates are:
-
-```text
-make check
-make ci
-make test
-```
-
-If `make` is not available on your platform, the underlying tooling is defined in [pyproject.toml](pyproject.toml) and the VS Code workspace exposes matching tasks.
-
-## Notes for Contributors
-
-- Keep changes aligned with the documented `validate`, `trim`, and `cleanup` command surface.
-- Chopper reads its authoritative runtime schemas from `json_kit/schemas/`.
-- Behavior changes should update the corresponding user docs and engineering docs in the same pull request.
-- For a code-level onboarding path, start with [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md).
-
-For contribution details, see [CONTRIBUTING.md](CONTRIBUTING.md).
+The README is intentionally product-facing. Contributor workflow, local quality gates, implementation rules, and the pull-request checklist live in [CONTRIBUTING.md](CONTRIBUTING.md).

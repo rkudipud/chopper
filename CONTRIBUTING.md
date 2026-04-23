@@ -1,6 +1,6 @@
 # Contributing to Chopper v2
 
-This guide covers the practical workflow for contributing code or documentation to Chopper. It keeps the root-level guidance short and points to the detailed specs where needed.
+This guide covers the practical workflow for contributing code or documentation to Chopper. Product overview, user setup, and the documentation map stay in [README.md](README.md); this file is only for contributor-specific guidance.
 
 ## Before You Start
 
@@ -8,7 +8,6 @@ Read the documents that define the behavior you are changing:
 
 | Path | Purpose |
 | --- | --- |
-| [README.md](README.md) | Repo overview, setup, and doc map |
 | [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) | High-level system design for integrators and contributors |
 | [technical_docs/chopper_description.md](technical_docs/chopper_description.md) | Authoritative product behavior and pipeline contract |
 | [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) | Diagnostic registry |
@@ -18,7 +17,7 @@ If your change affects CLI behavior, JSON structure, diagnostics, or generated a
 
 ## Setup
 
-Use one of the bootstrap scripts from the repository root:
+Use one of the repository bootstrap scripts, then run the local quality gates before you open a pull request:
 
 | Platform | Command |
 | --- | --- |
@@ -28,6 +27,16 @@ Use one of the bootstrap scripts from the repository root:
 | Unix bash/zsh/sh | `source setup.sh` |
 
 The scripts create `.venv`, activate it, and install the development dependencies.
+
+Standard local checks:
+
+```text
+make check
+make ci
+make test
+```
+
+If `make` is not available on your platform, use the matching tools and tasks defined in [pyproject.toml](pyproject.toml) and the VS Code workspace.
 
 ## Working Rules
 
@@ -49,7 +58,7 @@ For the full project guardrails and rejected scope, see [technical_docs/chopper_
 3. Run a focused check for the touched area.
 4. Run the standard repo gates before opening a pull request.
 
-Useful commands:
+Focused command examples:
 
 ```text
 make check
