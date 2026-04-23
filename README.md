@@ -4,7 +4,9 @@ Chopper is a Python CLI for trimming VLSI EDA tool-flow domains down to the file
 
 Release details live in [VERSION.md](VERSION.md).
 
-Inspired by the works of SNORT by Mike McCurdy and FlowBuilder by Stelian Alupoaei.
+Inspired by the works of:
+- `SNORT` by Mike McCurdy
+- `FlowBuilder` by Stelian Alupoaei
 
 ## Product Summary
 
