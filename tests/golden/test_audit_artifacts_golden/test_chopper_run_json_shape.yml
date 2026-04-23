@@ -1,0 +1,33 @@
+artifacts_present:
+- chopper_run.json
+- compiled_manifest.json
+- dependency_graph.json
+- diagnostics.json
+- input_base.json
+- run_id
+- trim_report.json
+- trim_report.txt
+- trim_stats.json
+backup_path: <backup_path:string>
+base_json: <base_json:string>
+chopper_version: <chopper_version:string>
+command: trim
+diagnostics_summary:
+  errors: 0
+  info: 0
+  warnings: 0
+domain: mini
+domain_path: <domain_path:string>
+duration_seconds: <duration_seconds:number>
+exit_code: 0
+feature_jsons: []
+mode: dry-run
+project_json: null
+project_name: ''
+project_notes: []
+project_owner: ''
+release_branch: ''
+run_id: <run_id:string>
+timestamp_end: <timestamp_end:timestamp>
+timestamp_start: <timestamp_start:timestamp>
+trim_state: first-trim

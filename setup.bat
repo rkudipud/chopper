@@ -9,7 +9,12 @@ setlocal enabledelayedexpansion
 set "scriptDir=%~dp0"
 set "scriptDir=%scriptDir:~0,-1%"
 set "venvDir=%scriptDir%\.venv"
+REM Project runtime floor is Python 3.11 (pyproject.toml `requires-python`).
+REM Dev venv is pinned to 3.13. Prefer the `py` launcher at 3.13; fall back
+REM to bare `python` only if the launcher cannot find 3.13.
 set "pythonCmd=python"
+py -3.13 -c "import sys" >nul 2>&1
+if %ERRORLEVEL% EQU 0 set "pythonCmd=py -3.13"
 set "proxy=http://proxy-chain.intel.com:928"
 
 if not exist "%scriptDir%\pyproject.toml" (

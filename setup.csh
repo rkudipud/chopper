@@ -15,7 +15,17 @@ if ( ! -f "$script_dir/pyproject.toml" ) then
 endif
 
 set venv_dir = "$script_dir/.venv"
-set python_cmd = "python3"
+# Project runtime floor is Python 3.11 (pyproject.toml `requires-python`).
+# Dev venv is pinned to 3.13 so contributors share one toolchain. Prefer
+# python3.13 explicitly; fall back to python3 only if 3.13 is not on PATH.
+which python3.13 >& /dev/null
+if ( $status == 0 ) then
+    set python_cmd = "python3.13"
+else
+    set python_cmd = "python3"
+    echo "WARN: python3.13 not found on PATH; falling back to `python3 --version`."
+    echo "      Contributors are expected to install Python 3.13 for the dev venv."
+endif
 set proxy = "http://proxy-chain.intel.com:928"
 
 echo "=== Chopper Dev Environment Setup ==="

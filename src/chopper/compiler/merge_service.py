@@ -810,17 +810,22 @@ def _match_glob(pattern: str, parsed_paths: frozenset[Path]) -> set[Path]:
 
     ``PurePath.full_match`` (Python 3.13+) handles ``**`` natively; we
     fall back to :func:`fnmatch.fnmatchcase` otherwise. Both are tried
-    so ``**/foo`` and ``*.tcl`` style patterns both match.
+    so ``**/foo`` and ``*.tcl`` style patterns both match. The method
+    is resolved via :func:`getattr` so the module type-checks under the
+    Python 3.11 runtime floor while still using the native matcher on
+    3.13+ interpreters at run time.
     """
     hits: set[Path] = set()
     for path in parsed_paths:
         posix = path.as_posix()
-        try:
-            if PurePosixPath(posix).full_match(pattern):
-                hits.add(path)
-                continue
-        except (ValueError, AttributeError):
-            pass
+        full_match = getattr(PurePosixPath(posix), "full_match", None)
+        if full_match is not None:
+            try:
+                if full_match(pattern):
+                    hits.add(path)
+                    continue
+            except ValueError:
+                pass
         if fnmatchcase(posix, pattern):
             hits.add(path)
     return hits

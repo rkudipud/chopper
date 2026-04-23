@@ -266,7 +266,7 @@ class RunConfig:
 @dataclass(frozen=True)
 class PresentationConfig:
     """CLI-side UX config. Drives adapter selection; never read by services."""
-    verbose: bool = False                # -v   : raise log level to DEBUG for structlog
+    verbose: bool = False                # -v   : raise progress verbosity (DEBUG-ish detail)
     quiet: bool = False                  # -q   : SilentProgress; suppresses progress output
     plain: bool = False                  # --plain : no Rich rendering; plain text + no ANSI colors
     # `--debug`, `--no-color`, `--json` were cut per DAY0_REVIEW A1. Rich honors NO_COLOR
@@ -291,7 +291,7 @@ class ChopperContext:
 
 | `PresentationConfig` field | Source flag | Effect |
 |---|---|---|
-| `verbose` | `-v / --verbose` | structlog level set to `DEBUG`; otherwise `INFO`. |
+| `verbose` | `-v / --verbose` | CLI progress renderer prints DEBUG-level detail; library code has no internal logger (bible §5.12.4). |
 | `quiet` | `-q / --quiet` | `ProgressSink` = `SilentProgress`; no progress output (CI / grid). |
 | `plain` | `--plain` | `ProgressSink` = `RichProgress` reconfigured with `Console(no_color=True, force_terminal=False)` and the live progress bar disabled. Output is ASCII single-line status — no ANSI, no Unicode box-drawing, no spinners. No dedicated `PlainProgress` class. |
 

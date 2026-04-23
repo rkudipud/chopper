@@ -39,15 +39,22 @@ test-unit:
 	pytest tests/unit/ -v
 
 test-integration:
-	pytest tests/integration/ -v
+	pytest tests/integration/ -v --no-cov
 
 test-golden:
-	pytest tests/golden/ -v
+	pytest tests/golden/ -v --no-cov
 
 test-property:
-	pytest tests/property/ -v
+	pytest tests/property/ -v --no-cov
 
-test: test-unit test-integration test-golden test-property
+# Aggregate test target: runs every suite in a single pytest invocation so
+# the `--cov-fail-under=78` threshold in pyproject.toml is checked against
+# the union of covered statements, not re-checked per suite. The per-suite
+# `test-*` targets above pass `--no-cov` for exactly this reason — running
+# them individually would otherwise fail a green codebase because each
+# suite exercises only part of src/.
+test:
+	pytest tests/unit/ tests/integration/ tests/golden/ tests/property/ -v
 
 test-all: test
 

@@ -2039,8 +2039,7 @@ Chopper is a Python ≥ 3.13 CLI. The rules below are authoritative for every fi
 
 - **No `print()` in library code.** Any module under `src/chopper/{parser,compiler,trimmer,validator,core,config,audit,generators}` that calls `print()` is a review-blocking defect. The CLI and test harnesses may print.
 - All user-facing outcomes go through `ctx.diag.emit(Diagnostic(...))` (§5.11.1). Every code is registered in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
-- Internal logging uses `structlog`. Configuration is done exactly once, in `cli/main.py`. Library modules call `log = structlog.get_logger(__name__)` and emit structured events (`log.info("phase_complete", phase="P3", duration_ms=123)`).
-- Structured events never replace diagnostics. Diagnostics are for users; structlog is for internal debugging and audit.
+- **There is no internal structured-logging channel in v1.** Chopper has exactly two output surfaces for the operator: the `DiagnosticSink` (user-facing outcomes) and the `ProgressSink` (phase transitions and progress events). Library modules do not carry a logger handle and do not emit `log.info` / `log.debug` events. Every observation worth surfacing to a user is a diagnostic; every observation worth surfacing to downstream tooling is an audit artifact. Crash traces for programmer errors are written to `.chopper/internal-error.log` by the runner's final `except` block (§8.3, exit code 3).
 
 #### 5.12.5 Errors and Exceptions
 
@@ -2596,9 +2595,11 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-12 | Emit `.chopper/` audit artifacts for every run. |
 | FR-13 | Support first trim and re-trim using `_backup`. |
 | FR-14 | Provide cleanup support to remove backups at project finalization. |
+| FR-15 | RETIRED — slot withdrawn pre-v1; never reused (per §5.11 registry-style numbering rules, retired rows stay in the table for audit trail). |
 | FR-16 | Treat non-Tcl files at whole-file granularity only. |
 | FR-17 | Support dry-run preview mode. Dry-run is mandatory for domain owners to validate JSON files before live trim. |
 | FR-18 | Understand `iproc_source -file ...` including `-optional`, `-use_hooks`, `-quiet`, and `-required`. |
+| FR-19 | RETIRED — slot withdrawn pre-v1; never reused (per §5.11 registry-style numbering rules, retired rows stay in the table for audit trail). |
 | FR-20 | Discover hook files from `-use_hooks` during trim pipeline analysis; report in diagnostics and dry-run output; copy them only when explicitly included in selected JSON. |
 | FR-21 | Support step replacement (`replace_step`) and stage replacement (`replace_stage`) as action keywords. Support `@n` instance targeting for duplicate steps. |
 | FR-22 | Emit trim statistics in JSON and text form (LOC excludes blank lines and comment-only lines). |
@@ -2619,7 +2620,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-37 | Equivalent resolved selections must produce identical compilation and trim results regardless of whether they came from direct CLI arguments or a project JSON. |
 | FR-38 | All library-layer operations return typed result objects (frozen dataclasses) — never bare prints — so a future GUI or alternate front-end can consume the same service surface the CLI uses. |
 | FR-39 | All public result objects are JSON-serializable via a single canonical serializer; round-trip (serialize → deserialize → compare) produces structurally equivalent values. |
-| FR-40 | Progress and log events are emitted through a `ProgressSink` protocol (structlog under the hood); the CLI attaches a renderer, but library code never binds to a concrete sink. |
+| FR-40 | Progress and log events are emitted through a `ProgressSink` protocol; the CLI attaches a renderer, but library code never binds to a concrete sink. (There is no internal structured-logging channel; see §5.12.4.) |
 | FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
 
 ### 7.2 Non-Functional Requirements
@@ -2714,7 +2715,7 @@ post_read_constraints.tcl
 The GUI-readiness surface is defined in §5.11 above. At the architecture level the relevant invariants are:
 
 - **Service layer first.** Every CLI subcommand (`validate`, `trim`, `cleanup`) is a thin adapter over a callable service returning a typed result object. A future GUI invokes the same service without re-implementing logic.
-- **No `print()` in library code.** All user-visible output is emitted through a `ProgressSink` / structlog pipeline; the CLI attaches a text renderer, a GUI would attach a widget renderer.
+- **No `print()` in library code.** All user-visible output is emitted through a `ProgressSink` plus `DiagnosticSink` pipeline; the CLI attaches a text renderer, a GUI would attach a widget renderer.
 - **JSON-first artifacts.** Every textual report is a projection of a JSON artifact; GUIs consume the JSON form directly.
 - **Diagnostics are structured.** `(code, severity, message, location, hint)` tuples enable rich GUI surfaces (filterable lists, jump-to-source actions) without additional parsing.
 

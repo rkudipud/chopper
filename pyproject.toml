@@ -2,14 +2,19 @@
 name = "chopper"
 version = "0.1.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
-requires-python = ">=3.13"
+# Minimum supported runtime is Python 3.11 so the tool installs on EDA grid
+# nodes that lag behind HEAD. The development venv is created against 3.13
+# (see setup.{ps1,sh,csh,bat}) so contributors get the newest toolchain, but
+# no 3.12+-only syntax is permitted in src/ — ruff's `target-version` and
+# mypy's `python_version` below are both pinned to 3.11 so the lint/type
+# gates reject accidental uplevel features.
+requires-python = ">=3.11"
 license = {text = "Intel Proprietary"}
 authors = [
     {name = "rkudipud"},
 ]
 
 dependencies = [
-    "structlog>=24.1.0,<25",
     "jsonschema>=4.0,<5",
 ]
 
@@ -39,7 +44,7 @@ chopper = "chopper.cli.main:main"
 where = ["src"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py311"
 line-length = 120
 src = ["src", "tests"]
 # Fixture directories hold user-authored input data (Tcl domains, JSON
@@ -57,13 +62,15 @@ pythonpath = ["src"]
 addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-under=78"
 
 [tool.hypothesis]
-# Start conservative; raise once CI budget profiling confirms headroom. See
-# docs/FINAL_HANDOFF_REVIEW.md S-9 for rationale.
-max_examples = 200
+# Per TESTING_STRATEGY.md and .github/instructions/project.instructions.md,
+# property tests run with max_examples=500. Originally started at 200 during
+# the Stage 0/1 buildout (FINAL_HANDOFF_REVIEW.md S-9); raised to the
+# strategy-document target once CI budget profiling confirmed headroom.
+max_examples = 500
 print_blob = true
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -91,12 +98,10 @@ root_packages = ["chopper"]
 [[tool.importlinter.contracts]]
 name = "Layered architecture: cli -> orchestrator -> services -> core"
 type = "layers"
-# During the staged buildout (see docs/IMPLEMENTATION_ROADMAP.md), upper
-# layers come online only when their stage lands. Layers are wrapped in
-# parentheses to mark them as optional — import-linter treats a missing
-# optional layer as "no modules yet" rather than failing the contract.
-# Once Stage 5 is complete every layer is populated and the parens become
-# cosmetic.
+# All layers are populated (Stages 0–5 complete). The contract enforces
+# strict top-down imports: cli may depend on orchestrator, orchestrator on
+# services, services on core, adapters on core. No upward or sibling
+# imports across service modules.
 layers = [
     "chopper.cli",
     "chopper.orchestrator",
@@ -108,10 +113,9 @@ layers = [
 [[tool.importlinter.contracts]]
 name = "core is stdlib-only (no sibling imports)"
 type = "forbidden"
-# Modules are added to `forbidden_modules` as each stage lands. At Stage 0
-# only `chopper.core` exists, so the contract currently has no siblings to
-# forbid. Each subsequent stage (parser, config, compiler, …) adds its
-# module to the list in the same PR that introduces the module.
+# `chopper.core` must not import any sibling module. This keeps the shared
+# frozen-dataclass + diagnostic registry reusable in isolation and prevents
+# accidental inversion of the layered architecture above.
 source_modules = ["chopper.core"]
 forbidden_modules = [
     "chopper.parser",
@@ -129,21 +133,24 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "Services are independent (no sibling-to-sibling imports)"
 type = "independence"
-# Populated as each service lands. `independence` requires at least two
-# modules to be meaningful; until Stage 2 introduces a second service the
-# contract is commented out by being left with a single entry (import-linter
-# accepts but effectively no-ops it).
+# Services do not import each other. Any cross-service dependency must flow
+# through the shared types in `chopper.core` or through the orchestrator.
 modules = [
-    "chopper.core",
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.validator",
+    "chopper.audit",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Adapters depend only on core + third-party"
 type = "forbidden"
-# `chopper.adapters` does not exist yet (added in the stage that introduces
-# the first adapter). Contract is declared now with an empty forbidden list
-# so the layered-architecture story is visible in config; entries are added
-# as each service module lands.
+# Adapters bridge ports to third-party libraries (rich, filesystem). They
+# may import `chopper.core` plus stdlib / third-party packages, but must
+# never reach sideways into services or upward into orchestrator/CLI.
 source_modules = ["chopper.adapters"]
 forbidden_modules = [
     "chopper.parser",

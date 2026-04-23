@@ -20,7 +20,17 @@ if (-not (Test-Path "$scriptDir/pyproject.toml")) {
 }
 
 $venvDir = Join-Path $scriptDir ".venv"
-$pythonCmd = "python"  # Windows auto-resolves to python.exe
+# Project runtime floor is Python 3.11 (pyproject.toml `requires-python`).
+# Dev venv is pinned to 3.13 so contributors share one toolchain. Prefer the
+# Windows `py` launcher targeted at 3.13; fall back to bare `python` only if
+# the launcher cannot find a 3.13 install.
+$pythonCmd = "python"
+if (Get-Command py -ErrorAction SilentlyContinue) {
+    & py -3.13 -c "import sys" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $pythonCmd = "py -3.13"
+    }
+}
 $proxy = "http://proxy-chain.intel.com:912"
 
 Write-Host "=== Chopper Dev Environment Setup ===" -ForegroundColor Cyan
@@ -28,8 +38,8 @@ Write-Host "Platform: Windows (PowerShell)" -ForegroundColor Cyan
 
 # Check if venv exists
 if (-not (Test-Path $venvDir)) {
-    Write-Host "[1/4] Creating virtual environment..." -ForegroundColor Yellow
-    & $pythonCmd -m venv $venvDir
+    Write-Host "[1/4] Creating virtual environment (prefers Python 3.13)..." -ForegroundColor Yellow
+    Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
 } else {
     Write-Host "[1/4] Virtual environment exists, reusing." -ForegroundColor Yellow
 }

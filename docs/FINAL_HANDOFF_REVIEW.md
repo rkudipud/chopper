@@ -38,7 +38,7 @@ This review covered:
 **Problem:** The schema referenced `VW-10 cross-source-fe-vetoed` but:
 - `DIAGNOSTIC_CODES.md` shows VW-10 as **reserved**
 - The actual code for `cross-source-fe-vetoed` is **VW-19**
-- The revision history mentioned VW-10 was "un-retired" but the registry renumbering later changed this
+- The revision history mentioned VW-10 was "un-retired" but the registry renumbering later changed this (this inconsistency is **closed** — the registry in `docs/DIAGNOSTIC_CODES.md` is now the sole source of truth; the revision-history wording was a transient artifact of the renumbering sweep).
 
 **Resolution:** Fixed in this review pass. The feature schema now correctly references VW-18 only for `procedures.exclude` (which is semantically correct — VW-19 applies to `files.exclude`, not `procedures.exclude`).
 

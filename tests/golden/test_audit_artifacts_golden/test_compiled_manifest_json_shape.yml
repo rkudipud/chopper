@@ -1,0 +1,33 @@
+chopper_version: <chopper_version:string>
+domain: mini
+files:
+- excluded_procs: null
+  input_sources:
+  - base:files.include
+  path: helper.tcl
+  proc_model: null
+  reason: fi-literal
+  surviving_procs: null
+  treatment: full-copy
+- excluded_procs: null
+  input_sources:
+  - base:files.include
+  path: vars.tcl
+  proc_model: null
+  reason: fi-literal
+  surviving_procs: null
+  treatment: full-copy
+flow_actions: []
+inputs:
+  base: <tmp-path>
+  features: []
+  project: null
+interaction_warnings: []
+procedures:
+  excluded: []
+  surviving:
+  - canonical_name: helper.tcl::helper_a
+    selection_source: base:files.include
+    source_file: helper.tcl
+  traced: []
+run_id: <run_id:string>

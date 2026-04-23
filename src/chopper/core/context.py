@@ -88,7 +88,9 @@ class PresentationConfig:
 
     Flag-to-effect mapping (see CLI_HELP_TEXT_REFERENCE.md):
 
-    * ``verbose`` (``-v``): raises structlog level to ``DEBUG``.
+    * ``verbose`` (``-v``): raises the CLI progress renderer to DEBUG-level
+      detail. Chopper has no internal structured-logging channel (bible
+      §5.12.4); this flag only affects the CLI-attached renderer.
     * ``quiet`` (``-q``): selects ``SilentProgress``; suppresses progress
       output (CI / grid).
     * ``plain`` (``--plain``): selects a Rich console reconfigured with

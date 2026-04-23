@@ -296,7 +296,7 @@ High-risk area. See [docs/TCL_PARSER_SPEC.md](../../docs/TCL_PARSER_SPEC.md) and
 - **P-03:** Namespace stack not persisted → Use LIFO stack per block, pop on `namespace eval` exit
 - **P-04:** Computed proc names silently ignored → Log WARNING, gracefully skip
 
-Test fixtures: `tests/fixtures/edge_cases/` (14 adversarial Tcl inputs).
+Test fixtures: `tests/fixtures/edge_cases/` (17 adversarial Tcl inputs; see [tests/FIXTURE_AUDIT.md](../../tests/FIXTURE_AUDIT.md) §2 for the pitfall coverage map).
 
 ### Compiler — `src/chopper/compiler/`
 
