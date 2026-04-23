@@ -164,6 +164,24 @@ The bundle is designed to be machine-readable. The `run-result-v1.schema.json` a
 
 ---
 
+## Reporting Issues
+
+Found a bug? [Open a bug report](../../issues/new?template=bug_report.yml) on GitHub. The form guides you through providing everything needed to reproduce the problem quickly.
+
+**What to include:**
+
+| What | How |
+| --- | --- |
+| Full terminal output | Run `chopper <command> 2>&1 \| tee chopper.log` and attach the log file |
+| `.chopper/` audit bundle | Zip the `.chopper/` folder and drag it into the issue form — it contains `diagnostics.json`, `chopper_run.json`, and `trim_report.txt` |
+| JSON configuration | Paste a minimal reproduction of your `base.json`, feature JSON, or `project.json` (remove sensitive paths) |
+| Screenshots | Drag and drop PNG/JPG/GIF directly into any GitHub text field |
+
+> [!TIP]
+> Run `chopper validate` before `chopper trim` — it often surfaces the root cause without modifying your domain. Attach the validate output alongside the trim output when both are relevant.
+
+---
+
 ## Contributing
 
 Contributor workflow, local quality gates, working rules, and the pull-request checklist live in [CONTRIBUTING.md](CONTRIBUTING.md). The short version: run `make check` before opening a pull request, and read the spec before adding anything new.

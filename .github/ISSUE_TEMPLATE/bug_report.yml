@@ -1,0 +1,139 @@
+name: Bug Report
+description: Report incorrect behavior, a crash, or unexpected output from Chopper.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Fill in as much of the form as you can — the more context you provide, the faster we can reproduce and fix it.
+
+        **Before submitting:** check that no existing open issue covers the same problem.
+
+  - type: dropdown
+    id: command
+    attributes:
+      label: Which command triggered the bug?
+      options:
+        - "chopper validate"
+        - "chopper trim"
+        - "chopper trim --dry-run"
+        - "chopper cleanup"
+        - "Setup / installation"
+        - "Other / not sure"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - "Windows (PowerShell)"
+        - "Windows (cmd.exe)"
+        - "Linux"
+        - "macOS"
+        - "Other"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      description: Run `python --version` and paste the output here.
+      placeholder: "e.g. Python 3.11.9"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. What did you run? What did you expect? What did you get instead?
+      placeholder: |
+        1. I ran `chopper trim --project project.json`
+        2. Expected: domain trimmed, audit bundle written to .chopper/
+        3. Got: error message / wrong output / crash
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimum steps someone else can follow to see the same bug.
+      placeholder: |
+        1. Create a domain with ...
+        2. Author a project.json with ...
+        3. Run `chopper trim --project project.json`
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: terminal_output
+    attributes:
+      label: Terminal output
+      description: |
+        Paste the full terminal output here (stdout + stderr). 
+        Tip — redirect both streams: `chopper trim --project project.json 2>&1 | tee chopper.log`
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: audit_bundle
+    attributes:
+      label: .chopper/ audit bundle contents
+      description: |
+        If Chopper reached the audit phase, paste the relevant content from `.chopper/`:
+        - `diagnostics.json` — all emitted diagnostic codes
+        - `chopper_run.json` — exit code, phase reached, timing
+        - `trim_report.txt` — file/proc decisions (for trim bugs)
+
+        You can drag and drop a `.zip` of the `.chopper/` folder directly into this box.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or screen recordings
+      description: |
+        Drag and drop screenshots or recordings here. GitHub supports PNG, JPG, GIF, and MP4.
+        If the bug involves garbled terminal output or a rendering issue, a screenshot is often more informative than pasted text.
+    validations:
+      required: false
+
+  - type: textarea
+    id: json_files
+    attributes:
+      label: JSON configuration (base.json / feature JSON / project.json)
+      description: |
+        Paste a minimal reproduction of your JSON configuration. Remove any sensitive paths or identifiers.
+        If the full files are large, include only the relevant sections.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Anything else?
+      description: Workarounds you have tried, related issues, or any other context that might help.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing open issues and this is not a duplicate.
+          required: true
+        - label: I included the full terminal output or attached a log file.
+          required: false
+        - label: I attached the `.chopper/` audit bundle or the relevant artifacts from it.
+          required: false
