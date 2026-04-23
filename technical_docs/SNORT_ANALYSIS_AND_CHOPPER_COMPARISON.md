@@ -5,7 +5,7 @@
 
 > **Status:** Historical comparison and design-analysis reference.
 >
-> This document is **not** an implementation handoff spec. If anything here conflicts with [`docs/chopper_description.md`](chopper_description.md), [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md), or [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), the live handoff docs win.
+> This document is **not** an implementation handoff spec. If anything here conflicts with [`technical_docs/chopper_description.md`](chopper_description.md), [`technical_docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md), or [`technical_docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), the live handoff docs win.
 
 ---
 

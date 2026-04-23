@@ -10,7 +10,7 @@ It also provides :func:`topo_sort_features`, which orders a list of
 graph (Kahn's algorithm — O(V+E), deterministic, stable sort within each
 rank level).  A cycle emits ``VE-22`` and returns the original input order.
 
-Diagnostic emission contract (docs/DIAGNOSTIC_CODES.md):
+Diagnostic emission:
 
 * ``VE-03`` — ``procEntry`` with empty ``procs`` array.
 * ``VE-14`` — duplicate ``name`` across selected features.

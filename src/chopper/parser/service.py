@@ -1,36 +1,27 @@
 """Parser service — the boundary layer around the pure parser utilities.
 
-This module provides two public surfaces:
+Two public surfaces:
 
-* :func:`parse_file` — a pure, callback-driven utility per TCL_PARSER_SPEC §2.1.
-  It accepts already-decoded text, runs the tokenizer and proc extractor,
-  and forwards registered :class:`~chopper.core.diagnostics.Diagnostic`
-  records through an optional ``on_diagnostic`` callback. It returns a
-  plain ``list[ProcEntry]`` and has zero knowledge of
-  :class:`~chopper.core.context.ChopperContext` or the filesystem port.
+* :func:`parse_file` — pure, callback-driven utility. Accepts already-
+  decoded text, runs tokenizer + proc extractor, and forwards diagnostic
+  records through an optional ``on_diagnostic`` callback. Returns a plain
+  ``list[ProcEntry]``. No :class:`ChopperContext` or filesystem knowledge.
   Unit tests target this directly.
 
-* :class:`ParserService` — the orchestrator-facing service per
-  ARCHITECTURE_PLAN.md §9.2. It owns the filesystem read (through
-  ``ctx.fs``), UTF-8 → Latin-1 fallback (emitting ``PW-02``), and the
-  **path-normalization contract**: every :class:`~pathlib.Path` supplied
-  in ``files`` is normalized to the domain-relative POSIX form before it
-  is handed to :func:`parse_file`. The canonical-name prefix on every
-  :class:`~chopper.core.models.ProcEntry` is therefore always a
-  domain-relative POSIX path.
+* :class:`ParserService` — orchestrator-facing service. Owns filesystem
+  reads through ``ctx.fs``, UTF-8 → Latin-1 fallback (emitting
+  ``PW-02``), and the path-normalization contract: every :class:`Path`
+  in ``files`` is normalized to domain-relative POSIX form before being
+  passed to :func:`parse_file`.
 
-Diagnostic translation (single source: docs/DIAGNOSTIC_CODES.md):
+Diagnostic translation:
 
-* Tokenizer structural errors (``negative_depth`` / ``unclosed_braces``)
-  map to ``PE-02 unbalanced-braces``.
-* ``ExtractorDiagnostic.kind`` values map to their registered codes per
-  the ``_DIAG_CODE_MAP`` table below.
-* UTF-8 decode failure maps to ``PW-02 utf8-decode-failure``.
+* Tokenizer structural errors → ``PE-02 unbalanced-braces``.
+* ``ExtractorDiagnostic.kind`` → registered codes via ``_DIAG_CODE_MAP``.
+* UTF-8 decode failure → ``PW-02 utf8-decode-failure``.
 
-Every diagnostic emitted here is constructed via
-:meth:`chopper.core.diagnostics.Diagnostic.build`, so slug / severity /
-source are always registry-derived. The service never invents codes and
-never constructs a :class:`Diagnostic` by hand.
+Every diagnostic is built via :meth:`Diagnostic.build`, so slug /
+severity / source are always registry-derived.
 """
 
 from __future__ import annotations
@@ -57,11 +48,10 @@ __all__ = [
 
 
 DiagnosticCollector = Callable[[Diagnostic], None]
-"""Callback type forwarded into :func:`parse_file`.
+"""Callback forwarded into :func:`parse_file`.
 
-Matches the signature TCL_PARSER_SPEC §11 mandates: takes a single
-:class:`Diagnostic` and returns ``None``. The service layer wires this
-to ``ctx.diag.emit``; tests wire it to a list-accumulator.
+Takes a single :class:`Diagnostic` and returns ``None``. The service
+layer wires this to ``ctx.diag.emit``; tests wire it to a list.
 """
 
 
@@ -70,9 +60,9 @@ to ``ctx.diag.emit``; tests wire it to a list-accumulator.
 # ---------------------------------------------------------------------------
 #
 # ExtractorDiagnostic.kind is a :class:`Literal` (see proc_extractor); the
-# map below converts each literal to the registered code. Adding a new
-# ExtractorDiagnostic kind requires adding an entry here AND registering the
-# code in docs/DIAGNOSTIC_CODES.md (enforced by scripts/check_diagnostic_registry.py).
+# map below converts each literal to the registered code. Adding a kind
+# requires adding an entry here AND registering the code in the registry
+# (enforced by scripts/check_diagnostic_registry.py).
 
 _DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
     "computed-proc-name": "PW-01",
@@ -85,7 +75,7 @@ _DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
 
 
 # ---------------------------------------------------------------------------
-# parse_file — pure utility per TCL_PARSER_SPEC §2.1
+# parse_file — pure utility
 # ---------------------------------------------------------------------------
 
 
@@ -107,9 +97,9 @@ def parse_file(
         :class:`Diagnostic`. When ``None``, diagnostics are silently
         discarded.
     :returns: List of :class:`ProcEntry` records. Empty list is a valid
-        outcome (spec §2.1.1 rows 1, 4).
+        outcome.
 
-    Contract table (TCL_PARSER_SPEC §2.1.1):
+    Contract table:
 
     * Tokenizer error (``negative_depth`` / ``unclosed_braces``) → emit
       ``PE-02`` and return ``[]`` regardless of any procs extracted.
@@ -182,7 +172,7 @@ def _message_for(ext_diag: ExtractorDiagnostic) -> str:
 class ParserService:
     """P2 service wrapping :func:`parse_file`.
 
-    Contract per ARCHITECTURE_PLAN.md §9.2:
+    Contract:
 
     1. Read each file through ``ctx.fs.read_text`` (never
        :meth:`pathlib.Path.read_text` directly) — the filesystem port is
@@ -199,9 +189,8 @@ class ParserService:
     5. Build :class:`~chopper.core.models.ParsedFile` per file and
        :class:`~chopper.core.models.ParseResult` for the domain.
 
-    The service is a frozen dataclass with no fields — per
-    ARCHITECTURE_PLAN.md §9.3 services are stateless, and instantiating
-    via ``ParserService()`` makes the unit simple to substitute in tests.
+    The service is a frozen dataclass with no fields. Instantiating via
+    ``ParserService()`` keeps the unit simple to substitute in tests.
     """
 
     def run(self, ctx: ChopperContext, files: Sequence[Path]) -> ParseResult:
@@ -301,7 +290,7 @@ class ParserService:
         return ctx.config.domain_root / path
 
     def _read_with_fallback(self, ctx: ChopperContext, path: Path) -> tuple[str, Literal["utf-8", "latin-1"]]:
-        """UTF-8 decode with Latin-1 fallback per TCL_PARSER_SPEC §7.7.
+        """UTF-8 decode with Latin-1 fallback.
 
         Returns ``(text, encoding)`` where ``encoding`` is the label
         recorded on :class:`ParsedFile` (``"utf-8"`` or ``"latin-1"``).

@@ -1,30 +1,24 @@
 """Deterministic JSON serialisation for core dataclasses.
 
-Per ARCHITECTURE_PLAN.md §5 closed decision A3, Chopper has **no**
-``SerializerPort``. Services and ``AuditService`` call
-:func:`dump_model` directly; there is no ``ctx.serde``. This is the only
-helper the module exposes.
+Chopper has no ``SerializerPort``; services and :class:`AuditService`
+call :func:`dump_model` directly. This module is the only helper.
 
-Determinism contract (bible §5.4, ARCHITECTURE_PLAN.md §11):
+Determinism contract:
 
-* ``json.dumps`` is called with ``sort_keys=True`` so mapping order is
+* ``json.dumps`` is called with ``sort_keys=True`` — mapping order is
   lexicographic regardless of insertion order.
-* :class:`pathlib.Path` values are emitted as POSIX strings — Windows
-  authoring and Linux grid-node output must agree byte-for-byte.
-* :class:`enum.Enum` values (including :class:`~enum.IntEnum` and
-  :class:`~enum.StrEnum`) are emitted as their ``.value``.
-* :class:`datetime.datetime` / :class:`datetime.timedelta` are emitted as
-  ISO-8601 strings.
-* :class:`set` / :class:`frozenset` / :class:`tuple` are converted to
-  sorted JSON arrays. Sets sort lexicographically on their string
-  representation; tuples preserve order (they are the canonical
-  ordered-collection shape in core models).
-* ``None`` passes through unchanged.
+* :class:`pathlib.Path` → POSIX string (Windows authoring and Linux
+  grid-node output must agree byte-for-byte).
+* :class:`enum.Enum` → its ``.value``.
+* :class:`datetime` / :class:`timedelta` → ISO-8601 strings.
+* :class:`set` / :class:`frozenset` / :class:`tuple` → sorted JSON
+  arrays (sets sort on string representation; tuples preserve order).
+* ``None`` passes through.
 
 Non-JSON-serialisable values raise :class:`TypeError` immediately — the
-caller then knows the offending field is not fit to cross the serde
-boundary (typical cause: a live object accidentally dropped into
-``Diagnostic.context``; see bible §8.1 invariants).
+caller then knows the field is not fit to cross the serde boundary
+(typical cause: a live object accidentally dropped into
+``Diagnostic.context``).
 """
 
 from __future__ import annotations

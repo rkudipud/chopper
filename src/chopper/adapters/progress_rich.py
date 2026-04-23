@@ -1,14 +1,14 @@
-"""Rich-based :class:`~chopper.core.protocols.ProgressSink` adapter.
+"""Rich-based :class:`ProgressSink` adapter.
 
-Per ARCHITECTURE_PLAN.md §5: a single class, reconfigured for the
-``--plain`` flag. Styled mode uses a default :class:`rich.console.Console`;
-plain mode uses ``Console(no_color=True, force_terminal=False,
-legacy_windows=False)`` and disables the live progress bar so only
-ASCII single-line status is emitted.
+One class, reconfigured for the ``--plain`` flag. Styled mode uses a
+default :class:`rich.console.Console`; plain mode uses
+``Console(no_color=True, force_terminal=False, legacy_windows=False)``
+and disables the live progress bar so only ASCII single-line status is
+emitted.
 
 ``rich`` is an optional dependency; the module imports it lazily and
-raises :class:`RichUnavailableError` if not installed.  The CLI catches
-this and falls back to :class:`~chopper.adapters.progress_silent.SilentProgress`.
+raises :class:`RichUnavailableError` if not installed. The CLI catches
+this and falls back to :class:`SilentProgress`.
 """
 
 from __future__ import annotations

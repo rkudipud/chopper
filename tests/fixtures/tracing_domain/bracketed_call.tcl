@@ -1,6 +1,6 @@
 # bracketed_call.tcl — Tcl command substitution via `[...]`.
 #
-# Fixture target: call extraction (§5 of docs/TCL_PARSER_SPEC.md) must
+# Fixture target: call extraction (§5 of technical_docs/TCL_PARSER_SPEC.md) must
 # identify the first word of a bracketed sub-expression as a call
 # candidate — and only the first word. This is the canonical positive
 # case for `[cmd arg ...]` substitution.

@@ -1,20 +1,12 @@
-"""AuditService — Phase 7 (P7) of the Chopper pipeline.
+"""P7 audit writer — fills the ``.chopper/`` bundle.
 
-Writes the ``.chopper/`` bundle per bible §§5.5.1–5.5.11 and returns an
-:class:`~chopper.core.models.AuditManifest` describing what was written.
+Returns an :class:`AuditManifest` describing every artifact written.
+Runs unconditionally; writers tolerate ``None`` inputs from aborted
+earlier phases and still emit valid JSON.
 
-The service always runs, even when earlier phases aborted (bible
-§5.5.10); each writer tolerates ``None`` inputs on its
-:class:`~chopper.core.models.RunRecord` and produces an artifact that
-still parses as valid JSON.
-
-Determinism
------------
-Every JSON artifact is serialised through
-:func:`chopper.core.serialization.dump_model`, guaranteeing sorted keys,
-2-space indent, UTF-8, and a trailing newline (bible §5.5.11). The
-``sha256`` field on each :class:`AuditArtifact` hashes the exact bytes
-written, so downstream reviewers can diff without re-running Chopper.
+All JSON output goes through :func:`chopper.core.serialization.dump_model`
+(sorted keys, 2-space indent, UTF-8, trailing newline). Each artifact is
+hashed with SHA-256 for tamper-evident diffing.
 """
 
 from __future__ import annotations
@@ -42,7 +34,7 @@ __all__ = ["AuditService"]
 
 @dataclass(frozen=True)
 class AuditService:
-    """P7 audit writer (bible §§5.5, 5.5.10)."""
+    """P7 audit writer."""
 
     def run(self, ctx: ChopperContext, record: RunRecord) -> AuditManifest:
         """Write the audit bundle and return its inventory."""
@@ -62,7 +54,7 @@ class AuditService:
         renderings.append(render_trim_report_txt(ctx, record))
         renderings.append(render_trim_stats(ctx, record))
 
-        # Input preservation (bible §5.5.9): exact byte-for-byte copies.
+        # Preserve input files as exact byte-for-byte copies.
         input_copies = self._copy_inputs(ctx, record)
         renderings.extend(input_copies)
 
@@ -78,9 +70,9 @@ class AuditService:
                 ctx.fs.mkdir(target.parent, parents=True, exist_ok=True)
                 ctx.fs.write_text(target, content)
             except OSError:
-                # Bible §5.5.10: audit writes are best-effort. The runner's
-                # outer try/except discards any exception here so the
-                # primary failure is never masked.
+                # Audit writes are best-effort. The runner's outer
+                # try/except discards any exception here so the primary
+                # failure is never masked.
                 continue
             data = content.encode("utf-8")
             artifacts.append(
@@ -112,11 +104,11 @@ class AuditService:
         return audit_root / name
 
     def _copy_inputs(self, ctx: ChopperContext, record: RunRecord) -> list[tuple[str, str]]:
-        """Verbatim copies of base + feature JSONs (bible §5.5.9).
+        """Verbatim copies of base + feature JSONs.
 
         Content is read through :attr:`ctx.fs.read_text` and written back
         byte-for-byte as part of the second pass. If the read fails, the
-        input is silently skipped — audit is best-effort per §5.5.10.
+        input is silently skipped.
         """
 
         out: list[tuple[str, str]] = []
@@ -132,8 +124,8 @@ class AuditService:
             text = self._safe_read(ctx, feature.source_path)
             if text is None:
                 continue
-            # Bible §5.5.1: "feature JSONs are prefixed with a two-digit
-            # sequence number reflecting selected feature order".
+            # Prefix feature JSONs with a two-digit sequence number that
+            # reflects selected feature order.
             filename = f"{index:02d}_{feature.source_path.name}"
             out.append((f"input_features/{filename}", text))
 

@@ -61,9 +61,9 @@ __all__ = ["ConfigService"]
 class ConfigService:
     """P1 config-loading service.
 
-    Implements the service-catalog contract from ARCHITECTURE_PLAN.md §4:
+    Canonical signature::
 
-        ``ConfigService.run(ctx, state) → LoadedConfig``
+        ConfigService.run(ctx, state) → LoadedConfig
 
     ``state`` is accepted for API symmetry with the orchestrator runner
     (which always passes it) but is not currently read by this service —

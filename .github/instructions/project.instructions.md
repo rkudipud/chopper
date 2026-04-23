@@ -18,35 +18,35 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 
 | Forbidden concept | Exact identifiers that must not appear | Authoritative rejection |
 |---|---|---|
-| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §16 Q3 |
-| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §16 Q2 |
-| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`docs/CLI_HELP_TEXT_REFERENCE.md`](../../docs/CLI_HELP_TEXT_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
-| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §8.2 rule 4; `--strict` is exit-code policy only |
-| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
-| MCP integration | `mcp_server/`, `adapters/mcp_*.py`, `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.validate` MCP tool, any MCP client code | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
-| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
-| `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`docs/DIAGNOSTIC_CODES.md`](../../docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
-| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §7, §15 |
-| Networked services | HTTP server, IPC, message bus, daemon mode | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §2 |
-| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
+| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §16 Q3 |
+| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §16 Q2 |
+| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
+| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §8.2 rule 4; `--strict` is exit-code policy only |
+| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| MCP integration | `mcp_server/`, `adapters/mcp_*.py`, `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.validate` MCP tool, any MCP client code | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
+| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §15 |
+| Networked services | HTTP server, IPC, message bus, daemon mode | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §2 |
+| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
 
 If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
 
 ### 2. Single Authority: The Bible
 
-[`docs/chopper_description.md`](../../docs/chopper_description.md) is the **bible**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
+[`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) is the **bible**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
 
-- [`docs/ARCHITECTURE_PLAN.md`](../../docs/ARCHITECTURE_PLAN.md) — describes *how* the bible is built; cannot add behavior the bible does not mandate.
-- [`docs/DIAGNOSTIC_CODES.md`](../../docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the bible; cannot introduce a code for behavior not in the bible.
-- [`docs/CLI_HELP_TEXT_REFERENCE.md`](../../docs/CLI_HELP_TEXT_REFERENCE.md), [`docs/RISKS_AND_PITFALLS.md`](../../docs/RISKS_AND_PITFALLS.md), [`docs/TCL_PARSER_SPEC.md`](../../docs/TCL_PARSER_SPEC.md) — all subordinate.
-- [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../docs/FUTURE_PLANNED_DEVELOPMENTS.md) — records what was considered and *not* shipped; never a green light to build.
+- [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) — describes *how* the bible is built; cannot add behavior the bible does not mandate.
+- [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the bible; cannot introduce a code for behavior not in the bible.
+- [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md), [`technical_docs/RISKS_AND_PITFALLS.md`](../../technical_docs/RISKS_AND_PITFALLS.md), [`technical_docs/TCL_PARSER_SPEC.md`](../../technical_docs/TCL_PARSER_SPEC.md) — all subordinate.
+- [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — records what was considered and *not* shipped; never a green light to build.
 
 **When docs disagree, the bible wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
 
 **Adding a new capability** — any new flag, subcommand, diagnostic family, port, pipeline phase, generated artifact, or runtime behavior — requires, **in this order**:
 
 1. **User approval.** Not inferred, not assumed. Explicit.
-2. **Bible edit first.** The feature is specified in [`docs/chopper_description.md`](../../docs/chopper_description.md) before any subordinate doc or code moves.
+2. **Bible edit first.** The feature is specified in [`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) before any subordinate doc or code moves.
 3. **Cascade.** Subordinate docs update only after the bible is updated.
 4. **Then code.** Implementation follows the cascade, never precedes it.
 
@@ -56,7 +56,7 @@ No agent may invert this order. If you catch yourself writing code for a feature
 
 When you (or a reviewer, or a user comment) identify something Chopper "should maybe do", the correct action is **not** to implement it. It is not to stub it. It is not to reserve a seam for it. The correct action is:
 
-1. Open [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../docs/FUTURE_PLANNED_DEVELOPMENTS.md).
+1. Open [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md).
 2. Add a new `FD-xx` entry at the next unused number in the appropriate category section.
 3. State: what the idea is, why it was considered, why it is not in v1, and what would change in the bible if it were adopted.
 4. Do **not** implement it. Do **not** stub it. Do **not** reserve a diagnostic code, port, or namespace for it.
@@ -79,7 +79,7 @@ Every hit outside a negative assertion (a sentence like "there is no `LockPort`"
 ### 5. Decision Tree When Adding Anything
 
 ```text
-Is this in docs/chopper_description.md?
+Is this in technical_docs/chopper_description.md?
 ├── YES → Implement per the bible. Cascade to subordinate docs if needed.
 └── NO  → Is it in §1 "Closed Decisions" above?
          ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
@@ -195,7 +195,7 @@ class ProcEntry:
 
 ### 2. Diagnostic Codes (Authoritative Registry)
 
-All diagnostic codes **must** be registered in [docs/DIAGNOSTIC_CODES.md](../../docs/DIAGNOSTIC_CODES.md) before use. See the **Diagnostic Codes** section below for the full contract (single source of truth, reference style, adding new codes, naming).
+All diagnostic codes **must** be registered in [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) before use. See the **Diagnostic Codes** section below for the full contract (single source of truth, reference style, adding new codes, naming).
 
 ### 3. Path Handling
 
@@ -228,7 +228,7 @@ This ensures reproducible output across runs.
 
 ### 6. Explicit Include Wins
 
-The merge algorithm's core rule: Explicit include **always** overrides exclude. Later features override earlier ones. See [docs/chopper_description.md](../../docs/chopper_description.md) §4 (Rule R1) for the rationale.
+The merge algorithm's core rule: Explicit include **always** overrides exclude. Later features override earlier ones. See [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §4 (Rule R1) for the rationale.
 
 ### 7. Trace Is Reporting-Only (Never Copies)
 
@@ -238,25 +238,25 @@ P4 BFS trace expansion (PI → PI+) produces `dependency_graph.json`, `TW-*` dia
 - To keep `bar`, add it explicitly to `procedures.include`.
 - Cycles emit `TW-04` and terminate safely via the BFS visited-set.
 
-See [docs/chopper_description.md](../../docs/chopper_description.md) §5.4 for the authoritative contract and worked example.
+See [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.4 for the authoritative contract and worked example.
 
 ---
 
 ## Documentation (Read These First)
 
-All authoritative documentation lives under [docs/](../../docs/). Before implementing, consult these in order:
+All authoritative documentation lives under [technical_docs/](../../technical_docs/). Before implementing, consult these in order:
 
-1. **[docs/chopper_description.md](../../docs/chopper_description.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
-2. **[docs/TCL_PARSER_SPEC.md](../../docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
-3. **[docs/RISKS_AND_PITFALLS.md](../../docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
-4. **[docs/DIAGNOSTIC_CODES.md](../../docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
-5. **[docs/CLI_HELP_TEXT_REFERENCE.md](../../docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples.
+1. **[technical_docs/chopper_description.md](../../technical_docs/chopper_description.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
+2. **[technical_docs/TCL_PARSER_SPEC.md](../../technical_docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
+3. **[technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
+4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
+5. **[technical_docs/CLI_HELP_TEXT_REFERENCE.md](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples.
 
 Other key docs:
 
-- [docs/chopper_description.md](../../docs/chopper_description.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
-- [docs/FUTURE_PLANNED_DEVELOPMENTS.md](../../docs/FUTURE_PLANNED_DEVELOPMENTS.md) — Roadmap items explicitly out of v1 scope.
-- [docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
+- [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
+- [technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — Roadmap items explicitly out of v1 scope.
+- [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
 - [json_kit/docs/JSON_AUTHORING_GUIDE.md](../../json_kit/docs/JSON_AUTHORING_GUIDE.md) and [json_kit/schemas/](../../json_kit/schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
 
 ---
@@ -272,7 +272,7 @@ Other key docs:
 
 ## Code Style
 
-The authoritative Python coding standards live in [docs/chopper_description.md](../../docs/chopper_description.md) §5.12. Summary:
+The authoritative Python coding standards live in [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.12. Summary:
 
 - Ruff for lint + format; line length 120; 4-space indent; `snake_case` / `CamelCase` / `UPPER_CASE`.
 - Full type hints on every public function; `@dataclass(frozen=True)` for records; `typing.Protocol` for ports.
@@ -289,7 +289,7 @@ When this summary and the bible disagree, the bible (§5.12) wins — update the
 
 ### Parser — `src/chopper/parser/`
 
-High-risk area. See [docs/TCL_PARSER_SPEC.md](../../docs/TCL_PARSER_SPEC.md) and pitfalls P-01, P-02, P-03.
+High-risk area. See [technical_docs/TCL_PARSER_SPEC.md](../../technical_docs/TCL_PARSER_SPEC.md) and pitfalls P-01, P-02, P-03.
 
 - **P-01:** Quote context inside braced Tcl bodies → Only track quotes in non-braced words
 - **P-02:** Backslash line continuation → Count lines separately, don't physically join
@@ -304,7 +304,7 @@ Merge algorithm + breadth-first dependency tracing.
 
 - Key constraint: Explicit include always wins
 - Key constraint: Traces must be deterministically sorted
-- See [docs/chopper_description.md](../../docs/chopper_description.md) §4 (R1) for merge semantics
+- See [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §4 (R1) for merge semantics
 - Test fixtures: `tests/fixtures/tracing_domain/` (cyclic procs, transitive closures)
 
 ### Trimmer — `src/chopper/trimmer/`
@@ -399,18 +399,18 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 
 **New Implementation Task:**
 
-1. Read specification from [docs/chopper_description.md](../../docs/chopper_description.md) for your phase and R1 merge rules
-2. Check [docs/RISKS_AND_PITFALLS.md](../../docs/RISKS_AND_PITFALLS.md) for your module's risks and pitfalls
+1. Read specification from [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for your phase and R1 merge rules
+2. Check [technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md) for your module's risks and pitfalls
 3. Write tests first in `tests/unit/<module>/` or `tests/integration/`
 4. Reference shared models from `src/chopper/core/models.py` only
-5. Register diagnostics in [docs/DIAGNOSTIC_CODES.md](../../docs/DIAGNOSTIC_CODES.md) before use
+5. Register diagnostics in [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) before use
 6. Run `make check` before commit
 
 **When Stuck:**
 
-- Check [docs/RISKS_AND_PITFALLS.md](../../docs/RISKS_AND_PITFALLS.md) for your module
+- Check [technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md) for your module
 - Review test fixtures in `tests/fixtures/` — they exemplify expected behavior
-- Consult [docs/chopper_description.md](../../docs/chopper_description.md) for the phase contract and R1 rules
+- Consult [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for the phase contract and R1 rules
 - Search test files for similar patterns
 
 ---
@@ -419,20 +419,20 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 
 ### Single Source of Truth
 
-`docs/DIAGNOSTIC_CODES.md` is the **only** file that houses diagnostic codes. It is the single source of truth for every code in the `VE`, `VW`, `VI`, `TW`, `PE`, `PW`, and `PI` families.
+`technical_docs/DIAGNOSTIC_CODES.md` is the **only** file that houses diagnostic codes. It is the single source of truth for every code in the `VE`, `VW`, `VI`, `TW`, `PE`, `PW`, and `PI` families.
 
 - All other documentation and implementation code **must reference codes by their identifier** (e.g., `VE-06`), never by their prose description.
 - If a description changes, the identifier stays stable — all cross-references remain accurate automatically.
 - No other file may define, duplicate, or restate code metadata such as severity, phase, source, exit behavior, slug, description, or recovery hint.
-- Diagnostic code tables outside `docs/DIAGNOSTIC_CODES.md` are not allowed.
+- Diagnostic code tables outside `technical_docs/DIAGNOSTIC_CODES.md` are not allowed.
 
 ### Reference Style (Required Outside the Registry)
 
-When any file outside `docs/DIAGNOSTIC_CODES.md` mentions diagnostics:
+When any file outside `technical_docs/DIAGNOSTIC_CODES.md` mentions diagnostics:
 
 - Use the exact code token only (for example: `PE-01`, `PW-11`, `TW-02`).
-- Link or refer to the registry using a workspace-relative path: `docs/DIAGNOSTIC_CODES.md`.
-- Use section-level references when needed (for example: "see `docs/DIAGNOSTIC_CODES.md`, Parse Warnings").
+- Link or refer to the registry using a workspace-relative path: `technical_docs/DIAGNOSTIC_CODES.md`.
+- Use section-level references when needed (for example: "see `technical_docs/DIAGNOSTIC_CODES.md`, Parse Warnings").
 - Keep wording behavioral and local (for example: "emit `PW-11` in this branch"), not definitional.
 
 Forbidden outside the registry:
@@ -443,7 +443,7 @@ Forbidden outside the registry:
 
 ### Adding a New Code
 
-1. **Pick the lowest available reserved slot** in the correct `<FAMILY><SEV>` band from the Code Space Summary table in `docs/DIAGNOSTIC_CODES.md`.
+1. **Pick the lowest available reserved slot** in the correct `<FAMILY><SEV>` band from the Code Space Summary table in `technical_docs/DIAGNOSTIC_CODES.md`.
 2. **Fill in the row** following the exact column structure of the existing table — code, phase, source, exit, description, recovery hint.
 3. **Update the Active / Reserved counts** in the Code Space Summary table.
 4. **Implement the constant** in `src/chopper/core/diagnostics.py` before any code references it.
@@ -460,7 +460,7 @@ Codes follow `<FAMILY><SEV>-<NN>`: family (`V`, `T`, `P`) + severity (`E`, `W`, 
 When adding a new diagnostic:
 
 1. Assign code from the correct `<FAMILY><SEV>` band using the lowest available reserved slot (never renumber existing rows).
-2. Register in [docs/DIAGNOSTIC_CODES.md](../../docs/DIAGNOSTIC_CODES.md) with slug, phase, source, exit code, description, and recovery hint.
+2. Register in [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) with slug, phase, source, exit code, description, and recovery hint.
 3. Create `Diagnostic` instance using `src/chopper/core/diagnostics.py`.
 4. Add test in appropriate test file (unit, integration, or golden).
 5. Run `make ci` to ensure coverage and linting pass.

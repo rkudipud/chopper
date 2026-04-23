@@ -1,28 +1,28 @@
 """Diagnostic data shape and registry façade.
 
-Per bible §8.1, every user-visible outcome is a :class:`Diagnostic`. This
-module exposes the public data type, the :class:`Phase` and
-:class:`Severity` enums, and the :class:`DiagnosticSummary` returned by
+Every user-visible outcome is a :class:`Diagnostic`. This module
+exposes the public data type, the :class:`Phase` and :class:`Severity`
+enums, and the :class:`DiagnosticSummary` returned by
 :meth:`DiagnosticSink.finalize`.
 
 The registry lives in :mod:`chopper.core._diagnostic_registry`; importing
 this module pulls the registered codes into scope. Construction of a
 :class:`Diagnostic` validates the code against the registry — unknown
 codes raise :class:`UnknownDiagnosticCodeError` immediately, so typos
-never reach the sink (bible §8.1 invariants).
+never reach the sink.
 
-Key invariants upheld here:
+Key invariants:
 
 * ``slug`` / ``severity`` / ``source`` are **derived** from the registry.
   Callers may not override them; attempting to pass a mismatching value
   raises. This prevents callers from silently drifting the human-facing
   label or severity away from the registry.
 * ``phase`` is supplied by the caller at emission time. The phase field
-  on :class:`Diagnostic` reflects *where* the code was emitted, which the
-  orchestrator uses for gate decisions (see ARCHITECTURE_PLAN.md §6.2).
+  on :class:`Diagnostic` reflects *where* the code was emitted, which
+  the orchestrator uses for gate decisions.
 * :class:`Diagnostic` is immutable and hashable (frozen dataclass).
-* ``context`` values must be JSON-serializable (bible §8.1); enforcement
-  is left to :mod:`chopper.core.serialization` at dump time.
+* ``context`` values must be JSON-serializable; enforcement is left to
+  :mod:`chopper.core.serialization` at dump time.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ __all__ = [
 
 
 class Phase(IntEnum):
-    """The eight pipeline phases, per bible §8.1.
+    """The eight pipeline phases.
 
     ``IntEnum`` so gate comparisons (``diag.phase == Phase.P3_COMPILE``)
     work directly against the integer values the registry carries in its
@@ -107,7 +107,7 @@ class Diagnostic:
                 f"Diagnostic {self.code!r}: source {self.source!r} does not match registry source {entry.source!r}"
             )
         if "\n" in self.message:
-            # Bible §8.1: "message: one-line, no newlines".
+            # Messages must be single-line.
             raise ValueError(f"Diagnostic {self.code!r}: message must be single-line")
 
     @classmethod
@@ -155,10 +155,9 @@ class Diagnostic:
     def dedupe_key(self) -> tuple[str, Path | None, int | None, str, str]:
         """Key used by :class:`CollectingSink` to deduplicate emissions.
 
-        Per bible §8.1: ``(code, path, line_no, message, dedupe_bucket)``.
+        Shape: ``(code, path, line_no, message, dedupe_bucket)``.
         ``hint`` and ``context`` are intentionally excluded so a later
-        emit with richer context replaces the earlier one (last-write-wins
-        semantics within a bucket).
+        emit with richer context replaces the earlier one.
         """
         return (self.code, self.path, self.line_no, self.message, self.dedupe_bucket)
 
@@ -167,11 +166,10 @@ class Diagnostic:
 class DiagnosticSummary:
     """Aggregated counts returned by :meth:`DiagnosticSink.finalize`.
 
-    Per bible §8.1 and ARCHITECTURE_PLAN.md §8.3, the CLI uses the summary
-    to compute the process exit code (rule 4 in §8.2): exit 1 if any
-    ``ERROR``; exit 1 if ``--strict`` and any ``WARNING``; exit 0 otherwise.
-    ``AuditService`` uses the same summary to populate
-    ``diagnostic_counts`` in ``chopper_run.json`` (bible §5.5.1).
+    The CLI uses the summary to compute the process exit code: exit 1
+    if any ``ERROR``; exit 1 if ``--strict`` and any ``WARNING``;
+    exit 0 otherwise. ``AuditService`` uses the same summary to
+    populate ``diagnostic_counts`` in ``chopper_run.json``.
     """
 
     errors: int

@@ -1,20 +1,13 @@
-"""Per-artifact writers for the P7 audit bundle.
+"""Per-artifact renderers for the P7 audit bundle.
 
-Each public function in this module returns ``(name, content)`` for one
-artifact defined in bible §§5.5.1–5.5.8. Writers are pure functions —
-they never touch the filesystem. :class:`chopper.audit.service.AuditService`
-is responsible for writing the returned content via :attr:`ctx.fs`.
+Each public ``render_*`` function returns ``(name, content)`` for one
+artifact. Writers are pure — they never touch the filesystem;
+:class:`AuditService` is responsible for writing the returned bytes.
 
-Schema fidelity
----------------
-Every JSON artifact is serialised through :func:`chopper.core.serialization.dump_model`,
-which enforces the determinism contract of bible §5.5.11 (sorted keys,
-2-space indent, UTF-8, trailing newline).
-
-Fields the runner may not have populated yet (for example when the
-pipeline aborted at P1) surface as ``null`` / empty arrays in the
-artifact rather than causing the writer to raise. This matches bible
-§5.5.10: audit always runs, even on failure.
+All JSON artifacts are serialised through
+:func:`chopper.core.serialization.dump_model` for deterministic output.
+Missing runner fields surface as ``null`` / empty arrays rather than
+raising so audit always succeeds even on pipeline failure.
 """
 
 from __future__ import annotations
@@ -56,13 +49,13 @@ CHOPPER_VERSION = "0.1.0"
 
 
 def render_run_id(record: RunRecord) -> tuple[str, str]:
-    """Plain-text run_id file — bible §5.5.1."""
+    """Plain-text run_id file."""
 
     return "run_id", record.run_id + "\n"
 
 
 # ---------------------------------------------------------------------------
-# chopper_run.json — bible §5.5.2
+# chopper_run.json
 # ---------------------------------------------------------------------------
 
 
@@ -85,7 +78,7 @@ def render_chopper_run(
 
     trim_state = "first-trim"
     if record.state is not None:
-        # Bible §2.8 Case 2/3 means the backup already existed — re-trim.
+        # Backup present means this run is a re-trim.
         trim_state = "re-trim" if record.state.backup_exists else "first-trim"
 
     duration = (record.ended_at - record.started_at).total_seconds()
@@ -119,7 +112,7 @@ def render_chopper_run(
 
 
 # ---------------------------------------------------------------------------
-# compiled_manifest.json — bible §5.5.3
+# compiled_manifest.json
 # ---------------------------------------------------------------------------
 
 
@@ -216,7 +209,7 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# dependency_graph.json — bible §5.5.4
+# dependency_graph.json
 # ---------------------------------------------------------------------------
 
 
@@ -258,7 +251,7 @@ def render_dependency_graph(record: RunRecord) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# diagnostics.json — bible §5.5.7
+# diagnostics.json
 # ---------------------------------------------------------------------------
 
 
@@ -291,7 +284,7 @@ def render_diagnostics(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
 
 
 # ---------------------------------------------------------------------------
-# trim_report.json / trim_report.txt — bible §§5.5.5, 5.5.6
+# trim_report.json / trim_report.txt
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +350,7 @@ def render_trim_report_txt(ctx: ChopperContext, record: RunRecord) -> tuple[str,
 
 
 # ---------------------------------------------------------------------------
-# trim_stats.json — bible §5.5.8
+# trim_stats.json
 # ---------------------------------------------------------------------------
 
 
@@ -556,12 +549,12 @@ def _proc_entry(d: ProcDecision) -> dict[str, object]:
 def _compute_line_counts(ctx: ChopperContext, record: RunRecord) -> tuple[int, int, int, int]:
     """Return ``(sloc_before, sloc_after, raw_before, raw_after)``.
 
-    Bible §5.5.13. "Before" reads from whichever tree held the pre-trim
-    domain: the backup root (re-trim) or the domain root (first-trim,
-    read before P5 rebuilds). "After" reads from the rebuilt domain
-    root. Under dry-run the domain is unchanged, so before==after.
-    Files that cannot be read contribute zero; we do not emit a
-    diagnostic because the audit writer is the last line of defence.
+    "Before" reads from whichever tree held the pre-trim domain: the
+    backup root (re-trim) or the domain root (first-trim, read before
+    P5 rebuilds). "After" reads from the rebuilt domain root. Under
+    dry-run the domain is unchanged, so before==after. Files that
+    cannot be read contribute zero; we do not emit a diagnostic because
+    the audit writer is the last line of defence.
     """
 
     parsed = record.parsed

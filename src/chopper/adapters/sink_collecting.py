@@ -1,9 +1,8 @@
-"""Production :class:`~chopper.core.protocols.DiagnosticSink` adapter.
+"""Production :class:`DiagnosticSink` adapter.
 
-Per ARCHITECTURE_PLAN.md §8: the sink collects :class:`Diagnostic`
-emissions in insertion order and deduplicates on
-:attr:`Diagnostic.dedupe_key` with last-write-wins semantics within a
-bucket. Single-threaded; no locking.
+Collects :class:`Diagnostic` emissions in insertion order and
+deduplicates on :attr:`Diagnostic.dedupe_key` (last-write-wins within
+a bucket). Single-threaded; no locking.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ class CollectingSink:
 
     ``emit`` appends; if an earlier emission shares the same
     :attr:`Diagnostic.dedupe_key`, the later one replaces it in place
-    (bible §8.2 rule 2). ``snapshot`` returns the preserved insertion
+    (last-write-wins). ``snapshot`` returns the preserved insertion
     order.
     """
 

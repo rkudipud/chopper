@@ -1,6 +1,6 @@
 # Chopper v2 — Modular Service Architecture Plan
 
-**Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`docs/chopper_description.md`](chopper_description.md) ("the bible"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the bible, the bible wins and this plan is edited in place.
+**Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`technical_docs/chopper_description.md`](chopper_description.md) ("the bible"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the bible, the bible wins and this plan is edited in place.
 
 **What this plan is for.** Chopper is a **local, single-process Python CLI** — not a web app, not a cloud service, not a daemon, not a plugin host. It runs on a VLSI engineer's workstation (or a grid node), reads ≤1 GB of Tcl / JSON from disk, writes a trimmed domain back to disk, and exits. The plan below describes how to decompose this CLI into **independently developable services** (in-process, ports-and-adapters) so individual features can be added, rewritten, or replaced in isolation. Chopper is **not** extensible through plugins, AI advisors, or MCP adapters — those are not on the roadmap, not deferred, not planned. See §16 for the scope-lock rationale.
 
@@ -287,7 +287,7 @@ class ChopperContext:
     # core.serialization.dump_model(), and ctx.fs directly. See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A3–A5.
 ```
 
-**Flag-to-adapter mapping (CLI responsibility; see [`docs/CLI_HELP_TEXT_REFERENCE.md`](CLI_HELP_TEXT_REFERENCE.md) for flag definitions).**
+**Flag-to-adapter mapping (CLI responsibility; see [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](CLI_HELP_TEXT_REFERENCE.md) for flag definitions).**
 
 | `PresentationConfig` field | Source flag | Effect |
 |---|---|---|
@@ -369,7 +369,7 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 | P6 `validate_post` | `VE-*` + `VW-*` | **Yes** (error only) | Final correctness gate before a successful exit. |
 | P7 `AuditService` | `VI-*` | No | Always runs in `finally`; never gates. |
 
-**Rollback model.** There is no staging tree and no atomic promotion. If P5 fails, `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` is untouched. On the next invocation, `DomainStateService` observes both directories and classifies the state as Case 2 (re-trim); `TrimmerService` treats `<domain>_backup/` as the source of truth and rebuilds `<domain>/` from scratch. Operators who want a pristine restart may run `rm -rf <domain> && mv <domain>_backup <domain>` manually. The registered codes covering the P5 gate are `VE-23`, `VE-24`, `VE-25`, `VE-26` in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
+**Rollback model.** There is no staging tree and no atomic promotion. If P5 fails, `<domain>/` is left in whatever half-rebuilt state the failure produced, and `<domain>_backup/` is untouched. On the next invocation, `DomainStateService` observes both directories and classifies the state as Case 2 (re-trim); `TrimmerService` treats `<domain>_backup/` as the source of truth and rebuilds `<domain>/` from scratch. Operators who want a pristine restart may run `rm -rf <domain> && mv <domain>_backup <domain>` manually. The registered codes covering the P5 gate are `VE-23`, `VE-24`, `VE-25`, `VE-26` in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
 
 ---
 
@@ -387,7 +387,7 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 - No "post-v1" or "stage 6" roadmap row carries plugin or MCP content (§15).
 - Any PR that adds any of the above is rejected at review without further discussion.
 
-If a future release genuinely needs a plugin mechanism, it starts a fresh design doc and updates [`docs/chopper_description.md`](chopper_description.md) first. It does not resurrect stubs from this plan.
+If a future release genuinely needs a plugin mechanism, it starts a fresh design doc and updates [`technical_docs/chopper_description.md`](chopper_description.md) first. It does not resurrect stubs from this plan.
 
 ---
 
@@ -423,7 +423,7 @@ class Diagnostic:
 
 **Invariants:**
 
-- `code` MUST match a registered code in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md). Construction validates this against a compile-time registry; unknown codes raise immediately. Tests fail fast on typos.
+- `code` MUST match a registered code in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md). Construction validates this against a compile-time registry; unknown codes raise immediately. Tests fail fast on typos.
 - `Diagnostic` is immutable and hashable (default frozen-dataclass `__eq__` compares all fields).
 - **Dedupe key is a subset of equality.** The sink deduplicates on `(code, path, line_no, message, dedupe_bucket)` — *not* on full-field equality. Within a bucket, **last write wins**: a later `emit()` with the same key replaces the prior entry. Different buckets for the same `(code, path, line_no, message)` produce distinct entries; callers that need multi-context emission set distinct bucket values. Default bucket `""` preserves the original collapse-on-duplicate semantics. `hint` and `context` do not affect the dedupe key.
 - `context` values must be JSON-serializable. No live objects.
@@ -469,7 +469,7 @@ The CLI is the **only** layer that formats for humans. Libraries stay silent.
 
 ### 8.5 Retired code slots
 
-**There are no retired codes in v1.** Chopper is still in its ideation phase; the registry in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is compact with no historical gaps. If a code is ever removed post-release, its slot will be marked `RETIRED` there and never reused. There is no `X*` plugin family — see §7 and §16 Q1.
+**There are no retired codes in v1.** Chopper is still in its ideation phase; the registry in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is compact with no historical gaps. If a code is ever removed post-release, its slot will be marked `RETIRED` there and never reused. There is no `X*` plugin family — see §7 and §16 Q1.
 
 ---
 
@@ -619,7 +619,7 @@ class AuditManifest:
 |---|---|
 | `DomainStateService.run` | `(ctx: ChopperContext) -> DomainState` |
 | `ConfigService.run` | `(ctx: ChopperContext, state: DomainState) -> LoadedConfig` |
-| `ParserService.run` | `(ctx: ChopperContext, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. **I/O-boundary contract:** paths flow through the pipeline in domain-relative form (models, diagnostics, audit artifacts), but `ctx.fs.read_text(...)` calls are made against `ctx.config.domain_root / path` — i.e. the parser absolutises only at the filesystem boundary. This keeps `LocalFS` (real disk) and `InMemoryFS` interchangeable without either adapter having to know what `domain_root` is. |
+| `ParserService.run` | `(ctx: ChopperContext, files: Sequence[Path]) -> ParseResult` — wraps the pure `parse_file()` utility described in [`technical_docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. **I/O-boundary contract:** paths flow through the pipeline in domain-relative form (models, diagnostics, audit artifacts), but `ctx.fs.read_text(...)` calls are made against `ctx.config.domain_root / path` — i.e. the parser absolutises only at the filesystem boundary. This keeps `LocalFS` (real disk) and `InMemoryFS` interchangeable without either adapter having to know what `domain_root` is. |
 | `CompilerService.run` | `(ctx: ChopperContext, loaded: LoadedConfig, parsed: ParseResult) -> CompiledManifest` |
 | `TracerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, state: DomainState) -> TrimReport` |
@@ -654,7 +654,7 @@ To make every feature "individually and isolatedly developable/enhanceable" (you
 1. **One service = one module = one stage gate.** You rewrite `TracerService` end-to-end; tests live at `tests/unit/compiler/test_trace.py` with stub adapters.
 2. **Public surface of a service is its `run(...)` signature and its result dataclass.** Change that → documented breaking change + registry bump.
 3. **Cross-service data flows only through frozen dataclasses.** Two services never share a mutable object.
-4. **Diagnostic codes are the API contract for user-visible behavior.** Adding a code requires a registry edit in [`docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before use.
+4. **Diagnostic codes are the API contract for user-visible behavior.** Adding a code requires a registry edit in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before use.
 5. **Stage discipline is hard.** Stage N may not import from Stage N+1. Enforced by `import-linter` contracts in CI.
 6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `CollectingSink`, `SilentProgress` — they never touch the real filesystem. Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`; there is no ClockPort.
 7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (§6.2) — no plugin registry, no dynamic phase insertion. Adding a new phase means editing `runner.py`. That is deliberate: v1 has seven phases, period.
@@ -702,7 +702,7 @@ def make_test_context(
 - **Diagnostic order is emission order.** Because v1 is single-threaded and phase order is fixed (§6.2), emission order is reproducible without any sort. `CollectingSink` preserves it verbatim (§8.3).
 - **Concurrency.** **Chopper is single-threaded. Period.** No thread pools, no `asyncio`, no `multiprocessing`, no background workers, no locks of any kind — not in the sink, not around `.chopper/`, not around the domain tree. Chopper is a single-user push-button tool: one operator runs it against one on-disk domain, it finishes, and it exits. If two operators race the same checkout, the second invocation will observe a half-written `DomainStateService` state and abort through normal diagnostics — that is the intended failure mode, not a bug to guard against with locking. This is a closed design decision, not a deferral.
 - **Memory envelope.** ≤1 GB domain → whole-file reads acceptable (bible §11 NFR-06). No streaming.
-- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable in v1. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09).
+- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable in v1. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09).
 
 ---
 
@@ -755,7 +755,7 @@ def make_test_context(
 
 ## 13. Multi-Expert Review Panel
 
-**Removed.** The Day-0 devil's-advocate review is now [`docs/DAY0_REVIEW.md`](DAY0_REVIEW.md), and its action items have been absorbed into this plan (via the A1–A9 cuts), the bible, the diagnostic registry, and [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). The multi-reviewer panel served its purpose at planning time; perpetuating it here would only drift out of sync with the single-sweep review record.
+**Removed.** The Day-0 devil's-advocate review is now [`technical_docs/DAY0_REVIEW.md`](DAY0_REVIEW.md), and its action items have been absorbed into this plan (via the A1–A9 cuts), the bible, the diagnostic registry, and [`technical_docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). The multi-reviewer panel served its purpose at planning time; perpetuating it here would only drift out of sync with the single-sweep review record.
 
 ---
 
@@ -767,7 +767,7 @@ def make_test_context(
 
 ## 15. Adoption Roadmap (Stage-Aligned)
 
-**Superseded.** The stage-by-stage implementation roadmap — DoD, test gates, demo checkpoints, exit criteria — now lives in [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). That document is the single source of truth for engineering handoff sequencing; this section no longer duplicates it.
+**Superseded.** The stage-by-stage implementation roadmap — DoD, test gates, demo checkpoints, exit criteria — now lives in [`technical_docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). That document is the single source of truth for engineering handoff sequencing; this section no longer duplicates it.
 
 **There is no Stage 6 and none is planned.** Plugin host, MCP, AI advisor: permanently out of scope (§7, §16 Q1).
 
@@ -781,7 +781,7 @@ Questions raised during planning. All are resolved for v1.
 
 **Chopper has no plugin system, no MCP driver, no AI advisor, and no reserved extension seams.** There is no `PluginHost`, no `X*` diagnostic family, no `plugins/`, `mcp_server/`, or `advisor/` module, and no "stage 6" on the roadmap for any of these. Previous drafts reserved these concepts "for future use"; that reservation is now withdrawn.
 
-**Rationale.** Reserving extension points that nobody is committed to building invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The cost of *not* reserving is near zero — if a future release ever genuinely needs a plugin mechanism, it will start with a fresh design doc (updating [`docs/chopper_description.md`](chopper_description.md) first) rather than resurrecting stubs from this plan. PRs that add plugin / MCP / advisor scaffolding are rejected at review.
+**Rationale.** Reserving extension points that nobody is committed to building invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The cost of *not* reserving is near zero — if a future release ever genuinely needs a plugin mechanism, it will start with a fresh design doc (updating [`technical_docs/chopper_description.md`](chopper_description.md) first) rather than resurrecting stubs from this plan. PRs that add plugin / MCP / advisor scaffolding are rejected at review.
 
 ### Q2 — Hand-edit preservation (CLOSED — not supported)
 
@@ -803,8 +803,8 @@ Policy: read each file as UTF-8. On `UnicodeDecodeError`, retry as Latin-1 and e
 
 ### Deferred (explicitly not v1)
 
-- Runtime optimization and per-phase budgets — deferred to [`docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09.
+- Runtime optimization and per-phase budgets — deferred to [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09.
 
 ---
 
-*This plan is additive to, and subordinate to, [`docs/chopper_description.md`](chopper_description.md). When this plan and the bible disagree, the bible wins and this plan is updated in place (no addendums — per [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Documentation Conventions).*
+*This plan is additive to, and subordinate to, [`technical_docs/chopper_description.md`](chopper_description.md). When this plan and the bible disagree, the bible wins and this plan is updated in place (no addendums — per [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Documentation Conventions).*

@@ -2,7 +2,7 @@
 
 **Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-37) that prevent those risks from being realized.
 **Audience:** Engineering team
-**Replaces:** prior `TECHNICAL_CHALLENGES.md` and the former `docs/IMPLEMENTATION_PITFALLS_GUIDE.md`.
+**Replaces:** prior `TECHNICAL_CHALLENGES.md` and the former `technical_docs/IMPLEMENTATION_PITFALLS_GUIDE.md`.
 
 ---
 
@@ -117,7 +117,7 @@ Chopper CANNOT statically determine the proc name. It must log a WARNING and ski
 
 **Implementation Requirement:**
 - Check if proc name contains `$`, `[`, or other substitution markers
-- If yes: log WARNING with code `PW-01` (see `docs/DIAGNOSTIC_CODES.md`)
+- If yes: log WARNING with code `PW-01` (see `technical_docs/DIAGNOSTIC_CODES.md`)
 - Skip proc definition (do not add to index)
 
 **Why It Matters:** Attempting to index dynamic names causes non-deterministic output.
@@ -139,7 +139,7 @@ proc read_data {} { return "v2" }
 **Implementation Requirement:**
 - Detect duplicate `short_name` within the same source file
 - Use LAST definition's span for the proc index entry (matches Tcl)
-- Emit ERROR diagnostic (not warning) with code `PE-01` (see `docs/DIAGNOSTIC_CODES.md`)
+- Emit ERROR diagnostic (not warning) with code `PE-01` (see `technical_docs/DIAGNOSTIC_CODES.md`)
 - Mark file as having errors; parser should still complete but report failure
 
 **Why It Matters:** Duplicates indicate authoring mistakes. Silently accepting them hides bugs.
@@ -939,7 +939,7 @@ config = RunConfig(
 # Result: audit artifacts have no record that --project was used
 ```
 
-**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields on `RunConfig` (the engine-behavior record inside `ChopperContext`, per [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1):
+**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields on `RunConfig` (the engine-behavior record inside `ChopperContext`, per [`technical_docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.1):
 - `project_json` — path to the project JSON file
 - `project_name` — from `project` field
 - `project_owner` — from `owner` field

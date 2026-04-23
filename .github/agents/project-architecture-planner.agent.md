@@ -257,11 +257,11 @@ graph TD
 ```
 ````
 
-Save each diagram also as a standalone `.mmd` file under `docs/diagrams/` for reuse.
+Save each diagram also as a standalone `.mmd` file under `technical_docs/diagrams/` for reuse.
 
 ### 2. HTML Preview Page
 
-Generate a self-contained HTML file at `docs/{app}-architecture-diagrams.html` that renders all Mermaid diagrams interactively in the browser. Use this template structure:
+Generate a self-contained HTML file at `technical_docs/{app}-architecture-diagrams.html` that renders all Mermaid diagrams interactively in the browser. Use this template structure:
 
 ```html
 <!DOCTYPE html>
@@ -380,7 +380,7 @@ Generate a self-contained HTML file at `docs/{app}-architecture-diagrams.html` t
 
 ### 3. Draw.io / diagrams.net Export
 
-Generate a `.drawio` XML file at `docs/{app}-architecture.drawio` containing the key architecture diagrams (system context, component, deployment). Use this XML structure:
+Generate a `.drawio` XML file at `technical_docs/{app}-architecture.drawio` containing the key architecture diagrams (system context, component, deployment). Use this XML structure:
 
 ```xml
 <mxfile host="app.diagrams.net" type="device">
@@ -418,10 +418,10 @@ Generate a `.drawio` XML file at `docs/{app}-architecture.drawio` containing the
 
 ## Output Structure
 
-Save all outputs under a `docs/` directory:
+Save all outputs under a `technical_docs/` directory:
 
 ```
-docs/
+technical_docs/
 ├── {app}-architecture-plan.md          # Full architecture document
 ├── {app}-architecture-diagrams.html    # Interactive HTML diagram viewer
 ├── {app}-architecture.drawio           # Draw.io editable diagrams

@@ -24,7 +24,7 @@ This document provides activation prompts for the Chopper v2 buildout agents.
 Begin Chopper v2 Stage 0 implementation.
 
 1. Query Memory Palace for current state
-2. Read docs/chopper_description.md §5.12 and §8.1
+2. Read technical_docs/chopper_description.md §5.12 and §8.1
 3. Create todo list for Stage 0 (core/ module)
 4. Implement frozen dataclasses per ARCHITECTURE_PLAN.md §9.1
 5. Run `make check` after each file
@@ -56,7 +56,7 @@ Resume Chopper v2 buildout.
 
 Implement Stage [N]: [module name]
 
-Bible reference: docs/chopper_description.md §[X.X]
+Bible reference: technical_docs/chopper_description.md §[X.X]
 
 Pre-implementation:
 1. Read bible section and quote requirements
@@ -153,13 +153,13 @@ git diff tests/golden/  # Must show NO changes
 
 | Document | Purpose | Check For |
 |----------|---------|-----------|
-| `docs/chopper_description.md` | **THE BIBLE** | Requirements, FR-xx, §x.x |
-| `docs/ARCHITECTURE_PLAN.md` | How to build | Module structure, §9.x models |
-| `docs/TCL_PARSER_SPEC.md` | Parser rules | State machine, §3.0 |
-| `docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
-| `docs/RISKS_AND_PITFALLS.md` | Gotchas | P-xx pitfalls, TC-xx risks |
-| `docs/IMPLEMENTATION_ROADMAP.md` | Build order | M1-M6 milestones |
-| `docs/FINAL_HANDOFF_REVIEW.md` | Sign-off status | Critical findings, fixes |
+| `technical_docs/chopper_description.md` | **THE BIBLE** | Requirements, FR-xx, §x.x |
+| `technical_docs/ARCHITECTURE_PLAN.md` | How to build | Module structure, §9.x models |
+| `technical_docs/TCL_PARSER_SPEC.md` | Parser rules | State machine, §3.0 |
+| `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
+| `technical_docs/RISKS_AND_PITFALLS.md` | Gotchas | P-xx pitfalls, TC-xx risks |
+| `technical_docs/IMPLEMENTATION_ROADMAP.md` | Build order | M1-M6 milestones |
+| `technical_docs/FINAL_HANDOFF_REVIEW.md` | Sign-off status | Critical findings, fixes |
 
 ---
 

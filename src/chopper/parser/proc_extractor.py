@@ -1,34 +1,30 @@
-"""Proc extractor for the Tcl parser (TCL_PARSER_SPEC §4.3–§4.7, §6).
+"""Proc extractor — recognises ``proc`` definitions in the token stream.
 
-This module walks the token stream produced by
-:func:`chopper.parser.tokenizer.tokenize`, drives a
-:class:`chopper.parser.namespace_tracker.NamespaceTracker`, and emits one
-:class:`chopper.core.models.ProcEntry` per recognised proc definition.
+Walks the output of :func:`chopper.parser.tokenizer.tokenize`, drives a
+:class:`NamespaceTracker`, and emits one :class:`ProcEntry` per
+recognised proc.
 
-Scope (Stage 1d). This module handles:
+Handled:
 
 * ``proc NAME ARGS BODY`` recognition at command position in
   :attr:`ContextKind.FILE_ROOT` / :attr:`ContextKind.NAMESPACE_EVAL`.
-* Canonical-name resolution per §4.3 / §4.3.1.
-* Body span computation (``start_line``, ``end_line``, ``body_start_line``,
-  ``body_end_line``) per §6.2.
-* Structured doc-comment banner backward scan (§4.7) —
-  ``comment_start_line`` / ``comment_end_line``.
-* ``define_proc_attributes`` forward scan (§4.6) — ``dpa_start_line`` /
-  ``dpa_end_line``, ``PW-11`` name-mismatch, ``PI-04`` orphan.
+* Canonical-name resolution (short + qualified).
+* Body span (``start_line``, ``end_line``, ``body_start_line``,
+  ``body_end_line``).
+* Doc-comment banner backward scan (``comment_start_line`` /
+  ``comment_end_line``).
+* ``define_proc_attributes`` forward scan (``dpa_start_line`` /
+  ``dpa_end_line``), ``PW-11`` name-mismatch, ``PI-04`` orphan.
 * Diagnostics: ``PE-01``, ``PW-01``, ``PW-03``, ``PW-04`` (pass-through),
   ``PW-11``, ``PI-04``.
 
-Out of scope (deferred to Stage 1e):
+Call and source-ref extraction is delegated to
+:mod:`chopper.parser.call_extractor`; the returned ``calls`` /
+``source_refs`` tuples on :class:`ProcEntry` are populated by that module.
 
-* Call extraction (``calls`` tuple) — always ``()``.
-* ``source`` / ``iproc_source`` extraction (``source_refs`` tuple) —
-  always ``()``.
-
-The module is pure: no I/O, no :class:`chopper.core.context.Context`
-knowledge. The service layer (Stage 1f) translates
-:class:`ExtractorDiagnostic` instances into registered
-:class:`chopper.core.diagnostics.Diagnostic` codes.
+Pure module: no I/O, no :class:`ChopperContext` knowledge. The service
+layer translates :class:`ExtractorDiagnostic` instances into registered
+:class:`Diagnostic` codes.
 """
 
 from __future__ import annotations
@@ -136,7 +132,7 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
 
     :param source_file: Domain-relative POSIX path recorded verbatim on each
         :class:`~chopper.core.models.ProcEntry` (also feeds canonical-name
-        construction per bible §5.4.1).
+        construction).
     :param text: UTF-8 decoded source text with ``\\n`` line endings
         (normalization is the service layer's responsibility — §Line endings).
     :returns: :class:`ExtractorResult` with the recognised procs (sorted by
@@ -545,8 +541,8 @@ def _resolve_qualified_name(raw_name: str, namespace_path: str) -> tuple[str, st
     * Otherwise the active ``namespace_path`` is prefixed if non-empty.
 
     ``short_name`` is the rightmost ``::``-separated segment of the resolved
-    qualified name (per bible §5.4.1 interaction with the JSON ``procs``
-    array). This matches row 8 of §4.3.1: ``common/helpers.tcl`` with
+    qualified name. This matches the JSON ``procs`` matching contract:
+    ``common/helpers.tcl`` with
     namespace ``["ns"]`` and name ``foo`` → ``short_name="foo"``,
     ``qualified_name="ns::foo"``.
     """
@@ -649,7 +645,7 @@ def _line_ends_with_continuation(line: str) -> bool:
 def _extract_dpa_proc_name(line: str) -> str:
     """Extract the proc name from a joined ``define_proc_attributes`` line.
 
-    Adapted from SNORT's ``_GetDefineProcAttributesProcName`` (TCL_PARSER_SPEC §4.6).
+    Adapted from SNORT's ``_GetDefineProcAttributesProcName``.
     """
     # Strip the keyword prefix.
     name = re.sub(r"^.*define_proc_(attributes|arguments)\s+", "", line)

@@ -1,44 +1,33 @@
-"""Call and source-ref extractor for the Tcl parser (TCL_PARSER_SPEC §5).
+"""Call and ``source``-ref extractor.
 
-This module is **coupled** to :mod:`chopper.parser.proc_extractor`: once
-:func:`chopper.parser.proc_extractor.extract_procs` has located every
-proc's body span, this module walks the tokens inside each body and
-produces two outputs per proc:
+Coupled to :mod:`chopper.parser.proc_extractor`: once proc body spans
+are known, this module walks tokens inside each body to produce:
 
-* ``calls``        — tuple of deduplicated, lex-sorted proc-call tokens.
-* ``source_refs``  — tuple of literal file paths from ``source`` /
-  ``iproc_source`` calls (in source order, no dedup / no sort —
-  :class:`~chopper.core.models.ProcEntry` invariant 6 does not require ordering).
+* ``calls``       — tuple of deduplicated, lex-sorted proc-call tokens.
+* ``source_refs`` — tuple of literal paths from ``source`` /
+  ``iproc_source`` commands (source order, no dedup).
 
-Both tuples live on :class:`~chopper.core.models.ProcEntry` and are
-populated by this module, not by Stage 1d.
+Both tuples live on :class:`ProcEntry`.
 
-Extraction rules (§5.1, §5.3, §5.3.1, §5.4, §5.5):
+Extraction rules:
 
-1. **Scope.** Only command-position WORD tokens inside a proc body (per
-   the :class:`~chopper.parser.namespace_tracker.NamespaceTracker`'s
-   :attr:`chopper.parser.namespace_tracker.ContextKind.PROC_BODY` frame)
-   are candidates. Brackets, control-flow conditions, and nested braces
-   inside the body are also traversed — any command-position token at
-   any depth ≥ proc-body-depth qualifies.
-2. **First word only.** The DPA trap (P-35): ``define_proc_attributes
-   <name> ...`` — ``<name>`` is NOT a call, it is an argument. Never
-   extract second-or-later tokens as calls.
-3. **Suppression cascade.** The SNORT §5.5 four-level filter rejects
-   candidates that look like calls but are not: comment lines, log-proc
-   string arguments, option-flag arguments, variable references, etc.
-4. **File dependencies.** ``source <path>`` and ``iproc_source -file
-   <path>`` produce :attr:`source_refs` entries. Literal paths only;
-   computed paths (containing ``$`` or ``[``) are silently skipped
-   (``PW-09`` surfaces at the service layer).
-5. **Bracketed sub-calls.** Tcl's tokenizer keeps ``[`` and ``]``
-   embedded in WORD tokens (they are not structural). The extractor
-   regex-scans inside each WORD for ``\\[<callable> ...]`` patterns and
-   treats the first word inside as an additional call candidate (§5.3
-   step 4).
+1. **Scope.** Only command-position WORD tokens inside a proc body
+   (tracked via :class:`NamespaceTracker`'s ``PROC_BODY`` frame) are
+   candidates. Nested brackets, control-flow bodies, and embedded
+   braces are traversed.
+2. **First word only.** Never treat second-or-later tokens as calls
+   (prevents the ``define_proc_attributes <name>`` false-positive trap).
+3. **Suppression cascade.** A four-level filter rejects comment lines,
+   log-proc string arguments, option-flag arguments, and variable
+   references.
+4. **File dependencies.** ``source <path>`` and
+   ``iproc_source -file <path>`` yield :attr:`source_refs` entries.
+   Literal paths only; computed paths are silently skipped.
+5. **Bracketed sub-calls.** ``[<callable> ...]`` patterns embedded in
+   WORD tokens yield the inner first word as an additional candidate.
 
-The module is pure: no I/O, no :class:`chopper.core.context.Context`
-knowledge. It is driven from within :func:`extract_procs` in Stage 1d.
+Pure module: no I/O, no :class:`ChopperContext`. Driven from within
+:func:`extract_procs`.
 """
 
 from __future__ import annotations
@@ -56,7 +45,7 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# Constants (TCL_PARSER_SPEC §5.5)
+# Constants
 # ---------------------------------------------------------------------------
 
 

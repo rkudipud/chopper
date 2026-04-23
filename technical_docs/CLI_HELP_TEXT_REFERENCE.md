@@ -32,7 +32,7 @@ options:
   --strict              Exit non-zero if any warning is present (does not rewrite severity)
 ```
 
-> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; exit-code-3 already writes `.chopper/internal-error.log`; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output).
+> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output).
 
 ---
 
@@ -43,9 +43,10 @@ usage: chopper validate [--domain PATH]
                         (--base PATH [--features PATHS] | --project PATH)
                         [global options]
 
-Run structural validation against JSON inputs. Checks schema
-compliance, required fields, file/proc existence, and action targets.
-Does not build a proc index, run tracing, or modify files.
+Run read-only validation against JSON inputs. Checks schema
+compliance, required fields, file/proc existence, action targets,
+parses Tcl, compiles selections, and runs the trace phase.
+Does not modify domain content files.
 
 options:
   --domain PATH       Domain root path (default: current directory)
@@ -77,7 +78,7 @@ options:
   --base PATH         Path to base JSON (required unless --project is used)
   --features PATHS    Comma-separated ordered list of feature JSON paths
   --project PATH      Path to project JSON (mutually exclusive with --base/--features)
-  --dry-run           Compile, trace, run synthetic post-trim validation, and emit reports without modifying domain files
+  --dry-run           Compile, trace, run synthetic post-trim validation, and emit reports without rebuilding domain content files
 ```
 
 ---

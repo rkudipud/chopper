@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/diagnostic/v1",
   "title": "Chopper Diagnostic v1",
-  "description": "Wire-format schema for a single Diagnostic record as serialized by `src/chopper/core/serialization.py`. Contract surface between the Chopper engine and any downstream consumer (CI dashboards, GUI, external tooling). Every field that appears in `diagnostics.json` or on the stderr JSONL stream (future FD-10) MUST validate against this schema. All severities, exit codes, slugs, and recovery hints are authoritative in `docs/DIAGNOSTIC_CODES.md`; this schema pins only the on-wire shape.",
+  "description": "Wire-format schema for a single Diagnostic record as serialized by `src/chopper/core/serialization.py`. Contract surface between the Chopper engine and any downstream consumer (CI dashboards, GUI, external tooling). Every field that appears in `diagnostics.json` or on the stderr JSONL stream (future FD-10) MUST validate against this schema. All severities, exit codes, slugs, and recovery hints are authoritative in `technical_docs/DIAGNOSTIC_CODES.md`; this schema pins only the on-wire shape.",
   "type": "object",
   "required": ["code", "slug", "severity", "phase", "source", "message"],
   "additionalProperties": false,
@@ -10,7 +10,7 @@
     "code": {
       "type": "string",
       "pattern": "^[VTP][EWI]-[0-9]{2}$",
-      "description": "Diagnostic identifier. Must match an Active row in docs/DIAGNOSTIC_CODES.md. Family: V=validator, T=tracer, P=parser. Severity letter: E=error, W=warning, I=info."
+      "description": "Diagnostic identifier. Must match an Active row in technical_docs/DIAGNOSTIC_CODES.md. Family: V=validator, T=tracer, P=parser. Severity letter: E=error, W=warning, I=info."
     },
     "slug": {
       "type": "string",

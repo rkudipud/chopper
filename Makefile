@@ -2,7 +2,7 @@
 
 # Determinism: pin the hash seed so dict/set iteration order is stable across
 # runs. Any test that depends on hash ordering leaking into output is a
-# determinism bug (docs/FINAL_HANDOFF_REVIEW.md S-6).
+# determinism bug (technical_docs/FINAL_HANDOFF_REVIEW.md S-6).
 export PYTHONHASHSEED := 0
 
 # ────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ imports-check:
 
 # Doc ↔ code consistency gates. Catch the "agent invented a new diagnostic
 # code" and "agent drifted a service signature" classes of defect at CI time.
-# See docs/FINAL_HANDOFF_REVIEW.md PR-4.
+# See technical_docs/FINAL_HANDOFF_REVIEW.md PR-4.
 docs-gate:
 	python scripts/check_diagnostic_registry.py
 	python scripts/check_service_signatures.py

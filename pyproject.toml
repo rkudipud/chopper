@@ -78,7 +78,7 @@ disallow_untyped_defs = true
 # ---------------------------------------------------------------------------
 # import-linter contracts.
 #
-# Enforces the layered architecture defined in docs/ARCHITECTURE_PLAN.md §3:
+# Enforces the layered architecture defined in technical_docs/ARCHITECTURE_PLAN.md §3:
 #
 #     cli  →  orchestrator  →  services  →  core
 #     adapters → core (+ third-party libs only)

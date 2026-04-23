@@ -1,31 +1,22 @@
 """Core frozen dataclasses shared across every Chopper service.
 
-Per bible §5.12.3 and ARCHITECTURE_PLAN.md §9.1, every record that crosses
-a service boundary is an immutable :class:`dataclass` defined here. Services
-never declare their own copies of these shapes.
+Every record that crosses a service boundary is an immutable
+:class:`dataclass` defined here. Services never declare their own
+copies of these shapes. Later-phase shapes may not depend on earlier
+phases' shapes in reverse (enforced by `import-linter`).
 
-Stage 0 ships the records that have no stage dependency and are used
-across the port/orchestrator surface from day one:
+Key records by phase:
 
-* :class:`FileTreatment` — the per-file decision vocabulary emitted by the
-  compiler (:mod:`chopper.compiler`) and consumed by the trimmer
-  (:mod:`chopper.trimmer`).
-* :class:`DomainState` — the Case 1–4 classification produced by
-  ``DomainStateService`` (bible §2.8).
-* :class:`FileStat` — the ``stat`` result returned by
-  :class:`~chopper.core.protocols.FileSystemPort`.
-
-Stage 1 (parser) adds:
-
-* :class:`ProcEntry` — the per-proc record produced by
-  :func:`chopper.parser.parse_file` (TCL_PARSER_SPEC §6).
-* :class:`ParsedFile` — the per-file aggregate (ARCHITECTURE_PLAN.md §9.1).
-* :class:`ParseResult` — the domain-wide aggregate with canonical-name
-  index (ARCHITECTURE_PLAN.md §9.1; bible §5.4.1).
-
-Later stages (compiler, trimmer, audit) append their own records here —
-each stage may not depend on a later stage's shapes (ARCHITECTURE_PLAN.md
-§10.1).
+* :class:`FileTreatment`        — per-file decision vocabulary (P3 → P5).
+* :class:`DomainState`          — P0 case classification.
+* :class:`FileStat`             — ``stat`` result from :class:`FileSystemPort`.
+* :class:`ProcEntry`            — per-proc record from the parser (P2).
+* :class:`ParsedFile`           — per-file aggregate.
+* :class:`ParseResult`          — domain-wide aggregate with canonical-name index.
+* :class:`CompiledManifest`     — P3 output; drives trimmer + generator.
+* :class:`DependencyGraph`      — P4 output; reporting-only.
+* :class:`TrimReport`           — P5 audit record.
+* :class:`RunRecord`            — snapshot of a whole run for the audit writer.
 """
 
 from __future__ import annotations
@@ -82,9 +73,7 @@ __all__ = [
 class FileTreatment(StrEnum):
     """Per-file disposition emitted by the compiler.
 
-    The four values are defined by bible §5.5 and listed in the architecture
-    plan as the only legal entries in ``CompiledManifest.file_decisions``
-    (ARCHITECTURE_PLAN.md §9.1, :class:`FileOutcome`).
+    The four legal entries in ``CompiledManifest.file_decisions``:
 
     * ``FULL_COPY`` — file is included whole; trimmer copies it verbatim from
       ``<domain>_backup/`` to ``<domain>/``.
@@ -95,7 +84,7 @@ class FileTreatment(StrEnum):
     * ``REMOVE`` — file does not appear in the trimmed domain.
 
     :class:`enum.StrEnum` makes instances serialise directly to JSON as
-    their string value (bible §5.11.4) without a custom encoder.
+    their string value without a custom encoder.
     """
 
     FULL_COPY = "FULL_COPY"
@@ -108,9 +97,8 @@ class FileTreatment(StrEnum):
 class DomainState:
     """Result of the Phase 0 ``DomainStateService`` classification.
 
-    Per bible §2.8, the state-machine observes ``<domain>/`` and
-    ``<domain>_backup/`` at invocation and classifies the workspace into
-    one of four cases:
+    The state-machine observes ``<domain>/`` and ``<domain>_backup/``
+    at invocation and classifies the workspace into one of four cases:
 
     * Case 1 — ``domain_exists=True``, ``backup_exists=False`` (first trim).
     * Case 2 — ``domain_exists=True``, ``backup_exists=True`` (re-trim).
@@ -120,8 +108,7 @@ class DomainState:
       the CLI emits ``VE-21`` and exits 2).
 
     ``hand_edited`` is an informational flag only. Chopper does not emit a
-    diagnostic on detection (see bible §2.8 Case 2 and
-    ARCHITECTURE_PLAN.md §16 Q2); the CLI prints a fixed pre-flight warning
+    diagnostic on detection; the CLI prints a fixed pre-flight warning
     every re-trim regardless.
     """
 
@@ -137,7 +124,7 @@ class FileStat:
 
     Chopper's port surface does not expose full ``os.stat_result`` semantics
     — services only need enough to decide whether a path is a directory and
-    to size files for audit reporting (bible §5.5, P7 artifacts).
+    to size files for audit reporting.
 
     * ``size`` — file size in bytes (zero for directories).
     * ``mtime`` — POSIX modification timestamp. Only used by audit hashing
@@ -159,27 +146,25 @@ class FileStat:
 class ProcEntry:
     """One Tcl proc definition extracted by :func:`chopper.parser.parse_file`.
 
-    Authoritative field list: TCL_PARSER_SPEC.md §6. Invariants: §6.1. Body
-    boundary semantics: §6.2. Canonical-name format (``<domain-relative-
-    posix-path>::<qualified_name>``) comes from bible §5.4.1.
+    Canonical-name format: ``<domain-relative-posix-path>::<qualified_name>``.
 
     Call-site handoff fields (``calls`` and ``source_refs``) are the only
     coupling between parser and tracer. Both are textual / unresolved;
-    resolution happens in P4 (bible §5.4 R3, TCL_PARSER_SPEC §5.3.1).
+    resolution happens in P4.
 
     Invariants checked in ``__post_init__``:
 
     1. ``start_line`` / ``end_line`` / ``body_*`` are 1-indexed positive
        ints and ``start_line <= end_line``.
     2. Body lines are within ``[start_line, end_line]``. Empty-body form
-       (``body_start_line > body_end_line``) is allowed — it is the signal
-       that the body has zero content lines (§6.2 edge case).
+       (``body_start_line > body_end_line``) is allowed — it signals that
+       the body has zero content lines.
     3. Optional DPA and comment-banner spans, when set, are consistent
        (``start <= end`` and both non-None together).
     4. ``canonical_name`` equals ``f"{source_file.as_posix()}::{qualified_name}"``.
-    5. ``calls`` is deduplicated and lexicographically sorted (§6.1
-       invariant 5); ``source_refs`` is a tuple of POSIX strings (no
-       ordering requirement at parse time — §6.1 invariant 6).
+    5. ``calls`` is deduplicated and lexicographically sorted;
+       ``source_refs`` is a tuple of POSIX strings (no ordering
+       requirement at parse time).
     """
 
     canonical_name: str
@@ -231,7 +216,7 @@ class ProcEntry:
                 if first > last:
                     raise ValueError(f"ProcEntry {label}_start_line ({first}) must be <= {label}_end_line ({last})")
 
-        # 4. Canonical-name format (bible §5.4.1).
+        # 4. Canonical-name format.
         expected = f"{self.source_file.as_posix()}::{self.qualified_name}"
         if self.canonical_name != expected:
             raise ValueError(
@@ -239,7 +224,7 @@ class ProcEntry:
                 f"'<source_file.as_posix()>::<qualified_name>' = {expected!r}"
             )
 
-        # 5. calls tuple is dedup + lex-sorted per §6.1 invariant 5.
+        # 5. calls tuple is dedup + lex-sorted.
         if list(self.calls) != sorted(set(self.calls)):
             raise ValueError("ProcEntry.calls must be deduplicated and lexicographically sorted")
 
@@ -248,17 +233,16 @@ class ProcEntry:
 class ParsedFile:
     """Per-file aggregate returned by ``ParserService`` for one Tcl file.
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Fields held here:
+    Fields:
 
     * ``path`` — domain-relative :class:`~pathlib.Path`.
     * ``procs`` — tuple of :class:`ProcEntry`, sorted by ``start_line``.
     * ``encoding`` — the encoding used to decode the file
       (``"utf-8"`` when the initial decode succeeded; ``"latin-1"`` if the
-      parser fell back per TCL_PARSER_SPEC §2 and emitted ``PW-02``).
+      parser fell back and emitted ``PW-02``).
 
     Parse-error diagnostics are emitted via ``ctx.diag`` as they are
-    discovered (ARCHITECTURE_PLAN.md §8.2 rule 1); they never appear on
-    this record.
+    discovered; they never appear on this record.
     """
 
     path: Path
@@ -280,9 +264,6 @@ class ParsedFile:
 class ParseResult:
     """Domain-wide parser output with the canonical-name index.
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1; canonical-name format
-    bible §5.4.1; test vectors TCL_PARSER_SPEC §4.3.1.
-
     * ``files`` — maps domain-relative path to :class:`ParsedFile`. The
       parser constructs this as a plain :class:`dict` sorted lex on the
       POSIX form of the path; the mapping is frozen only in the sense
@@ -298,7 +279,7 @@ class ParseResult:
        ``index`` under its ``canonical_name``, and only those entries
        appear. This catches divergence between the two views.
     2. ``canonical_name`` keys in ``index`` are lex-sorted (required for
-       deterministic dependency-graph output — bible §5.4.1).
+       deterministic dependency-graph output).
     """
 
     files: dict[Path, ParsedFile] = field(default_factory=dict)
@@ -330,7 +311,6 @@ class ParseResult:
 # ---------------------------------------------------------------------------
 #
 # Authoritative schemas: json_kit/schemas/{base,feature,project}-v1.schema.json.
-# Authoritative prose:   bible §§3.1–3.3; ARCHITECTURE_PLAN.md §9.1.
 #
 # Every JSON record here is a frozen dataclass that is **one-to-one** with its
 # schema after the loader has validated and hydrated it. The loader
@@ -377,9 +357,9 @@ class StageDefinition:
     """One stage entry — from ``base.stages[]`` or a feature flow-action.
 
     Matches the ``stageDefinition`` definition shared by the base and
-    feature schemas. Field semantics follow bible §3.6 and the schema
-    descriptions; this record preserves the authored values verbatim so
-    the F3 generator can emit run scripts and stack lines deterministically.
+    feature schemas. This record preserves the authored values verbatim
+    so the F3 generator can emit run scripts and stack lines
+    deterministically.
     """
 
     name: str
@@ -507,9 +487,9 @@ FlowAction = (
 class BaseOptions:
     """``options`` block in base JSON.
 
-    Only one flag in v1: ``cross_validate`` (bible §3.1 key fields
-    table). Defaults to ``True`` — post-trim cross-validation emits
-    ``VW-14`` / ``VW-15`` / ``VW-16`` unless authors opt out.
+    Only one flag in v1: ``cross_validate``. Defaults to ``True`` —
+    post-trim cross-validation emits ``VW-14`` / ``VW-15`` / ``VW-16``
+    unless authors opt out.
     """
 
     cross_validate: bool = True
@@ -519,10 +499,10 @@ class BaseOptions:
 class BaseJson:
     """Hydrated ``chopper/base/v1`` JSON.
 
-    Per bible §3.1: ``$schema`` and ``domain`` are required; at least
-    one of ``files`` / ``procedures`` / ``stages`` must be present. The
-    loader enforces the at-least-one rule via the jsonschema ``anyOf``
-    constraint and maps failures to ``VE-02``.
+    Required: ``$schema`` and ``domain``; at least one of ``files`` /
+    ``procedures`` / ``stages`` must be present. The loader enforces
+    the at-least-one rule via the jsonschema ``anyOf`` constraint and
+    maps failures to ``VE-02``.
 
     ``source_path`` records where the JSON was loaded from — used for
     error-message provenance and audit artifacts. It is not part of the
@@ -545,8 +525,8 @@ class BaseJson:
 class FeatureMetadata:
     """Optional ``metadata`` block on a feature JSON (documentation only).
 
-    Chopper never evaluates these fields (bible §3.2); they are
-    preserved verbatim in audit artifacts.
+    Chopper never evaluates these fields; they are preserved verbatim
+    in audit artifacts.
     """
 
     owner: str | None = None
@@ -560,10 +540,10 @@ class FeatureMetadata:
 class FeatureJson:
     """Hydrated ``chopper/feature/v1`` JSON.
 
-    Per bible §3.2: ``$schema`` and ``name`` are required; everything
-    else is optional. Feature ``name`` must be unique across a project
-    (``VE-14``); ``depends_on`` prerequisites must be selected
-    (``VE-15``) and acyclic (``VE-22``).
+    Required: ``$schema`` and ``name``; everything else is optional.
+    Feature ``name`` must be unique across a project (``VE-14``);
+    ``depends_on`` prerequisites must be selected (``VE-15``) and
+    acyclic (``VE-22``).
     """
 
     source_path: Path
@@ -581,12 +561,12 @@ class FeatureJson:
 class ProjectJson:
     """Hydrated ``chopper/project/v1`` JSON.
 
-    Per bible §3.3: ``$schema``, ``project``, ``domain``, and ``base``
-    are required. ``base`` and each entry in ``features`` are
-    domain-relative path strings as authored — the service layer
-    resolves them to :class:`Path` against ``ctx.config.domain_root``
-    after the schema check. ``VE-13`` (unresolvable paths) is emitted
-    by the CLI pre-pass before :class:`ConfigService` runs.
+    Required: ``$schema``, ``project``, ``domain``, ``base``. ``base``
+    and each entry in ``features`` are domain-relative path strings
+    as authored — the service layer resolves them to :class:`Path`
+    against ``ctx.config.domain_root`` after the schema check.
+    ``VE-13`` (unresolvable paths) is emitted by the CLI pre-pass
+    before :class:`ConfigService` runs.
     """
 
     source_path: Path
@@ -603,8 +583,6 @@ class ProjectJson:
 class LoadedConfig:
     """Aggregate returned by :class:`ConfigService`.
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1.
-
     * ``base`` — the one hydrated :class:`BaseJson` (exactly one per run;
       resolved from either ``project.base`` or ``--base``).
     * ``features`` — tuple of hydrated :class:`FeatureJson`, **topo-sorted
@@ -615,9 +593,9 @@ class LoadedConfig:
     * ``surface_files`` — the union of every file named by any source
       (base + every feature). Tuple of domain-relative :class:`Path`
       entries, lex-sorted by POSIX form for determinism. This is what
-      :class:`ParserService.run` consumes in P2 (ARCHITECTURE_PLAN.md
-      §6.2). Glob expansion against the real filesystem is **not** done
-      here — that is the compiler's responsibility in P3.
+      :class:`ParserService.run` consumes in P2. Glob expansion against
+      the real filesystem is **not** done here — that is the compiler's
+      responsibility in P3.
     """
 
     base: BaseJson
@@ -641,23 +619,19 @@ class LoadedConfig:
 # Stage 2b — Compiler outputs (P3 frozen manifest).
 # ---------------------------------------------------------------------------
 #
-# Authoritative prose:   bible §§4 (R1/L1/L2/L3), 5.3, 5.5.3.
-# Authoritative shape:   ARCHITECTURE_PLAN.md §9.1 (``CompiledManifest``).
-#
 # The compiler (``CompilerService.run``) consumes a :class:`LoadedConfig` and
 # a :class:`ParseResult` and emits exactly one :class:`CompiledManifest`.
 # The manifest is frozen on construction — every downstream phase (trace,
-# trim, generate, post-validate, audit) reads it but must not mutate it
-# (bible §5.4 "frozen-manifest invariant").
+# trim, generate, post-validate, audit) reads it but must not mutate it.
 
 
 @dataclass(frozen=True)
 class ProcDecision:
     """One surviving proc recorded in the compiled manifest.
 
-    Bible §5.5.3: every entry in ``procedures.surviving`` carries its
-    canonical name, its source file, and the JSON source that caused it
-    to survive. ``selection_source`` is a stable string of the form
+    Every entry in ``procedures.surviving`` carries its canonical name,
+    its source file, and the JSON source that caused it to survive.
+    ``selection_source`` is a stable string of the form
     ``"<source_key>:<json_field>"``:
 
     * ``source_key`` is ``"base"`` for the base JSON, or the feature's
@@ -668,9 +642,8 @@ class ProcDecision:
       kept the file as ``PROC_TRIM`` minus the excluded procs).
 
     When multiple sources contribute a proc the winner reported here is
-    the first one encountered in compiler iteration order (bible §5.3
-    "Iteration order (emission determinism)"): base first, then each
-    feature in topo-sorted order.
+    the first one encountered in compiler iteration order: base first,
+    then each feature in topo-sorted order.
     """
 
     canonical_name: str
@@ -693,7 +666,7 @@ class FileProvenance:
     """Per-file provenance record written into the compiled manifest.
 
     Mirrors the fields of a single entry in ``compiled_manifest.json``
-    under the top-level ``files`` array (bible §5.5.3):
+    under the top-level ``files`` array:
 
     * ``path`` — domain-relative POSIX path of the file.
     * ``treatment`` — the authoritative :class:`FileTreatment` value.
@@ -745,9 +718,9 @@ class StageSpec:
 
     1. ``name`` is non-empty.
     2. ``steps`` is non-empty — a stage with zero steps cannot produce a
-       runnable ``<stage>.tcl`` (bible §3.6). The compiler raises
-       ``VE-08`` earlier if authors emit an empty stage; this check
-       catches programmer-error drift in the resolver itself.
+         runnable ``<stage>.tcl``. The compiler raises ``VE-08`` earlier
+         if authors emit an empty stage; this check catches
+         programmer-error drift in the resolver itself.
     """
 
     name: str
@@ -772,8 +745,8 @@ class StageSpec:
 class CompiledManifest:
     """Frozen output of :class:`~chopper.compiler.CompilerService` (P3).
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. This dataclass is
-    the single source of truth driving every later phase:
+    This dataclass is the single source of truth driving every later
+    phase:
 
     * ``file_decisions`` — maps every relevant domain-relative file to
       its :class:`FileTreatment`. Relevant files are: every parsed file
@@ -790,8 +763,8 @@ class CompiledManifest:
       the same key set as ``file_decisions``. Lex-sorted.
     * ``stages`` — resolved F3 stages, in execution order. Empty when
       no base stage is declared; populated by
-      :mod:`chopper.compiler.flow_resolver` when the base JSON declares
-      at least one stage (bible §§3.6, 6.7).
+            :mod:`chopper.compiler.flow_resolver` when the base JSON declares
+            at least one stage.
 
     Invariants enforced by ``__post_init__``:
 
@@ -838,8 +811,7 @@ class Edge:
     An edge is created per call-token occurrence: if the same caller token
     matches the same callee three times, three :class:`Edge` records
     appear, each with its own ``line`` and ``token``. Deduplication is a
-    visited-set property, not an edge-set property (bible §5.4, "Frontier
-    and visited-set semantics").
+    visited-set property, not an edge-set property.
 
     * ``caller`` — canonical proc name of the proc whose body contains the
       token. For file-level ``source`` / ``iproc_source`` edges emitted
@@ -851,7 +823,7 @@ class Edge:
       ``status != "resolved"``.
     * ``kind`` — ``"proc_call"``, ``"source"``, or ``"iproc_source"``.
     * ``status`` — ``"resolved"``, ``"ambiguous"``, ``"unresolved"``, or
-      ``"dynamic"`` (bible §5.5.4 per-edge entry).
+            ``"dynamic"``.
     * ``token`` — the raw call token the parser extracted. Retained for
       diagnostic rendering and for downstream tooling that wants to show
       the user what was written on the page.
@@ -885,10 +857,9 @@ class Edge:
 class DependencyGraph:
     """Frozen output of :class:`~chopper.compiler.TracerService` (P4).
 
-    Authoritative shape: bible §5.4 and §5.5.4. The graph is
-    **reporting-only** — it never influences trimming. Its purpose is to
-    let the domain owner see what their JSON selection transitively
-    depends on.
+    The graph is **reporting-only** — it never influences trimming. Its
+    purpose is to let the domain owner see what their JSON selection
+    transitively depends on.
 
     * ``pi_seeds`` — the PI set that seeded the BFS walk (every canonical
       proc name in ``manifest.proc_decisions`` at the time P4 started).
@@ -952,8 +923,8 @@ class DependencyGraph:
 class FileOutcome:
     """Per-file audit record produced by :class:`TrimmerService` (P5a).
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. One outcome is
-    emitted for every file the manifest reasoned over, regardless of
+    One outcome is emitted for every file the manifest reasoned over,
+    regardless of
     treatment — ``REMOVE`` files appear too (with ``bytes_out=0`` and
     empty proc tuples) so the audit bundle has a complete ledger.
 
@@ -995,8 +966,7 @@ class FileOutcome:
 class TrimReport:
     """Frozen output of :class:`~chopper.trimmer.TrimmerService` (P5a).
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Drives
-    ``.chopper/trim_report.{json,txt}`` at P7.
+    Drives ``.chopper/trim_report.{json,txt}`` at P7.
 
     Invariants enforced in ``__post_init__``:
 
@@ -1051,14 +1021,13 @@ class TrimReport:
 class GeneratedArtifact:
     """One file emitted by :class:`~chopper.generators.GeneratorService` (P5b).
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Per bible §P5b / §3.6,
-    generated run files live alongside normal domain files and are
-    subject to post-trim validation at P6.
+        Generated run files live alongside normal domain files and are
+        subject to post-trim validation at P6.
 
     * ``path`` — domain-relative POSIX path where the file was written.
-    * ``kind`` — output kind per bible §3.6. Only ``"tcl"`` is emitted in
-      v1 (``<stage>.tcl`` run files). ``"stack"`` and ``"csv"`` are
-      reserved for optional stack-file and manifest emissions.
+        * ``kind`` — output kind. Only ``"tcl"`` is emitted in v1
+            (``<stage>.tcl`` run files). ``"stack"`` and ``"csv"`` are
+            reserved for optional stack-file and manifest emissions.
     * ``content`` — the full generated text. Kept on the record so the
       audit writer hashes exactly the emitted bytes.
     * ``source_stage`` — the :class:`StageSpec.name` that produced this
@@ -1084,13 +1053,12 @@ class GeneratedArtifact:
 class AuditArtifact:
     """One file written under ``.chopper/`` by :class:`AuditService`.
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Each artifact carries
-    its own sha256 hash so downstream reviewers can verify byte-stability
-    without re-running Chopper.
+        Each artifact carries its own sha256 hash so downstream reviewers
+        can verify byte-stability without re-running Chopper.
 
     * ``name`` — basename under ``.chopper/`` (e.g. ``"trim_report.json"``).
-      Bible §5.5.1 reserves a fixed vocabulary of names; entries in
-      :attr:`AuditManifest.artifacts` must be lex-sorted by this field.
+            Entries in :attr:`AuditManifest.artifacts` must be lex-sorted by
+            this field.
     * ``path`` — absolute path the file was written to. Always under
       :attr:`RunConfig.audit_root`.
     * ``size`` — byte length of the written content.
@@ -1115,10 +1083,8 @@ class AuditArtifact:
 class AuditManifest:
     """Inventory of every file :class:`AuditService` wrote under ``.chopper/``.
 
-    Authoritative shape: ARCHITECTURE_PLAN.md §9.1. Bible §5.5.2 specifies
-    the closed fields the runner will render into ``chopper_run.json``;
-    this record is the in-memory projection of that content plus the
-    ``artifacts`` inventory used by downstream tooling.
+    This record is the in-memory projection of the audit bundle plus
+    the ``artifacts`` inventory used by downstream tooling.
 
     * ``run_id`` — UUID v4 for this run. Stamped on every artifact.
     * ``started_at`` / ``ended_at`` — UTC timestamps bounding the run.
@@ -1157,7 +1123,7 @@ class RunRecord:
     Bundling the inputs into one record keeps the service signature
     stable as the bundle grows; the runner builds this once in its
     ``finally`` block and passes it in. Every field is ``Optional``
-    because P7 runs even when earlier phases aborted (bible §5.5.10).
+    because P7 runs even when earlier phases aborted.
 
     Field-to-artifact mapping:
 
@@ -1205,7 +1171,7 @@ class RunResult:
     is ``None`` when the producing phase did not complete — the same
     contract :class:`RunRecord` honours for P7.
 
-    ``exit_code`` follows bible §8.2 rule 4:
+    ``exit_code`` meanings:
 
     * ``0`` — success, no warnings, no errors.
     * ``1`` — at least one ``ERROR`` diagnostic, **or** ``--strict``

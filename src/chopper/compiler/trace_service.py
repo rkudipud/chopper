@@ -1,33 +1,30 @@
-"""TracerService — Phase 4 (P4) of the Chopper pipeline.
+"""TracerService — Phase 4 (P4) BFS trace expansion.
 
-Implements the BFS trace expansion defined in bible §5.4:
-
-* **Seeds**: the PI set, i.e. every canonical proc name in
+* **Seeds**: the PI set — every canonical proc name in
   ``manifest.proc_decisions``.
-* **Walk**: a breadth-first search whose frontier is **always popped in
-  lex order**. The frontier does not deduplicate on enqueue; every call
-  token occurrence becomes an :class:`~chopper.core.models.Edge` record
-  with its own line and token. Deduplication happens only at visited-set
-  level — an already-visited canonical name is skipped when popped.
-* **Resolution**: lexical namespace contract from bible §5.4 step 6.
-  For each raw token the tracer tries a deterministic candidate list:
-  absolute (``::ns::x``) resolves only itself; relative and bare forms
-  try ``<caller_namespace>::<qname>`` first, then the token at global
-  scope. A candidate resolves when exactly one canonical proc in the
-  domain has that qualified name.
+* **Walk**: breadth-first, frontier always popped in lex order. The
+  frontier does not deduplicate on enqueue — every call-token
+  occurrence becomes an :class:`Edge` record with its own line and
+  token. Deduplication happens only at visited-set level.
+* **Resolution**: lexical namespace contract. For each raw token the
+  tracer tries a deterministic candidate list: absolute (``::ns::x``)
+  resolves only itself; relative / bare forms try
+  ``<caller_namespace>::<qname>`` first, then the token at global scope.
+  A candidate resolves when exactly one canonical proc has that
+  qualified name.
 
-Outputs (:class:`~chopper.core.models.DependencyGraph`):
+Outputs on :class:`DependencyGraph`:
 
 * ``pi_seeds`` — the frontier's starting set (lex-sorted).
-* ``nodes`` — the full transitive closure reached by the walk (PI+).
+* ``nodes`` — full transitive closure (PI+).
 * ``pt`` — ``nodes − pi_seeds`` (traced-only).
-* ``edges`` — every caller → callee record (proc_call / source /
-  iproc_source) sorted by ``(caller, kind, line, token, callee)``.
+* ``edges`` — every caller → callee record, sorted by
+  ``(caller, kind, line, token, callee)``.
 * ``unresolved_tokens`` — lex-sorted projection of non-resolved edges.
 
-Diagnostics emitted: ``TW-01`` (ambiguous), ``TW-02`` (no match),
-``TW-03`` (dynamic/syntactically unresolvable), ``TW-04`` (cycle).
-All are warnings; P4 never blocks P5. The tracer **never** mutates the
+Diagnostics: ``TW-01`` (ambiguous), ``TW-02`` (no match),
+``TW-03`` (dynamic/unresolvable), ``TW-04`` (cycle). All warnings; P4
+never blocks P5. The tracer **never** mutates the
 manifest — it is frozen and the dataclass invariant guarantees mutation
 raises.
 """
@@ -61,7 +58,7 @@ __all__ = ["TracerService"]
 
 @dataclass(frozen=True)
 class TracerService:
-    """Phase 4 BFS trace service (bible §5.4)."""
+    """Phase 4 BFS trace service."""
 
     def run(self, ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult) -> DependencyGraph:
         seeds: tuple[str, ...] = tuple(sorted(manifest.proc_decisions.keys()))
@@ -88,9 +85,8 @@ class TracerService:
 
         while frontier:
             # Re-sort on every pop: enqueues that happened since the last
-            # pop may have put smaller names back in play. deque is fine
-            # for FIFO but we want lex-least across the whole frontier at
-            # every step (bible §5.4 step 5).
+            # pop may have put smaller names back in play. We want
+            # lex-least across the whole frontier at every step.
             ordered = sorted(frontier)
             frontier.clear()
             caller_cn = ordered[0]
@@ -157,7 +153,7 @@ class TracerService:
 
 
 # ---------------------------------------------------------------------------
-# Call-token resolution (bible §5.4 step 6)
+# Call-token resolution — lexical namespace contract
 # ---------------------------------------------------------------------------
 
 
@@ -241,7 +237,7 @@ def _resolve_token(
 def _candidate_qnames(token: str, caller_namespace: str) -> tuple[str, ...]:
     """Build the ordered candidate qualified-name list for a raw token.
 
-    Implements bible §5.4 step 6:
+    Lexical namespace resolution:
 
     * ``::ns::helper`` — absolute; single candidate ``ns::helper``.
     * ``ns::helper`` — relative; try ``<caller_ns>::ns::helper`` then

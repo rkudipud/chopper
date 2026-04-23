@@ -30,7 +30,7 @@ The following Tcl namespace features are out of scope for v1 and are never guess
 - Runtime aliasing / `interp alias`
 - Runtime redefinition order across sourced files
 
-**Source:** `docs/TCL_PARSER_SPEC.md` §6.3, `docs/chopper_description.md` §4.6
+**Source:** `technical_docs/TCL_PARSER_SPEC.md` §6.3, `technical_docs/chopper_description.md` §4.6
 
 ---
 
@@ -40,7 +40,7 @@ The following Tcl namespace features are out of scope for v1 and are never guess
 
 v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-02` (unresolved) but never traced. A future version could optionally accept a multi-domain manifest for read-only cross-domain call validation (not trimming).
 
-**Source:** `docs/chopper_description.md` §2.2, Q1
+**Source:** `technical_docs/chopper_description.md` §2.2, Q1
 
 ---
 
@@ -50,11 +50,11 @@ v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-0
 
 Provide a terminal-based interactive UI for browsing available features, previewing their effects, and composing a project JSON.
 
-**Deferred because:** CLI-first approach is correct for v1. The service-layer and renderer-adapter architecture (`docs/chopper_description.md` §5.11) enables this without engine changes.
+**Deferred because:** CLI-first approach is correct for v1. The service-layer and renderer-adapter architecture (`technical_docs/chopper_description.md` §5.11) enables this without engine changes.
 
 ### FD-04: GUI Client
 
-A machine-readable stdio wire protocol for a future GUI client is documented in `docs/chopper_description.md` §5.11.3 and in [`FD-10`](#fd-10-machine-readable-cli-output). The wire-level JSON payload is conventionally called a "TrimRequest" envelope; on the Python side it deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. There is no Python class named `TrimRequest` — the engine boundary is `ChopperContext` in, `RunResult` out (see [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6). Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
+A machine-readable stdio wire protocol for a future GUI client is documented in `technical_docs/chopper_description.md` §5.11.3 and in [`FD-10`](#fd-10-machine-readable-cli-output). The wire-level JSON payload is conventionally called a "TrimRequest" envelope; on the Python side it deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. There is no Python class named `TrimRequest` — the engine boundary is `ChopperContext` in, `RunResult` out (see [`technical_docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6). Progress events will be emitted as JSON lines on stderr. Not implemented in v1 but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
 
 GUI-relevant data surfaces (file selection, proc selection, dependency graph, trim stats, JSON viewing, diagnostics) are enumerated in §5.11.5. No additional data models or artifacts are needed — the v1 pipeline already produces everything a GUI would consume.
 
@@ -66,19 +66,19 @@ GUI-relevant data surfaces (file selection, proc selection, dependency graph, tr
 
 Add a quick-start section to the architecture doc with a minimal end-to-end walkthrough.
 
-**Source:** `docs/chopper_description.md` §13.4, DF-01
+**Source:** `technical_docs/chopper_description.md` §13.4, DF-01
 
 ### FD-06: Example Diagnostic Messages
 
 Add concrete example error/warning messages to the architecture doc for every diagnostic code.
 
-**Source:** `docs/chopper_description.md` §13.4, DF-02
+**Source:** `technical_docs/chopper_description.md` §13.4, DF-02
 
 ### FD-07: Terminology Glossary
 
 Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON" (a JSON file that extends the base).
 
-**Source:** `docs/chopper_description.md` §13.4, DF-03
+**Source:** `technical_docs/chopper_description.md` §13.4, DF-03
 
 ---
 
@@ -93,7 +93,7 @@ v1 accepts a 5–10 minute runtime for a typical domain; optimization is explici
 
 **Deferred because:** premature optimization before correctness is verified risks locking in bugs. The determinism contract (§11 of the plan) is the prerequisite for any meaningful benchmarking.
 
-**Source:** [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §11, §13.5
+**Source:** [`technical_docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §11, §13.5
 
 ---
 

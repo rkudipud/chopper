@@ -1,18 +1,10 @@
-"""Audit package — Phase 7 (P7) of the Chopper pipeline.
+"""Audit package — Phase 7 (P7).
 
-Writes the ``.chopper/`` bundle described in bible §5.5. The service
-always runs — even when earlier phases failed, even when the pipeline
-aborted on a gated error — so that every run leaves a forensic record
-on disk.
+Writes the ``.chopper/`` forensic bundle. Always runs, even when earlier
+phases aborted, so every invocation leaves a record on disk.
 
-Public surface:
-
-* :class:`AuditService` — the P7 service; orchestrates every artifact
-  writer and returns an :class:`~chopper.core.models.AuditManifest`.
-
-All per-artifact writers are module-private helpers in
-:mod:`chopper.audit.writers`; they are exposed only through the service
-so the one bible-defined artifact vocabulary stays in one place.
+Public surface: :class:`AuditService`. Per-artifact writers live in
+:mod:`chopper.audit.writers` and are exposed only through the service.
 """
 
 from __future__ import annotations

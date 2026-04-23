@@ -2,7 +2,7 @@
 #
 # Fixture target: the tracer must emit `TW-01 ambiguous-proc-match` when a
 # bare call token matches two distinct canonical procs in the selected
-# domain. See `docs/chopper_description.md` §5.4 and docs/DIAGNOSTIC_CODES.md.
+# domain. See `technical_docs/chopper_description.md` §5.4 and technical_docs/DIAGNOSTIC_CODES.md.
 #
 # Shape:
 #   - Two files (this file plus ambiguous_other.tcl) each define

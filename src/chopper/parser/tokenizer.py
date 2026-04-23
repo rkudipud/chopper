@@ -1,50 +1,26 @@
 """Structural tokenizer for Tcl source.
 
-Per TCL_PARSER_SPEC §3.0, the tokenizer is a character-level state
-machine over ``(brace_depth, in_quote, in_comment)``. It does **not**
-execute Tcl, track namespaces, or recognise ``proc`` definitions — those
-layer on top (``namespace_tracker``, ``proc_extractor``, ``call_extractor``
-land in Stages 1c–1e).
+Character-level state machine over ``(brace_depth, in_quote, in_comment)``.
+Reduces raw source into a stream of :class:`Token` records annotated with
+brace depth, command-position flag, and 1-indexed line number.
 
-The tokenizer's responsibility is to reduce raw source into a stream of
-:class:`Token` records annotated with:
+The tokenizer does **not** execute Tcl, track namespaces, or recognise
+``proc`` definitions — those layer on top (``namespace_tracker``,
+``proc_extractor``, ``call_extractor``).
 
-* the brace depth active at the token's position (§3.1);
-* whether the token is at command position (§3.4 — first word of a
-  command, defined as "start-of-file, or first non-whitespace after
-  ``;`` / non-continued newline");
-* the 1-indexed source line number.
+Structural errors (negative depth, unclosed braces) land in
+:attr:`TokenizerResult.errors` as :class:`TokenizerError` records; the
+service layer translates them into ``PE-02 unbalanced-braces``.
 
-Structural errors — a ``}`` that would drive depth negative, or EOF
-reached with unmatched ``{`` — are reported in :attr:`TokenizerResult.errors`
-as :class:`TokenizerError` records. The service layer (Stage 1f)
-translates those into ``PE-02 unbalanced-braces`` diagnostics; the
-tokenizer itself has no knowledge of the diagnostic registry.
+State precedence: ``in_comment`` > ``in_quote`` > brace tracking.
+Backslash escape: a structural character preceded by an odd number of
+backslashes is escaped; even (including zero) is not.
 
-State precedence (TCL_PARSER_SPEC §3.0):
+Quote behavior: pre-body (depth 0, word start) ``"`` opens a quoted
+word until the next unescaped ``"``. Inside braces ``"`` is literal.
 
-    ``in_comment`` beats ``in_quote`` beats brace tracking.
-
-Backslash-escape rule: a structural character (``{`` / ``}`` / ``"`` /
-newline) preceded by an **odd** number of consecutive backslashes is
-escaped; an even count (including zero) is not. Counting is done in
-:func:`_preceding_backslashes`.
-
-Quote rules (§3.3):
-
-* **Pre-body** (brace_depth == 0, at word start): ``"`` begins a
-  quoted word. Braces inside the quoted word are inert; the word ends at
-  the next unescaped ``"``. Line numbers still advance.
-* **In-body** (brace_depth > 0): ``"`` is a literal character; the
-  tokenizer never enters quoted state inside braces (§3.3.2).
-
-Comment rules (§3.4):
-
-* ``#`` at command position begins a comment that extends to the next
-  non-continued newline.
-* Braces inside comments are inert — comments suppress all structural
-  scanning until end-of-line.
-* Comments at any brace depth obey the same rule.
+Comment behavior: ``#`` at command position runs to end of line;
+braces inside comments are inert.
 """
 
 from __future__ import annotations
@@ -154,7 +130,7 @@ def _preceding_backslashes(text: str, idx: int) -> int:
     """Return the count of consecutive ``\\`` characters immediately before ``idx``.
 
     An odd count means the character at ``idx`` is backslash-escaped for the
-    purpose of structural scanning (TCL_PARSER_SPEC §3.1 rule 3, §3.2, §3.3).
+    purpose of structural scanning.
     ``idx`` must be within bounds; callers pass it only for candidate
     structural characters.
     """

@@ -108,7 +108,7 @@ Per the build-out plan, each stage is assigned to one primary implementer agent 
 | Stage 4 — validator | `SWE` | `SWE` | Registry-driven; each `VE-*` / `VW-*` has a single emission site keyed off the manifest. |
 | Stage 5 — CLI + E2E | `SWE` | `Devils Advocate` | Integration-heavy. The Devils-Advocate review runs the 25 active scenarios from `tests/TESTING_STRATEGY.md` §5 and the `fev_formality_real` acceptance trim. |
 
-**Review gate rule.** The reviewer agent **MUST** be a different agent instance than the primary implementer. The reviewer owns the exit-gate DoD: green `make ci`, green `make docs-gate`, every fixture in scope passing, and every new diagnostic emission traceable to an Active row in `docs/DIAGNOSTIC_CODES.md`. The reviewer blocks the milestone close until all boxes are ticked.
+**Review gate rule.** The reviewer agent **MUST** be a different agent instance than the primary implementer. The reviewer owns the exit-gate DoD: green `make ci`, green `make docs-gate`, every fixture in scope passing, and every new diagnostic emission traceable to an Active row in `technical_docs/DIAGNOSTIC_CODES.md`. The reviewer blocks the milestone close until all boxes are ticked.
 
 ---
 

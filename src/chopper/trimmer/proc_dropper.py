@@ -1,36 +1,16 @@
-"""Atomic proc-drop algorithm (bible §5.2 P5, RISKS_AND_PITFALLS P-37).
+"""Atomic proc-drop algorithm.
 
-Given the full text of a Tcl file and the set of :class:`ProcEntry`
-records to drop, :func:`drop_procs` returns the rewritten text with
-every target proc removed.
+:func:`drop_procs` rewrites a Tcl file's text with target procs removed.
+Each drop range spans the proc body plus any associated
+``define_proc_attributes`` block and comment banner (merged into the
+minimum enclosing range). Ranges are applied **bottom-up** (descending
+by start line) so remaining procs' 1-indexed line coordinates stay
+valid during the rewrite.
 
-**Drop-range composition.** For each proc being dropped, the deletion
-span covers:
-
-* the proc's own body (``start_line`` → ``end_line``, inclusive);
-* the associated DPA block, if any (``dpa_start_line`` →
-  ``dpa_end_line``), whether it precedes or follows the proc;
-* the associated comment banner, if any (``comment_start_line`` →
-  ``comment_end_line``).
-
-The three spans are merged into the minimum enclosing range. The
-algorithm then sorts all drop ranges **descending by start line** and
-applies them bottom-up — deleting from the end of the file first
-preserves every remaining proc's 1-indexed line coordinates
-(RISKS_AND_PITFALLS P-37). Applying them top-down would invalidate the
-parser's coordinate system for every later proc in the same file.
-
-**Overlap handling.** Two drop ranges that touch or overlap (for
-example, a proc whose comment banner sits directly above another
-proc's DPA) are merged before deletion. This is rare in practice but
-the algorithm is correct regardless.
-
-**Boundary invariant.** Drop ranges must be in ``[1, len(lines)]``. If
-a range falls outside that window the parser's output is stale against
-the on-disk text (``VE-26 proc-atomic-drop-failed``). This module does
-not emit the diagnostic itself — the caller (:class:`TrimmerService`)
-owns diagnostic I/O — but it signals the condition by raising
-:class:`ProcDropError`.
+Overlapping ranges are merged before deletion. A drop range that
+escapes the ``[1, len(lines)]`` window indicates stale parser output
+and raises :class:`ProcDropError`; the caller translates this to a
+``VE-26`` diagnostic.
 """
 
 from __future__ import annotations
@@ -44,10 +24,7 @@ __all__ = ["ProcDropError", "drop_procs"]
 
 
 class ProcDropError(ValueError):
-    """Raised when a drop range escapes the file's line window.
-
-    The trimmer catches this and emits ``VE-26``.
-    """
+    """Drop range is outside the file's line window. Trimmer emits ``VE-26``."""
 
 
 @dataclass(frozen=True)

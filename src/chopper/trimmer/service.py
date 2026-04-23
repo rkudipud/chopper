@@ -1,46 +1,21 @@
-"""Phase 5a trimmer — top-level state machine.
+"""P5 trimmer service — top-level state machine.
 
-:class:`TrimmerService` consumes the Phase 0
-:class:`~chopper.core.models.DomainState`, the frozen
-:class:`~chopper.core.models.CompiledManifest`, and the Phase 2
-:class:`~chopper.core.models.ParseResult`, and rebuilds the domain
-directory per bible §2.8 / §5.2 P5.
+Dispatches per-file FULL_COPY / PROC_TRIM / REMOVE operations over
+``domain/`` based on :class:`CompiledManifest`, using ``domain_backup/``
+as the authoritative source tree. Prep varies by domain-state case:
 
-State-machine summary
----------------------
+* Case 1 (domain only)            — move ``.chopper`` aside, rename to backup, create fresh domain.
+* Case 2 (domain + backup)        — delete domain, recreate empty; backup untouched.
+* Case 3 (backup only)            — recreate empty domain; backup untouched.
+* Case 4 (neither)                — never reached; fatal at P0.
 
-+------+---------------+-------------------+----------------------------------+
-| Case | ``domain/``   | ``domain_backup/``| Prep before per-file dispatch    |
-+======+===============+===================+==================================+
-| 1    | exists        | missing           | Move ``.chopper/`` aside, rename |
-|      |               |                   | domain → backup, re-create empty |
-|      |               |                   | domain.                          |
-+------+---------------+-------------------+----------------------------------+
-| 2    | exists        | exists            | Recursively delete domain,       |
-|      |               |                   | re-create empty. Backup is       |
-|      |               |                   | untouched and authoritative.     |
-+------+---------------+-------------------+----------------------------------+
-| 3    | missing       | exists            | Re-create empty domain. Backup   |
-|      |               |                   | is authoritative.                |
-+------+---------------+-------------------+----------------------------------+
-| 4    | missing       | missing           | Never reached. ``DomainState``   |
-|      |               |                   | case 4 is fatal at P0.           |
-+------+---------------+-------------------+----------------------------------+
+``--dry-run`` skips all filesystem mutation; the returned
+:class:`TrimReport` still describes planned actions so audit at P7 is
+faithful.
 
-Under ``--dry-run`` the prep step is skipped and no files are written;
-the returned :class:`TrimReport` still describes the planned actions
-so the audit bundle at P7 is faithful.
-
-Failure recovery
-----------------
-
-If the prep step completes but per-file dispatch aborts mid-run
-(disk full, permission denied, ``VE-26`` proc-drop failure), the
-partially rebuilt ``<domain>/`` is left in place and the backup
-remains intact. On the next invocation the edge-case matrix observes
-case 2 and rebuilds cleanly from the backup. The returned
-:class:`TrimReport` has ``rebuild_interrupted=True`` in this path so
-the audit output flags it.
+If dispatch aborts mid-run, the partial domain is left in place and the
+next invocation rebuilds cleanly from the intact backup
+(``rebuild_interrupted=True`` in the trim report).
 """
 
 from __future__ import annotations
@@ -87,8 +62,7 @@ class TrimmerService:
             raise ValueError("TrimmerService.run must not be invoked with DomainState case 4 (fatal at P0)")
 
         # ------------------------------------------------------------------
-        # Dry-run short-circuit (bible §5.2 "P5 — Build output (skipped
-        # under --dry-run)"). Produce a plan-only report from the
+        # Dry-run short-circuit. Produce a plan-only report from the
         # manifest without touching the filesystem.
         # ------------------------------------------------------------------
         if ctx.config.dry_run:
@@ -113,11 +87,9 @@ class TrimmerService:
         for rel_path in sorted(manifest.file_decisions, key=lambda p: p.as_posix()):
             treatment = manifest.file_decisions[rel_path]
             if treatment is FileTreatment.GENERATED:
-                # Bible §P5b: GENERATED files are written by GeneratorService
-                # in P5b, not by the trimmer. They have no backup source
-                # (they do not exist until the generator emits them), so
-                # skipping here is correct — the generator returns its own
-                # :class:`GeneratedArtifact` records for audit.
+                # GENERATED files are written by GeneratorService, not by
+                # the trimmer. They have no backup source, so skipping them
+                # here is correct.
                 continue
             try:
                 outcome = self._dispatch(ctx, rel_path, treatment, parsed, keep_by_file)

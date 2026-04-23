@@ -522,7 +522,7 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "jsonschema", "-q"])
     import jsonschema
 
-schema_dir = pathlib.Path("schemas")   # relative to chopper_json_kit repo root
+schema_dir = pathlib.Path("schemas")   # relative to the json_kit folder root
 schemas = {
     "chopper/base/v1":    json.load(open(schema_dir / "base-v1.schema.json")),
     "chopper/feature/v1": json.load(open(schema_dir / "feature-v1.schema.json")),

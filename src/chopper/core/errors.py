@@ -1,12 +1,12 @@
 """Programmer-error exception hierarchy.
 
-Per bible §5.12.5, user-visible conditions are **diagnostics**, not exceptions.
-Services never raise :class:`ValueError` / :class:`FileNotFoundError` to signal
+User-visible conditions are **diagnostics**, not exceptions. Services
+never raise :class:`ValueError` / :class:`FileNotFoundError` to signal
 bad input. The classes below exist exclusively for internal-consistency
 assertions and registry mismatches — programmer errors, not user errors.
 
-An unhandled exception that escapes a service terminates the run with exit
-code 3 (bible §5.10, ARCHITECTURE_PLAN.md §6.2).
+An unhandled exception that escapes a service terminates the run with
+exit code 3.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class UnknownDiagnosticCodeError(ChopperError):
     :mod:`chopper.core.diagnostics`.
 
     Catches typos at construction time so no unregistered code can ever reach
-    the sink. See bible §8.1 invariants.
+    the sink.
     """
 
 

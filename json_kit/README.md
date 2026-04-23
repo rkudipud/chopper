@@ -6,6 +6,8 @@
 
 This package gives teams everything needed to author, validate, and organize Chopper JSON files — no Chopper installation required.
 
+You can hand off this folder by itself before the Chopper runtime ships. It is intentionally self-contained: examples, schemas, authoring docs, agent instructions, setup scripts, and the local validator all live under `json_kit/`. When the full Chopper runtime is present, Chopper reads its schema files from `json_kit/schemas/`.
+
 ---
 
 ## What Is This?
@@ -25,10 +27,11 @@ You author these JSONs now. When Chopper is released, you run `chopper trim --pr
 ## Package Contents
 
 ```
-chopper_json_kit/
+json_kit/
 ├── AGENTS.md                        ← AI agent instructions (GitHub Copilot / Copilot Chat)
 ├── README.md                        ← You are here
 ├── VERSION.txt                      ← Schema version tracking
+├── requirements.txt                 ← Local Python dependency list for the validator
 ├── setup.csh                        ← Bootstrap Python venv on tcsh/csh (Unix primary)
 ├── setup.ps1                        ← Bootstrap Python venv on Windows PowerShell
 ├── validate_jsons.py                ← One-command schema validation helper
@@ -125,6 +128,27 @@ The script validates Base/Feature/Project JSONs based on `$schema`, prints clear
 **Other AI assistants (Claude, ChatGPT, etc.):** Open `agent/DOMAIN_ANALYZER.md` as a system prompt or instruction file and ask the same question.
 
 The agent follows an 8-phase process: discover domain structure → extract stack-file stage definitions → extract and classify procs → split base vs. feature content → author base JSON → author feature JSONs → author project JSON → validate. Collaboration checkpoints are built in — the agent pauses after key findings to confirm before finalizing JSON decisions.
+
+## Self-Contained Handoff Contract
+
+If you copy only `json_kit/` to another machine or repository, the folder still works as an authoring kit as long as Python and `jsonschema` are available.
+
+What remains usable after copy-out:
+
+- `schemas/` — authoritative validators
+- `docs/JSON_AUTHORING_GUIDE.md` — field-by-field authoring reference
+- `examples/` — working templates
+- `validate_jsons.py` — local validator
+- `AGENTS.md` and `agent/DOMAIN_ANALYZER.md` — AI-assisted authoring instructions
+- `setup.csh` and `setup.ps1` — environment bootstrap helpers
+
+What Chopper uses from this folder at runtime:
+
+- `json_kit/schemas/base-v1.schema.json`
+- `json_kit/schemas/feature-v1.schema.json`
+- `json_kit/schemas/project-v1.schema.json`
+
+Chopper does not need the examples or authoring docs to execute a trim; those are here for JSON authors.
 
 ---
 

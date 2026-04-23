@@ -22,7 +22,7 @@ Before writing ANY code for a stage, execute this checklist:
 ## Stage [N] Spec Verification
 
 ### Bible Section
-- Primary: docs/chopper_description.md §[X.X]
+- Primary: technical_docs/chopper_description.md §[X.X]
 - Quote: "[exact text from bible]"
 
 ### Subordinate Docs
@@ -243,7 +243,7 @@ class MyModel:
 # src/chopper/core/diagnostics.py
 """Diagnostic code registry.
 
-Codes MUST exist in docs/DIAGNOSTIC_CODES.md before use here.
+Codes MUST exist in technical_docs/DIAGNOSTIC_CODES.md before use here.
 """
 from __future__ import annotations
 from dataclasses import dataclass

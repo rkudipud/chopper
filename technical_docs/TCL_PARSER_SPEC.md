@@ -23,7 +23,7 @@ This document specifies the tokenization, parsing, and indexing rules for Choppe
 
 ### 2.1 Public Function Signature
 
-**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps — it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and operates on already-decoded text supplied by the service. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
+**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`technical_docs/ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps — it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and operates on already-decoded text supplied by the service. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
 
 ```python
 def parse_file(
@@ -37,13 +37,13 @@ def parse_file(
         file_path: Domain-relative or absolute path identifying the Tcl file.
         text: Already-decoded file content supplied by ParserService.
         on_diagnostic: Optional callback for emitting Diagnostic records
-            (PE-01, PW-01, PW-02, etc. — see docs/DIAGNOSTIC_CODES.md).
+            (PE-01, PW-01, PW-02, etc. — see technical_docs/DIAGNOSTIC_CODES.md).
             When None, diagnostics are silently discarded.
 
     Returns:
         List of ProcEntry records. May be empty (not an error).
         Return contract on PE-* diagnostics is specified in
-        docs/chopper_description.md §5.4.1.
+        technical_docs/chopper_description.md §5.4.1.
     """
 ```
 
@@ -602,7 +602,7 @@ File dependencies are extracted separately from proc calls:
 
 Parser extraction, tracer resolution, and architecture artifacts must share one diagnostic and edge vocabulary.
 
-**Trace warning mapping (from `docs/DIAGNOSTIC_CODES.md`):**
+**Trace warning mapping (from `technical_docs/DIAGNOSTIC_CODES.md`):**
 
 | Scenario | Code |
 |---|---|
@@ -997,7 +997,7 @@ The parser is purely CPU-bound string processing. No external dependencies requi
 
 The parser does **not** return diagnostics in its return value. Instead, it emits them via the optional `on_diagnostic` callback (`DiagnosticCollector = Callable[[Diagnostic], None]`), defined in `core/protocols.py`.
 
-All parser diagnostic codes (`PE-*`, `PW-*`, `PI-*`) — including severity, description, recovery hints, and the exact algorithm section where each fires — are defined exclusively in [`docs/DIAGNOSTIC_CODES.md`](../docs/DIAGNOSTIC_CODES.md) (sections 5–7). Implementation must use constants from `src/chopper/core/diagnostics.py` derived from that registry; do not introduce new codes without first registering them there.
+All parser diagnostic codes (`PE-*`, `PW-*`, `PI-*`) — including severity, description, recovery hints, and the exact algorithm section where each fires — are defined exclusively in [`technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md) (sections 5–7). Implementation must use constants from `src/chopper/core/diagnostics.py` derived from that registry; do not introduce new codes without first registering them there.
 
 **Emission pattern:**
 ```python
@@ -1154,7 +1154,7 @@ This log records the conscious design decisions that shaped this specification.
 | 2026-04-05 | **Rev 5:** Resolved pre-coding review blockers B-01 through B-04 and HIGH issues H-01, H-02, M-02. Replaced ambiguous "at this depth" detection rule with explicit context-type stack (`FILE_ROOT`, `NAMESPACE_EVAL`, `CONTROL_FLOW`, `PROC_BODY`). Operationally defined `body_start_line` / `body_end_line` boundaries with edge-case table (§6.2). Specified args-word skip algorithm ("scan forward to unescaped `{` at current depth"). Added namespace stack pop-timing worked example (§4.5.1). Separated quote handling into Pre-Body Rule (§3.3.1) and In-Body Rule (§3.3.2). Added call extraction scope statement to §4.4. Revised performance target from <1s to <2s primary. |
 | 2026-04-05 | **Rev 6:** Added §6.3 (Duplicate Proc Validation Timing) and §5.3.1 cross-reference to architecture trace resolution. Resolves E-02, E-11 from production review. |
 | 2026-04-05 | **Rev 7:** Added §2.1 (Public Function Signature) and §8.4 (Diagnostic Emission Contract). Resolves parser return type ambiguity: `parse_file()` returns `list[ProcEntry]`, emits diagnostics via optional `on_diagnostic: DiagnosticCollector` callback. Aligns with `ProgressSink.on_diagnostic` pattern used by service layer. |
-| 2026-04-19 | **Rev 8:** Supercharged with real-world EDA patterns from `default_fm_procs.tcl` and SNORT algorithm intelligence. Added §4.6 (`define_proc_attributes` detection with SNORT-derived name extraction), §4.7 (structured doc-comment block detection), §5.5 (SNORT-inspired call false-positive filter with `iproc_msg`/`puts`/`echo` suppression). Extended `ProcEntry` with `dpa_start_line`, `dpa_end_line`, `comment_start_line`, `comment_end_line`. Fixed §2.1 signature (added `on_diagnostic`). Updated §4.2 algorithm with steps h and i. Added §5.2 EDA false-positive rows. New edge cases §7.11–§7.14 covering args-with-defaults, DPA association, comment banners, and `foreach_in_collection`. Extended §8.2 state machine and §8.4 with `PW-11` (DPA mismatch) / `PI-04` (DPA orphan); all parser diagnostic codes aligned to authoritative registry in `docs/DIAGNOSTIC_CODES.md`. Real-world coverage anchored to Intel/Synopsys FEV formality flows (`default_fm_procs.tcl`). |
-| 2026-04-19 | **Rev 9:** Replaced all ad-hoc parser diagnostic code strings (`PARSER-DUP-01`, `PARSE-DYNA-01`, `PARSE-ENCODING-01`, `PARSE-UNBRACE-01`, `PARSE-NOBODY-01`, `PARSE-COMPNS-01`, `PARSE-DPA-MISMATCH-01`, `PARSE-DPA-ORPHAN-01`) with authoritative registry codes (`PE-01`, `PW-01`, `PW-02`, `PE-02`, `PW-03`, `PW-04`, `PW-11`, `PI-04`). Registered `PW-11` and `PI-04` in `docs/DIAGNOSTIC_CODES.md`. Added cross-reference note in §8.4 directing implementors to the registry. |
+| 2026-04-19 | **Rev 8:** Supercharged with real-world EDA patterns from `default_fm_procs.tcl` and SNORT algorithm intelligence. Added §4.6 (`define_proc_attributes` detection with SNORT-derived name extraction), §4.7 (structured doc-comment block detection), §5.5 (SNORT-inspired call false-positive filter with `iproc_msg`/`puts`/`echo` suppression). Extended `ProcEntry` with `dpa_start_line`, `dpa_end_line`, `comment_start_line`, `comment_end_line`. Fixed §2.1 signature (added `on_diagnostic`). Updated §4.2 algorithm with steps h and i. Added §5.2 EDA false-positive rows. New edge cases §7.11–§7.14 covering args-with-defaults, DPA association, comment banners, and `foreach_in_collection`. Extended §8.2 state machine and §8.4 with `PW-11` (DPA mismatch) / `PI-04` (DPA orphan); all parser diagnostic codes aligned to authoritative registry in `technical_docs/DIAGNOSTIC_CODES.md`. Real-world coverage anchored to Intel/Synopsys FEV formality flows (`default_fm_procs.tcl`). |
+| 2026-04-19 | **Rev 9:** Replaced all ad-hoc parser diagnostic code strings (`PARSER-DUP-01`, `PARSE-DYNA-01`, `PARSE-ENCODING-01`, `PARSE-UNBRACE-01`, `PARSE-NOBODY-01`, `PARSE-COMPNS-01`, `PARSE-DPA-MISMATCH-01`, `PARSE-DPA-ORPHAN-01`) with authoritative registry codes (`PE-01`, `PW-01`, `PW-02`, `PE-02`, `PW-03`, `PW-04`, `PW-11`, `PI-04`). Registered `PW-11` and `PI-04` in `technical_docs/DIAGNOSTIC_CODES.md`. Added cross-reference note in §8.4 directing implementors to the registry. |
 | 2026-04-19 | **Rev 10:** Production integration review. Added `calls` and `source_refs` fields to `ProcEntry` (§6) — the typed channel from parser to tracer and dependency graph. Added invariants 5–6 for these fields (§6.1). Added §8.5 (Parser-to-Pipeline Integration) mapping every `ProcEntry` field to its trimmer, compiler/tracer, and dry-run consumer with concrete code examples. Added `foreach_in_collection` to §4.2 step 4 control-flow keyword set with note to §7.14/P-36. Added `PW-05`, `PI-01`, `PI-02`, `PI-03` rows to §8.4 emission table. Replaced remaining ad-hoc trace codes (`TRACE-AMBIG-01` → `TW-01`, `TRACE-CROSS-DOMAIN-01` → `TW-02`, `TRACE-UNRESOLV-01` → `TW-03`) in §5.3.1, §5.5 (×2), and Rev 4 history. |
 | 2026-04-20 | **Rev 11:** Folded §11 "Addendum A: Clarifications from Production Review" into the main body. A.1 (PE-01 timing and error-message format) became new §6.3 so readers encounter the timing contract alongside the §6.1 invariants that govern it. A.2 (namespace-resolution cross-reference) was dropped as redundant with §5.3.1, which already specifies the deterministic namespace lookup contract. The general rule against Addendum sections is recorded in `.github/instructions/project.instructions.md` under Documentation Conventions. |

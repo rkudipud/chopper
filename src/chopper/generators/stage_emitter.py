@@ -1,17 +1,16 @@
 """Stage emitter — renders a :class:`StageSpec` to ``<stage>.tcl`` text.
 
-Bible §R4 "plain strings by design": each step is emitted verbatim on
-its own line, in declaration order. The emitter performs no templating,
-no variable expansion, no Tcl parsing — the authoring contract is that
-steps already contain valid Tcl (or whatever the target language is).
+Plain strings by design: each step is emitted verbatim on its own line,
+in declaration order. No templating, no variable expansion, no Tcl
+parsing — the authoring contract is that steps already contain valid
+Tcl (or the target language).
 
-The only interpretation performed is:
+The only interpretation performed:
 
-* the file is prefixed with a single-line provenance banner so audit
-  consumers can correlate a generated file back to its source stage
-  without opening ``compiled_manifest.json``;
-* steps are joined with ``"\\n"`` and the file is terminated with a
-  trailing newline (POSIX convention).
+* a single-line provenance banner prefix so audit consumers can
+  correlate a generated file back to its source stage without opening
+  ``compiled_manifest.json``;
+* steps joined with ``"\n"`` and file terminated with a trailing newline.
 """
 
 from __future__ import annotations

@@ -114,8 +114,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     """Remove ``<domain>_backup/`` after the trim window is complete.
 
     Refuses to run without ``--confirm``. Does not enter
-    :class:`ChopperRunner`; this is a direct filesystem operation
-    per DAY0_REVIEW A7.
+    :class:`ChopperRunner`; this is a direct filesystem operation.
     """
 
     if not getattr(args, "confirm", False):

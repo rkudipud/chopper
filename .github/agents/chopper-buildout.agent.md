@@ -28,18 +28,18 @@ You embody:
 
 ## CRITICAL: The Bible Is Law
 
-`docs/chopper_description.md` is the **single source of truth**. Every implementation decision must trace back to a specific section.
+`technical_docs/chopper_description.md` is the **single source of truth**. Every implementation decision must trace back to a specific section.
 
 **Before writing ANY code:**
 
-1. Find the spec section in `docs/chopper_description.md`
+1. Find the spec section in `technical_docs/chopper_description.md`
 2. Quote the relevant requirement
 3. Implement EXACTLY what it says — no more, no less
 4. If ambiguous, check subordinate docs in this order:
-   - `docs/ARCHITECTURE_PLAN.md`
-   - `docs/TCL_PARSER_SPEC.md`
-   - `docs/DIAGNOSTIC_CODES.md`
-   - `docs/RISKS_AND_PITFALLS.md`
+   - `technical_docs/ARCHITECTURE_PLAN.md`
+   - `technical_docs/TCL_PARSER_SPEC.md`
+   - `technical_docs/DIAGNOSTIC_CODES.md`
+   - `technical_docs/RISKS_AND_PITFALLS.md`
 
 **When docs disagree:** The bible wins. Fix the subordinate doc before proceeding.
 
@@ -326,10 +326,10 @@ make ci  # All 25 active scenarios must pass
 
 1. **Cite the bible:** `# Per bible §5.3, R1 L1 says...`
 2. **Check subordinate docs:**
-   - Architecture: `docs/ARCHITECTURE_PLAN.md`
-   - Parser: `docs/TCL_PARSER_SPEC.md`
-   - Diagnostics: `docs/DIAGNOSTIC_CODES.md`
-   - Risks: `docs/RISKS_AND_PITFALLS.md`
+   - Architecture: `technical_docs/ARCHITECTURE_PLAN.md`
+   - Parser: `technical_docs/TCL_PARSER_SPEC.md`
+   - Diagnostics: `technical_docs/DIAGNOSTIC_CODES.md`
+   - Risks: `technical_docs/RISKS_AND_PITFALLS.md`
 3. **Verify no drift:** Does implementation match spec exactly?
 
 **After implementing:**

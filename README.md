@@ -1,373 +1,91 @@
 # Chopper v2
 
-**Chopper v2** is a docs-first Python toolchain for surgically trimming VLSI EDA tool domains via JSON feature selection. The intended execution model is an 8-phase pipeline (`P0`-`P7`) that removes unwanted files, Tcl procedures, and code paths while preserving correctness and auditability.
+Chopper is a Python CLI for trimming VLSI EDA tool-flow domains down to the files, Tcl procedures, and generated run scripts a project actually needs. Selection is driven by JSON, execution is deterministic, and every run writes an audit bundle under `.chopper/` for review.
 
-## Quick Links
+## What It Does
 
-- **[.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)** — Project conventions, architecture overview, critical principles, diagnostic-code rules, editing conventions
-- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 8-phase pipeline, R1 merge rules, requirements
-- **[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md)** — How the bible is built: hexagonal layout, ports, context/config, orchestrator
-- **[docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)** — Stage-by-stage delivery plan (Stage 0 → Stage 5)
-- **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
-- **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
-- **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Tcl parser engineering spec (state machine, canonical-name vectors)
-- **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks (`TC-*`) and implementation pitfalls (`P-*`)
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to add features, adapters, and diagnostic codes without breaking scope-lock
-- **[tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md)** — Test pyramid, named integration scenarios, coverage gates
-- **[tests/FIXTURE_AUDIT.md](tests/FIXTURE_AUDIT.md)** — Fixture ↔ pitfall ↔ scenario mapping; Stage-gate prerequisites
-- **[Makefile](Makefile)** — Build, test, lint commands
+Chopper supports three capability classes that can be used independently or together:
 
----
+| Capability | Purpose |
+| --- | --- |
+| `F1` | Keep or drop whole files |
+| `F2` | Keep or drop individual Tcl procedures inside a file |
+| `F3` | Generate `<stage>.tcl` run files from JSON stage definitions |
 
-## Development Setup
+The CLI surface is intentionally small:
 
-**Important Note:** tcsh is the PRIMARY shell for this system. bash/zsh are NOT available. Use `setup.csh` for Unix/Linux/macOS.
+- `chopper validate` runs the read-only analysis path.
+- `chopper trim` runs the full pipeline.
+- `chopper cleanup --confirm` removes the backup directory after the trim window closes.
 
-### Quick Start (Choose Your Platform)
+Global flags such as `--plain`, `--strict`, `-v`, and `-q` always go before the subcommand.
+
+## Quick Start
+
+Chopper requires Python 3.11+ at runtime. The provided setup scripts create a local `.venv`, activate it, and install the development dependencies.
 
 | Platform | Command |
-|----------|---------|
-| **Unix/Linux/macOS (tcsh)** | `source setup.csh` |
-| **Windows (PowerShell)** | `. .\setup.ps1` |
-| **Windows (cmd.exe)** | `setup.bat` |
+| --- | --- |
+| Windows PowerShell | `. .\setup.ps1` |
+| Windows cmd.exe | `setup.bat` |
+| Unix tcsh/csh | `source setup.csh` |
+| Unix bash/zsh/sh | `source setup.sh` |
 
-This creates `.venv`, activates it, and installs dev dependencies.
+After setup, confirm the CLI is available:
 
-### Platform-Specific Setup Scripts
-
-The following setup scripts are platform and shell agnostic:
-
-| Platform | Shell | Script | Status |
-|----------|-------|--------|--------|
-| **Unix/Linux/macOS** | tcsh, csh | `setup.csh` | **PRIMARY** |
-| **Unix/Linux/macOS** | bash, zsh, sh | `setup.sh` | Fallback (bash/zsh not available) |
-| **Windows** | PowerShell 5.1+ | `setup.ps1` | Standard |
-| **Windows** | cmd.exe | `setup.bat` | Standard |
-
----
-
-## Setup Instructions
-
-### **Unix/Linux/macOS (tcsh) — PRIMARY**
-
-```tcsh
-cd /path/to/chopper_v2
-source setup.csh
+```text
+chopper --help
 ```
 
-**To auto-activate on every terminal launch:**
+Typical first run:
 
-```tcsh
-echo "source /path/to/chopper_v2/setup.csh" >> ~/.tcshrc
-source ~/.tcshrc
+```text
+chopper validate --project configs/project_abc.json
+chopper trim --dry-run --project configs/project_abc.json
+chopper trim --project configs/project_abc.json
 ```
 
----
+Use `--dry-run` before a live trim when you want the compiled manifest, trace graph, and trim report without rebuilding domain content.
 
-### **Unix/Linux/macOS (bash/zsh) — Fallback Only**
+## Repo Guide
 
-**Note:** bash/zsh are NOT available on this system. Use tcsh (setup.csh) instead.
+Start with the docs that match your role:
 
-If bash/zsh are available:
+| Path | Audience | Purpose |
+| --- | --- | --- |
+| [doc/README.md](doc/README.md) | Operators, JSON authors, integrators | Entry point to the user-facing docs |
+| [json_kit/README.md](json_kit/README.md) | JSON authors | Standalone authoring kit with schemas, examples, and validator |
+| [technical_docs/chopper_description.md](technical_docs/chopper_description.md) | Engineers | Authoritative behavior and pipeline specification |
+| [technical_docs/CLI_HELP_TEXT_REFERENCE.md](technical_docs/CLI_HELP_TEXT_REFERENCE.md) | Engineers, doc writers | Canonical CLI wording and option reference |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Development workflow, design constraints, and PR checklist |
 
-```bash
-cd /path/to/chopper_v2
-source setup.sh
+## Repository Layout
+
+| Path | Contents |
+| --- | --- |
+| `src/chopper/` | Application code: CLI, orchestrator, parser, compiler, trimmer, validator, generators, audit |
+| `tests/` | Unit, integration, golden, and property test suites |
+| `json_kit/` | Self-contained JSON authoring kit used by Chopper for runtime schemas |
+| `doc/` | User manual, behavior guide, and technical guide |
+| `technical_docs/` | Full engineering specification, architecture, diagnostics, and risks |
+| `scripts/` | Repo validation helpers used in local checks and CI |
+
+## Development Checks
+
+The main local quality gates are:
+
+```text
+make check
+make ci
+make test
 ```
 
-**To auto-activate on every terminal launch:**
+If `make` is not available on your platform, the underlying tooling is defined in [pyproject.toml](pyproject.toml) and the VS Code workspace exposes matching tasks.
 
-```bash
-# For bash:
-echo "source /path/to/chopper_v2/setup.sh" >> ~/.bashrc
-source ~/.bashrc
+## Notes for Contributors
 
-# For zsh:
-echo "source /path/to/chopper_v2/setup.sh" >> ~/.zshrc
-source ~/.zshrc
-```
+- Keep changes aligned with the documented `validate`, `trim`, and `cleanup` command surface.
+- Chopper reads its authoritative runtime schemas from `json_kit/schemas/`.
+- Behavior changes should update the corresponding user docs and engineering docs in the same pull request.
 
----
-
-### **Windows (PowerShell 5.1+)**
-
-```powershell
-cd C:\path\to\chopper_v2
-. .\setup.ps1
-```
-
-**To auto-activate on every PowerShell launch:**
-
-1. Check your profile location:
-   ```powershell
-   echo $PROFILE
-   ```
-
-2. Add the setup script:
-   ```powershell
-   Add-Content -Path $PROFILE -Value ". 'C:\path\to\chopper_v2\setup.ps1'"
-   ```
-
-3. Restart PowerShell:
-   ```powershell
-   . $PROFILE
-   ```
-
-**Optional: Skip proxy configuration**
-
-```powershell
-. .\setup.ps1 -NoProxy
-```
-
----
-
-### **Windows (cmd.exe / Command Prompt)**
-
-```cmd
-cd C:\path\to\chopper_v2
-setup.bat
-```
-
-**To auto-activate on every cmd launch:**
-
-**Option 1: Create a shortcut**
-1. Right-click desktop → **New** → **Shortcut**
-2. Target: `%comspec% /k "cd /d C:\path\to\chopper_v2 && setup.bat"`
-3. Start in: `C:\path\to\chopper_v2`
-
-**Option 2: Windows Startup folder**
-1. Create `activate_chopper.bat`:
-   ```batch
-   @echo off
-   cd /d C:\path\to\chopper_v2
-   setup.bat
-   cmd /k
-   ```
-2. Move to: `C:\Users\[YourUsername]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup`
-
----
-
-## VS Code Setup
-
-Open the workspace file for VS Code auto-configuration:
-
-```powershell
-code chopper_v2.code-workspace
-```
-
-This automatically configures:
-- ✅ Python interpreter from `.venv`
-- ✅ Linting (Ruff) and formatting (auto-format on save)
-- ✅ pytest runner (Ctrl+Shift+D)
-- ✅ Tasks: `make check`, `make ci`, `make test`
-
----
-
-## Essential Commands
-
-```bash
-make install-dev    # Install dev dependencies (pytest, ruff, mypy)
-make check          # Fast gate: lint + format-check + type-check + unit tests
-make ci             # Full CI: all code quality + all test suites
-make test           # Run all tests (unit, integration, golden, property)
-make lint           # Ruff linter
-make format         # Auto-format with Ruff
-make type-check     # mypy static type check
-```
-
-**Coverage Requirement:** Minimum 78% line coverage (parser: 85%, compiler: 80%, trimmer: 80%)
-
----
-
-## Verifying Your Setup
-
-The repository is still in docs-first buildout mode. Setup verification checks package importability and tests, not a live `chopper` console entry point.
-
-After running setup:
-
-```bash
-# Check Python version (should show .venv prefix)
-python --version
-
-# Check pip
-pip --version
-
-# Check package import
-python -c "import chopper"
-
-# Run tests
-pytest
-```
-
-Expected output:
-- Python 3.13+ with `(.venv)` in your prompt
-- pip from `.venv` directory
-- package import succeeds with no exception
-- Pytest discovers and runs tests
-
----
-
-## Development Workflow
-
-```bash
-# 1. Open a terminal (venv auto-activates if configured)
-# 2. Make changes to src/chopper/
-
-# 3. Run tests
-make check    # Fast pre-commit gate
-make ci       # Full CI before pushing
-
-# 4. Commit and push
-git add .
-git commit -m "your message"
-git push
-```
-
----
-
-## Troubleshooting
-
-### Venv not activating in new terminals
-
-**Solution:** Add the setup script to your shell's startup file:
-
-**tcsh (PRIMARY):**
-```tcsh
-echo "source /path/to/chopper_v2/setup.csh" >> ~/.tcshrc
-source ~/.tcshrc
-```
-
-**bash/zsh:**
-```bash
-echo "source /path/to/chopper_v2/setup.sh" >> ~/.bashrc
-source ~/.bashrc
-```
-
-**PowerShell:**
-```powershell
-Add-Content -Path $PROFILE -Value ". 'C:\path\to\chopper_v2\setup.ps1'"
-. $PROFILE
-```
-
----
-
-### `ModuleNotFoundError` for pytest or chopper
-
-**Solution:** Ensure venv is activated:
-```bash
-# Check if venv is active (should show .venv path)
-which python    # Unix/Linux/macOS
-Get-Command python  # PowerShell
-```
-
-If not active, re-run setup:
-```bash
-source setup.csh    # tcsh (PRIMARY)
-source setup.sh     # bash/zsh
-. setup.ps1         # PowerShell
-setup.bat           # cmd.exe
-```
-
----
-
-### PowerShell execution policy error
-
-**Solution:** Allow scripts temporarily:
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-. .\setup.ps1
-```
-
----
-
-### Proxy issues (internal networks)
-
-**Solution:** Setup auto-configures Intel proxy. If issues persist:
-
-```bash
-# Clear proxy settings
-pip config unset global.proxy
-pip config unset global.trusted-host
-```
-
-**PowerShell:** Skip proxy configuration with `-NoProxy`:
-```powershell
-. .\setup.ps1 -NoProxy
-```
-
----
-
-### Virtual environment broken
-
-**Solution:** Recreate `.venv`:
-```bash
-# Unix/Linux/macOS
-rm -rf .venv
-source setup.csh    # tcsh
-
-# Windows
-rmdir /s .venv
-. .\setup.ps1       # PowerShell
-```
-
----
-
-## Platform Summary
-
-| Feature | tcsh (PRIMARY) | bash/zsh | Windows |
-|---------|----------------|----------|---------|
-| **Status** | ✓ Primary | ✗ Fallback | ✓ Standard |
-| **Auto-activation** | Via ~/.tcshrc | Via ~/.bashrc/.zshrc | Via PowerShell profile or shortcut |
-| **Proxy config** | Automatic | Automatic | Automatic or `-NoProxy` |
-| **Recommended** | **Use this** | Only if available | PowerShell 5.1+ |
-
----
-
-## Architecture Overview
-
-> **Naming note:** `F1/F2/F3` are **capability classes** (file-level trimming / proc-level trimming / run-file generation). The internal execution pipeline uses `P0–P7` phase labels — never `F1–F7`.
-
-The codebase executes an **8-phase pipeline (P0–P7)**:
-
-```
-P0 (Domain State)  →  P1 (Config + Pre-Validate)  →  P2 (Parse Tcl)  →  P3 (Compile)
-   ↓
-P4 (Trace BFS)  →  P5 (Build Output)  →  P6 (Post-Validate)  →  P7 (Audit)
-```
-
-All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run through this same pipeline.
-
-**Core Modules** in `src/chopper/`:
-
-| Module | Responsibility | Phase |
-|--------|-----------------|-------|
-| **parser/** | Tcl static analysis; tokenize, extract procs, track namespaces | P2 |
-| **compiler/** | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions | P3–P4 |
-| **trimmer/** | Copy/drop files and procs, rewrite Tcl in-place | P5 |
-| **validator/** | Pre- and post-trim validation (schema, structure, dangling refs) | P1, P6 |
-| **config/** | JSON schema loading, path resolution, depends_on topo-sort | P1 |
-| **cli/** | Command-line interface layer (validate, trim, cleanup) | User layer |
-| **core/** | Shared frozen dataclasses, errors, diagnostics, protocols, serialization | All |
-| **audit/** | Write `.chopper/` bundle on every run (success and failure) | P7 |
-| **generators/** | F3 run-file (`<stage>.tcl`) emission | P5 |
-| **orchestrator/** | Phase loop, domain-state detection, phase-gate logic | All |
-| **adapters/** | Concrete port implementations (filesystem, diagnostic sink, progress) | All |
-
-For full details, see [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md) and [docs/chopper_description.md](docs/chopper_description.md).
-
----
-
-## Additional Resources
-
-- **[Makefile](Makefile)** — Build and test commands
-- **[docs/chopper_description.md](docs/chopper_description.md)** — Single source of truth: product behavior, 8-phase pipeline, R1 merge rules, requirements
-- **[docs/CLI_HELP_TEXT_REFERENCE.md](docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference
-- **[docs/TCL_PARSER_SPEC.md](docs/TCL_PARSER_SPEC.md)** — Tcl parser engineering baseline
-- **[docs/RISKS_AND_PITFALLS.md](docs/RISKS_AND_PITFALLS.md)** — Technical risks and implementation pitfalls
-- **[docs/DIAGNOSTIC_CODES.md](docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry
-- **[tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md)** — Testing framework overview
-- **[.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)** — Project conventions and guardrails
-
----
-
-**Status:** Platform-agnostic setup for all major shells and OS combinations
+For contribution details, see [CONTRIBUTING.md](CONTRIBUTING.md).

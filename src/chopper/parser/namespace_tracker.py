@@ -1,32 +1,29 @@
-"""Context + namespace tracker for the Tcl parser (TCL_PARSER_SPEC §4.2, §4.5).
+"""Context + namespace tracker.
 
-This module consumes the token stream produced by :func:`chopper.parser.tokenizer.tokenize`
-and maintains two stacks:
+Consumes the tokenizer stream and maintains two stacks:
 
-* **Context stack** — one :class:`ContextFrame` per open brace block plus an
-  implicit :attr:`ContextKind.FILE_ROOT` bottom. Determines whether ``proc``
-  keywords at command position should be recognised as definitions (only
-  :attr:`ContextKind.FILE_ROOT` and :attr:`ContextKind.NAMESPACE_EVAL` allow it).
-* **Namespace stack** — the active ``namespace eval`` nesting, used by the
-  proc extractor (Stage 1d) to qualify proc names per §4.3.
+* **Context stack** — one :class:`ContextFrame` per open brace block plus
+  an implicit :attr:`ContextKind.FILE_ROOT` bottom. Determines whether a
+  ``proc`` keyword at command position is a real definition
+  (only ``FILE_ROOT`` and ``NAMESPACE_EVAL`` allow it).
+* **Namespace stack** — tracks active ``namespace eval`` nesting so the
+  proc extractor can qualify proc names.
 
-The tracker is a stateful utility driven by a caller that feeds tokens one at
-a time. It owns **no** :class:`chopper.core.context.Context` knowledge — all
-diagnostics are collected into :attr:`diagnostics` for the service layer to
-translate into registered :class:`chopper.core.diagnostics.Diagnostic` codes
-(``PW-04 computed-namespace-name``).
+Stateful utility driven by a caller feeding tokens one at a time. Owns
+**no** :class:`ChopperContext` knowledge — diagnostics are collected
+into :attr:`diagnostics` for the service layer to translate into
+``PW-04 computed-namespace-name``.
 
-Interaction with the proc extractor (Stage 1d):
+Interaction with the proc extractor:
 
-1. The extractor iterates over tokens and calls :meth:`feed` for each one.
-2. When it spots a ``proc`` keyword and :meth:`can_define_proc` is ``True``,
-   it consumes the proc-name / args-word tokens and then calls
-   :meth:`mark_proc_body_opening` **before** feeding the body ``LBRACE``
-   into the tracker. The tracker then labels the resulting frame
-   :attr:`ContextKind.PROC_BODY` instead of :attr:`ContextKind.OTHER`.
+1. The extractor calls :meth:`feed` for each token.
+2. When it spots a ``proc`` keyword and :meth:`can_define_proc` is
+   true, it consumes the name / args tokens and calls
+   :meth:`mark_proc_body_opening` **before** feeding the body ``LBRACE``.
+   The resulting frame is labelled :attr:`ContextKind.PROC_BODY`.
 
-The tracker never emits ``PE-02`` itself — structural brace errors are
-reported by the tokenizer.
+The tracker never emits ``PE-02`` — structural brace errors are the
+tokenizer's responsibility.
 """
 
 from __future__ import annotations
@@ -45,7 +42,7 @@ __all__ = [
 ]
 
 
-# TCL_PARSER_SPEC §4.2 step 4.
+# Control-flow openers.
 _CONTROL_FLOW_KEYWORDS: frozenset[str] = frozenset(
     {
         "if",
@@ -65,9 +62,9 @@ _CONTROL_FLOW_KEYWORDS: frozenset[str] = frozenset(
 class ContextKind(StrEnum):
     """The kind of brace-delimited block on the context stack.
 
-    Per TCL_PARSER_SPEC §4.2, only :attr:`FILE_ROOT` and :attr:`NAMESPACE_EVAL`
-    permit top-level proc recognition. :attr:`CONTROL_FLOW`, :attr:`PROC_BODY`,
-    and :attr:`OTHER` all suppress it.
+    Only :attr:`FILE_ROOT` and :attr:`NAMESPACE_EVAL` permit top-level
+    proc recognition. :attr:`CONTROL_FLOW`, :attr:`PROC_BODY`, and
+    :attr:`OTHER` all suppress it.
     """
 
     FILE_ROOT = "FILE_ROOT"
@@ -174,7 +171,7 @@ class NamespaceTracker:
     def can_define_proc(self) -> bool:
         """True iff a ``proc`` keyword here would be a top-level definition.
 
-        Per TCL_PARSER_SPEC §4.2 + §4.4, only :attr:`ContextKind.FILE_ROOT` and
+        Only :attr:`ContextKind.FILE_ROOT` and
         :attr:`ContextKind.NAMESPACE_EVAL` contexts allow it.
         """
         return self.top.kind in (ContextKind.FILE_ROOT, ContextKind.NAMESPACE_EVAL)
@@ -334,7 +331,7 @@ def _looks_computed(name: str) -> bool:
 
     ``$`` and ``[`` are unambiguous; even if the tokenizer would leave them
     literal inside a brace, at command position they indicate an unresolvable
-    computed name per TCL_PARSER_SPEC §4.5 rule 7.
+    computed name.
     """
     return "$" in name or "[" in name
 

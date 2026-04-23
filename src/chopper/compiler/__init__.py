@@ -1,14 +1,14 @@
-"""Compiler package — Phase 3 (P3) of the Chopper pipeline.
+"""Compiler package — Phase 3 (P3) + Phase 4 (P4).
 
 Public surface:
 
-* :class:`CompilerService` — orchestrator-facing entry point that
-  consumes a :class:`~chopper.core.models.LoadedConfig` and a
-  :class:`~chopper.core.models.ParseResult` and returns a frozen
-  :class:`~chopper.core.models.CompiledManifest`.
+* :class:`CompilerService` — consumes :class:`LoadedConfig` +
+  :class:`ParseResult` and returns a frozen :class:`CompiledManifest`.
+* :class:`TracerService` — consumes the manifest + parse index and
+  returns a frozen :class:`DependencyGraph`.
 
 See :mod:`chopper.compiler.merge_service` for the two-pass R1 merge
-algorithm (bible §§4, 5.3).
+algorithm.
 """
 
 from __future__ import annotations

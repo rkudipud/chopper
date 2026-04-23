@@ -1,19 +1,17 @@
 """Diagnostic-code registry — single Python-side source of truth.
 
-This module mirrors the ``Active`` rows of ``docs/DIAGNOSTIC_CODES.md``. It
-is auto-derivable from that markdown file: every addition to the docs
-registry is accompanied by an addition here, verified by the
-``scripts/check_diagnostic_registry.py`` CI gate.
+Mirrors the active rows of the diagnostic registry documentation. Every
+addition to the docs registry is accompanied by an addition here; the
+``scripts/check_diagnostic_registry.py`` CI gate enforces the mirror.
 
-The registry is structured so that no line contains the literal substrings
-``Diagnostic(`` or ``code=`` — this keeps it invisible to the gate's
-per-line scanner, which would otherwise flag the registry itself as an
-"unregistered use site".
+Structured so that no line contains the literal substrings
+``Diagnostic(`` or ``code=``, keeping it invisible to the per-line
+gate scanner that would otherwise flag the registry as an unregistered
+use site.
 
-Usage is internal to :mod:`chopper.core.diagnostics`. Outside callers
-reference diagnostics by numeric code only; the human-facing slug, the
-severity, and the source service are looked up from here so they cannot
-drift between the docs and emitted output.
+Usage is internal to :mod:`chopper.core.diagnostics`. External callers
+reference diagnostics by numeric code only; slug / severity / source
+are looked up here so they cannot drift from emitted output.
 """
 
 from __future__ import annotations
@@ -23,12 +21,12 @@ from enum import Enum
 
 
 class Severity(str, Enum):  # noqa: UP042 — str mixin required so the value is JSON-emitted as the string.
-    """Diagnostic severity, per bible §8.1.
+    """Diagnostic severity.
 
-    Mirrors the three-letter family suffix (``E``/``W``/``I``). The string
-    value is what appears in ``diagnostics.json`` and in rendered CLI
-    output. Subclassing :class:`str` makes ``json.dumps`` serialise the
-    enum as the lowercase string value directly.
+    Mirrors the three-letter family suffix (``E``/``W``/``I``). The
+    string value is what appears in ``diagnostics.json`` and in
+    rendered CLI output. Subclassing :class:`str` makes ``json.dumps``
+    serialise the enum as the lowercase string value directly.
     """
 
     ERROR = "error"
@@ -48,8 +46,8 @@ class _Entry:
       don't pass an explicit phase can default to the registered one.
     * ``source`` — the subsystem that owns the code (``parser``,
       ``compiler``, ``validator``, ``trimmer``, ``schema``, ``cli``).
-    * ``exit_code`` — the process exit code the CLI selects when this code
-      is the highest-severity outcome of the run (see bible §5.10).
+        * ``exit_code`` — the process exit code the CLI selects when this code
+            is the highest-severity outcome of the run.
     """
 
     slug: str
@@ -59,7 +57,7 @@ class _Entry:
     exit_code: int
 
 
-# Derived 1:1 from docs/DIAGNOSTIC_CODES.md. Order follows the registry:
+# Derived from the diagnostic registry. Order follows the registry:
 # VE-01..VE-26, VW-01..VW-19, VI-01..VI-02, TW-01..TW-04,
 # PE-01..PE-03, PW-01..PW-11, PI-01..PI-04 — 68 active codes, matching the
 # Code Space Summary table in the registry.
@@ -163,7 +161,7 @@ def lookup(diagnostic_code: str) -> _Entry:
     except KeyError as exc:
         from chopper.core.errors import UnknownDiagnosticCodeError
 
-        raise UnknownDiagnosticCodeError(f"{diagnostic_code!r} is not registered in docs/DIAGNOSTIC_CODES.md") from exc
+        raise UnknownDiagnosticCodeError(f"{diagnostic_code!r} is not a registered diagnostic code") from exc
 
 
 def all_codes() -> frozenset[str]:

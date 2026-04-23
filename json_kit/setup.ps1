@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent (Get-Item $PSCommandPath).FullName
 
 if (-not (Test-Path (Join-Path $scriptDir "README.md")) -or -not (Test-Path (Join-Path $scriptDir "schemas"))) {
-    Write-Host "setup.ps1 expects to be sourced from the chopper_json_kit repository root." -ForegroundColor Red
+    Write-Host "setup.ps1 expects to be sourced from the json_kit folder root." -ForegroundColor Red
     Write-Host "Either cd into the repo first or activate .venv directly." -ForegroundColor Red
     return
 }
@@ -70,8 +70,7 @@ if (-not $NoProxy) {
 
 Write-Host "[4/4] Installing dependencies..." -ForegroundColor Yellow
 python -m pip install --upgrade pip --quiet
-# Repository docs require jsonschema for local schema validation examples.
-python -m pip install jsonschema --quiet
+python -m pip install -r (Join-Path $scriptDir "requirements.txt") --quiet
 
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green

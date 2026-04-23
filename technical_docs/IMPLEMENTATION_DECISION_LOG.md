@@ -103,7 +103,7 @@ Scope of this document:
 
 **Rationale.** §5.3 step 3d says "recurse into control-structure body"; the spec endorses iterative / stack-based implementations explicitly ("Implementations should use an iterative or stack-based approach to avoid Python stack overflow on deeply nested control structures"). The flat walk *is* the iterative form — and it has the additional benefit of eliminating the depth-matching bug class that led here. The uniform bracket scan on all WORD tokens handles §5.3 step 4 (bracket sub-calls) and §5.5 Level 3 exception (real `[call]` inside a log-proc string argument) with a single rule.
 
-**Outcome.** Rewritten `extract_body_refs` at [src/chopper/parser/call_extractor.py](../src/chopper/parser/call_extractor.py). §5.3 algorithm block in [docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) rewritten to match (with an explicit note that control-flow recursion is not needed). Tested in `TestControlFlowBodies` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
+**Outcome.** Rewritten `extract_body_refs` at [src/chopper/parser/call_extractor.py](../src/chopper/parser/call_extractor.py). §5.3 algorithm block in [technical_docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) rewritten to match (with an explicit note that control-flow recursion is not needed). Tested in `TestControlFlowBodies` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
 
 ### D-1e-02: Suppression check is identifier-only; structural suppression leans on `TCL_BUILTINS` and `at_command_position`
 

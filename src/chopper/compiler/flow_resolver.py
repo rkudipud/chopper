@@ -1,30 +1,27 @@
-"""F3 flow-action resolver (bible §6.7).
+"""F3 flow-action resolver.
 
 Consumes the base stage sequence and every selected feature's ordered
-``flow_actions`` and returns the resolved tuple of
-:class:`~chopper.core.models.StageSpec`.
+``flow_actions`` and returns the resolved tuple of :class:`StageSpec`.
 
-The resolver is **reporting-only for feature order, authoritative for
-F3 ordering** (bible §§5.3, 5.4):
+Resolver is reporting-only for feature order, authoritative for F3
+ordering:
 
-* features are applied in selection order (the order in
-  :attr:`LoadedConfig.features`, which the loader already topo-sorts);
-* within one feature, actions are applied top-to-bottom;
-* ``@n`` instance targeting on step-level actions follows the spec in
-  bible §6.7 "Instance Targeting with ``@n``".
+* features are applied in selection order (:attr:`LoadedConfig.features`,
+  already topo-sorted by the loader);
+* within one feature, actions apply top-to-bottom;
+* ``@n`` instance targeting on step-level actions follows 1-based
+  indexing; ``@0`` is an error.
 
-Diagnostics emitted here (all registered at
-:mod:`chopper.core._diagnostic_registry`):
+Diagnostics emitted:
 
-* ``VE-10 occurrence-suffix-overflow`` — ``@n`` where *n* exceeds the
+* ``VE-10 occurrence-suffix-overflow`` — ``@n`` with *n* exceeding the
   number of matching steps in the stage.
 * ``VE-19 occurrence-suffix-zero`` — ``@0``; indices are 1-based.
 * ``VE-20 ambiguous-step-target`` — a step-level action with no ``@n``
   where the step string appears more than once in the stage.
 
-Programmer-error conditions (action references a missing stage, an
-unknown action kind, etc.) raise :class:`~chopper.core.errors.ChopperError`;
-the runner maps this to exit 3 (internal invariant violation).
+Programmer-error conditions (missing stage target, unknown action kind)
+raise :class:`ChopperError` and the runner maps that to exit 3.
 """
 
 from __future__ import annotations
@@ -73,7 +70,7 @@ def resolve_stages(
     base_stages: tuple[StageDefinition, ...],
     features: tuple[FeatureJson, ...],
 ) -> tuple[StageSpec, ...]:
-    """Return the resolved stage sequence per bible §6.7.
+    """Return the resolved stage sequence.
 
     The input ``base_stages`` is never mutated; the resolver works on a
     list-of-lists copy internally.
@@ -221,9 +218,9 @@ def _resolve_step_index(
     """Return the 0-based step index matched by ``reference``.
 
     Returns ``None`` when the resolver emits a diagnostic (caller skips
-    the action). Bible §6.7: ``@1`` is equivalent to no ``@``; ``@0``
-    fires ``VE-19``; ``@n`` above the match count fires ``VE-10``;
-    duplicate matches without ``@n`` fire ``VE-20``.
+    the action). ``@1`` equals no ``@``; ``@0`` fires ``VE-19``;
+    ``@n`` above the match count fires ``VE-10``; duplicate matches
+    without ``@n`` fire ``VE-20``.
     """
 
     step_value, suffix = _split_reference(reference)
@@ -315,7 +312,7 @@ def _apply_replace_step(
 def _apply_add_stage(working: list[_MutableStage], action: AddStageAction) -> None:
     ref_idx = _find_stage_index(working, action.reference)
     new_stage = _MutableStage.from_definition(action.stage)
-    # Disallow duplicate stage name (bible §6.7: stage names must be unique).
+    # Disallow duplicate stage name.
     if any(s.name == new_stage.name for s in working):
         raise ChopperError(f"flow_action {action.action} would create duplicate stage {new_stage.name!r}")
     insertion = ref_idx if action.action == "add_stage_before" else ref_idx + 1
@@ -334,9 +331,9 @@ def _apply_replace_stage(working: list[_MutableStage], action: ReplaceStageActio
     if replacement.name != old_name and any(s.name == replacement.name for s in working):
         raise ChopperError(f"flow_action replace_stage would create duplicate stage {replacement.name!r}")
     working[idx] = replacement
-    # Bible §6.7: rewrite existing load_from references from the old
-    # stage name to the replacement's name so later actions see the new
-    # graph consistently.
+    # Rewrite existing load_from references from the old stage name to
+    # the replacement's name so later actions see the new graph
+    # consistently.
     if replacement.name != old_name:
         for stage in working:
             if stage.load_from == old_name:

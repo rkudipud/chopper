@@ -1,18 +1,16 @@
 """Effectful ports — the only engine-level abstractions Chopper uses.
 
-Per bible §5.12.1 and ARCHITECTURE_PLAN.md §5, Chopper exposes exactly
-**three** engine ports: :class:`FileSystemPort`, :class:`DiagnosticSink`,
-and :class:`ProgressSink`. Clock, serialization, audit storage, and
-rendering are **not** ports — they are direct helpers or CLI-local
-concerns (ARCHITECTURE_PLAN.md §5, closed decisions A2–A5).
+Exactly three engine ports: :class:`FileSystemPort`,
+:class:`DiagnosticSink`, :class:`ProgressSink`. Clock, serialization,
+audit storage, and rendering are **not** ports — they are direct
+helpers or CLI-local concerns.
 
-All ports are :class:`typing.Protocol` definitions so test doubles satisfy
-them structurally without importing Chopper internals (bible §5.12.3).
+All ports are :class:`typing.Protocol` definitions so test doubles
+satisfy them structurally without importing Chopper internals.
 
-The port surface is **intentionally small**. No ``LockPort``, no
-``SerializerPort``, no ``AuditStore``, no ``TableRenderer`` — adding one
-would be a scope-lock violation. See ARCHITECTURE_PLAN.md §7 and
-`.github/instructions/project.instructions.md` Scope Lock §1.
+The port surface is intentionally small. No ``LockPort``,
+``SerializerPort``, ``AuditStore``, or ``TableRenderer`` — adding one
+would be a scope-lock violation.
 """
 
 from __future__ import annotations
@@ -42,17 +40,16 @@ class FileSystemPort(Protocol):
     detection (:meth:`exists`, :meth:`stat`), and by audit writing
     (:meth:`mkdir`).
 
-    **Write constraint** (ARCHITECTURE_PLAN.md §5): services may only
-    write / remove / rename paths under
-    :attr:`RunConfig.domain_root`, :attr:`RunConfig.backup_root`, or
-    :attr:`RunConfig.audit_root`. Adapters enforce this at the port
+    **Write constraint**: services may only write / remove / rename paths
+    under :attr:`RunConfig.domain_root`, :attr:`RunConfig.backup_root`,
+    or :attr:`RunConfig.audit_root`. Adapters enforce this at the port
     boundary; services rely on the guarantee and do not re-check.
 
-    **``copy_tree`` contract** (ARCHITECTURE_PLAN.md §5): must *never*
-    copy a ``.chopper/`` subdirectory from ``src`` into ``dst``. The
-    recursive copy skips any child literally named ``.chopper`` at the
-    top level of ``src``. Both adapters (``LocalFS`` and ``InMemoryFS``)
-    enforce this identically.
+    **``copy_tree`` contract**: must *never* copy a ``.chopper/``
+    subdirectory from ``src`` into ``dst``. The recursive copy skips
+    any child literally named ``.chopper`` at the top level of ``src``.
+    Both adapters (``LocalFS`` and ``InMemoryFS``) enforce this
+    identically.
     """
 
     def read_text(self, path: Path, *, encoding: str = "utf-8") -> str: ...
@@ -64,8 +61,8 @@ class FileSystemPort(Protocol):
     def list(self, path: Path, *, pattern: str | None = None) -> Sequence[Path]:
         """Return a **sorted** sequence of direct children of ``path``.
 
-        The sort key is the POSIX string representation — matching the
-        determinism rule in ARCHITECTURE_PLAN.md §9.3 rule 6.
+        The sort key is the POSIX string representation — the
+        determinism contract for directory listings.
         """
         ...
 
@@ -89,19 +86,17 @@ class FileSystemPort(Protocol):
 
 @runtime_checkable
 class DiagnosticSink(Protocol):
-    """The single communication spine for user-visible outcomes (bible §8.2).
+    """The single communication spine for user-visible outcomes.
 
     Services call :meth:`emit`; the CLI and ``AuditService`` consume
     :meth:`snapshot` (ordered emissions) and :meth:`finalize` (aggregated
-    counts). The only in-tree implementation in Stage 0 is the default
-    ``CollectingSink`` (added by the adapter stage that ships it); tests
-    use stub sinks that also satisfy this protocol.
+    counts). The only in-tree implementation is ``CollectingSink``;
+    tests use stub sinks that also satisfy this protocol.
 
     Sinks in v1 are **not thread-safe** and need not be. Chopper runs
-    single-threaded (ARCHITECTURE_PLAN.md §11); the sink never needs a
-    lock. Deduplication is performed on
-    :attr:`Diagnostic.dedupe_key`; within a bucket the last-written
-    emission wins (bible §8.2 rule 2).
+    single-threaded; the sink never needs a lock. Deduplication is
+    performed on :attr:`Diagnostic.dedupe_key`; within a bucket the
+    last-written emission wins.
     """
 
     def emit(self, diagnostic: Diagnostic) -> None: ...
@@ -111,7 +106,7 @@ class DiagnosticSink(Protocol):
 
         The returned view is read-only; the sink does not sort. Determinism
         of the user-visible order follows from single-threaded sequential
-        phase execution (bible §8.2 rule 3).
+        phase execution.
         """
         ...
 
@@ -131,9 +126,9 @@ class ProgressSink(Protocol):
     * ``SilentProgress`` — no-op; selected by ``-q / --quiet`` and by all
       test harnesses.
 
-    Per ARCHITECTURE_PLAN.md §5, there is **no dedicated** ``PlainProgress``
-    class. The service layer never introspects the progress adapter; it
-    only calls the methods below.
+    There is no dedicated ``PlainProgress`` class. The service layer
+    never introspects the progress adapter; it only calls the methods
+    below.
     """
 
     def phase_started(self, phase: Phase) -> None: ...

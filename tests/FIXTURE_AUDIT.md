@@ -5,8 +5,8 @@
 
 **Authority.** Subordinate to:
 
-- [`docs/RISKS_AND_PITFALLS.md`](../docs/RISKS_AND_PITFALLS.md) — `P-01` through `P-36` pitfalls and `TC-01` through `TC-10` technical risks.
-- [`docs/TCL_PARSER_SPEC.md`](../docs/TCL_PARSER_SPEC.md) — tokenization rules, proc detection algorithm, canonical-name vectors.
+- [`technical_docs/RISKS_AND_PITFALLS.md`](../technical_docs/RISKS_AND_PITFALLS.md) — `P-01` through `P-36` pitfalls and `TC-01` through `TC-10` technical risks.
+- [`technical_docs/TCL_PARSER_SPEC.md`](../technical_docs/TCL_PARSER_SPEC.md) — tokenization rules, proc detection algorithm, canonical-name vectors.
 - [`tests/TESTING_STRATEGY.md`](TESTING_STRATEGY.md) — 30-row named integration-scenario catalog (§5).
 - [`tests/FIXTURE_CATALOG.md`](FIXTURE_CATALOG.md) — canonical fixture index.
 
@@ -68,7 +68,7 @@ Each `.tcl` under `fixtures/edge_cases/` targets a pitfall (`P-xx`) or parser-sp
 
 ### 2.2 Gaps to fill before Stage 1 freeze
 
-The following pitfalls from [`RISKS_AND_PITFALLS.md`](../docs/RISKS_AND_PITFALLS.md) do not yet have a dedicated `edge_cases/` fixture. They are **Stage 1 prerequisites** — author them as part of Stage 1 kickoff:
+The following pitfalls from [`RISKS_AND_PITFALLS.md`](../technical_docs/RISKS_AND_PITFALLS.md) do not yet have a dedicated `edge_cases/` fixture. They are **Stage 1 prerequisites** — author them as part of Stage 1 kickoff:
 
 | Pitfall | Gap | Suggested fixture filename |
 |---|---|---|

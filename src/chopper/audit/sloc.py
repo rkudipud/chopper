@@ -1,17 +1,13 @@
-"""SLOC (logical source lines) counter — bible §5.5.13.
+"""Logical source-line counter for audit reports.
 
-Counts logical source lines per language-aware rules for the
-``sloc_before`` / ``sloc_after`` fields in :file:`trim_report.json` and
-:file:`trim_stats.json`.
+Powers the ``sloc_before`` / ``sloc_after`` fields in
+:file:`trim_report.json` and :file:`trim_stats.json`.
 
-Detection is **extension-based only** (bible §5.5.13 rule 1). Unknown
-extensions use the fallback rule: every non-blank line counts as SLOC.
+Language detection is extension-based only. Unknown extensions fall
+back to counting every non-blank line.
 
-Public helpers:
-
-* :func:`count_sloc` — count logical source lines in one file's text.
-* :func:`count_raw` — count non-blank lines in one file's text; used
-  for ``raw_lines_before`` / ``raw_lines_after``.
+Public helpers: :func:`count_sloc` (language-aware) and :func:`count_raw`
+(non-blank line count).
 """
 
 from __future__ import annotations
@@ -21,7 +17,7 @@ from pathlib import Path
 __all__ = ["count_raw", "count_sloc"]
 
 
-# Bible §5.5.13 language detection table.
+# Language detection table (extension -> comment/blank rules).
 _HASH_COMMENT_EXTENSIONS = frozenset({".tcl", ".sh", ".csh", ".bash", ".pl", ".pm"})
 _NO_COMMENT_EXTENSIONS = frozenset({".json"})
 _CSV_EXTENSIONS = frozenset({".csv"})
@@ -39,7 +35,7 @@ def count_raw(text: str) -> int:
 
 
 def count_sloc(path: Path, text: str) -> int:
-    """Return logical source-line count for ``text`` per bible §5.5.13.
+    """Return logical source-line count for ``text``.
 
     Language is derived from ``path.suffix`` lowercased. For Tcl / Perl /
     Shell, full-line comments (first non-whitespace char is ``#``, except

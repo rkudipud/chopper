@@ -2,10 +2,8 @@
 
 ``chopper [<global options>] <subcommand> [<subcommand options>]``
 
-Subcommand surface and help phrasing are authoritative per
-``docs/CLI_HELP_TEXT_REFERENCE.md``. This module only parses and
-dispatches; all behaviour lives in :mod:`chopper.cli.commands` and
-below.
+This module parses and dispatches; subcommand behaviour lives in
+:mod:`chopper.cli.commands`.
 """
 
 from __future__ import annotations

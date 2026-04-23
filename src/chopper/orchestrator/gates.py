@@ -1,11 +1,11 @@
 """Phase-boundary gating helper.
 
 A single entry point used by :class:`ChopperRunner` to decide whether
-to abort the pipeline after a given phase. Gate semantics are defined
-in ARCHITECTURE_PLAN.md §6.2: inspect the diagnostic snapshot and
-return ``True`` iff any diagnostic with ``severity == ERROR`` and
-``phase == <phase>`` is present. Severity is never rewritten by the
-gate — :attr:`RunConfig.strict` is exit-code policy only.
+to abort the pipeline after a given phase. Inspects the diagnostic
+snapshot and returns ``True`` iff any diagnostic with
+``severity == ERROR`` and ``phase == <phase>`` is present. Severity is
+never rewritten by the gate — :attr:`RunConfig.strict` is exit-code
+policy only.
 """
 
 from __future__ import annotations

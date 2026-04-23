@@ -12,7 +12,7 @@ authoritative schema files are:
 * ``json_kit/schemas/feature-v1.schema.json``  → ``$schema: chopper/feature/v1``
 * ``json_kit/schemas/project-v1.schema.json``  → ``$schema: chopper/project/v1``
 
-Diagnostic mapping (single source: docs/DIAGNOSTIC_CODES.md):
+Diagnostic mapping:
 
 * ``$schema`` field missing or unknown  → ``VE-01 missing-schema``
 * Required field missing (jsonschema)   → ``VE-02 missing-required-fields``

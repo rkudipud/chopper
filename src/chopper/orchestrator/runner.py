@@ -3,8 +3,6 @@
 :class:`ChopperRunner` is the only place Chopper phases are ordered.
 Every service runs through its ``run()`` method; every gate decision
 routes through :func:`chopper.orchestrator.gates.has_errors`.
-
-Sketch authoritative reference: ARCHITECTURE_PLAN.md §6.2.
 """
 
 from __future__ import annotations
@@ -154,11 +152,11 @@ class ChopperRunner:
 
             return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
         except ChopperError:
-            # Internal programmer error — exit 3 per bible §8.2 rule 4.
+            # Internal programmer error — exit 3.
             exit_code = 3
             return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
         finally:
-            # P7 always runs (bible §5.5.10).
+            # Audit always runs, even on failure.
             try:
                 ended_at = datetime.now(UTC)
                 record = RunRecord(
@@ -177,7 +175,7 @@ class ChopperRunner:
                 )
                 AuditService().run(ctx, record)
             except Exception:
-                # Never mask the primary failure (bible §5.5.10).
+                # Never mask the primary failure.
                 pass
 
     def _build(

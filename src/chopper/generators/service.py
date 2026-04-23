@@ -1,28 +1,20 @@
-"""GeneratorService — Phase 5b (P5b) of the Chopper pipeline.
+"""GeneratorService — Phase 5b run-file emitter.
 
-Emits one ``<stage>.tcl`` file per resolved
-:class:`~chopper.core.models.StageSpec` in ``manifest.stages``.
+Emits one ``<stage>.tcl`` per :class:`StageSpec` in
+``manifest.stages``. Stateless and deterministic: same manifest, same
+artifact tuple in the same order (manifest stage order preserved).
 
-Per ARCHITECTURE_PLAN.md §6 and §9.2, the canonical signature is::
+Signature::
 
     GeneratorService.run(ctx, manifest) -> tuple[GeneratedArtifact, ...]
 
-The service is stateless and deterministic: given the same manifest,
-it returns the same artifact tuple in the same order (stage order
-from the manifest is preserved).
+Dry-run: the service still builds and returns the full artifact tuple
+(the audit bundle needs to report what *would* have been generated)
+but performs no filesystem writes.
 
-Dry-run handling
-----------------
-When ``ctx.config.dry_run`` is true the service still **builds** and
-returns the full artifact tuple — the audit bundle must be able to
-report "what would have been generated" — but performs no filesystem
-writes. This mirrors the trimmer's dry-run contract.
-
-Diagnostics
------------
-This service emits no diagnostics in v1. Any error path (I/O failure,
-content-construction bug) raises :class:`~chopper.core.errors.ChopperError`
-and is mapped to exit 3 by the runner.
+Emits no diagnostics in v1. Any error path (I/O failure,
+content-construction bug) raises :class:`ChopperError` — mapped to
+exit 3 by the runner.
 """
 
 from __future__ import annotations
@@ -39,7 +31,7 @@ __all__ = ["GeneratorService"]
 
 @dataclass(frozen=True)
 class GeneratorService:
-    """P5b stage run-file emitter (bible §§3.6, 5.3)."""
+    """P5b stage run-file emitter."""
 
     def run(self, ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]:
         """Build (and under live runs, write) one artifact per resolved stage."""

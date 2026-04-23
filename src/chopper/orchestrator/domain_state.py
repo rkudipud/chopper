@@ -1,8 +1,9 @@
-"""Phase 0 domain-state classification (bible §2.8).
+"""Phase 0 domain-state classification.
 
-:class:`DomainStateService` observes ``<domain>/`` and ``<domain>_backup/``
-through ``ctx.fs`` and returns a frozen :class:`DomainState` record
-classifying the workspace into one of the four edge-matrix cases:
+:class:`DomainStateService` observes ``<domain>/`` and
+``<domain>_backup/`` through ``ctx.fs`` and returns a frozen
+:class:`DomainState` record classifying the workspace into one of four
+cases:
 
 +------+---------------+-------------------+---------------------------+
 | Case | ``domain/``   | ``domain_backup/``| Downstream behavior       |
@@ -16,12 +17,11 @@ classifying the workspace into one of the four edge-matrix cases:
 | 4    | missing       | missing           | Fatal (``VE-21``)         |
 +------+---------------+-------------------+---------------------------+
 
-Case 4 is the only state that itself emits a diagnostic (``VE-21``).
-Cases 1–3 are purely classificatory; downstream services (the trimmer
-and the CLI pre-flight print) react to the returned case number.
+Case 4 is the only state that emits a diagnostic (``VE-21``). Cases
+1–3 are purely classificatory; downstream services react to the case
+number.
 
-This service does not mutate the filesystem. It is safe to call in
-``--dry-run`` mode — detection semantics are identical.
+The service does not mutate the filesystem. Safe under ``--dry-run``.
 """
 
 from __future__ import annotations

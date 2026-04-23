@@ -1,9 +1,9 @@
 """Run-scoped context records for Chopper.
 
-Per ARCHITECTURE_PLAN.md §6.1, :class:`ChopperContext` is a **port bundle
-plus run config**, not an immutable data record. Its three port fields
-(``fs``, ``diag``, ``progress``) are all effectful; only the ``config``
-field — a :class:`RunConfig` of frozen flags and paths — is pure.
+:class:`ChopperContext` is a **port bundle plus run config**, not an
+immutable data record. Its three port fields (``fs``, ``diag``,
+``progress``) are all effectful; only the ``config`` field — a
+:class:`RunConfig` of frozen flags and paths — is pure.
 ``@dataclass(frozen=True)`` on the wrapper guarantees that **port
 bindings cannot be rebound mid-run**; it does not make the ports
 themselves pure. Readers should treat ``ctx.<port>.<method>(...)`` as
@@ -14,16 +14,15 @@ and drives adapter selection (quiet vs. rich progress, plain-text vs.
 coloured output). It never enters the service layer; services read only
 ``ctx.config`` (the :class:`RunConfig`).
 
-There is no ``clock`` port, no ``serde`` port, no ``audit`` port — see
-ARCHITECTURE_PLAN.md §5 decisions A3–A5. Services call
-:func:`datetime.datetime.now` directly, use :func:`chopper.core.serialization.dump_model`
-as a plain helper, and write audit artifacts through ``ctx.fs``.
+There is no ``clock`` port, no ``serde`` port, no ``audit`` port.
+Services call :func:`datetime.datetime.now` directly, use
+:func:`chopper.core.serialization.dump_model` as a plain helper, and
+write audit artifacts through ``ctx.fs``.
 
 There is no ``mode`` field on :class:`RunConfig`. The CLI dispatches on
 subcommand name (``validate`` / ``trim`` / ``cleanup``); ``cleanup``
 never enters :class:`~chopper.orchestrator.runner.ChopperRunner` at all
-(it is a standalone ``shutil.rmtree(<domain>_backup)`` function). See
-DAY0_REVIEW A7.
+(it is a standalone ``shutil.rmtree(<domain>_backup)`` function).
 """
 
 from __future__ import annotations
@@ -50,13 +49,12 @@ class RunConfig:
       state detector is responsible for producing a :class:`DomainState`
       before phases run.
     * ``backup_root``: the shadow copy — ``<domain>_backup/`` — created
-      by the trim lifecycle (ARCHITECTURE_PLAN.md §10).
+      by the trim lifecycle.
     * ``audit_root``: the ``.chopper/`` bundle directory inside
-      ``domain_root``. Reserved; see bible §5.5.
+      ``domain_root``.
     * ``strict``: exit-code policy only. When ``True``, the CLI returns
       exit code 2 if any ``VW``/``PW``/``TW`` warning was emitted. It
-      does not rewrite :attr:`Diagnostic.severity` — see
-      ARCHITECTURE_PLAN.md §8.2 rule 4.
+      does not rewrite :attr:`Diagnostic.severity`.
     * ``dry_run``: services skip all filesystem mutations; audit bundles
       and diagnostic output still flow.
     * ``project_path``: path to a ``chopper/project/v1`` JSON when the
@@ -69,7 +67,7 @@ class RunConfig:
       its own base).
     * ``feature_paths``: tuple of feature JSON paths when invoked with
       ``--features``; empty when ``project_path`` is set. Order is
-      authoritative for F3 ``flow_actions`` sequencing (see bible §3.3).
+      authoritative for F3 ``flow_actions`` sequencing.
     """
 
     domain_root: Path
@@ -86,18 +84,17 @@ class RunConfig:
 class PresentationConfig:
     """CLI-side UX config. Drives adapter selection; never read by services.
 
-    Flag-to-effect mapping (see CLI_HELP_TEXT_REFERENCE.md):
+    Flag-to-effect mapping (see CLI_HELP_TEXT_REFERENCE):
 
-    * ``verbose`` (``-v``): raises the CLI progress renderer to DEBUG-level
-      detail. Chopper has no internal structured-logging channel (bible
-      §5.12.4); this flag only affects the CLI-attached renderer.
+    * ``verbose`` (``-v``): raises the CLI progress renderer to
+      DEBUG-level detail. Chopper has no internal structured-logging
+      channel; this flag only affects the CLI-attached renderer.
     * ``quiet`` (``-q``): selects ``SilentProgress``; suppresses progress
       output (CI / grid).
     * ``plain`` (``--plain``): selects a Rich console reconfigured with
       ``no_color=True`` and the live progress bar disabled. ASCII only.
 
-    Flags ``--debug``, ``--no-color``, and ``--json`` were cut per
-    DAY0_REVIEW A1. Rich honours ``NO_COLOR`` automatically.
+    Rich honours ``NO_COLOR`` automatically.
     """
 
     verbose: bool = False
@@ -110,7 +107,7 @@ class ChopperContext:
     """Port bundle + run config. Frozen bindings; ports are effectful.
 
     Constructed exactly once per run — by ``cli/main.py`` in production,
-    by ``make_test_context()`` in tests (see ARCHITECTURE_PLAN.md §10.2).
+    by ``make_test_context()`` in tests.
     Services receive ``ctx`` plus the typed inputs they declare; nothing
     else. No module-level globals, no singletons, no thread-locals.
     """

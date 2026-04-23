@@ -1,15 +1,11 @@
-"""Validator package — pre- and post-trim diagnostic emission.
+"""Validator package — pre-trim (P1b) and post-trim (P6) checks.
 
-Per ARCHITECTURE_PLAN.md §9.2, validation is implemented as two
-module-level functions rather than a service class; they read typed
-inputs and emit diagnostics through ``ctx.diag`` without returning
-typed results.
+Implemented as two module-level functions (no service class). Each
+reads typed inputs and emits diagnostics through ``ctx.diag``.
 
-Public API:
-
-* :func:`validate_pre` — P1b, runs after :class:`ConfigService` and
-  before :class:`ParserService`. Consumes :class:`LoadedConfig`.
-* :func:`validate_post` — P6, runs after trim + generation. Consumes
+* :func:`validate_pre` — runs after :class:`ConfigService`, before
+  :class:`ParserService`. Consumes :class:`LoadedConfig`.
+* :func:`validate_post` — runs after trim + generation. Consumes
   :class:`CompiledManifest`, :class:`DependencyGraph`, and the tuple of
   rewritten paths.
 """

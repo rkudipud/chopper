@@ -11,6 +11,8 @@ This repository is a **standalone JSON authoring kit** for Chopper, an EDA tool 
 | `examples/` | Working JSON files for every combination of base / feature / project |
 | `agent/DOMAIN_ANALYZER.md` | Detailed domain analysis instructions for authoring Chopper JSONs from a codebase |
 
+This folder is intended to be self-contained. It can be handed off before the Chopper runtime ships, and the Chopper runtime later consumes the schema files in `schemas/` directly.
+
 ## Your Primary Task
 
 When a user asks for help authoring Chopper JSONs, follow the 8-phase protocol in [`agent/DOMAIN_ANALYZER.md`](agent/DOMAIN_ANALYZER.md):

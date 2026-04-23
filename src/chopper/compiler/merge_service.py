@@ -1,42 +1,33 @@
-"""CompilerService — Phase 3 (P3) of the Chopper pipeline.
+"""CompilerService — P3 R1 merge algorithm.
 
-This module implements the authoritative R1 merge algorithm defined in
-bible §4 (``Rule L1`` / ``Rule L2`` / ``Rule L3``) and §5.3 (the
-three-step provenance-aware compilation model).
+Implements the provenance-aware include/exclude resolution in two passes:
 
-Two-pass implementation required by ARCHITECTURE_PLAN.md §6.1:
+1. **Per-source classification.** For every source ``s`` (base JSON plus
+   each topo-sorted feature) and every relevant file ``F``, decide
+   ``s``'s contribution as one of:
 
-1. **Per-source classification (L2).** For every source ``s`` (the base
-   JSON plus every topo-sorted feature) and every relevant file ``F``,
-   decide ``s``'s contribution to ``F`` as one of:
-
-   * ``_NONE`` — the source contributes nothing for this file;
-   * ``_WHOLE`` — the source wants the whole file (``FULL_COPY`` signal);
-   * ``_TRIM(keep)`` — the source wants the file to survive with a
-     specific subset of procs.
+   * ``_NONE``   — source contributes nothing for this file;
+   * ``_WHOLE``  — source wants the whole file (``FULL_COPY`` signal);
+   * ``_TRIM(keep)`` — source wants the file with a specific proc subset.
 
    Same-source authoring diagnostics (``VW-09``, ``VW-11``, ``VW-12``,
    ``VW-13``) are emitted here.
 
-2. **Cross-source aggregation (L1 + L3).** For every relevant file, the
-   per-source contributions are unioned: any ``_WHOLE`` wins and forces
-   ``FULL_COPY``; otherwise every ``_TRIM`` is unioned into a single
-   ``PROC_TRIM`` survivor set. Cross-source vetoes are emitted here
-   (``VW-18`` for PE vetoed by another source's include, ``VW-19`` for
-   FE vetoed by another source's contribution).
+2. **Cross-source aggregation.** Per-source contributions union: any
+   ``_WHOLE`` wins and forces ``FULL_COPY``; otherwise every ``_TRIM``
+   unions into a single ``PROC_TRIM`` survivor set. Cross-source vetoes
+   (``VW-18``, ``VW-19``) are emitted here.
 
-F1/F2 aggregation is **order-independent** — the same base + feature
-selection in any order produces the same surviving file/proc sets.
-Feature order matters only for the first-wins ``selection_source``
-stamping on :class:`~chopper.core.models.ProcDecision` and for F3
-``flow_actions`` sequencing (bible §6.7), delegated to
-:mod:`chopper.compiler.flow_resolver`.
+F1/F2 aggregation is **order-independent**. Feature order matters only
+for the first-wins ``selection_source`` stamping on :class:`ProcDecision`
+and for F3 ``flow_actions`` sequencing (delegated to
+:mod:`chopper.compiler.flow_resolver`).
 
-``CompilerService`` does **not**:
+Not this service's job:
 
-* emit trace (PI+) diagnostics — ``TW-*`` is Stage 2c's job;
-* check filesystem existence (``VE-06``) or post-trim integrity
-  (``VE-16``) — those belong to the validator.
+* trace (PI+) diagnostics — owned by :class:`TracerService` (P4);
+* filesystem existence (``VE-06``) or post-trim integrity (``VE-16``) —
+  owned by the validator.
 """
 
 from __future__ import annotations
@@ -92,7 +83,7 @@ class _SourceFacts:
 
 @dataclass(frozen=True)
 class _Contribution:
-    """One (source, file) classification outcome (bible §4 R1 L2)."""
+    """One (source, file) classification outcome."""
 
     kind: Literal["NONE", "WHOLE", "TRIM"]
     keep: frozenset[str] = frozenset()  # canonical_names (TRIM only)
@@ -110,7 +101,7 @@ _NONE = _Contribution(kind="NONE")
 
 @dataclass(frozen=True)
 class CompilerService:
-    """Phase 3 merge service (bible §5.3).
+    """Phase 3 merge service.
 
     Stateless: every call to :meth:`run` is independent. The returned
     :class:`~chopper.core.models.CompiledManifest` is frozen and ready
@@ -144,7 +135,7 @@ class CompilerService:
             ctx, sources, contribs_by_source, facts_by_source, universe, all_procs_by_file, parsed
         )
 
-        # ---- Pass 3: F3 flow-action resolution (bible §§5.3, 6.7) -----------
+        # ---- Pass 3: F3 flow-action resolution -----------------------------
         stages = resolve_stages(ctx, loaded.base.stages, loaded.features)
         _register_generated_stage_files(file_decisions, provenance, stages, loaded)
 
@@ -169,8 +160,8 @@ def _register_generated_stage_files(
 ) -> None:
     """Record one :class:`FileTreatment.GENERATED` entry per resolved stage.
 
-    Bible §P5b / §3.6: ``GeneratorService`` emits ``<stage>.tcl`` at
-    domain root for every resolved stage. These paths must appear in
+    ``GeneratorService`` emits ``<stage>.tcl`` at domain root for every
+    resolved stage. These paths must appear in
     ``manifest.file_decisions`` so that the trimmer (P5) knows to skip
     them (generator owns the writes) and the audit bundle (P7) can
     surface them in ``compiled_manifest.json``.
@@ -328,8 +319,8 @@ def _classify_source(
     all_procs_by_file: dict[Path, frozenset[str]],
     parsed: ParseResult,
 ) -> dict[Path, _Contribution]:
-    """Apply bible §4 R1 L2 same-source rules to every (source, file) in
-    ``universe``. Emits ``VW-09``, ``VW-11``, ``VW-12``, ``VW-13``."""
+    """Apply same-source R1 rules to every (source, file) in ``universe``.
+    Emits ``VW-09``, ``VW-11``, ``VW-12``, ``VW-13``."""
     return {fp: _classify_one(ctx, facts, fp, all_procs_by_file, parsed) for fp in universe}
 
 
@@ -340,13 +331,13 @@ def _classify_one(
     all_procs_by_file: dict[Path, frozenset[str]],
     parsed: ParseResult,
 ) -> _Contribution:
-    """Classify one (source, file) pair per bible §4 R1 L2 (the 16-row matrix).
+    """Classify one (source, file) pair per the 16-row same-source matrix.
 
-    Naming follows the bible: FI / FE / PI / PE are boolean flags
-    describing whether this source has any include/exclude signal for
-    ``file_path``. The literal-vs-glob distinction matters only for
-    same-source FE interaction (literal survives its own FE; glob does
-    not, and is already pruned out of ``facts.fi_glob_surviving``).
+    FI / FE / PI / PE are boolean flags describing whether this source
+    has any include/exclude signal for ``file_path``. The
+    literal-vs-glob distinction matters only for same-source FE
+    interaction (literal survives its own FE; glob does not, and is
+    already pruned out of ``facts.fi_glob_surviving``).
     """
     is_fi_literal = file_path in facts.fi_literal
     is_fi_glob = file_path in facts.fi_glob_surviving
@@ -494,9 +485,9 @@ def _aggregate(
     provenance: dict[Path, FileProvenance] = {}
 
     # Pre-compute per-source PE canonical-name set per file — only actual
-    # ``procedures.exclude`` entries contribute to VW-18 surfacing (bible §4
-    # Interaction warnings table). A source that simply did not name a proc
-    # via PI is not PE-ing it, so must not trigger VW-18.
+    # ``procedures.exclude`` entries contribute to VW-18 surfacing.
+    # A source that simply did not name a proc via PI is not PE-ing it,
+    # so must not trigger VW-18.
     pe_canonical_by_source: dict[_SourceRef, dict[Path, frozenset[str]]] = {}
     for src, facts in facts_by_source.items():
         per_file: dict[Path, frozenset[str]] = {}
@@ -541,7 +532,7 @@ def _aggregate_one(
     all_procs_by_file: dict[Path, frozenset[str]],
     parsed: ParseResult,
 ) -> tuple[FileTreatment, FileProvenance, list[ProcDecision]]:
-    """Bible §5.3 step 3 cross-source aggregation for one file."""
+    """Cross-source aggregation for one file."""
     all_procs = all_procs_by_file.get(file_path, frozenset())
 
     whole_sources: list[_SourceRef] = []

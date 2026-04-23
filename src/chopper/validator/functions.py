@@ -1,17 +1,15 @@
 """Pre- and post-trim validation functions (P1b, P6).
 
-Plain module-level functions per ARCHITECTURE_PLAN.md §9.2. Each
-emits diagnostics via :attr:`ctx.diag` and returns ``None``.
-
-Scope (bible §5.8):
+Plain module-level functions. Each emits diagnostics via ``ctx.diag``
+and returns ``None``.
 
 ``validate_pre(ctx, loaded)`` — runs before P2. Emits:
 
 * ``VE-06`` — literal path in ``files.include`` / ``files.exclude``
   not present under :attr:`RunConfig.domain_root`.
 * ``VE-09`` — glob pattern with unbalanced ``[...]``.
-* ``VE-17`` — :attr:`ProjectJson.domain` does not match the cwd
-  basename (case-insensitive).
+* ``VE-17`` — project ``domain`` does not match cwd basename
+  (case-insensitive).
 * ``VE-18`` — same feature path listed twice in ``project.features``.
 * ``VW-03`` — glob in ``files.include`` matches zero files on disk.
 * ``VW-04`` — feature JSON ``domain`` does not match base.
@@ -22,15 +20,11 @@ Scope (bible §5.8):
 Emits:
 
 * ``VE-16`` — post-trim brace imbalance in a rewritten file.
-* ``VW-05`` — surviving proc calls a proc that is not in the manifest.
-* ``VW-06`` — surviving proc sources / iproc_sources a file that is
-  not in the manifest.
-* ``VW-14`` — F3 step is a bare ``.tcl`` filename but the file is
-  absent from ``manifest.file_decisions``.
-* ``VW-15`` — F3 step is a bare proc name but the proc is absent
-  from ``manifest.proc_decisions``.
-* ``VW-16`` — F3 ``source <path>`` step references a missing file.
-* ``VW-17`` — F3 step references a path outside the domain (advisory).
+* ``VW-05`` — surviving proc calls a proc not in the manifest.
+* ``VW-06`` — surviving proc sources / iproc_sources a file not in
+  the manifest.
+* ``VW-14``–``VW-17`` — F3 step references missing files / procs /
+  out-of-domain paths.
 """
 
 from __future__ import annotations
@@ -443,7 +437,7 @@ def _check_stage_steps(ctx: ChopperContext, manifest: CompiledManifest) -> None:
 def _surviving_proc_shorts(manifest: CompiledManifest) -> frozenset[str]:
     """Map surviving canonical names back to their bare proc short-names.
 
-    Canonical form is ``<file>::<qualified_name>`` per bible §5.4.1; the
+    Canonical form is ``<file>::<qualified_name>``; the
     qualified name may carry ``::`` namespace segments. For VW-15 we
     match bare tokens against the final segment of the qualified name.
     """

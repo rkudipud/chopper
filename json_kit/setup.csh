@@ -5,7 +5,7 @@
 set script_dir = `pwd`
 
 if ( ! -f "$script_dir/README.md" || ! -d "$script_dir/schemas" ) then
-    echo "setup.csh expects to be sourced from the chopper_json_kit repository root."
+    echo "setup.csh expects to be sourced from the json_kit folder root."
     echo "Either cd into the repo first or source .venv/bin/activate.csh directly."
     return 1
 endif
@@ -55,8 +55,7 @@ endif
 
 echo "[4/4] Installing dependencies..."
 pip install --upgrade pip --quiet
-# Repository docs require jsonschema for local schema validation examples.
-pip install jsonschema --quiet
+pip install -r "$script_dir/requirements.txt" --quiet
 
 echo ""
 echo "=== Setup complete ==="
