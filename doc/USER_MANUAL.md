@@ -84,18 +84,26 @@ What each one really does:
 Inputs:
 
 - Domain root directory
-- Either `jsons/base.json` or `project.json`
+- `jsons/base.json` (required), plus any feature JSONs you want to apply (optional), or a `project.json` recipe (optional)
 
 Procedure:
 
-Direct mode:
+Base only:
 
 ```text
 cd /path/to/my_domain
 chopper validate --base jsons/base.json
 ```
 
-Project mode:
+Base + feature JSONs (no project file required):
+
+```text
+cd /path/to/my_domain
+chopper validate --base jsons/base.json \
+    --features jsons/features/dft.feature.json
+```
+
+Project recipe (committed combination of base + features):
 
 ```text
 cd /path/to/my_domain
@@ -115,15 +123,24 @@ Expected Output:
 
 Inputs:
 
-- A validated base JSON or project JSON
+- A validated base JSON (plus any feature JSONs) or project JSON
 
 Procedure:
+
+Base only:
 
 ```text
 chopper trim --dry-run --base jsons/base.json
 ```
 
-Or:
+Base + feature JSONs:
+
+```text
+chopper trim --dry-run --base jsons/base.json \
+    --features jsons/features/dft.feature.json
+```
+
+Project recipe:
 
 ```text
 chopper trim --dry-run --project project.json
@@ -149,13 +166,20 @@ Inputs:
 
 Procedure:
 
-Direct mode:
+Base only:
 
 ```text
 chopper trim --base jsons/base.json
 ```
 
-Project mode:
+Base + feature JSONs:
+
+```text
+chopper trim --base jsons/base.json \
+    --features jsons/features/dft.feature.json
+```
+
+Project recipe:
 
 ```text
 chopper trim --project project.json
@@ -184,7 +208,14 @@ Procedure:
 chopper trim --base jsons/base.json
 ```
 
-Or:
+Or with features:
+
+```text
+chopper trim --base jsons/base.json \
+    --features jsons/features/dft.feature.json
+```
+
+Or via project recipe:
 
 ```text
 chopper trim --project project.json

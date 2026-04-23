@@ -88,23 +88,93 @@ The bootstrap scripts create `.venv`, activate it, and install dependencies.
 
 ### Step 2 — Author your JSON selections
 
-Chopper reads up to three JSON files:
+Chopper uses two or three JSON files. **Base and feature JSONs live inside your domain. The project JSON is optional and can live anywhere.**
+
+| JSON | Where it lives | Required? | Purpose |
+| --- | --- | --- | --- |
+| **`base.json`** | `<domain>/jsons/base.json` | Yes | Universal files, procs, and stages every project in this domain needs |
+| **Feature JSON** (zero or more) | `<domain>/jsons/features/<name>.feature.json` | No | Adds files, procs, or stage modifications for one optional capability |
+| **`project.json`** | Anywhere — inside the domain, in a shared configs dir, wherever | No | A named recipe: records one base path + an ordered list of feature paths so you can commit a specific combination and invoke it with a single `--project` flag |
+
+You **do not need a project JSON** to use features. Pass `--base` and `--features` directly on the command line. The project JSON is simply a way to commit a named combination.
+
+#### Invocation modes
+
+```text
+# Mode 1 — Base only (most common starting point)
+chopper validate --base jsons/base.json
+
+# Mode 2 — Base + features directly (no project file required)
+chopper validate --base jsons/base.json \
+    --features jsons/features/feature_a.feature.json,jsons/features/feature_b.feature.json
+
+# Mode 3 — Project recipe (single flag for a committed base + feature combination)
+chopper validate --project project.json
+```
+
+#### Directory layout
+
+Base-only (simplest):
+
+```text
+<domain_root>/
+└── jsons/
+    └── base.json                          ← universal files/procs/stages
+```
+
+Base + feature JSONs (Mode 2 — no project file needed):
+
+```text
+<domain_root>/
+└── jsons/
+    ├── base.json
+    └── features/
+        ├── feature_a.feature.json         ← optional capability layer A
+        └── feature_b.feature.json         ← optional capability layer B
+```
+
+Base + feature JSONs + project recipe (Mode 3):
 
 ```text
 <domain_root>/
 ├── jsons/
-│   ├── base.json              ← files, procs, stages for the base flow
+│   ├── base.json
 │   └── features/
-│       └── my_feature.feature.json   ← overrides and extensions
-└── project.json               ← selects which base + features apply
+│       ├── feature_a.feature.json
+│       └── feature_b.feature.json
+└── project.json                           ← optional recipe: names base + [feature_a, feature_b]
 ```
 
-Use the **JSON Kit Domain Analyzer** agent to generate these from your codebase, or copy from `json_kit/examples/` and adapt. The schemas in `json_kit/schemas/` enforce correctness.
+The project JSON can also sit outside the domain — in a separate `configs/` directory or a team repository. It just holds paths to the base and feature JSONs.
+
+#### Worked examples in `json_kit/examples/`
+
+| Example folder | What it shows |
+| --- | --- |
+| `01_base_files_only/` | Base with file trimming only |
+| `02_base_procs_only/` | Base with proc trimming only |
+| `03_base_stages_only/` | Base with stage JSON for run-file generation |
+| `07_base_full/` | Full base — files, procs, and stages |
+| `08_base_plus_one_feature/` | Base + one feature JSON (includes a `project.json`) |
+| `09_base_plus_multiple_features/` | Base + two independent features |
+| `10_chained_features_depends_on/` | Features with `depends_on` ordering |
+| `11_project_base_only/` | Project file referencing base only (no features) |
+
+Copy the nearest example into your domain root, replace every placeholder, then validate with `python json_kit/validate_jsons.py <domain_root>/`. Full field reference is in [json_kit/docs/JSON_AUTHORING_GUIDE.md](json_kit/docs/JSON_AUTHORING_GUIDE.md).
+
+Use the **JSON Kit Domain Analyzer** agent to generate JSONs from your codebase, or adapt from the examples above. The schemas in `json_kit/schemas/` enforce correctness.
 
 ### Step 3 — Validate first, always
 
 ```text
+# Base only
 chopper validate --base jsons/base.json
+
+# Base + features (no project file required)
+chopper validate --base jsons/base.json \
+    --features jsons/features/feature_a.feature.json
+
+# Project recipe
 chopper validate --project project.json
 ```
 
@@ -113,6 +183,14 @@ Validation is fully read-only. It parses Tcl, compiles selections, runs trace, c
 ### Step 4 — Dry-run before you trim
 
 ```text
+# Base only
+chopper trim --dry-run --base jsons/base.json
+
+# Base + features
+chopper trim --dry-run --base jsons/base.json \
+    --features jsons/features/feature_a.feature.json
+
+# Project recipe
 chopper trim --dry-run --project project.json
 ```
 
