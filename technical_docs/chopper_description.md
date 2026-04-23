@@ -556,12 +556,12 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 
 ### 3.6 F3 — Run-File Generation
 
-F3 generates stage-based run files from JSON stage definitions.  Users who want to generate run scripts from JSON can define stages; others can create stack files manually or skip this feature entirely.
+F3 generates stage-based run files from JSON stage definitions. Users who want generated run scripts define stages; users who still maintain scheduler stack files author those stack files separately from the same stage metadata, or skip stages entirely.
 
 | Behavior | Description |
 |---|---|
 | **Input unit** | Ordered `stages` array in base JSON; `flow_actions` in feature JSONs |
-| **Output unit** | `<stage>.tcl` (when stages are defined), optional manually-created stack files |
+| **Output unit** | `<stage>.tcl` (when stages are defined). Any scheduler stack file remains manually authored in v1. |
 | **Purpose** | Build clean project-facing run orchestration for domains that want generated run scripts with injectable step sequences |
 
 **`stageDefinition` fields:**
@@ -2260,7 +2260,7 @@ This base example intentionally shows:
 - Raw `source` usage, normal step files, and optional step references
 - Stage-level `load_from` (required), optional `dependencies`, `exit_codes`, `command`, `inputs`, `outputs`, `language`, and `run_mode`
 
-For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Stack files themselves are optional; users can create them manually or use Chopper's generated scripts as is.
+For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Chopper emits only the generated `<stage>.tcl` scripts in v1; use this mapping when you need to author or maintain a scheduler stack file manually.
 
 **Validation rule:** an entry in `procedures.include` or `procedures.exclude` with an empty `procs` array (`"procs": []`) is a **hard error (`VE-03`)**. For include: if the author intended to keep the whole file, the correct action is to move the file into `files.include`. For exclude: if there's nothing to exclude, omit the entry entirely. Chopper rejects empty procs arrays during validation and dry-run, with an actionable error message.
 
@@ -3022,7 +3022,7 @@ This log records the conscious design decisions that shaped the current document
 | **ivar** | Internal variable registry used by TFM code (`ivar(key)`); treated as configuration, not trimmed. |
 | **iproc_source** | TFM sourcing primitive (`iproc_source -file <path>`); understood by the parser, flags `-optional`, `-use_hooks`, `-quiet`, `-required`. |
 | **Hook file** | Pre/post extension point (`pre_*.tcl`, `post_*.tcl`) loaded by `-use_hooks`; reported in diagnostics, copied only when explicitly included. |
-| **Stack file** | Optional scheduler metadata file (`N`/`J`/`L`/`D`/`I`/`O`/`R` lines); generated alongside `<stage>.tcl`. |
+| **Stack file** | Optional scheduler metadata file (`N`/`J`/`L`/`D`/`I`/`O`/`R` lines); authored manually from the same stage metadata when needed. |
 | **Signoff** | Final verification stage of the VLSI flow (timing, power, DFT, formality); Chopper's primary adoption target. |
 | **Domain boundary** | The directory tree rooted at the domain directory; Chopper never reads, writes, or backs up outside this boundary. |
 | **Dry-run** | `--dry-run` mode: full pipeline simulation producing `.chopper/` artifacts without modifying any domain files. |

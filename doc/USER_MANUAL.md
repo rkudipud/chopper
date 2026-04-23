@@ -157,6 +157,76 @@ Use `--dry-run` whenever you change JSON authoring and want to confirm the outco
 
 ---
 
+## Generated Stage Files and Manual Stack Files
+
+If you define `stages`, Chopper's live `trim` command writes one generated `<stage>.tcl` file per resolved stage into the trimmed domain.
+
+What to expect:
+
+| You define | Live `trim` writes | `validate` / `trim --dry-run` writes | Notes |
+| --- | --- | --- | --- |
+| No `stages` | No generated run files | No generated run files | F1/F2 only |
+| `stages` in base only | One `<stage>.tcl` per base stage | No domain run files; audit bundle still shows generated entries | Use this when you want Chopper-authored run scripts |
+| `stages` plus feature `flow_actions` | One `<stage>.tcl` per final compiled stage | No domain run files; audit bundle still shows generated entries | Feature order matters for F3 only |
+
+Stack files are different: Chopper does **not** auto-write scheduler stack files in v1. If your environment needs a stack file, keep authoring it manually from the same stage metadata.
+
+| Stage field | Stack line you author manually |
+| --- | --- |
+| `name` | `N <name>` |
+| `command` | `J <command>` |
+| `exit_codes` | `L <codes>` |
+| `dependencies` | `D <deps>` |
+| `inputs` | `I <artifact>` |
+| `outputs` | `O <artifact>` |
+| `run_mode` | `R <value>` |
+
+If you want proof that F3 will generate scripts before a live trim, inspect `.chopper/compiled_manifest.json` after `validate` or `trim --dry-run` and look for entries whose treatment is `GENERATED`.
+
+---
+
+## How to Use the JSON Examples
+
+Treat `json_kit/examples/` as starting templates, not as drop-in configs. Pick the closest example, copy it into your domain, then replace every placeholder with your real file paths, proc names, and stage steps.
+
+| Need | Start with | What you copy |
+| --- | --- | --- |
+| File trimming only | `json_kit/examples/01_base_files_only/` | `jsons/base.json` |
+| Proc trimming only | `json_kit/examples/02_base_procs_only/` | `jsons/base.json` |
+| Generated run scripts from stage JSON | `json_kit/examples/03_base_stages_only/` | `jsons/base.json` |
+| Files plus stages | `json_kit/examples/05_base_files_and_stages/` | `jsons/base.json` |
+| Proc trimming plus stages | `json_kit/examples/06_base_procs_and_stages/` | `jsons/base.json` |
+| Full starting point | `json_kit/examples/07_base_full/` | `jsons/base.json` |
+| Base plus one optional feature | `json_kit/examples/08_base_plus_one_feature/` | `jsons/` and `project.json` |
+| Base plus multiple features | `json_kit/examples/09_base_plus_multiple_features/` | `jsons/` and `project.json` |
+| Feature dependency chain | `json_kit/examples/10_chained_features_depends_on/` | `jsons/` and `project.json` |
+| Project mode without features | `json_kit/examples/11_project_base_only/` | `jsons/base.json` and `project.json` |
+
+Recommended customer workflow:
+
+1. Copy the nearest example into your domain root.
+2. Change the `domain` field to the actual domain directory name.
+3. Replace example include globs, proc lists, and stage steps with real domain content.
+4. Run `chopper validate` first.
+5. Run `chopper trim --dry-run` and inspect `.chopper/trim_report.txt` plus `.chopper/compiled_manifest.json`.
+6. Run live `chopper trim` only after the dry-run output matches your intent.
+
+If you prefer direct mode, copy only `jsons/base.json` and run:
+
+```text
+chopper validate --base jsons/base.json
+chopper trim --dry-run --base jsons/base.json
+```
+
+If you prefer project mode, also copy `project.json` and run:
+
+```text
+chopper validate --project project.json
+chopper trim --dry-run --project project.json
+```
+
+---
+
 ## All CLI Flags
 
 ### Global (apply to every subcommand)
@@ -229,7 +299,7 @@ Every run writes `.chopper/` inside the current domain. Contents:
 | --- | --- |
 | `run_id` | Unique ID for this run |
 | `chopper_run.json` | CLI args, timing, outcome |
-| `compiled_manifest.json` | Per-file / per-proc decisions (FULL_COPY, PROC_TRIM, GENERATED, REMOVE) |
+| `compiled_manifest.json` | Per-file / per-proc decisions (FULL_COPY, PROC_TRIM, GENERATED, REMOVE). Generated stage scripts show up here as `GENERATED` even during `validate` and `--dry-run`. |
 | `dependency_graph.json` | Full proc call graph from the trace phase |
 | `trim_report.json` | Machine-readable summary of what changed |
 | `trim_report.txt` | Human-readable projection of the above |

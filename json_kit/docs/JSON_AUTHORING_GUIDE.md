@@ -41,18 +41,38 @@ project.json
 
 Feature order in the project file matters **only for F3 flow_actions sequencing** (each action is performed in feature order) and for **depends_on validation** (each prerequisite must appear earlier). **F1/F2 merging is order-independent:** file and proc include/exclude selections are aggregated as set unions regardless of feature order, so reordering features does not change the trimmed output — only F3 stage modifications depend on sequence.
 
+### Starting from `examples/`
+
+Use the example folders as templates, not as production-ready inputs. Pick the closest pattern, copy it into your domain root, and then replace every placeholder.
+
+| Need | Example folder |
+|-----------|-------------|
+| File trimming only | `examples/01_base_files_only/` |
+| Proc trimming only | `examples/02_base_procs_only/` |
+| Stage JSON that drives generated `<stage>.tcl` files | `examples/03_base_stages_only/` |
+| Full starting point | `examples/07_base_full/` |
+| Base plus one feature | `examples/08_base_plus_one_feature/` |
+| Feature chains with `depends_on` | `examples/10_chained_features_depends_on/` |
+
+Recommended sequence:
+
+1. Copy `jsons/` from the nearest example into `<domain_root>/`.
+2. Copy `project.json` too if you want project mode.
+3. Change every `domain`, path, proc, and stage field to match the real domain.
+4. Validate with `python validate_jsons.py <domain_root>/` before you run Chopper.
+
 ---
 
-## 2. Stack File Semantics — Optional Stage-to-Stackfile Mapping
+## 2. Stack File Semantics
 
 **Stages are optional.** Chopper supports two workflows:
 
-1. **Generated Script Workflow (with stages):** Users define stages in JSON, and Chopper generates `<stage>.tcl` run scripts. For users who want to inject or modify commands in their scripts, this workflow enables fine-grained control.
-2. **Manual Workflow (without stages):** Users skip the `stages` section entirely and create stack files manually. Chopper will trim files and procs as requested (F1 + F2), but will not generate run files (F3).
+1. **Generated Script Workflow (with stages):** Users define stages in JSON, and Chopper generates `<stage>.tcl` run scripts.
+2. **Manual Workflow (without stages):** Users skip the `stages` section entirely. Chopper will still trim files and procs as requested (F1 + F2), but will not generate run files (F3).
 
-**You are not required to define stages.** This section describes the optional mapping for users who choose to use stages.
+**You are not required to define stages.** This section describes the optional stack-file mapping for users who choose to use stages.
 
-When stages are defined in a base or feature JSON, Chopper can generate run scripts where each JSON stage maps to one run script file and optionally to stack-file nodes. The mapping is direct and deterministic:
+When stages are defined in a base or feature JSON, Chopper generates one `<stage>.tcl` run script per final stage. If your environment also requires a scheduler stack file, author that file manually from the same stage metadata. The mapping is direct and deterministic:
 
 | JSON field | Stack line | Example |
 |------------|-----------|---------|
@@ -88,11 +108,14 @@ Equivalent JSON stage definition:
 }
 ```
 
+> **What Chopper emits in v1:**  
+> Chopper writes the generated `<stage>.tcl` file only. It does not auto-write a scheduler stack file. Use the field mapping above when you need to maintain a stack file by hand.
+>
 > **Note on `load_from` vs `dependencies`:**  
 > `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). It is **not** the stack `D` line.  
 > `dependencies` is the explicit stack `D` line and controls scheduler execution order.
-> 
-> **Note on optional stack files:** If you are not using stages, you can manually create stack files without defining them in JSON. Chopper will still trim your domain files and procs (F1 + F2) when you provide base/feature JSONs.
+>
+> **Note on optional stack files:** If you are not using stages, keep your stack file workflow separate. Chopper will still trim your domain files and procs (F1 + F2) when you provide base/feature JSONs.
 
 ---
 

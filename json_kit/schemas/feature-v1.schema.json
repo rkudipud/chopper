@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/feature/v1",
   "title": "Chopper Feature JSON v1",
-  "description": "Optional extension that injects, overrides, or removes procs/files/stages from the base flow. Features are layered on top of the base in selected order. Stages are optional; when used, stage fields map directly to generated run script files and optionally to stack entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs). Stack file generation is optional; users can create stack files manually or use Chopper's optional generated output.",
+  "description": "Optional extension that injects, overrides, or removes procs/files/stages from the base flow. Features are layered on top of the base in selected order. Stages are optional; when used, stage fields map directly to generated run script files and to stack-file fields such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs) when users choose to author stack files manually.",
   "type": "object",
   "required": ["$schema", "name"],
   "additionalProperties": false,

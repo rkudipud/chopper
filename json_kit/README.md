@@ -22,6 +22,8 @@ Chopper trims EDA tool domain codebases via three JSON configuration files:
 
 You author these JSONs now. When Chopper is released, you run `chopper trim --project project.json` and it does the rest.
 
+If your JSON defines `stages`, Chopper emits generated `<stage>.tcl` run files. Scheduler stack files are still manual authoring in v1; use the same stage fields as the source for those files when your environment requires them.
+
 ---
 
 ## Package Contents
@@ -87,7 +89,7 @@ Pass `-NoProxy` to skip proxy configuration on environments that do not use the 
 |---------------|-----------|
 | Need to trim files only | `examples/01_base_files_only/` |
 | Need proc-level surgical trimming | `examples/02_base_procs_only/` |
-| Have stack files to translate | `examples/03_base_stages_only/` |
+| Have existing stack files to translate into stage JSON | `examples/03_base_stages_only/` |
 | Full control (files + procs + stages) | `examples/07_base_full/` |
 | Single optional feature | `examples/08_base_plus_one_feature/` |
 | Multiple independent features | `examples/09_base_plus_multiple_features/` |
@@ -95,12 +97,45 @@ Pass `-NoProxy` to skip proxy configuration on environments that do not use the 
 
 ### 2. Copy and adapt
 
-```bash
-cp -r examples/07_base_full/jsons/ my_domain/jsons/
-cp examples/07_base_full/  # if you need a project.json, copy from examples/11_project_base_only/
-cd my_domain/
-# Edit jsons/base.json: change domain, owner, file lists, stage definitions
+The examples are templates. Copy the closest one into your domain root, then replace every placeholder value.
+
+PowerShell:
+
+```powershell
+Copy-Item -Recurse .\examples\07_base_full\jsons .\my_domain\
+Copy-Item .\examples\11_project_base_only\project.json .\my_domain\
+cd .\my_domain
 ```
+
+Bash or zsh:
+
+```bash
+cp -r ./examples/07_base_full/jsons ./my_domain/
+cp ./examples/11_project_base_only/project.json ./my_domain/
+cd ./my_domain
+```
+
+Then edit:
+
+1. `jsons/base.json` to set the real `domain`, file patterns, proc selections, and stage steps.
+2. `jsons/features/*.feature.json` only if you need optional layers.
+3. `project.json` only if you want project mode.
+
+Use direct mode when you only have a base JSON:
+
+```text
+chopper validate --base jsons/base.json
+chopper trim --dry-run --base jsons/base.json
+```
+
+Use project mode when you copied a project file:
+
+```text
+chopper validate --project project.json
+chopper trim --dry-run --project project.json
+```
+
+If you are translating an existing scheduler stack file, copy the stage names, command lines, dependencies, exit codes, inputs, and outputs into `stages`. Chopper will generate `<stage>.tcl`; keep the scheduler stack file itself under your own control.
 
 ### 3. Validate against schemas (one command)
 
