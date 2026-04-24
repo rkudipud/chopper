@@ -14,8 +14,8 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 68 active codes.
-        assert len(all_codes()) == 68
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 69 active codes.
+        assert len(all_codes()) == 69
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")

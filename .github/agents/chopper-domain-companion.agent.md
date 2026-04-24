@@ -119,6 +119,16 @@ Use this mode when the user has a working Chopper install and wants a complete l
 
 **Never jump straight to live `chopper trim` without a clean dry-run first**, regardless of mode.
 
+### Calling Chopper from an MCP client (0.4.0+)
+
+Chopper ships a stdio-only Model Context Protocol server: `chopper mcp-serve`. Point a Claude Desktop / Claude Code / compatible MCP client at that command and it will connect over stdio. The server exposes exactly three **read-only** tools and no others:
+
+- `chopper.validate` — runs `chopper validate` against a domain and returns the typed RunResult JSON.
+- `chopper.explain_diagnostic` — looks up any `VE-/VW-/VI-/TW-/PE-/PW-/PI-` code in the diagnostic registry.
+- `chopper.read_audit` — reads the full contents of a `.chopper/` audit bundle.
+
+The destructive subcommands (`trim`, `cleanup`) are **not** exposed over MCP and never will be; they remain CLI-only. If a client ever sees `chopper.trim` advertised, that is a bug — file it. Protocol-level errors (unknown tool, malformed params) surface as `PE-04 mcp-protocol-error`.
+
 ---
 
 ## Primary Jobs

@@ -59,7 +59,7 @@ class _Entry:
 
 # Derived from the diagnostic registry. Order follows the registry:
 # VE-01..VE-26, VW-01..VW-19, VI-01..VI-02, TW-01..TW-04,
-# PE-01..PE-03, PW-01..PW-11, PI-01..PI-04 — 68 active codes, matching the
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 69 active codes, matching the
 # Code Space Summary table in the registry.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -130,6 +130,7 @@ _REGISTRY: dict[str, _Entry] = {
     "PE-01": _Entry(slug="duplicate-proc-definition", severity=Severity.ERROR, phase=2, source="parser", exit_code=1),
     "PE-02": _Entry(slug="unbalanced-braces", severity=Severity.ERROR, phase=2, source="parser", exit_code=1),
     "PE-03": _Entry(slug="ambiguous-short-name", severity=Severity.ERROR, phase=2, source="parser", exit_code=1),
+    "PE-04": _Entry(slug="mcp-protocol-error", severity=Severity.ERROR, phase=0, source="mcp", exit_code=4),
     "PW-01": _Entry(slug="computed-proc-name", severity=Severity.WARNING, phase=2, source="parser", exit_code=0),
     "PW-02": _Entry(slug="utf8-decode-failure", severity=Severity.WARNING, phase=2, source="parser", exit_code=0),
     "PW-03": _Entry(slug="non-brace-body", severity=Severity.WARNING, phase=2, source="parser", exit_code=0),

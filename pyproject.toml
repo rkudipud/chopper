@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "0.3.3"
+version = "0.4.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.11 so the tool installs on EDA grid
 # nodes that lag behind HEAD. The development venv is created against 3.13
@@ -16,6 +16,7 @@ authors = [
 
 dependencies = [
     "jsonschema>=4.0,<5",
+    "mcp>=1.0,<2",
 ]
 
 [project.optional-dependencies]

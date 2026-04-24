@@ -667,6 +667,30 @@ All examples below assume Chopper is invoked from the domain root. The current w
 | **F2 + F3** | Proc trimming plus generated run files |
 | **F1 + F2 + F3** | Full Chopper capability set |
 
+### 3.9 MCP Integration (stdio, read-only) — 0.4.0+
+
+Chopper ships a **Model Context Protocol** server that lets MCP-capable clients (e.g. Claude Desktop, Claude Code, any conforming MCP host) interact with the tool as a subprocess over stdio JSON-RPC. The surface is deliberately minimal and **read-only**.
+
+**Transport.** Stdio only. The server reads JSON-RPC frames on stdin, writes responses on stdout, and logs to stderr. There is no TCP socket, no HTTP endpoint, no WebSocket, no daemon mode, and no discovery beacon. This is a subprocess protocol, not a network service, so the "no networked services" rule remains intact.
+
+**Invocation.** `chopper mcp-serve` starts the server and blocks until the client disconnects (stdin EOF) or sends SIGINT. Exit code `0` on clean shutdown, `3` on programmer error, `4` on MCP protocol error.
+
+**Tools exposed.** The server advertises exactly three tools via `tools/list`. No other tool is registered under any condition; the destructive-tool guard is enforced in code and asserted by test.
+
+| Tool | Parameters | Returns | Maps to |
+|---|---|---|---|
+| `chopper.validate` | `{ domain_root: str, base?: str, features?: str[], project?: str, strict?: bool }` | `RunResult` JSON (exit code, diagnostics array, artifact paths) | The same code path as `chopper validate` on the CLI |
+| `chopper.explain_diagnostic` | `{ code: str }` (e.g. `"VE-06"`) | Registry entry: `{ code, slug, severity, phase, source, exit_code, description, recovery_hint }` | Lookup against `technical_docs/DIAGNOSTIC_CODES.md`, parsed at server startup |
+| `chopper.read_audit` | `{ bundle_path: str }` | The **full** JSON contents of every file under the `.chopper/` bundle, keyed by relative path | Direct read of the audit bundle |
+
+**Tools explicitly NOT exposed.** `chopper.trim` and `chopper.cleanup` are destructive and are **never** registered on the server. A test (`tests/integration/test_mcp_stdio_e2e.py`) asserts they are absent from `tools/list` output. The MCP surface cannot cause filesystem mutation under any parameter combination.
+
+**Dependency.** The `mcp` Python SDK is a **hard runtime dependency** declared in `pyproject.toml` `[project].dependencies`. The server imports it lazily inside the `mcp-serve` command handler so that core CLI operations (`validate`, `trim`, `cleanup`) remain unaffected by MCP-side changes.
+
+**Diagnostic surface.** Protocol-level failures (malformed frames, unknown tool, bad parameter shape) emit `PE-04 mcp-protocol-error` (severity error, exit code 4). This code is emitted **only** from `src/chopper/mcp/`. All other diagnostics surfaced inside an MCP tool response are the same codes the underlying CLI path would have produced.
+
+**Scope-lock alignment.** This section is the single authoritative spec for the MCP surface. The closed items in `.github/instructions/project.instructions.md` §1 — destructive MCP tools, `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code, HTTP/TCP/WebSocket transports — remain closed. See §1.1 of the same file for the narrowed-closure wording.
+
 ---
 
 ## 4. Architecture Rules
@@ -2638,6 +2662,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-39 | All public result objects are JSON-serializable via a single canonical serializer; round-trip (serialize → deserialize → compare) produces structurally equivalent values. |
 | FR-40 | Progress and log events are emitted through a `ProgressSink` protocol; the CLI attaches a renderer, but library code never binds to a concrete sink. (There is no internal structured-logging channel; see §5.12.4.) |
 | FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
+| FR-42 | `chopper mcp-serve` starts a stdio-only Model Context Protocol server that exposes exactly three read-only tools — `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit` — and never registers destructive tools (`chopper.trim`, `chopper.cleanup`). Protocol-level failures emit `PE-04 mcp-protocol-error` with exit code 4. See §3.9. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -3012,6 +3037,8 @@ This log records the conscious design decisions that shaped the current document
 | 2026-04-24 | **0.3.1 — First-time-user setup hardening.** All four bootstrap scripts (`setup.ps1`, `setup.sh`, `setup.csh`, `setup.bat`) were hardened against the failure class where a pre-existing `.venv/` was copied or relocated from a different checkout (observed symptom: `Fatal error in launcher: Unable to create process using '"C:\...chopper_v2\.venv\Scripts\python.exe"'` when invoking `chopper --help` after a fresh `setup` run). Four changes per script: (1) the `[1/4]` step now runs the venv's `python` and compares its reported `sys.prefix` against the script directory, deleting and recreating `.venv/` on mismatch; (2) every `pip …` invocation was rewritten as `python -m pip …` so a stale `pip.exe` shim cannot short-circuit the install before it has a chance to regenerate itself; (3) the `[4/4]` step unconditionally regenerates the `chopper` console-script launcher via `python -m pip install -e . --force-reinstall --no-deps`; (4) the "Setup complete" banner smoke-tests `chopper --help` and reports `Chopper : <version> (launcher OK)` or a red `(launcher FAILED …)` recovery line. No library code changed; only the bootstrap scripts, version files (`VERSION.md`, `VERSION.txt`, `pyproject.toml`, `src/chopper/__init__.py`, `src/chopper/audit/writers.py`), and the README changelog. |
 
 | 2026-04-24 | **0.3.2 — Companion consolidation + discoverability.** The former `.github/agents/domain-analyzer.agent.md` was absorbed into `.github/agents/chopper-domain-companion.agent.md`, making the companion the **single user-facing agent** for anything Chopper-related. Companion card gained: Operating Modes (`analyze-only` vs `full-loop`), explicit Q1–Q5 Discovery Protocol, JSON Templates & Checklists (base/feature/project skeletons), Schema Error → Fix Mapping, Bootstrapping a New Domain playbook, Common CLI Workflows (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic), and a tier-2 greeting menu (Tier 1 "where are you starting from?" → Tier 2 full capability list). A prompt library was created at `.github/prompts/` with six ready-to-use starting points (`bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`). `doc/USER_MANUAL.md` cross-references the companion at the top of the Operating Tasks section. README `🤖 Two AI Companions` section rewritten as `🤖 Meet the Companion` (single agent); analyzer badge removed; the stale `.github/agents/domain-analyzer.agent.md` link in the 0.3.0 json_kit-dissolution history row unlinked with a note pointing to this absorption. No runtime, schema, diagnostic-registry, or scope-lock changes — agents, docs, and version files only. |
+
+| 2026-04-24 | **0.4.0 — MCP stdio surface (read-only).** Narrowed the MCP row of the scope-lock (closed decision §1) from "all MCP integration closed" to "destructive MCP surface closed; stdio read-only `chopper mcp-serve` permitted". Added bible §3.9 specifying the transport (stdio only, no TCP/HTTP/WebSocket), the three exposed tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`), and the destructive-tool guard (`chopper.trim` and `chopper.cleanup` are never registered). Added **FR-42** stating the contract. Added `PE-04 mcp-protocol-error` to the diagnostic registry (exit code 4, emitted only from `src/chopper/mcp/`). Added `mcp>=1.0,<2` as a **hard runtime dependency** in `pyproject.toml`. Created `src/chopper/mcp/` package (`server.py`, `tools.py`) and wired `mcp-serve` into `src/chopper/cli/` with lazy-import pattern so core CLI paths are unaffected by MCP-side changes. `chopper.read_audit` returns the **full** JSON contents of every file under a `.chopper/` bundle keyed by relative path (not a curated summary). CLI_HELP_TEXT_REFERENCE, ARCHITECTURE_PLAN §7, DIAGNOSTIC_CODES, and FUTURE_PLANNED_DEVELOPMENTS all cascaded. Companion card gained a "Calling Chopper from an MCP client" callout. Version bumped 0.3.3 → 0.4.0 (SemVer minor: new subcommand + new hard dep). |
 
 ---
 

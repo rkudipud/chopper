@@ -98,11 +98,7 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
     assert manifest.generate_stack is True
 
     # Three stages → three .tcl + three .stack GENERATED entries.
-    generated = {
-        p.as_posix()
-        for p, t in manifest.file_decisions.items()
-        if t is FileTreatment.GENERATED
-    }
+    generated = {p.as_posix() for p, t in manifest.file_decisions.items() if t is FileTreatment.GENERATED}
     assert "setup.tcl" in generated
     assert "setup.stack" in generated
     assert "run_flow.tcl" in generated

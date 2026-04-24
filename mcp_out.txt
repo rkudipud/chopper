@@ -1,0 +1,32 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-8.4.2, pluggy-1.6.0 -- C:\personal\projects\chopper\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+benchmark: 4.0.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: C:\personal\projects\chopper
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.152.2, benchmark-4.0.0, cov-5.0.0, datadir-1.8.0, regressions-2.10.0
+collecting ... collected 20 items
+
+tests/unit/mcp/test_tools.py::TestBuildTools::test_advertises_exactly_three_tools PASSED [  5%]
+tests/unit/mcp/test_tools.py::TestBuildTools::test_advertised_names_match_tool_names_constant PASSED [ 10%]
+tests/unit/mcp/test_tools.py::TestBuildTools::test_destructive_tools_are_never_advertised PASSED [ 15%]
+tests/unit/mcp/test_tools.py::TestBuildTools::test_every_tool_has_input_schema PASSED [ 20%]
+tests/unit/mcp/test_tools.py::TestBuildTools::test_descriptions_mention_read_only_semantics PASSED [ 25%]
+tests/unit/mcp/test_tools.py::TestExplainDiagnostic::test_known_code_returns_registry_payload PASSED [ 30%]
+tests/unit/mcp/test_tools.py::TestExplainDiagnostic::test_pe_04_is_known_to_registry PASSED [ 35%]
+tests/unit/mcp/test_tools.py::TestExplainDiagnostic::test_missing_code_parameter_raises_protocol_error PASSED [ 40%]
+tests/unit/mcp/test_tools.py::TestExplainDiagnostic::test_malformed_code_raises_protocol_error PASSED [ 45%]
+tests/unit/mcp/test_tools.py::TestExplainDiagnostic::test_unknown_but_well_formed_code_raises_protocol_error PASSED [ 50%]
+tests/unit/mcp/test_tools.py::TestExplainDiagnostic::test_description_pulled_from_registry_doc PASSED [ 55%]
+tests/unit/mcp/test_tools.py::TestReadAudit::test_missing_bundle_path_raises_protocol_error PASSED [ 60%]
+tests/unit/mcp/test_tools.py::TestReadAudit::test_nonexistent_bundle_raises_protocol_error PASSED [ 65%]
+tests/unit/mcp/test_tools.py::TestReadAudit::test_returns_full_json_blobs PASSED [ 70%]
+tests/unit/mcp/test_tools.py::TestReadAudit::test_invalid_json_is_returned_as_raw PASSED [ 75%]
+tests/unit/mcp/test_tools.py::TestServerGuard::test_build_server_refuses_destructive_tools PASSED [ 80%]
+tests/unit/mcp/test_tools.py::TestServerGuard::test_build_server_returns_ok_with_canonical_toolset PASSED [ 85%]
+tests/integration/test_mcp_stdio_e2e.py::test_mcp_serve_lists_only_read_only_tools PASSED [ 90%]
+tests/integration/test_mcp_stdio_e2e.py::test_mcp_explain_diagnostic_round_trip PASSED [ 95%]
+tests/integration/test_mcp_stdio_e2e.py::test_mcp_unknown_tool_surfaces_as_protocol_error PASSED [100%]
+
+============================= 20 passed in 6.51s ==============================

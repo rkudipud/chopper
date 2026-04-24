@@ -23,7 +23,7 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 | `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
 | Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §8.2 rule 4; `--strict` is exit-code policy only |
 | Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
-| MCP integration | `mcp_server/`, `adapters/mcp_*.py`, `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.validate` MCP tool, any MCP client code | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| MCP — destructive surface (closed) | `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code inside Chopper, HTTP/TCP/WebSocket MCP transports, MCP tool exposing `chopper.trim` or `chopper.cleanup`, MCP-driven filesystem mutation | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
 | AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
 | `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
 | Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §15 |
@@ -31,6 +31,18 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 | Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
 
 If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
+
+#### 1.1 Narrowed from a prior closure (read-only MCP)
+
+The MCP row above was **narrowed** in 0.4.0 (not removed). The following MCP surface is **permitted** and is specified in the bible at `technical_docs/chopper_description.md` §3.8:
+
+- `chopper mcp-serve` subcommand.
+- `src/chopper/mcp/` package containing a **stdio-only** JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon).
+- Read-only tools only: `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`.
+- Hard dependency on the `mcp` Python SDK (declared in `pyproject.toml` `[project].dependencies`).
+- `PE-04 mcp-protocol-error` in the diagnostic registry, emitted **only** from `src/chopper/mcp/`.
+
+Everything else in the MCP row stays closed: no destructive tools over MCP, no progress/diagnostic sinks mounted to MCP, no adapters that bridge Chopper internals to MCP, no networked transports, no MCP client code.
 
 ### 2. Single Authority: The Bible
 
@@ -71,10 +83,12 @@ Before committing any change, grep the repo for the forbidden-identifier tokens 
 ```text
 LockPort | preserve-hand-edits | chopper scan | PluginHost | MCPProgressBridge |
 EntryPointPluginHost | MCPDiagnosticSink | advisor/ | XE- | XW- | XI- |
-mcp_server | \.chopper/\.lock | \.chopper/hand_edits
+\.chopper/\.lock | \.chopper/hand_edits
 ```
 
 Every hit outside a negative assertion (a sentence like "there is no `LockPort`") is a regression to fix before the commit lands. Docs are allowed to name a forbidden concept **only** in the context of saying it is forbidden.
+
+> `mcp_server` is no longer in the forbidden list because the `src/chopper/mcp/` package is the permitted read-only stdio surface introduced in 0.4.0. See §1.1 above for what remains closed.
 
 ### 5. Decision Tree When Adding Anything
 

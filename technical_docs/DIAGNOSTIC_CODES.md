@@ -28,10 +28,10 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | `VW` Validation Warnings | VW-01–VW-20 | 18 | 2 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
 | `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
-| `PE` Parse Errors | PE-01–PE-10 | 3 | 7 | 10 | Fatal parse failures; file skipped or partial |
+| `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **68** | **37** | **105** | |
+| **Total** | | **69** | **36** | **105** | |
 
 ---
 
@@ -137,7 +137,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | PE-01 | `duplicate-proc-definition` | parser | 1 | Duplicate proc definition in the same source file; last definition wins for index | Remove one definition or rename the proc to avoid silent shadowing | §6.3 |
 | PE-02 | `unbalanced-braces` | parser | 1 | Unbalanced braces in file; proc boundaries cannot be reliably determined | Fix brace matching in the Tcl source file; use an editor brace-matching tool | §3 |
 | PE-03 | `ambiguous-short-name` | parser | 1 | A file defines two procs that collapse to the same `short_name` once namespace stripping is applied; F2 cannot disambiguate by short name alone | Rename one proc or reference it by namespace-qualified name in `procedures.include` | §4.3 |
-| — | — | — | — | **PE-04 through PE-10 reserved** | — | — |
+| PE-04 | `mcp-protocol-error` | mcp | **4** | MCP stdio server received a malformed JSON-RPC frame, an unknown tool name, or a tool-call parameter shape that does not match the tool's declared schema. Emitted only from `src/chopper/mcp/`. | Check the MCP client's request against the tool schemas advertised by `tools/list`; see `technical_docs/chopper_description.md` §3.9 | — |
+| — | — | — | — | **PE-05 through PE-10 reserved** | — | — |
 
 ---
 

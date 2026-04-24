@@ -6,6 +6,8 @@
 
 ## Last Completed Work
 
+- **0.4.0 MCP stdio surface (2026-04-24).** `chopper mcp-serve` ships — a stdio-only Model Context Protocol server that exposes three read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Destructive tools (`trim`, `cleanup`) remain CLI-only and are guarded by an in-process assertion plus an integration test. New diagnostic `PE-04 mcp-protocol-error` (exit 4). `mcp>=1.0,<2` is now a hard runtime dependency. Scope-lock §1.1 in `project.instructions.md` documents the narrowed exception. Bible §3.9 is the authoritative contract.
+
 - **0.3.3 generate_stack end-to-end tests (2026-04-24).** `options.generate_stack` is now fully tested and production-ready (D1 + D2):
   - New `tests/fixtures/stages_domain/` fixture (three-stage domain with `generate_stack: true`).
   - Four integration tests in `tests/integration/test_runner_localfs_e2e.py` covering dry-run manifest shape, live-trim file emission, stack-file content, and audit-bundle recording.

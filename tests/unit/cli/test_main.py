@@ -7,7 +7,7 @@ import pytest
 from chopper.cli.main import build_parser
 
 
-def test_build_parser_has_three_subcommands() -> None:
+def test_build_parser_has_four_subcommands() -> None:
     parser = build_parser()
     # Parse each subcommand with minimum required flags to confirm dispatch wiring.
     ns = parser.parse_args(["validate", "--base", "base.json"])
@@ -21,6 +21,10 @@ def test_build_parser_has_three_subcommands() -> None:
     ns = parser.parse_args(["cleanup", "--confirm"])
     assert ns.command == "cleanup"
     assert ns.confirm is True
+
+    ns = parser.parse_args(["mcp-serve"])
+    assert ns.command == "mcp-serve"
+    assert callable(ns.func)
 
 
 def test_trim_accepts_dry_run_flag() -> None:
