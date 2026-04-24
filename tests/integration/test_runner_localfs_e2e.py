@@ -18,6 +18,7 @@ for ``options.generate_stack``.
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -189,8 +190,6 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
 
     assert result.exit_code == 0
     # compiled_manifest.json must record all GENERATED entries.
-    import json
-
     manifest_path = domain / ".chopper" / "compiled_manifest.json"
     assert manifest_path.exists(), "compiled_manifest.json not written"
     data = json.loads(manifest_path.read_text())
