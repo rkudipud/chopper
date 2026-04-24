@@ -14,8 +14,9 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 69 active codes.
-        assert len(all_codes()) == 69
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 70 active codes.
+        # 69 pre-0.5.0 + TI-01 (architecture doc §3.10, FR-44).
+        assert len(all_codes()) == 70
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")
@@ -32,7 +33,8 @@ class TestRegistry:
     def test_every_family_present(self) -> None:
         codes = all_codes()
         families = {c[:2] for c in codes}
-        assert families == {"VE", "VW", "VI", "TW", "PE", "PW", "PI"}
+        # ``TI`` added in 0.5.0 for the Trace Info band (TI-01 known-tool-command).
+        assert families == {"VE", "VW", "VI", "TW", "TI", "PE", "PW", "PI"}
 
     def test_no_retired_codes(self) -> None:
         # Registry declares no RETIRED slots in v1.

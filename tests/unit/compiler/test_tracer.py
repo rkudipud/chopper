@@ -27,6 +27,22 @@ from chopper.core.models import (
 )
 from tests.unit.compiler._helpers import make_ctx, make_proc
 
+_DOMAIN = "my_domain"
+
+
+def _loaded_with_pool(*tokens: str) -> LoadedConfig:
+    """Build a :class:`LoadedConfig` whose only populated field is the tool-command pool.
+
+    The tracer only ever reads ``loaded.tool_command_pool``; the rest of
+    the config is irrelevant to these tests. A placeholder :class:`BaseJson`
+    satisfies the non-optional field.
+    """
+    return LoadedConfig(
+        base=BaseJson(source_path=Path("base.json"), domain=_DOMAIN),
+        tool_command_pool=frozenset(tokens),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Small construction helpers local to these tests.
 # ---------------------------------------------------------------------------
@@ -226,6 +242,108 @@ class TestUnresolvedMatch:
         assert graph.nodes == ("a.tcl::foo",)
         assert graph.edges[0].status == "unresolved"
         assert graph.edges[0].diagnostic_code == "TW-02"
+
+
+# ---------------------------------------------------------------------------
+# Tool-command pool — TI-01 (architecture doc §3.10, FR-44)
+# ---------------------------------------------------------------------------
+
+
+class TestToolCommandPool:
+    """The pool downgrades TW-02 → TI-01 on raw-name or leaf match.
+
+    Coverage:
+      * Raw-token match (``get_app_var`` in pool, bare call).
+      * Namespace-stripped leaf match (``::pt::get_app_var`` call).
+      * Pool does NOT intercept TW-01 (ambiguous) or TW-03 (dynamic).
+      * Empty pool / no ``loaded`` argument preserves pre-0.5.0 behaviour.
+      * Pool-matched edges are excluded from ``unresolved_tokens``.
+    """
+
+    def test_raw_token_match_emits_ti01_not_tw02(self) -> None:
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("get_app_var",))
+        parsed = _parse(foo)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+        loaded = _loaded_with_pool("get_app_var")
+
+        graph = TracerService().run(ctx, manifest, parsed, loaded)
+
+        assert sink.codes() == ["TI-01"]
+        assert graph.edges[0].status == "tool_command"
+        assert graph.edges[0].diagnostic_code == "TI-01"
+        assert graph.edges[0].callee == ""
+        # Must NOT appear in unresolved_tokens — that channel is for
+        # genuinely-unresolved TW-* only.
+        assert graph.unresolved_tokens == ()
+
+    def test_namespace_leaf_match_emits_ti01(self) -> None:
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("::pt::get_app_var",))
+        parsed = _parse(foo)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+        # Pool contains bare name; call site uses fully-qualified form.
+        loaded = _loaded_with_pool("get_app_var")
+
+        graph = TracerService().run(ctx, manifest, parsed, loaded)
+
+        assert sink.codes() == ["TI-01"]
+        assert graph.edges[0].status == "tool_command"
+        assert graph.edges[0].token == "::pt::get_app_var"
+
+    def test_empty_pool_preserves_tw02(self) -> None:
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("get_app_var",))
+        parsed = _parse(foo)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+        loaded = _loaded_with_pool()  # empty
+
+        graph = TracerService().run(ctx, manifest, parsed, loaded)
+
+        assert sink.codes() == ["TW-02"]
+        assert graph.edges[0].status == "unresolved"
+
+    def test_loaded_none_preserves_tw02(self) -> None:
+        """Passing ``loaded=None`` (or omitting it) keeps pre-0.5.0 behaviour."""
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("get_app_var",))
+        parsed = _parse(foo)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+
+        graph = TracerService().run(ctx, manifest, parsed)
+
+        assert sink.codes() == ["TW-02"]
+        assert graph.edges[0].status == "unresolved"
+
+    def test_pool_does_not_intercept_tw03_dynamic(self) -> None:
+        """A dynamic call form (e.g. ``$cmd``) still emits TW-03 regardless of pool."""
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("$get_app_var",))
+        parsed = _parse(foo)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+        # Even if the token-without-$ is in the pool, dynamic form wins.
+        loaded = _loaded_with_pool("get_app_var", "$get_app_var")
+
+        graph = TracerService().run(ctx, manifest, parsed, loaded)
+
+        assert sink.codes() == ["TW-03"]
+        assert graph.edges[0].status == "dynamic"
+
+    def test_pool_does_not_intercept_resolved_proc(self) -> None:
+        """An in-domain proc always resolves to itself — pool is irrelevant."""
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("helper",))
+        helper = make_proc("a.tcl", "helper")
+        parsed = _parse(foo, helper)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+        # Pool contains "helper"; must NOT fire because helper resolves.
+        loaded = _loaded_with_pool("helper")
+
+        graph = TracerService().run(ctx, manifest, parsed, loaded)
+
+        assert sink.codes() == []  # no diagnostics
+        assert graph.edges[0].status == "resolved"
+        assert graph.edges[0].callee == "a.tcl::helper"
 
 
 # ---------------------------------------------------------------------------
