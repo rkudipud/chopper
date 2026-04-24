@@ -275,7 +275,7 @@ Common Failure Modes:
 Inputs:
 
 - A customer domain you want to trim
-- The `json_kit/examples/` folder
+- The `examples/` folder
 
 Procedure:
 
@@ -288,16 +288,16 @@ Procedure:
 
 | Need | Start with | What to copy |
 | --- | --- | --- |
-| File trimming only | `json_kit/examples/01_base_files_only/` | `jsons/base.json` |
-| Proc trimming only | `json_kit/examples/02_base_procs_only/` | `jsons/base.json` |
-| Generated run scripts from stage JSON | `json_kit/examples/03_base_stages_only/` | `jsons/base.json` |
-| Files plus stages | `json_kit/examples/05_base_files_and_stages/` | `jsons/base.json` |
-| Proc trimming plus stages | `json_kit/examples/06_base_procs_and_stages/` | `jsons/base.json` |
-| Full starting point | `json_kit/examples/07_base_full/` | `jsons/base.json` |
-| Base plus one optional feature | `json_kit/examples/08_base_plus_one_feature/` | `jsons/` and `project.json` |
-| Base plus multiple features | `json_kit/examples/09_base_plus_multiple_features/` | `jsons/` and `project.json` |
-| Feature dependency chain | `json_kit/examples/10_chained_features_depends_on/` | `jsons/` and `project.json` |
-| Project mode without features | `json_kit/examples/11_project_base_only/` | `jsons/base.json` and `project.json` |
+| File trimming only | `examples/01_base_files_only/` | `jsons/base.json` |
+| Proc trimming only | `examples/02_base_procs_only/` | `jsons/base.json` |
+| Generated run scripts from stage JSON | `examples/03_base_stages_only/` | `jsons/base.json` |
+| Files plus stages | `examples/05_base_files_and_stages/` | `jsons/base.json` |
+| Proc trimming plus stages | `examples/06_base_procs_and_stages/` | `jsons/base.json` |
+| Full starting point | `examples/07_base_full/` | `jsons/base.json` |
+| Base plus one optional feature | `examples/08_base_plus_one_feature/` | `jsons/` and `project.json` |
+| Base plus multiple features | `examples/09_base_plus_multiple_features/` | `jsons/` and `project.json` |
+| Feature dependency chain | `examples/10_chained_features_depends_on/` | `jsons/` and `project.json` |
+| Project mode without features | `examples/11_project_base_only/` | `jsons/base.json` and `project.json` |
 
 Expected Output:
 
@@ -466,5 +466,5 @@ Full diagnostic registry: [`../technical_docs/DIAGNOSTIC_CODES.md`](../technical
 | --- | --- |
 | [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md) | How Chopper decides what survives, JSON patterns, and FAQs |
 | [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | Pipeline, modules, ports, and diagnostic codes |
-| [../json_kit/](../json_kit/) | JSON schemas and 11 worked examples |
+| [../schemas/](../schemas/) and [../examples/](../examples/) | JSON schemas and 11 worked examples |
 | [../technical_docs/](../technical_docs/) | Full specification (for contributors) |

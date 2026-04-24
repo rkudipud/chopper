@@ -15,6 +15,7 @@ This file is the canonical location for product release naming and release-numbe
 
 The current release number is intentionally repeated only where the tool or packaging metadata requires it:
 
+- `VERSION.txt` (machine-readable release-number file at repo root; first line is the bare version string)
 - `pyproject.toml`
 - `src/chopper/__init__.py`
 - `src/chopper/audit/writers.py`

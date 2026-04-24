@@ -1,0 +1,41 @@
+0.3.0
+
+Product: Chopper
+Released: April 24, 2026
+Status: Released
+
+Schema versions included:
+  schemas/base-v1.schema.json             — chopper/base/v1             (Draft-07)
+  schemas/feature-v1.schema.json          — chopper/feature/v1          (Draft-07)
+  schemas/project-v1.schema.json          — chopper/project/v1          (Draft-07)
+  schemas/diagnostic-v1.schema.json       — chopper/diagnostic/v1       (Draft-07)
+  schemas/progress-event-v1.schema.json   — chopper/progress-event/v1   (Draft-07)
+  schemas/run-result-v1.schema.json       — chopper/run-result/v1       (Draft-07)
+
+Changelog:
+  0.3.0 — Stack-file auto-generation option + json_kit dissolution
+           * Added options.generate_stack (boolean, default false) to base JSON schema
+           * When enabled with stages defined, Chopper emits one <stage>.stack per resolved stage
+             alongside <stage>.tcl using the N/J/L/D/I/O/R format
+           * Authoring guide §2.1 documents the derivation rules (dependencies > load_from > bare D)
+           * Examples 03 (base_stages_only) and 07 (base_full) demonstrate the new option
+           * Dissolved the standalone json_kit package now that the runtime has shipped:
+             - schemas/ moved to repository root
+             - examples/ moved to repository root
+             - technical_docs/JSON_AUTHORING_GUIDE.md (merged from json_kit/docs/)
+             - scripts/validate_jsons.py (moved from json_kit/)
+             - .github/agents/domain-analyzer.agent.md (moved from json_kit/agent/DOMAIN_ANALYZER.md)
+           * Feature is newly implemented; real-domain feedback and bug reports actively solicited
+  0.2.0 — Release-channel consolidation
+           * Canonical version surface consolidated into VERSION.md / VERSION.txt
+           * Documentation suite modernized (user manual, technical guides)
+           * Repository rebranded to Chopper; all schemas, help text, and audit artifacts aligned
+  0.1.x — Early buildout
+           * CLI surface complete (validate / trim / cleanup)
+           * Pre- and post-trim validators with VE-*/VW-*/VI-* families
+           * Trimmer + generator (F1/F2/F3) landed
+           * Parser hardening against Tcl edge cases
+           * .chopper/ audit bundle (compiled_manifest, dependency_graph, trim_report, event log)
+           * JSON Kit extracted as standalone package (base/feature/project schemas, 11 examples)
+           * Chopper Buildout Agent and Chopper Domain Companion shipped
+           * Spec-first foundation (8-phase pipeline P0–P7, R1 merge rules, diagnostic registry)

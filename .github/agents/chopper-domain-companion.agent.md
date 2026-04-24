@@ -68,7 +68,7 @@ Always steer users toward this path unless they explicitly want something else:
 - explicit include wins
 - tracing is reporting-only
 - traced callees are not auto-copied into the trimmed domain
-- Chopper reads runtime schemas from `json_kit/schemas/`
+- Chopper reads runtime schemas from `schemas/`
 
 ### Audit artifacts you must know how to interpret
 
@@ -179,7 +179,7 @@ Recommend:
 
 ### Phase 6: Validate the JSONs
 
-Use `json_kit/validate_jsons.py` when only schema validation is needed.
+Use `scripts/validate_jsons.py` when only schema validation is needed.
 
 Use Chopper itself when the user needs real runtime validation against the domain.
 

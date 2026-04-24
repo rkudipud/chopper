@@ -720,7 +720,7 @@ Or validate all three together:
 ```python
 import json, jsonschema, pathlib
 
-schema_dir = pathlib.Path("schemas")  # relative to the json_kit folder root
+schema_dir = pathlib.Path("schemas")  # relative to the Chopper repo root
 schemas = {
     "chopper/base/v1":    json.load(open(schema_dir / "base-v1.schema.json")),
     "chopper/feature/v1": json.load(open(schema_dir / "feature-v1.schema.json")),

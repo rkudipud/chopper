@@ -47,7 +47,7 @@ flowchart LR
     Runner --> P6[P6 validate_post]
     Runner --> P7[P7 AuditService]
 
-    JsonKit[json_kit/schemas] --> P1
+    JsonKit[schemas] --> P1
     Domain[Domain files] --> P2
     Backup[domain_backup] --> P5
     P7 --> Audit[.chopper audit bundle]
@@ -82,7 +82,8 @@ flowchart LR
 | Path | Purpose |
 | --- | --- |
 | `tests/` | Unit, integration, golden, and property tests |
-| `json_kit/` | Self-contained JSON authoring kit; Chopper uses `json_kit/schemas/` at runtime |
+| `schemas/` | Authoritative JSON schemas (base/feature/project + diagnostic/progress-event/run-result) |
+| `examples/` | 11 progressive JSON examples covering every base/feature/project combination |
 | `technical_docs/` | Full specification, architecture plan, diagnostics, and implementation rationale |
 | `doc/` | User and integrator-facing documentation |
 
@@ -213,7 +214,7 @@ What happens:
 
 1. `ConfigService` decides whether the run is in project mode or direct base/features mode.
 2. JSON files are read through `ctx.fs`, never directly through `Path.read_text()`.
-3. `validate_json()` checks `$schema` and validates against `json_kit/schemas/`.
+3. `validate_json()` checks `$schema` and validates against `schemas/`.
 4. Raw dictionaries are hydrated into frozen dataclasses such as `BaseJson`, `FeatureJson`, and `LoadedConfig`.
 5. Features are topologically sorted through `depends_on` rules.
 6. `validate_pre()` performs filesystem and authoring checks such as missing literal files, malformed globs, domain mismatch, duplicate feature references, and empty-base advisories.
@@ -649,7 +650,7 @@ The runner always attempts P7 in `finally`, which means even partial failures st
 | Symptom | First places to inspect |
 | --- | --- |
 | CLI argument failure | `src/chopper/cli/main.py`, `tests/unit/cli/`, `tests/integration/test_cli_e2e.py` |
-| JSON load or schema problem | `src/chopper/config/service.py`, `src/chopper/config/schema.py`, `json_kit/schemas/` |
+| JSON load or schema problem | `src/chopper/config/service.py`, `src/chopper/config/schema.py`, `schemas/` |
 | Missing or wrong proc extraction | `src/chopper/parser/`, especially `tokenizer.py` and `proc_extractor.py` |
 | Wrong keep/drop outcome | `src/chopper/compiler/merge_service.py` |
 | Unexpected trace graph | `src/chopper/compiler/trace_service.py` |

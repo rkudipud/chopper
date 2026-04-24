@@ -257,7 +257,7 @@ Other key docs:
 - [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
 - [technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — Roadmap items explicitly out of v1 scope.
 - [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
-- [json_kit/docs/JSON_AUTHORING_GUIDE.md](../../json_kit/docs/JSON_AUTHORING_GUIDE.md) and [json_kit/schemas/](../../json_kit/schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
+- [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
 
 ---
 
@@ -328,7 +328,7 @@ Pre-trim (F1) and post-trim (F6) validation.
 JSON/TOML schema loading.
 
 - Uses `jsonschema` library
-- Schemas defined in `json_kit/schemas/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`
+- Schemas defined in `schemas/base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`
 
 ---
 

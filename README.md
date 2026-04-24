@@ -6,7 +6,7 @@
 ![Pipeline](https://img.shields.io/badge/pipeline-P0--P7-8a3ffc)
 
 [![Chopper Domain Companion](https://img.shields.io/badge/🤖_Agent-Chopper_Domain_Companion-0f62fe)](https://github.com/github/copilot)
-[![JSON Kit Domain Analyzer](https://img.shields.io/badge/🤖_Agent-JSON_Kit_Domain_Analyzer-8a3ffc)](json_kit/AGENTS.md)
+[![Domain Analyzer](https://img.shields.io/badge/🤖_Agent-Domain_Analyzer-8a3ffc)](.github/agents/domain-analyzer.agent.md)
 
 **Chopper is a Python CLI that surgically trims VLSI EDA tool-flow domains down to exactly what a project actually needs** — specified by JSON, reproducible on every run, and audited automatically after every trim.
 
@@ -34,20 +34,20 @@ The **Chopper Domain Companion** (`.github/agents/chopper-domain-companion.agent
 > [!TIP]
 > Open VS Code Copilot Chat and say: *"Analyze my domain at `path/to/domain/` and help me author the base JSON."* The companion takes it from there.
 
-### JSON Kit Domain Analyzer
+### Domain Analyzer
 
-![JSON Kit Domain Analyzer](https://img.shields.io/badge/VS%20Code%20Agent-JSON%20Kit%20Domain%20Analyzer-8a3ffc)
+![Domain Analyzer](https://img.shields.io/badge/VS%20Code%20Agent-Domain%20Analyzer-8a3ffc)
 
-The **JSON Kit Domain Analyzer** (`json_kit/AGENTS.md`) is a focused, standalone agent for JSON authoring. It is designed to be handed off before the Chopper runtime ships — use it to get all three JSON files authored and schema-validated early:
+The **Domain Analyzer** (`.github/agents/domain-analyzer.agent.md`) is a focused agent for JSON authoring. Use it to get all three JSON files authored and schema-validated when onboarding a new domain:
 
 - Discovers domain structure from a file listing
 - Extracts stage definitions from scheduler stack files (translating N/J/L/D/I/O fields into JSON)
 - Classifies procs as core, feature-specific, or deprecated
 - Splits content between `base.json` (universal) and feature JSONs (optional/conditional)
-- Validates each output against the authoritative schemas in `json_kit/schemas/`
+- Validates each output against the authoritative schemas in `schemas/`
 
 > [!TIP]
-> Open the `json_kit/` folder in VS Code and ask Copilot Chat: *"Analyze my domain directory and help me author the base, feature, and project JSONs."*
+> Ask Copilot Chat: *"Analyze my domain directory and help me author the base, feature, and project JSONs."*
 
 ---
 
@@ -147,7 +147,7 @@ Base + feature JSONs + project recipe (Mode 3):
 
 The project JSON can also sit outside the domain — in a separate `configs/` directory or a team repository. It just holds paths to the base and feature JSONs.
 
-#### Worked examples in `json_kit/examples/`
+#### Worked examples in `examples/`
 
 | Example folder | What it shows |
 | --- | --- |
@@ -160,9 +160,9 @@ The project JSON can also sit outside the domain — in a separate `configs/` di
 | `10_chained_features_depends_on/` | Features with `depends_on` ordering |
 | `11_project_base_only/` | Project file referencing base only (no features) |
 
-Copy the nearest example into your domain root, replace every placeholder, then validate with `python json_kit/validate_jsons.py <domain_root>/`. Full field reference is in [json_kit/docs/JSON_AUTHORING_GUIDE.md](json_kit/docs/JSON_AUTHORING_GUIDE.md).
+Copy the nearest example into your domain root, replace every placeholder, then validate with `python scripts/validate_jsons.py <domain_root>/`. Full field reference is in [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md).
 
-Use the **JSON Kit Domain Analyzer** agent to generate JSONs from your codebase, or adapt from the examples above. The schemas in `json_kit/schemas/` enforce correctness.
+Use the **Domain Analyzer** agent to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
 
 ### Step 3 — Validate first, always
 
@@ -223,7 +223,7 @@ Open `.chopper/` after any run. All artifacts are JSON and plain text, readable 
 
 Chopper writes `.chopper/` on every run, including failed runs and dry-runs. Nothing is discarded on a re-run — the previous bundle is replaced. If you need to keep history, copy the folder before re-running.
 
-The bundle is designed to be machine-readable. The `run-result-v1.schema.json` and `diagnostic-v1.schema.json` schemas in `json_kit/schemas/` document the format.
+The bundle is designed to be machine-readable. The `run-result-v1.schema.json` and `diagnostic-v1.schema.json` schemas in `schemas/` document the format.
 
 ---
 
@@ -235,7 +235,7 @@ The bundle is designed to be machine-readable. The `run-result-v1.schema.json` a
 | JSON author / domain owner | [doc/BEHAVIOR_GUIDE.md](doc/BEHAVIOR_GUIDE.md) — merge rules, tracing, patterns, FAQ |
 | Integrator or contributor | [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) — pipeline, modules, ports, error model |
 | Engineer reading the code | [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md) — code-level walkthrough |
-| Schema and examples | [json_kit/README.md](json_kit/README.md) — authoring kit, schemas, validator |
+| JSON schemas and examples | [schemas/](schemas/) and [examples/](examples/) — authoritative schemas and 11 worked examples; see [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) |
 | Authoritative specification | [technical_docs/chopper_description.md](technical_docs/chopper_description.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) — workflow, quality gates, scope rules |
 
@@ -267,13 +267,13 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 ## Changelog
 
-Major milestones only. The canonical release version lives in [VERSION.md](VERSION.md); the JSON Kit maintains its own version in [json_kit/VERSION.txt](json_kit/VERSION.txt).
+Major milestones only. The canonical release version lives in [VERSION.md](VERSION.md) and [VERSION.txt](VERSION.txt).
 
 ### 0.3.0 — 2026-04-24
 
 - **F3 stack-file auto-generation (`options.generate_stack`).** Base JSON gains an optional `options.generate_stack` boolean (default `false`). When enabled alongside `stages`, the generator (P5b) emits one `<stage>.stack` per resolved stage alongside `<stage>.tcl`, using the N/J/L/D/I/O/R format documented in the bible §3.6. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Generated `.stack` files participate in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like `.tcl` run scripts. **This feature is newly implemented and has not yet been exercised against real customer domains — feedback, bug reports, and expected-behaviour descriptions are actively solicited.**
-- JSON Kit schema `chopper/base/v1` extended with the new property; authoring guide §2.1 added; example 03 and example 07 opted in for demonstration.
-- JSON Kit version bumped to 1.1.0.
+- **`json_kit/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to [.github/agents/domain-analyzer.agent.md](.github/agents/domain-analyzer.agent.md), and the validator to [scripts/validate_jsons.py](scripts/validate_jsons.py). A single consolidated [VERSION.txt](VERSION.txt) replaces the kit's private version file.
+- Authoring guide §2.1 added; example 03 and example 07 opted in to `generate_stack` for demonstration.
 
 ### 0.2.0 — 2026-04-23
 
@@ -288,7 +288,7 @@ Major milestones only. The canonical release version lives in [VERSION.md](VERSI
 - **Trimmer + generator path.** File-level, proc-level, and stage-based trimming land; `GeneratorService` emits `<stage>.tcl` run files from resolved stages.
 - **Parser hardening.** Tokenizer state machine and proc extractor cover the Tcl edge cases catalogued in [technical_docs/TCL_PARSER_SPEC.md](technical_docs/TCL_PARSER_SPEC.md) and the `tests/fixtures/edge_cases/` corpus.
 - **Audit bundle.** Every run (success or failure) writes `.chopper/` with `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, and JSON-Lines event log.
-- **JSON Kit extraction.** Base/feature/project schemas, validator, authoring guide, and eleven worked examples packaged as a standalone kit under `json_kit/` so domain owners can author JSON before the runtime ships.
+- **JSON Kit extraction (superseded in 0.3.0).** Base/feature/project schemas, validator, authoring guide, and eleven worked examples were packaged as a standalone kit under `json_kit/` so domain owners could author JSON before the runtime shipped. The kit was absorbed into the main repository in 0.3.0.
 - **Agentic workflow.** Chopper Buildout Agent and Chopper Domain Companion shipped with the repository, each backed by a local memory file under `.github/agent_memory/`.
 - **Spec-first foundation.** Eight-phase pipeline (P0–P7), R1 merge rules, diagnostic-code registry, and risks/pitfalls catalogue established as the authoritative basis for every subsequent change.
 

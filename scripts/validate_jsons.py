@@ -2,9 +2,9 @@
 """Validate Chopper JSON files against repository schemas.
 
 Usage examples:
-  python validate_jsons.py
-  python validate_jsons.py examples/08_base_plus_one_feature
-  python validate_jsons.py my_domain/
+  python scripts/validate_jsons.py
+  python scripts/validate_jsons.py examples/08_base_plus_one_feature
+  python scripts/validate_jsons.py my_domain/
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def validate_file(json_file: Path, schemas: Dict[str, dict]) -> Tuple[str, str]:
 
 
 def parse_args() -> argparse.Namespace:
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parent.parent
     default_schema_dir = repo_root / "schemas"
 
     parser = argparse.ArgumentParser(description="Validate Chopper JSON files against schemas")

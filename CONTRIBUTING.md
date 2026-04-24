@@ -75,7 +75,7 @@ pytest tests/unit/<package>/ -v
 
 ## 🗒️ Design Notes
 
-- Chopper uses `json_kit/schemas/` as the runtime schema source.
+- Chopper uses `schemas/` as the runtime schema source.
 - The CLI entry point is `chopper`, defined in [pyproject.toml](pyproject.toml).
 - `trim --dry-run` produces trim-side reports without rebuilding domain content.
 - `cleanup` is a direct filesystem operation and requires `--confirm`.

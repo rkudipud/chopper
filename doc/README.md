@@ -35,5 +35,6 @@ Start here instead of `technical_docs/` if you are operating, integrating, or le
 | Resource | Purpose |
 | --- | --- |
 | [`../technical_docs/`](../technical_docs/) | Full specification, architecture plan, diagnostic registry, risks |
-| [`../json_kit/`](../json_kit/) | Standalone JSON authoring kit with schemas and 11 progressive examples |
+| [`../schemas/`](../schemas/) and [`../examples/`](../examples/) | Authoritative JSON schemas and 11 progressive worked examples |
+| [`../technical_docs/JSON_AUTHORING_GUIDE.md`](../technical_docs/JSON_AUTHORING_GUIDE.md) | Complete JSON field reference and authoring guide |
 | [`../README.md`](../README.md) | Repository landing page and quick start |

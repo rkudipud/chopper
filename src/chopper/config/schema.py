@@ -4,13 +4,13 @@ This module provides :func:`validate_json` — a single entry point that
 accepts a raw parsed dict and determines which Chopper schema to validate
 it against, then emits diagnostics via the supplied callback.
 
-Schemas are read from ``json_kit/schemas/`` relative to the *repo root*
-(the directory two levels above this source file's package root). The
-authoritative schema files are:
+Schemas are read from ``schemas/`` relative to the *repo root*
+(the directory four levels above this source file). The authoritative
+schema files are:
 
-* ``json_kit/schemas/base-v1.schema.json``     → ``$schema: chopper/base/v1``
-* ``json_kit/schemas/feature-v1.schema.json``  → ``$schema: chopper/feature/v1``
-* ``json_kit/schemas/project-v1.schema.json``  → ``$schema: chopper/project/v1``
+* ``schemas/base-v1.schema.json``     → ``$schema: chopper/base/v1``
+* ``schemas/feature-v1.schema.json``  → ``$schema: chopper/feature/v1``
+* ``schemas/project-v1.schema.json``  → ``$schema: chopper/project/v1``
 
 Diagnostic mapping:
 
@@ -49,7 +49,7 @@ _SCHEMA_ID_PROJECT = "chopper/project/v1"
 
 _KNOWN_SCHEMAS: frozenset[str] = frozenset([_SCHEMA_ID_BASE, _SCHEMA_ID_FEATURE, _SCHEMA_ID_PROJECT])
 
-# Maps $schema value → the filename under json_kit/schemas/.
+# Maps $schema value → the filename under schemas/.
 _SCHEMA_FILE: dict[str, str] = {
     _SCHEMA_ID_BASE: "base-v1.schema.json",
     _SCHEMA_ID_FEATURE: "feature-v1.schema.json",
@@ -63,20 +63,19 @@ _SCHEMA_FILE: dict[str, str] = {
 
 
 def _schema_dir() -> Path:
-    """Return the absolute path to ``json_kit/schemas/``.
+    """Return the absolute path to ``schemas/`` at the repo root.
 
     Resolved relative to *this file* (``src/chopper/config/schema.py``):
     go up 4 levels (config → chopper → src → repo-root) then into
-    ``json_kit/schemas/``.  The path is validated at first call; a missing
-    ``json_kit/schemas/`` directory is a packaging error and raises
-    immediately.
+    ``schemas/``.  The path is validated at first call; a missing
+    ``schemas/`` directory is a packaging error and raises immediately.
     """
     here = Path(__file__).resolve()
     repo_root = here.parent.parent.parent.parent  # src/chopper/config/schema.py → repo root
-    schemas = repo_root / "json_kit" / "schemas"
+    schemas = repo_root / "schemas"
     if not schemas.is_dir():
         raise RuntimeError(
-            f"json_kit/schemas/ not found at {schemas}; check the repo layout (json_kit/ must sit alongside src/)"
+            f"schemas/ not found at {schemas}; check the repo layout (schemas/ must sit alongside src/)"
         )
     return schemas
 
@@ -158,7 +157,7 @@ def validate_json(
             phase=Phase.P1_CONFIG,
             message=f"Schema validation failed at {path_str!r}: {first.message}",
             path=source_path,
-            hint="Check the JSON authoring guide at json_kit/docs/JSON_AUTHORING_GUIDE.md",
+            hint="Check the JSON authoring guide at technical_docs/JSON_AUTHORING_GUIDE.md",
         )
     )
     return False

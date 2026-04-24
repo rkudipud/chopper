@@ -450,5 +450,5 @@ Include:
 | --- | --- |
 | [USER_MANUAL.md](USER_MANUAL.md) | CLI reference and installation |
 | [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | Architecture and module layout |
-| [../json_kit/examples/](../json_kit/examples/) | 11 progressive worked examples |
+| [../examples/](../examples/) | 11 progressive worked examples |
 | [../technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md) | Full diagnostic registry |

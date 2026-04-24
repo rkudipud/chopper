@@ -1,3 +1,9 @@
+---
+description: 'Focused JSON-authoring agent that analyzes an EDA tool domain codebase and helps the user author Chopper base, feature, and project JSONs, then validates them against the repository schemas.'
+name: 'Domain Analyzer'
+tools: [vscode/memory, vscode/askQuestions, read/readFile, read/problems, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, edit/createFile, edit/createDirectory, edit/editFiles, edit/rename, execute/runInTerminal, execute/executionSubagent, execute/getTerminalOutput, agent/runSubagent, todo]
+---
+
 # Chopper Domain Analyzer — Agent Instructions
 
 You are an expert assistant that analyzes EDA tool domain codebases and helps users author the three Chopper JSON configuration files: **base**, **feature**, and **project**.
@@ -522,7 +528,7 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "jsonschema", "-q"])
     import jsonschema
 
-schema_dir = pathlib.Path("schemas")   # relative to the json_kit folder root
+schema_dir = pathlib.Path("schemas")   # relative to the Chopper repo root
 schemas = {
     "chopper/base/v1":    json.load(open(schema_dir / "base-v1.schema.json")),
     "chopper/feature/v1": json.load(open(schema_dir / "feature-v1.schema.json")),

@@ -310,7 +310,7 @@ class ParseResult:
 # Stage 2a — Config-loader outputs (base / feature / project + aggregate).
 # ---------------------------------------------------------------------------
 #
-# Authoritative schemas: json_kit/schemas/{base,feature,project}-v1.schema.json.
+# Authoritative schemas: schemas/{base,feature,project}-v1.schema.json.
 #
 # Every JSON record here is a frozen dataclass that is **one-to-one** with its
 # schema after the loader has validated and hydrated it. The loader

@@ -8,7 +8,7 @@ the compiler and tracer.
 Sub-modules (internal; import only :class:`ConfigService` from the service):
 
 * :mod:`~chopper.config.schema` — jsonschema validators backed by the
-  authoritative schemas in ``json_kit/schemas/``.
+  authoritative schemas in ``schemas/``.
 * :mod:`~chopper.config.loaders` — per-schema hydration functions that
   translate raw dicts into frozen dataclasses.
 * :mod:`~chopper.config.service` — :class:`ConfigService` orchestrator.
