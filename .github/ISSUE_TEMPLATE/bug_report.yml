@@ -38,6 +38,18 @@ body:
       required: true
 
   - type: input
+    id: ec_site
+    attributes:
+      label: EC site / zone
+      description: |
+        Which Enterprise Compute site or zone was this issue seen on? This tells
+        us which compute cluster to pull logs from. Use "local" if you reproduced
+        the bug outside the grid (laptop, desktop, sandbox VM).
+      placeholder: "e.g. sc-rh8-prod, fm-grid-02, blr, local"
+    validations:
+      required: true
+
+  - type: input
     id: python_version
     attributes:
       label: Python version
