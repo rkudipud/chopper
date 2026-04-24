@@ -1,6 +1,6 @@
 """Unit tests for :mod:`chopper.compiler.flow_resolver`.
 
-Covers the full action vocabulary (bible §6.7) plus the three explicit
+Covers the full action vocabulary (architecture doc §6.7) plus the three explicit
 diagnostics the resolver owns:
 
 * ``VE-10`` — ``@n`` index overflow.
@@ -130,7 +130,7 @@ def test_load_from_action() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Feature + action ordering (bible §6.7)
+# Feature + action ordering (architecture doc §6.7)
 # ---------------------------------------------------------------------------
 
 

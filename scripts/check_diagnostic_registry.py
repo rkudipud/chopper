@@ -3,7 +3,7 @@ references a code that is not an Active row in ``technical_docs/DIAGNOSTIC_CODES
 
 This is the doc↔code single-source-of-truth gate described in
 ``technical_docs/FINAL_HANDOFF_REVIEW.md`` PR-4. Agents that invent new diagnostic codes
-without registering them in the bible registry fail this check.
+without registering them in the architecture doc registry fail this check.
 
 The script is intentionally tiny and dependency-free so it can run in the
 earliest CI stages before the project itself is importable.
@@ -29,7 +29,7 @@ REGISTRY_ROW_RE = re.compile(r"^\|\s*([VTP][EWI]-\d{2})\s*\|\s*`[^`]+`")
 
 
 def load_active_codes() -> set[str]:
-    """Return the set of diagnostic codes registered as Active in the bible."""
+    """Return the set of diagnostic codes registered as Active in the architecture doc."""
     if not REGISTRY.is_file():
         print(f"ERROR: registry not found: {REGISTRY}", file=sys.stderr)
         sys.exit(2)

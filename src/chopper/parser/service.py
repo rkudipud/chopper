@@ -74,7 +74,7 @@ _DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
 }
 
 
-# Only ``.tcl`` files are parsed by P2. Per the bible (OOS-01,
+# Only ``.tcl`` files are parsed by P2. Per the architecture doc (OOS-01,
 # ``technical_docs/chopper_description.md`` §1.3), non-Tcl companion
 # files named in ``files.include`` / ``procedures.*`` (Perl, Python,
 # shell, config) participate in F1 file-level treatment only — they must

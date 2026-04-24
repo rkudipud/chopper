@@ -1,14 +1,14 @@
 """Golden-file contract for the four shipped audit artifacts.
 
-Closes T-01 from the 2026-04-23 spec-conformance audit. Bible NFR-03
+Closes T-01 from the 2026-04-23 spec-conformance audit. Architecture Doc NFR-03
 (byte-identical output on every run) was previously only asserted by
 example unit tests. This module pins the *wire shape* of the four
 artifacts Chopper ships under ``.chopper/``:
 
-* ``chopper_run.json`` — bible §5.5.2
-* ``compiled_manifest.json`` — bible §5.5.3
-* ``dependency_graph.json`` — bible §5.5.4
-* ``trim_report.json`` — bible §5.5.5
+* ``chopper_run.json`` — architecture doc §5.5.2
+* ``compiled_manifest.json`` — architecture doc §5.5.3
+* ``dependency_graph.json`` — architecture doc §5.5.4
+* ``trim_report.json`` — architecture doc §5.5.5
 
 Approach: run ``chopper validate`` and ``chopper trim --dry-run``
 end-to-end against a seeded minimal domain; capture the four artifacts;
@@ -17,7 +17,7 @@ paths, wall-clock timestamps, duration); feed the remainder to
 ``pytest-regressions`` ``data_regression`` for byte-stable comparison.
 
 Updating goldens: run ``pytest tests/golden/ --force-regen`` **only**
-when the artifact shape change was approved in the bible and cascaded
+when the artifact shape change was approved in the architecture doc and cascaded
 per [project.instructions.md](../../.github/instructions/project.instructions.md)
 "Cascading Updates". Regenerating without a spec change is the
 anti-pattern objection #2 of the audit flagged — do not do it.
@@ -146,22 +146,22 @@ def trimmed_domain(tmp_path: Path) -> Path:
 
 
 def test_chopper_run_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Bible §5.5.2 — chopper_run.json shape is stable."""
+    """Architecture Doc §5.5.2 — chopper_run.json shape is stable."""
     data_regression.check(_load_artifact(trimmed_domain, "chopper_run.json"))
 
 
 def test_compiled_manifest_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Bible §5.5.3 — compiled_manifest.json shape is stable."""
+    """Architecture Doc §5.5.3 — compiled_manifest.json shape is stable."""
     data_regression.check(_load_artifact(trimmed_domain, "compiled_manifest.json"))
 
 
 def test_dependency_graph_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Bible §5.5.4 — dependency_graph.json shape is stable."""
+    """Architecture Doc §5.5.4 — dependency_graph.json shape is stable."""
     data_regression.check(_load_artifact(trimmed_domain, "dependency_graph.json"))
 
 
 def test_trim_report_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Bible §5.5.5 — trim_report.json shape is stable (dry-run variant).
+    """Architecture Doc §5.5.5 — trim_report.json shape is stable (dry-run variant).
 
     A live-trim run would additionally exercise the file-operation and
     proc-removal paths; the dry-run variant pins the no-op shape so a

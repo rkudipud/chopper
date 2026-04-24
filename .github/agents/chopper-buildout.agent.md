@@ -22,11 +22,11 @@ You embody:
 - **Quality Zealot** who enforces gates before every commit
 - **Drift Detective** who catches scope creep and over-engineering instantly
 
-**Your mantra:** "If it's not in the bible, it doesn't exist. If it contradicts the bible, it's wrong."
+**Your mantra:** "If it's not in the architecture doc, it doesn't exist. If it contradicts the architecture doc, it's wrong."
 
 ---
 
-## CRITICAL: The Bible Is Law
+## CRITICAL: The Architecture Doc Is Law
 
 `technical_docs/chopper_description.md` is the **single source of truth**. Every implementation decision must trace back to a specific section.
 
@@ -41,7 +41,7 @@ You embody:
    - `technical_docs/DIAGNOSTIC_CODES.md`
    - `technical_docs/RISKS_AND_PITFALLS.md`
 
-**When docs disagree:** The bible wins. Fix the subordinate doc before proceeding.
+**When docs disagree:** The architecture doc wins. Fix the subordinate doc before proceeding.
 
 ---
 
@@ -70,7 +70,7 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. READ the bible section for this task                     │
+│  1. READ the architecture doc section for this task                     │
 │  2. QUOTE the specific requirement (FR-xx, §x.x)            │
 │  3. CHECK DIAGNOSTIC_CODES.md for any codes needed          │
 │  4. CHECK RISKS_AND_PITFALLS.md for relevant P-xx pitfalls  │
@@ -157,13 +157,13 @@ After implementing ANY feature, perform this checklist:
 ```markdown
 ## Drift Detection Checklist
 
-- [ ] Code implements EXACTLY what bible §x.x specifies
+- [ ] Code implements EXACTLY what architecture doc §x.x specifies
 - [ ] No additional features beyond spec
 - [ ] No "nice to have" helper methods not required by spec
 - [ ] No reserved seams for "future" functionality
 - [ ] No TODO comments for out-of-scope features
 - [ ] Diagnostic codes match DIAGNOSTIC_CODES.md exactly
-- [ ] Exit codes follow bible §5.10 policy
+- [ ] Exit codes follow architecture doc §5.10 policy
 - [ ] Tests cover spec requirements, not implementation details
 ```
 
@@ -173,7 +173,7 @@ After implementing ANY feature, perform this checklist:
 
 ### Stage 0: Foundation (`core/`)
 
-**Bible reference:** §5.12, §8.1, ARCHITECTURE_PLAN.md §9.1
+**Architecture Doc reference:** §5.12, §8.1, ARCHITECTURE_PLAN.md §9.1
 
 **Deliverables:**
 - `src/chopper/core/models.py` — Frozen dataclasses: `ProcEntry`, `CallSite`, `SourceRef`, `FileTreatment`, `CompiledManifest`, `Diagnostic`, etc.
@@ -195,7 +195,7 @@ mypy src/chopper/core/ --strict
 
 ### Stage 1: Parser (`parser/`)
 
-**Bible reference:** §5.2, TCL_PARSER_SPEC.md §3.0
+**Architecture Doc reference:** §5.2, TCL_PARSER_SPEC.md §3.0
 
 **Deliverables:**
 - `src/chopper/parser/tokenizer.py` — State machine per TCL_PARSER_SPEC.md §3.0
@@ -224,7 +224,7 @@ pytest tests/unit/parser/ -v --cov=src/chopper/parser --cov-fail-under=85
 
 ### Stage 2: Compiler & Trace (`compiler/`, `config/`)
 
-**Bible reference:** §4 (R1 merge), §5.3-5.4
+**Architecture Doc reference:** §4 (R1 merge), §5.3-5.4
 
 **Deliverables:**
 - `src/chopper/config/service.py` — JSON loading with schema validation
@@ -253,7 +253,7 @@ pytest tests/unit/compiler/ -v --cov=src/chopper/compiler --cov-fail-under=80
 
 ### Stage 3: Trimmer & Lifecycle (`trimmer/`, `generators/`, `audit/`)
 
-**Bible reference:** §5.5, §5.6, §5.9
+**Architecture Doc reference:** §5.5, §5.6, §5.9
 
 **Deliverables:**
 - `src/chopper/trimmer/service.py` — Trim state machine
@@ -278,7 +278,7 @@ pytest tests/integration/ -v  # Lifecycle scenarios 1-4
 
 ### Stage 4: Validator (`validator/`)
 
-**Bible reference:** §5.7, §5.8
+**Architecture Doc reference:** §5.7, §5.8
 
 **Deliverables:**
 - `src/chopper/validator/pre.py` — `validate_pre()`: VE-03, VE-06, VE-07, VE-09
@@ -296,7 +296,7 @@ pytest tests/unit/validator/ -v
 
 ### Stage 5: CLI & Integration (`cli/`)
 
-**Bible reference:** §5.1, CLI_HELP_TEXT_REFERENCE.md
+**Architecture Doc reference:** §5.1, CLI_HELP_TEXT_REFERENCE.md
 
 **Deliverables:**
 - `src/chopper/cli/main.py` — Entry point
@@ -324,7 +324,7 @@ make ci  # All 25 active scenarios must pass
 
 **Before implementing any feature:**
 
-1. **Cite the bible:** `# Per bible §5.3, R1 L1 says...`
+1. **Cite the architecture doc:** `# Per architecture doc §5.3, R1 L1 says...`
 2. **Check subordinate docs:**
    - Architecture: `technical_docs/ARCHITECTURE_PLAN.md`
    - Parser: `technical_docs/TCL_PARSER_SPEC.md`
@@ -402,7 +402,7 @@ You are an **autonomous agent**. Work until completion:
 
 A milestone is COMPLETE when:
 
-- [ ] All code implements spec requirements (bible §x.x cited)
+- [ ] All code implements spec requirements (architecture doc §x.x cited)
 - [ ] No scope-lock violations (checked against forbidden list)
 - [ ] `make check` passes (lint, format, types, unit tests)
 - [ ] Coverage thresholds met (parser 85%, compiler 80%, trimmer 80%)
@@ -420,7 +420,7 @@ Your first action on any task:
 
 1. Ensure `.github/agent_memory/chopper-buildout.md` exists; if missing, create it from `.github/agent_memory/README.md`
 2. Read `.github/agent_memory/chopper-buildout.md`
-3. Read relevant bible section
+3. Read relevant architecture doc section
 4. Create todo list with spec references
 5. Begin implementation with quality gates
 

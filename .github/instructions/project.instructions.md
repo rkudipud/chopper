@@ -34,7 +34,7 @@ If you find a file that violates any row above, the correct action is **remove t
 
 #### 1.1 Narrowed from a prior closure (read-only MCP)
 
-The MCP row above was **narrowed** in 0.4.0 (not removed). The following MCP surface is **permitted** and is specified in the bible at `technical_docs/chopper_description.md` §3.8:
+The MCP row above was **narrowed** in 0.4.0 (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/chopper_description.md` §3.8:
 
 - `chopper mcp-serve` subcommand.
 - `src/chopper/mcp/` package containing a **stdio-only** JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon).
@@ -44,25 +44,25 @@ The MCP row above was **narrowed** in 0.4.0 (not removed). The following MCP sur
 
 Everything else in the MCP row stays closed: no destructive tools over MCP, no progress/diagnostic sinks mounted to MCP, no adapters that bridge Chopper internals to MCP, no networked transports, no MCP client code.
 
-### 2. Single Authority: The Bible
+### 2. Single Authority: The Architecture Doc
 
-[`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) is the **bible**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
+[`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) is the **architecture doc**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
 
-- [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) — describes *how* the bible is built; cannot add behavior the bible does not mandate.
-- [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the bible; cannot introduce a code for behavior not in the bible.
+- [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
+- [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
 - [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md), [`technical_docs/RISKS_AND_PITFALLS.md`](../../technical_docs/RISKS_AND_PITFALLS.md), [`technical_docs/TCL_PARSER_SPEC.md`](../../technical_docs/TCL_PARSER_SPEC.md) — all subordinate.
 - [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — records what was considered and *not* shipped; never a green light to build.
 
-**When docs disagree, the bible wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
+**When docs disagree, the architecture doc wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
 
 **Adding a new capability** — any new flag, subcommand, diagnostic family, port, pipeline phase, generated artifact, or runtime behavior — requires, **in this order**:
 
 1. **User approval.** Not inferred, not assumed. Explicit.
-2. **Bible edit first.** The feature is specified in [`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) before any subordinate doc or code moves.
-3. **Cascade.** Subordinate docs update only after the bible is updated.
+2. **Architecture Doc edit first.** The feature is specified in [`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) before any subordinate doc or code moves.
+3. **Cascade.** Subordinate docs update only after the architecture doc is updated.
 4. **Then code.** Implementation follows the cascade, never precedes it.
 
-No agent may invert this order. If you catch yourself writing code for a feature that is not in the bible, stop and file a proposal (below).
+No agent may invert this order. If you catch yourself writing code for a feature that is not in the architecture doc, stop and file a proposal (below).
 
 ### 3. Proposal Procedure (The Only Legitimate Route)
 
@@ -70,7 +70,7 @@ When you (or a reviewer, or a user comment) identify something Chopper "should m
 
 1. Open [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md).
 2. Add a new `FD-xx` entry at the next unused number in the appropriate category section.
-3. State: what the idea is, why it was considered, why it is not in the current design, and what would change in the bible if it were adopted.
+3. State: what the idea is, why it was considered, why it is not in the current design, and what would change in the architecture doc if it were adopted.
 4. Do **not** implement it. Do **not** stub it. Do **not** reserve a diagnostic code, port, or namespace for it.
 5. Flag the user for review in the same turn.
 
@@ -94,7 +94,7 @@ Every hit outside a negative assertion (a sentence like "there is no `LockPort`"
 
 ```text
 Is this in technical_docs/chopper_description.md?
-├── YES → Implement per the bible. Cascade to subordinate docs if needed.
+├── YES → Implement per the architecture doc. Cascade to subordinate docs if needed.
 └── NO  → Is it in §1 "Closed Decisions" above?
          ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
          └── NO  → File an FD-xx stub in FUTURE_PLANNED_DEVELOPMENTS.md. Flag the user. Stop.
@@ -147,7 +147,7 @@ make ci     # Full gate: all code quality + all test suites
 ## Architecture Overview
 
 > **Naming note — two uses of "F1/F2/F3" in this codebase:**
-> - **Capability classes** (the bible §2.1): `F1` = file-level trimming, `F2` = proc-level trimming, `F3` = run-file generation. These are the three user-facing feature sets. When the user or the bible says "F1/F2/F3 working", this is what they mean.
+> - **Capability classes** (the architecture doc §2.1): `F1` = file-level trimming, `F2` = proc-level trimming, `F3` = run-file generation. These are the three user-facing feature sets. When the user or the architecture doc says "F1/F2/F3 working", this is what they mean.
 > - **Pipeline phases** (this project): the internal execution sequence uses `P0–P7` labels — **never** `F1–F7`. Using `F-labels` for phases causes confusion with the capability classes above.
 
 The codebase executes an **8-phase pipeline (P0–P7)**:
@@ -295,7 +295,7 @@ The authoritative Python coding standards live in [technical_docs/chopper_descri
 - No `print()` in library code; user outcomes via `ctx.diag.emit(Diagnostic(...))`; internal logs via `structlog`.
 - Programmer errors raise `ChopperError` subclasses and exit with code 3 via the runner's final `except`.
 
-When this summary and the bible disagree, the bible (§5.12) wins — update the summary here to match.
+When this summary and the architecture doc disagree, the architecture doc (§5.12) wins — update the summary here to match.
 
 ---
 

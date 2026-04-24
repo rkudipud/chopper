@@ -48,7 +48,7 @@ class TestFileTreatment:
         assert isinstance(FileTreatment.FULL_COPY, str)
 
     def test_members_exhaustive(self) -> None:
-        # Bible §5.5 defines exactly these four dispositions; adding a fifth
+        # Architecture Doc §5.5 defines exactly these four dispositions; adding a fifth
         # without touching the spec is a drift regression.
         assert {m.name for m in FileTreatment} == {"FULL_COPY", "PROC_TRIM", "GENERATED", "REMOVE"}
 

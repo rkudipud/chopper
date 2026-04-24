@@ -6,7 +6,7 @@
 
 ## Last Completed Work
 
-- **0.4.0 MCP stdio surface (2026-04-24).** `chopper mcp-serve` ships — a stdio-only Model Context Protocol server that exposes three read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Destructive tools (`trim`, `cleanup`) remain CLI-only and are guarded by an in-process assertion plus an integration test. New diagnostic `PE-04 mcp-protocol-error` (exit 4). `mcp>=1.0,<2` is now a hard runtime dependency. Scope-lock §1.1 in `project.instructions.md` documents the narrowed exception. Bible §3.9 is the authoritative contract.
+- **0.4.0 MCP stdio surface (2026-04-24).** `chopper mcp-serve` ships — a stdio-only Model Context Protocol server that exposes three read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Destructive tools (`trim`, `cleanup`) remain CLI-only and are guarded by an in-process assertion plus an integration test. New diagnostic `PE-04 mcp-protocol-error` (exit 4). `mcp>=1.0,<2` is now a hard runtime dependency. Scope-lock §1.1 in `project.instructions.md` documents the narrowed exception. Architecture Doc §3.9 is the authoritative contract.
 
 - **0.3.3 generate_stack end-to-end tests (2026-04-24).** `options.generate_stack` is now fully tested and production-ready (D1 + D2):
   - New `tests/fixtures/stages_domain/` fixture (three-stage domain with `generate_stack: true`).
@@ -36,7 +36,7 @@
 
 ## Supported Features
 
-- **`options.generate_stack` (F3 stack-file auto-generation).** When set to `true` in the base JSON, Chopper emits one `<stage>.stack` file per resolved stage alongside `<stage>.tcl` using the N/J/L/D/I/O/R format defined in the bible §3.6. Dependency-line derivation: `dependencies` > `load_from` > bare `D`. Fully tested in the integration suite (`tests/fixtures/stages_domain/`). No experimental caveats.
+- **`options.generate_stack` (F3 stack-file auto-generation).** When set to `true` in the base JSON, Chopper emits one `<stage>.stack` file per resolved stage alongside `<stage>.tcl` using the N/J/L/D/I/O/R format defined in the architecture doc §3.6. Dependency-line derivation: `dependencies` > `load_from` > bare `D`. Fully tested in the integration suite (`tests/fixtures/stages_domain/`). No experimental caveats.
 
 ## Validation Notes
 

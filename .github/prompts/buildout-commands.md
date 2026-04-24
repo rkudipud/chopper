@@ -56,11 +56,11 @@ Resume Chopper buildout.
 
 Implement Stage [N]: [module name]
 
-Bible reference: technical_docs/chopper_description.md §[X.X]
+Architecture Doc reference: technical_docs/chopper_description.md §[X.X]
 
 Pre-implementation:
 1. Ensure `.github/agent_memory/chopper-stage-builder.md` exists; if missing, create it from `.github/agent_memory/README.md`
-2. Read bible section and quote requirements
+2. Read architecture doc section and quote requirements
 3. Check DIAGNOSTIC_CODES.md for needed codes
 4. Check RISKS_AND_PITFALLS.md for pitfalls P-XX
 
@@ -83,7 +83,7 @@ Post-implementation:
 
 Review Stage [N] implementation for Chopper.
 
-1. Verify all code traces to bible sections
+1. Verify all code traces to architecture doc sections
 2. Check for scope-lock violations
 3. Identify any over-engineering
 4. Verify diagnostic codes match registry
@@ -154,7 +154,7 @@ git diff tests/golden/  # Must show NO changes
 
 | Document | Purpose | Check For |
 | --- | --- | --- |
-| `technical_docs/chopper_description.md` | **THE BIBLE** | Requirements, FR-xx, §x.x |
+| `technical_docs/chopper_description.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, §x.x |
 | `technical_docs/ARCHITECTURE_PLAN.md` | How to build | Module structure, §9.x models |
 | `technical_docs/TCL_PARSER_SPEC.md` | Parser rules | State machine, §3.0 |
 | `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
@@ -178,10 +178,10 @@ Run this after EVERY implementation:
 - [ ] No "helper" classes beyond spec
 
 ### Spec Alignment
-- [ ] Every public function traces to bible §x.x
+- [ ] Every public function traces to architecture doc §x.x
 - [ ] Diagnostic codes exist in DIAGNOSTIC_CODES.md
-- [ ] Exit codes follow bible §5.10
-- [ ] File treatments match bible §4 vocabulary
+- [ ] Exit codes follow architecture doc §5.10
+- [ ] File treatments match architecture doc §4 vocabulary
 
 ### Test Alignment
 - [ ] Tests verify spec behavior, not implementation
@@ -197,7 +197,7 @@ Run this after EVERY implementation:
 
 ```text
 1. STOP coding
-2. Re-read the bible section
+2. Re-read the architecture doc section
 3. Check RISKS_AND_PITFALLS.md for relevant pitfall
 4. Check ARCHITECTURE_PLAN.md for structural guidance
 5. If still stuck: ask user for clarification
@@ -207,7 +207,7 @@ Run this after EVERY implementation:
 
 ```text
 1. Read failure message carefully
-2. Check if spec misunderstanding (re-read bible)
+2. Check if spec misunderstanding (re-read architecture doc)
 3. Check if edge case (look in pitfalls)
 4. Fix ROOT CAUSE, not symptom
 5. Re-run FULL test suite
@@ -219,7 +219,7 @@ Run this after EVERY implementation:
 1. STOP immediately
 2. Identify what was added beyond spec
 3. DELETE the extra code
-4. Re-verify against bible §x.x
+4. Re-verify against architecture doc §x.x
 5. Continue only after drift resolved
 ```
 

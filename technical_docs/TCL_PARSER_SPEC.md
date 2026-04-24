@@ -51,7 +51,7 @@ def parse_file(
 
 ### 2.1.1 Return-Value Contract on Diagnostics (D4)
 
-The bible [`chopper_description.md`](chopper_description.md) §5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
+The architecture doc [`chopper_description.md`](chopper_description.md) §5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
 
 | Condition in file | `parse_file()` returns | Diagnostic emitted |
 |---|---|---|
@@ -289,7 +289,7 @@ Result: only `bar` is indexed (as `ns::bar`). `foo` is skipped with a debug-leve
 
 #### 4.3.1 Canonical-Name Test Vectors (D3)
 
-The bible [`chopper_description.md`](chopper_description.md) §5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
+The architecture doc [`chopper_description.md`](chopper_description.md) §5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
 
 | `file_path` | `namespace_stack` | `proc_short_name` | `canonical_name` | Notes |
 |---|---|---|---|---|
@@ -304,7 +304,7 @@ The bible [`chopper_description.md`](chopper_description.md) §5.4.1 fixes the c
 | `sub/dir/f.tcl` | `["p", "q"]` | `r` | `sub/dir/f.tcl::p::q::r` | Deep path + nested namespace |
 | `utils.tcl` | `[]` | `${prefix}_foo` | **(not indexed)** | Emits `PW-01 computed-proc-name`; proc is skipped entirely |
 
-**Enforcement.** `ParseResult` validates this format at construction. `tests/unit/parser/test_canonical_name.py` must parametrize across every row above. See also bible §5.4.1 (the authoritative registry) and [`RISKS_AND_PITFALLS.md`](RISKS_AND_PITFALLS.md) TC-02.
+**Enforcement.** `ParseResult` validates this format at construction. `tests/unit/parser/test_canonical_name.py` must parametrize across every row above. See also architecture doc §5.4.1 (the authoritative registry) and [`RISKS_AND_PITFALLS.md`](RISKS_AND_PITFALLS.md) TC-02.
 
 #### 4.3.2 Source / `iproc_source` Edges (E2)
 
@@ -315,7 +315,7 @@ The bible [`chopper_description.md`](chopper_description.md) §5.4.1 fixes the c
 - The sourced file's survival requires an explicit `files.include` entry; a sourced proc's survival requires an explicit `procedures.include` entry.
 - A `source` referencing a file that did not survive trim emits `VW-06 source-file-removed` in P6.
 
-See bible §5.4 R3 (source-edge survival effect) and §3.4 (hook semantics) for the authoritative contract.
+See architecture doc §5.4 R3 (source-edge survival effect) and §3.4 (hook semantics) for the authoritative contract.
 
 ### 4.4 Where Procs Are Recognized
 

@@ -1,9 +1,9 @@
-"""Per-source L2 classification tests (bible §4 R1 L2, 16-row matrix).
+"""Per-source L2 classification tests (architecture doc §4 R1 L2, 16-row matrix).
 
 These tests drive one base JSON (no features) through
 :class:`CompilerService` and inspect the resulting manifest to confirm
 that every same-source authoring pattern lands on the treatment +
-warnings the bible prescribes.
+warnings the architecture doc prescribes.
 """
 
 from __future__ import annotations
@@ -400,7 +400,7 @@ class TestRows14Through16:
         manifest = CompilerService().run(ctx, loaded, parsed)
 
         # FI glob pruned → FI_any is false → we fall to Row 5 (PI only).
-        # This is valid behaviour: the bible Row 14 note says "NONE (glob-only, pruned)",
+        # This is valid behaviour: the architecture doc Row 14 note says "NONE (glob-only, pruned)",
         # but when PI also exists the PI path kicks in. The result is PROC_TRIM.
         assert manifest.file_decisions[Path("procs/a.tcl")] is FileTreatment.PROC_TRIM
         # No VW-09 (FI was pruned, so PI is no longer redundant).

@@ -122,7 +122,7 @@ def main() -> int:
         print(f"    source: {src_sig}", file=sys.stderr)
     print(
         "\nUpdate technical_docs/ARCHITECTURE_PLAN.md §9.2 first, then reconcile the source. "
-        "The bible-first cascade applies to this table too.",
+        "The architecture-doc-first cascade applies to this table too.",
         file=sys.stderr,
     )
     return 1

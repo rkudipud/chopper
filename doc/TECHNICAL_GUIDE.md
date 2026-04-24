@@ -287,7 +287,7 @@ All JSON written with deterministic key order, UTF-8, and a trailing newline.
 ### Adding a capability
 
 > [!WARNING]
-> **Not allowed without a spec edit.** See `.github/instructions/project.instructions.md` §1 (“Closed Decisions”) and §2 (“Single Authority: The Bible”) for the scope-lock policy. Proposals go to [../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) as `FD-xx` entries.
+> **Not allowed without a spec edit.** See `.github/instructions/project.instructions.md` §1 (“Closed Decisions”) and §2 (“Single Authority: The Architecture Doc”) for the scope-lock policy. Proposals go to [../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) as `FD-xx` entries.
 
 ### Hot spots for future work
 

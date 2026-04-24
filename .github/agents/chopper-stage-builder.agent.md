@@ -29,9 +29,9 @@ Use `.github/agent_memory/chopper-stage-builder.md`.
 ```markdown
 ## Stage [N] Spec Verification
 
-### Bible Section
+### Architecture Doc Section
 - Primary: technical_docs/chopper_description.md §[X.X]
-- Quote: "[exact text from bible]"
+- Quote: "[exact text from architecture doc]"
 
 ### Subordinate Docs
 - [ ] ARCHITECTURE_PLAN.md §[X] — [relevant section]
@@ -70,7 +70,7 @@ def parse_file(
 ) -> list[ProcEntry]:
     """Parse a Tcl file and extract procedure definitions.
     
-    Per bible §5.2: Returns list of ProcEntry with unresolved calls.
+    Per architecture doc §5.2: Returns list of ProcEntry with unresolved calls.
     Emits PE-01/PE-02/PE-03 diagnostics for parse errors.
     
     Args:
@@ -91,7 +91,7 @@ def parse_file(
 
 """Unit tests for parse_file service.
 
-Per bible §5.2 and TCL_PARSER_SPEC.md §3.0.
+Per architecture doc §5.2 and TCL_PARSER_SPEC.md §3.0.
 Coverage target: 85% branch.
 """
 from __future__ import annotations
@@ -102,7 +102,7 @@ from chopper.core.models import ProcEntry
 
 
 class TestParseFileBasic:
-    """Basic parsing scenarios per bible §5.2."""
+    """Basic parsing scenarios per architecture doc §5.2."""
     
     def test_empty_file_returns_empty_list(self, tmp_path: Path) -> None:
         """Per P-06: Empty files are valid, return []."""
@@ -329,7 +329,7 @@ class ParserState:
 **Proc Extraction Pattern:**
 
 ```python
-# Per bible §5.2
+# Per architecture doc §5.2
 
 def extract_proc(tokens: list[Token], state: ParserState) -> ProcEntry | None:
     """Extract proc definition from token stream.
@@ -363,12 +363,12 @@ def extract_proc(tokens: list[Token], state: ParserState) -> ProcEntry | None:
 **R1 Merge Algorithm:**
 
 ```python
-# Per bible §4 R1
+# Per architecture doc §4 R1
 
 class MergeService:
     """R1 merge algorithm implementation.
     
-    Per bible §4:
+    Per architecture doc §4:
     - L1: Explicit include wins cross-source
     - L2: Same-source authoring conveniences
     - L3: Base inviolable, features additive-only
@@ -414,7 +414,7 @@ class MergeService:
 **BFS Trace (Reporting-Only):**
 
 ```python
-# Per bible §5.4 — TRACE NEVER COPIES
+# Per architecture doc §5.4 — TRACE NEVER COPIES
 
 def trace_calls(
     manifest: CompiledManifest,
@@ -425,7 +425,7 @@ def trace_calls(
     CRITICAL: This is REPORTING-ONLY. Traced callees appear in
     dependency_graph.json but are NEVER auto-copied to output.
     
-    Per bible §5.4: Only procs in procedures.include survive.
+    Per architecture doc §5.4: Only procs in procedures.include survive.
     """
     visited: set[str] = set()
     frontier: list[str] = list(manifest.included_procs)
@@ -482,7 +482,7 @@ git diff --stat tests/golden/
 ```markdown
 ## Post-Implementation Drift Check
 
-- [ ] Implementation matches bible §[X.X] exactly
+- [ ] Implementation matches architecture doc §[X.X] exactly
 - [ ] No additional methods beyond spec requirement
 - [ ] No "helper" abstractions not mandated by spec
 - [ ] No reserved parameters or hooks
@@ -508,7 +508,7 @@ After each stage milestone:
 ### If Tests Fail
 
 1. **Read the failure message carefully**
-2. **Check if it's a spec misunderstanding** — re-read bible section
+2. **Check if it's a spec misunderstanding** — re-read architecture doc section
 3. **Check if it's an edge case** — look in RISKS_AND_PITFALLS.md
 4. **Fix the root cause**, not the symptom
 5. **Re-run full test suite** after fix
@@ -526,7 +526,7 @@ After each stage milestone:
 1. **STOP implementation immediately**
 2. **Identify the drift** — what was added beyond spec?
 3. **Remove the drift** — delete extra code
-4. **Re-verify against spec** — quote the bible section
+4. **Re-verify against spec** — quote the architecture doc section
 5. **Continue only after drift is resolved**
 
 ---
@@ -539,7 +539,7 @@ A stage implementation is COMPLETE when:
 ## Stage [N] Completion Checklist
 
 ### Spec Compliance
-- [ ] All code traces to bible §[X.X]
+- [ ] All code traces to architecture doc §[X.X]
 - [ ] No scope-lock violations
 - [ ] No over-engineering
 
@@ -550,7 +550,7 @@ A stage implementation is COMPLETE when:
 - [ ] mypy clean
 
 ### Documentation
-- [ ] Docstrings reference bible sections
+- [ ] Docstrings reference architecture doc sections
 - [ ] Type hints on all public APIs
 - [ ] Module docstring explains purpose
 

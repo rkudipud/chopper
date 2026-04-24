@@ -253,7 +253,7 @@ Scenario numbering is stable within this document; each scenario below names the
 | 27 | F1/F2 merge order-independence | Stage 2 | Swapping CLI feature order leaves `files.include`/`procedures.include` union identical (set equality) |
 | 28 | Provenance recorded in manifest | Stage 2 | Each entry in `compiled_manifest.json` carries its origin (`base` or `feature:<name>`) for every `files.*` and `procedures.*` decision |
 
-> **Deferred — Scenarios 5–9 (crash-injection).** Forcing failure at each of the 5 state transitions (P5/P6 boundary) and asserting `assert_domain_recoverable` is deferred post-D0. The backup/rebuild model (bible §2.8 Case 2) handles crash recovery at the operator level: a user rebuilds from `<domain>_backup/`. These tests may be added in a future hardening phase.
+> **Deferred — Scenarios 5–9 (crash-injection).** Forcing failure at each of the 5 state transitions (P5/P6 boundary) and asserting `assert_domain_recoverable` is deferred post-D0. The backup/rebuild model (architecture doc §2.8 Case 2) handles crash recovery at the operator level: a user rebuilds from `<domain>_backup/`. These tests may be added in a future hardening phase.
 
 ---
 

@@ -494,7 +494,7 @@ class BaseOptions:
       the base JSON declares at least one stage, Chopper emits one
       ``<stage>.stack`` file per resolved stage alongside the
       ``<stage>.tcl`` run script. Stack-file format (N/J/L/D/I/O/R)
-      is defined in bible §3.6; derivation rules live in
+      is defined in architecture doc §3.6; derivation rules live in
       :mod:`chopper.generators.stack_emitter`.
     """
 

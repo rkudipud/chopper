@@ -149,7 +149,7 @@ class TestP1ConfigGate:
 
 class TestP2ParseGate:
     def test_unbalanced_brace_emits_pe02_and_aborts(self) -> None:
-        """Bible §5.4.1: unbalanced braces → PE-02, returned proc list is empty → gate aborts."""
+        """Architecture Doc §5.4.1: unbalanced braces → PE-02, returned proc list is empty → gate aborts."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         # Clobber helper.tcl with an unbalanced-brace disaster.

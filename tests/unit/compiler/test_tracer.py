@@ -1,4 +1,4 @@
-"""TracerService unit tests — bible §5.4 (P4 trace).
+"""TracerService unit tests — architecture doc §5.4 (P4 trace).
 
 These tests exercise the BFS walk, the lexical namespace resolution
 contract, the ``TW-01``/``TW-02``/``TW-03``/``TW-04`` diagnostic
@@ -185,7 +185,7 @@ class TestAmbiguousMatch:
     def test_same_qualified_name_in_two_files_emits_tw01(self) -> None:
         """Two files define a proc with the same qualified name — a bare
         call to that name from global scope hits both and emits ``TW-01``
-        per bible §5.4 step 8 ("multiple canonical procs match the same
+        per architecture doc §5.4 step 8 ("multiple canonical procs match the same
         candidate qualified name")."""
         ctx, sink = make_ctx()
         foo = make_proc("a.tcl", "foo", calls=("helper",))
@@ -288,7 +288,7 @@ class TestCycleDetection:
 
 
 # ---------------------------------------------------------------------------
-# Namespace-qualified resolution (bible §5.4 step 6)
+# Namespace-qualified resolution (architecture doc §5.4 step 6)
 # ---------------------------------------------------------------------------
 
 
@@ -420,13 +420,13 @@ class TestEdgeInvariants:
 
 
 # ---------------------------------------------------------------------------
-# End-to-end BFS example from bible §5.4 (worked example)
+# End-to-end BFS example from architecture doc §5.4 (worked example)
 # ---------------------------------------------------------------------------
 
 
-class TestBibleWorkedExample:
-    def test_bible_example_emits_tw01_tw02_tw03_tw04(self) -> None:
-        """End-to-end BFS walk matching bible §5.4 "Worked BFS example".
+class TestArchitectureDocWorkedExample:
+    def test_architecture_doc_example_emits_tw01_tw02_tw03_tw04(self) -> None:
+        """End-to-end BFS walk matching architecture doc §5.4 "Worked BFS example".
 
         Two files each define a global-scope ``proc helper {}`` so they
         share qualified name ``helper``; a bare call to ``helper`` from

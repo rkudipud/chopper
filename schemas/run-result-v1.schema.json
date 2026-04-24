@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "chopper/run-result/v1",
   "title": "Chopper RunResult",
-  "description": "Wire-format schema for the summary object emitted by ChopperRunner.run(ctx). This is the 'outer' payload a future GUI or CI tool consumes — it is intentionally compact. The full manifest and dependency graph live in their own audit artifacts under `.chopper/` (compiled_manifest.json, dependency_graph.json); this schema pins only the summary surface so that downstream tooling can render a run outcome without deserializing megabytes of manifest data. Authoritative field definitions live in ARCHITECTURE_PLAN.md §9.1 (RunResult, AuditManifest) and bible §5.5. This schema is the single contract between the CLI and any potential GUI, ensuring both can evolve independently while remaining compatible; CI validates every RunResult against this schema, so breaking changes surface immediately.",
+  "description": "Wire-format schema for the summary object emitted by ChopperRunner.run(ctx). This is the 'outer' payload a future GUI or CI tool consumes — it is intentionally compact. The full manifest and dependency graph live in their own audit artifacts under `.chopper/` (compiled_manifest.json, dependency_graph.json); this schema pins only the summary surface so that downstream tooling can render a run outcome without deserializing megabytes of manifest data. Authoritative field definitions live in ARCHITECTURE_PLAN.md §9.1 (RunResult, AuditManifest) and architecture doc §5.5. This schema is the single contract between the CLI and any potential GUI, ensuring both can evolve independently while remaining compatible; CI validates every RunResult against this schema, so breaking changes surface immediately.",
   "type": "object",
   "required": [
     "schema",
@@ -26,12 +26,12 @@
     "run_id": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z(-[a-z0-9]+)?$",
-      "description": "Filesystem-safe ISO-8601 UTC start time, e.g. '2026-04-21T14-30-05Z'. Same run_id appears in every audit artifact produced by this invocation — see bible §5.5.12 (correlation)."
+      "description": "Filesystem-safe ISO-8601 UTC start time, e.g. '2026-04-21T14-30-05Z'. Same run_id appears in every audit artifact produced by this invocation — see architecture doc §5.5.12 (correlation)."
     },
     "exit_code": {
       "type": "integer",
       "enum": [0, 1, 2, 3],
-      "description": "Process exit code per bible §5.9 / CLI_HELP_TEXT_REFERENCE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case)."
+      "description": "Process exit code per architecture doc §5.9 / CLI_HELP_TEXT_REFERENCE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case)."
     },
     "started_at": {
       "type": "string",
@@ -79,7 +79,7 @@
         "state": {
           "type": "string",
           "enum": ["VIRGIN", "TRIMMED", "CLEANED", "CORRUPTED"],
-          "description": "Domain lifecycle state detected by P0 (DomainStateService). See bible §2.8."
+          "description": "Domain lifecycle state detected by P0 (DomainStateService). See architecture doc §2.8."
         }
       }
     },
@@ -92,7 +92,7 @@
         "mode": {
           "type": "string",
           "enum": ["base", "base-features", "project"],
-          "description": "Which of the three input modes was used (bible §5.9)."
+          "description": "Which of the three input modes was used (architecture doc §5.9)."
         },
         "base_json": {
           "type": ["string", "null"],
@@ -124,7 +124,7 @@
         "pattern": "^[A-Za-z0-9_./-]+$"
       },
       "uniqueItems": true,
-      "description": "Domain-relative POSIX names of files written under .chopper/ during this run, lex-sorted. Enumerated per bible §5.5.10."
+      "description": "Domain-relative POSIX names of files written under .chopper/ during this run, lex-sorted. Enumerated per architecture doc §5.5.10."
     },
     "manifest_summary": {
       "type": ["object", "null"],
@@ -150,7 +150,7 @@
       "properties": {
         "nodes": { "type": "integer", "minimum": 0 },
         "edges": { "type": "integer", "minimum": 0 },
-        "pi_plus_nodes": { "type": "integer", "minimum": 0, "description": "Size of PI+ (reachable_from_includes). Reporting-only: PI+ nodes are NOT auto-copied; see bible §5.4." },
+        "pi_plus_nodes": { "type": "integer", "minimum": 0, "description": "Size of PI+ (reachable_from_includes). Reporting-only: PI+ nodes are NOT auto-copied; see architecture doc §5.4." },
         "cycles_detected": { "type": "integer", "minimum": 0 }
       }
     },
@@ -171,7 +171,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1,
-          "description": "sloc_after / sloc_before. See bible §5.5.13."
+          "description": "sloc_after / sloc_before. See architecture doc §5.5.13."
         }
       }
     },

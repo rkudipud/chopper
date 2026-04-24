@@ -134,7 +134,7 @@ def test_build_run_config_with_project_ignores_base_and_features(tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
-# _expand_feature_dirs — validate-only directory expansion (bible §5.1)
+# _expand_feature_dirs — validate-only directory expansion (architecture doc §5.1)
 # ---------------------------------------------------------------------------
 
 

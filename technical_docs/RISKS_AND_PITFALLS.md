@@ -1054,7 +1054,7 @@ Non-Tcl files are intentionally file-level only. Attempting to over-interpret no
 
 ### TC-09: Template Generation
 
-Template-script generation is **not** a Chopper v1 feature and is not reserved in the schema. Previous drafts kept an `options.template_script` field with diagnostic `VE-18 template-script-path-escapes` as a reserved hook — that field and that diagnostic have been removed in line with the scope-lock policy (no reserved seams). If a future version wants template generation, it will be filed as `FD-12 template-script-generation` and re-introduced through the bible-first cascade. Domain-specific generation logic stays outside the Chopper core.
+Template-script generation is **not** a Chopper v1 feature and is not reserved in the schema. Previous drafts kept an `options.template_script` field with diagnostic `VE-18 template-script-path-escapes` as a reserved hook — that field and that diagnostic have been removed in line with the scope-lock policy (no reserved seams). If a future version wants template generation, it will be filed as `FD-12 template-script-generation` and re-introduced through the architecture-doc-first cascade. Domain-specific generation logic stays outside the Chopper core.
 
 ---
 

@@ -68,7 +68,7 @@ def test_stage_definition_emits_generated_file_with_base_contributor() -> None:
 
 
 def test_stage_collision_with_existing_file_decision_raises() -> None:
-    """Bible §5.3 step 3: stage ``compile`` registers ``compile.tcl``;
+    """Architecture Doc §5.3 step 3: stage ``compile`` registers ``compile.tcl``;
     if files.include already lists ``compile.tcl`` → ChopperError."""
     ctx, _ = make_ctx()
     parsed = make_parsed({"compile.tcl": ["x"]})

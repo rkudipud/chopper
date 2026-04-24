@@ -1,4 +1,4 @@
-"""Cross-source L1/L3 aggregation tests (bible §4 R1, §5.3 step 3).
+"""Cross-source L1/L3 aggregation tests (architecture doc §4 R1, §5.3 step 3).
 
 Exercise the compiler with multiple sources (base + features) to verify
 ``L1`` (explicit include always wins) and ``L3`` (cross-source additivity;
@@ -93,7 +93,7 @@ class TestTrimUnion:
     def test_feature_pe_vetoed_by_base_pi(self) -> None:
         """Base PI of ``bar`` vetoes feature's PE of ``bar`` → VW-18. Feature's
         row-6 PE-only authoring still contributes ``foo`` via union, so both
-        procs survive (bible §4 L3 additive-only)."""
+        procs survive (architecture doc §4 L3 additive-only)."""
         ctx, sink = make_ctx()
         parsed = make_parsed({"a.tcl": ["foo", "bar"]})
         base = make_base(procedures=procs_section(include=(proc_ref("a.tcl", "bar"),)))

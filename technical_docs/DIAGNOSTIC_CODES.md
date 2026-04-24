@@ -110,7 +110,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VI-02 | `top-level-tcl-only` | 5 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
 | — | — | — | — | — | **VI-03 through VI-05 reserved** | — |
 
-> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of bible §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* This replaces a previously-proposed `VI-03 domain-hand-edited` code. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 closed decisions.
+> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* This replaces a previously-proposed `VI-03 domain-hand-edited` code. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 closed decisions.
 
 ---
 

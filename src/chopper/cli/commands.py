@@ -127,7 +127,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     """Run the pipeline in dry-run mode (validate only; no writes)."""
 
     # Validate-only convenience: expand any directory in ``--features`` to
-    # its sorted ``*.json`` children. See bible §5.1.
+    # its sorted ``*.json`` children. See architecture doc §5.1.
     if getattr(args, "project", None) is None:
         args.features = _expand_feature_dirs(getattr(args, "features", None))
 
