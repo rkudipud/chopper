@@ -309,6 +309,113 @@ class TestPathNormalization:
 
 
 # ---------------------------------------------------------------------------
+# Non-Tcl companion files — regression guards for GitHub issue #2.
+#
+# The bible (OOS-01 in ``technical_docs/chopper_description.md`` §1.3)
+# states that non-Tcl files (``.py`` / ``.pl`` / ``.csh`` / config)
+# participate in F1 file-level treatment only and must never enter the
+# Tcl tokenizer. Before the fix, a ``.py`` file containing a stray
+# ``}`` inside a Python string literal (e.g. ``value.replace("}", …)``)
+# was fed to the tokenizer, produced a ``negative_depth`` error, and
+# the service translated that into a spurious
+# ``PE-02 unbalanced-braces`` that aborted P2.
+# ---------------------------------------------------------------------------
+
+
+class TestNonTclSkip:
+    # Bytes verbatim from tests/fixtures/edge_cases/non_tcl_python_stray_braces.py.
+    # A ``}`` appears at brace_depth 0 inside a raw-string regex, which is
+    # exactly what drives the Tcl tokenizer to negative_depth. Kept inline
+    # so the assertion remains readable even without the fixture on disk.
+    _PYTHON_CONTENT_THAT_EXPLODES_TCL_TOKENIZER = (
+        b"import re\n"
+        b'HIER_PATTERN = re.compile(r"hier\\{([^}]+)\\}")\n'
+        b"def splice(value):\n"
+        b'    return value.replace("}", "}\\n")\n'
+    )
+
+    def test_python_file_not_parsed(self) -> None:
+        # The ``.py`` file contents would trigger PE-02 under the Tcl
+        # tokenizer; the parser must skip it silently.
+        py = Path("generate_summary_html.py")
+        ctx, sink = _make_ctx({py: self._PYTHON_CONTENT_THAT_EXPLODES_TCL_TOKENIZER})
+        result = ParserService().run(ctx, [py])
+        assert py not in result.files
+        assert result.index == {}
+        codes = [d.code for d in sink.emissions]
+        assert "PE-02" not in codes, codes
+        assert sink.emissions == []
+
+    def test_mixed_tcl_and_non_tcl(self) -> None:
+        # A ``.tcl`` sibling is parsed normally; the ``.py`` is silently
+        # skipped and the presence of the ``.py`` in the input list must
+        # not affect the Tcl result or emit any diagnostic.
+        tcl = Path("procs/core.tcl")
+        py = Path("scripts/generate_summary_html.py")
+        ctx, sink = _make_ctx(
+            {
+                tcl: b"proc run_setup {} { return 1 }\n",
+                py: self._PYTHON_CONTENT_THAT_EXPLODES_TCL_TOKENIZER,
+            }
+        )
+        result = ParserService().run(ctx, [tcl, py])
+        assert set(result.files.keys()) == {tcl}
+        assert "procs/core.tcl::run_setup" in result.index
+        assert sink.emissions == []
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            Path("script.pl"),  # Perl
+            Path("script.py"),  # Python
+            Path("wrapper.csh"),  # C-shell
+            Path("wrapper.sh"),  # Bourne shell
+            Path("config.cfg"),  # Config file
+            Path("data.txt"),  # Plain text
+            Path("notes.md"),  # Markdown
+            Path("sta_pt.stack"),  # Scheduler stack file
+            Path("Makefile"),  # No suffix
+        ],
+    )
+    def test_various_non_tcl_suffixes_skipped(self, path: Path) -> None:
+        # Any non-.tcl suffix — including no suffix at all — is skipped
+        # without attempting a read (the fixture deliberately contains
+        # bytes that would be invalid as Tcl).
+        ctx, sink = _make_ctx({path: b"} this would be negative_depth in tcl {\n"})
+        result = ParserService().run(ctx, [path])
+        assert path not in result.files
+        assert sink.emissions == []
+
+    def test_tcl_suffix_case_insensitive(self) -> None:
+        # Authored variants like ``.TCL`` / ``.Tcl`` must still be
+        # parsed; the suffix check is case-insensitive.
+        upper = Path("Legacy.TCL")
+        mixed = Path("Tool.Tcl")
+        ctx, _ = _make_ctx(
+            {
+                upper: b"proc upper_proc {} {}\n",
+                mixed: b"proc mixed_proc {} {}\n",
+            }
+        )
+        result = ParserService().run(ctx, [upper, mixed])
+        assert upper in result.files
+        assert mixed in result.files
+        assert {"Legacy.TCL::upper_proc", "Tool.Tcl::mixed_proc"} <= set(result.index)
+
+    def test_non_tcl_file_is_never_read(self) -> None:
+        # Even a pathological non-Tcl file whose *absence* from the
+        # in-memory FS would raise ``KeyError`` on read must not cause
+        # an error, because the filter skips it before the read.
+        py = Path("missing.py")
+        # Note: the file is NOT seeded into _InMemoryFS. A read attempt
+        # would raise KeyError.
+        ctx, sink = _make_ctx({})
+        result = ParserService().run(ctx, [py])
+        assert result.files == {}
+        assert sink.emissions == []
+
+
+# ---------------------------------------------------------------------------
 # Real-world scenario tests — pathologies observed in production Synopsys
 # Formality Tcl: CRLF line endings, ``define_proc_attributes`` blocks joined
 # by backslash continuation, proc bodies opened at column 0, single-line

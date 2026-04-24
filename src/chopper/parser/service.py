@@ -74,6 +74,23 @@ _DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
 }
 
 
+# Only ``.tcl`` files are parsed by P2. Per the bible (OOS-01,
+# ``technical_docs/chopper_description.md`` §1.3), non-Tcl companion
+# files named in ``files.include`` / ``procedures.*`` (Perl, Python,
+# shell, config) participate in F1 file-level treatment only — they must
+# never enter the Tcl tokenizer, which would mis-read language-native
+# constructs (e.g. a ``}`` inside a Python string literal) as a
+# structural brace imbalance and emit a spurious ``PE-02``. The
+# compiler already assumes this contract (see
+# ``compiler/merge_service._collect_universe``: *"literal FI can refer
+# to non-``.tcl`` companion files that the parser does not cover"*).
+#
+# Match is case-insensitive on the suffix to cover authored variants
+# like ``.TCL``. No new diagnostic is emitted on skip — the behavior is
+# silent by design (non-Tcl files are not an error condition).
+_TCL_SUFFIX = ".tcl"
+
+
 # ---------------------------------------------------------------------------
 # parse_file — pure utility
 # ---------------------------------------------------------------------------
@@ -215,9 +232,16 @@ class ParserService:
         """
         # Normalize once, then work with the normalized paths throughout.
         normalized: list[Path] = [self._normalize(ctx, raw) for raw in files]
+        # Non-Tcl companion files (``.py``, ``.pl``, ``.csh``, ``.cfg``,
+        # …) are dropped here — the Tcl tokenizer must not see them (see
+        # module-level ``_TCL_SUFFIX`` commentary). They still receive
+        # F1 file-level treatment downstream because the compiler's
+        # ``_collect_universe`` adds literal ``files.include`` paths to
+        # the manifest universe independently of ``ParseResult.files``.
+        tcl_only: list[Path] = [p for p in normalized if p.suffix.lower() == _TCL_SUFFIX]
         # Dedup while preserving order: duplicates could occur from glob
         # overlap in the caller. Using dict.fromkeys keeps the first seen.
-        unique_sorted = sorted(dict.fromkeys(normalized), key=lambda p: p.as_posix())
+        unique_sorted = sorted(dict.fromkeys(tcl_only), key=lambda p: p.as_posix())
 
         parsed_files: dict[Path, ParsedFile] = {}
         index: dict[str, ProcEntry] = {}
