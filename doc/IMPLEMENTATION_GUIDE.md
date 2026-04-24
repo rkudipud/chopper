@@ -35,22 +35,22 @@ The implementation is organized around an 8-phase pipeline `P0` through `P7`, se
 
 ```mermaid
 flowchart LR
-    CLI[CLI\nchopper validate | trim | cleanup] --> Commands[cli.commands\nBuild RunConfig + ChopperContext]
+    CLI["CLI<br/>chopper validate / trim / cleanup"] --> Commands["cli.commands<br/>Build RunConfig + ChopperContext"]
     Commands --> Runner[orchestrator.ChopperRunner]
 
     Runner --> P0[P0 DomainStateService]
-    Runner --> P1[P1 ConfigService + validate_pre]
+    Runner --> P1["P1 ConfigService + validate_pre"]
     Runner --> P2[P2 ParserService]
     Runner --> P3[P3 CompilerService]
     Runner --> P4[P4 TracerService]
-    Runner --> P5[P5 TrimmerService + GeneratorService]
+    Runner --> P5["P5 TrimmerService + GeneratorService"]
     Runner --> P6[P6 validate_post]
     Runner --> P7[P7 AuditService]
 
     JsonKit[schemas] --> P1
     Domain[Domain files] --> P2
     Backup[domain_backup] --> P5
-    P7 --> Audit[.chopper audit bundle]
+    P7 --> Audit[".chopper audit bundle"]
     P5 --> Trimmed[trimmed domain]
 ```
 
