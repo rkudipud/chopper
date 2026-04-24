@@ -43,26 +43,57 @@ if [[ ! -d "$venv_dir" ]]; then
     echo "[1/4] Creating virtual environment..."
     $python_cmd -m venv "$venv_dir"
 else
-    echo "[1/4] Virtual environment exists, reusing."
+    # Detect a stale/relocated venv (e.g. copied from another repo): the
+    # venv's python should report sys.prefix == $venv_dir. If it doesn't —
+    # or won't launch at all — wipe and rebuild, otherwise pip-generated
+    # console scripts (chopper) will carry the old shebang forever.
+    venv_healthy=0
+    if [[ -x "$venv_dir/bin/python" ]]; then
+        reported=$("$venv_dir/bin/python" -c "import sys; print(sys.prefix)" 2>/dev/null || true)
+        if [[ "$reported" == "$venv_dir" ]]; then
+            venv_healthy=1
+        fi
+    fi
+    if [[ $venv_healthy -eq 1 ]]; then
+        echo "[1/4] Virtual environment exists and is healthy, reusing."
+    else
+        echo "[1/4] Existing .venv is stale or relocated — recreating..."
+        rm -rf "$venv_dir"
+        $python_cmd -m venv "$venv_dir"
+    fi
 fi
 
 echo "[2/4] Activating venv..."
 source "$venv_dir/bin/activate"
 
 echo "[3/4] Configuring pip and Git proxy..."
-pip config set global.proxy "$proxy" --quiet 2>/dev/null || true
-pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>/dev/null || true
+python -m pip config set global.proxy "$proxy" --quiet 2>/dev/null || true
+python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>/dev/null || true
 # Configure Git proxy
 
 
+# Install dependencies. `--force-reinstall --no-deps` on the last line
+# regenerates the chopper console-script shim against THIS venv's python,
+# which fixes the common "copied venv" failure mode. We invoke pip as
+# `python -m pip` throughout: pip's own shim can itself be stale when a
+# venv is copied, and `python -m pip` bypasses that shim entirely.
 echo "[4/4] Installing dependencies..."
-pip install --upgrade pip --quiet
-pip install -e ".[dev]" --quiet
+python -m pip install --upgrade pip --quiet
+python -m pip install -e ".[dev]" --quiet
+python -m pip install -e . --force-reinstall --no-deps --quiet
+
+chopper_version=$(python -c "import chopper; print(chopper.__version__)" 2>&1)
+if chopper --help >/dev/null 2>&1; then
+    chopper_line="$chopper_version (launcher OK)"
+else
+    chopper_line="$chopper_version (launcher FAILED — run 'python -m pip install -e . --force-reinstall --no-deps')"
+fi
 
 echo ""
 echo "=== Setup complete ==="
 echo "  Platform : Unix/Linux/macOS (bash/zsh - FALLBACK)"
 echo "  Python   : $(python3 --version)"
+echo "  Chopper  : $chopper_line"
 echo "  Venv     : $venv_dir"
 echo "  Shell    : bash/zsh/sh (tcsh is PRIMARY on this system)"
 echo ""

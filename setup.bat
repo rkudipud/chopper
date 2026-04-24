@@ -31,26 +31,56 @@ if not exist "%venvDir%" (
     echo [1/4] Creating virtual environment...
     call %pythonCmd% -m venv "%venvDir%"
 ) else (
-    echo [1/4] Virtual environment exists, reusing.
+    REM Detect a stale/relocated venv (e.g. copied from another repo): the
+    REM venv's python should report sys.prefix == %venvDir%. If it doesn't,
+    REM wipe and rebuild, otherwise pip-generated console scripts
+    REM (chopper.exe) will carry the old launcher path forever.
+    set "venvHealthy=0"
+    if exist "%venvDir%\Scripts\python.exe" (
+        for /f "usebackq delims=" %%P in (`"%venvDir%\Scripts\python.exe" -c "import sys; print(sys.prefix)" 2^>nul`) do set "reportedPrefix=%%P"
+        if /i "!reportedPrefix!"=="%venvDir%" set "venvHealthy=1"
+    )
+    if "!venvHealthy!"=="1" (
+        echo [1/4] Virtual environment exists and is healthy, reusing.
+    ) else (
+        echo [1/4] Existing .venv is stale or relocated - recreating...
+        rmdir /s /q "%venvDir%"
+        call %pythonCmd% -m venv "%venvDir%"
+    )
 )
 
 echo [2/4] Activating venv...
 call "%venvDir%\Scripts\activate.bat"
 
 echo [3/4] Configuring pip and Git proxy...
-pip config set global.proxy "%proxy%" --quiet 2>nul
-pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>nul
+REM Always invoke pip as `python -m pip`. pip's own shim (pip.exe) can be
+REM stale when a venv is copied, and `python -m pip` bypasses the shim.
+python -m pip config set global.proxy "%proxy%" --quiet 2>nul
+python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>nul
 
 
+REM Install dependencies. `--force-reinstall --no-deps` on the last line
+REM regenerates the chopper.exe console-script shim against THIS venv's
+REM python, fixing the common "copied venv" failure mode.
 echo [4/4] Installing dependencies...
-pip install --upgrade pip --quiet
-pip install -e ".[dev]" --quiet
+python -m pip install --upgrade pip --quiet
+python -m pip install -e ".[dev]" --quiet
+python -m pip install -e . --force-reinstall --no-deps --quiet
+
+for /f "usebackq delims=" %%V in (`python -c "import chopper; print(chopper.__version__)" 2^>nul`) do set "chopperVersion=%%V"
+chopper --help >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    set "chopperLine=%chopperVersion% (launcher OK)"
+) else (
+    set "chopperLine=%chopperVersion% (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')"
+)
 
 echo.
 echo === Setup complete ===
 for /f "tokens=*" %%i in ('%pythonCmd% --version 2^>^&1') do set "pythonVersion=%%i"
 echo   Platform : Windows (cmd.exe)
 echo   Python   : %pythonVersion%
+echo   Chopper  : %chopperLine%
 echo   Venv     : %venvDir%
 echo   Shell    : cmd.exe / Command Prompt
 echo.

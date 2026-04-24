@@ -269,6 +269,11 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version lives in [VERSION.md](VERSION.md) and [VERSION.txt](VERSION.txt).
 
+### 0.3.1 — 2026-04-24
+
+- **First-time-user setup hardened across all four shells.** [setup.ps1](setup.ps1), [setup.sh](setup.sh), [setup.csh](setup.csh), and [setup.bat](setup.bat) now (1) detect stale / relocated `.venv` directories by comparing the venv's reported `sys.prefix` against the script directory and recreate automatically on mismatch, (2) invoke pip exclusively through `python -m pip` so a stale `pip.exe` shim (the common failure mode when a `.venv` is copied from another repo) can no longer block the install, (3) unconditionally regenerate the `chopper` console-script launcher on every run via `pip install -e . --force-reinstall --no-deps`, and (4) smoke-test `chopper --help` and report `Chopper : <version> (launcher OK)` in the "Setup complete" banner. The result: `git clone … && . setup.ps1 && chopper --help` now works end-to-end without manual recovery steps.
+- The `chopper` command is already wired as a standard `[project.scripts]` console entry point in [pyproject.toml](pyproject.toml), so activating the venv puts `chopper` directly on `PATH` — the setup hardening above ensures the shim that gets there is always valid.
+
 ### 0.3.0 — 2026-04-24
 
 - **F3 stack-file auto-generation (`options.generate_stack`).** Base JSON gains an optional `options.generate_stack` boolean (default `false`). When enabled alongside `stages`, the generator (P5b) emits one `<stage>.stack` per resolved stage alongside `<stage>.tcl`, using the N/J/L/D/I/O/R format documented in the bible §3.6. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Generated `.stack` files participate in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like `.tcl` run scripts. **This feature is newly implemented and has not yet been exercised against real customer domains — feedback, bug reports, and expected-behaviour descriptions are actively solicited.**

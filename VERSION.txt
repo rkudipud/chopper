@@ -1,4 +1,4 @@
-0.3.0
+0.3.1
 
 Product: Chopper
 Released: April 24, 2026
@@ -13,6 +13,19 @@ Schema versions included:
   schemas/run-result-v1.schema.json       — chopper/run-result/v1       (Draft-07)
 
 Changelog:
+  0.3.1 — First-time-user setup hardening
+           * setup.ps1, setup.sh, setup.csh, and setup.bat now detect stale / relocated
+             .venv directories (sys.prefix mismatch) and recreate them automatically
+           * All pip invocations switched to `python -m pip` so a stale pip.exe shim
+             (the common failure mode when a .venv is copied across repos) can no
+             longer block dependency installation
+           * chopper console-script launcher is regenerated unconditionally on every
+             setup run via `pip install -e . --force-reinstall --no-deps`
+           * "Setup complete" banner now smoke-tests `chopper --help` and reports
+             "Chopper : <version> (launcher OK)" or a red (launcher FAILED ...) line
+           * Net result: `git clone ... && . setup.ps1 && chopper --help` works
+             end-to-end for first-time users without manual recovery
+
   0.3.0 — Stack-file auto-generation option + json_kit dissolution
            * Added options.generate_stack (boolean, default false) to base JSON schema
            * When enabled with stages defined, Chopper emits one <stage>.stack per resolved stage
