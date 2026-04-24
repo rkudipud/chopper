@@ -2665,6 +2665,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-40 | Progress and log events are emitted through a `ProgressSink` protocol; the CLI attaches a renderer, but library code never binds to a concrete sink. (There is no internal structured-logging channel; see §5.12.4.) |
 | FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
 | FR-42 | `chopper mcp-serve` starts a stdio-only Model Context Protocol server that exposes exactly three read-only tools — `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit` — and never registers destructive tools (`chopper.trim`, `chopper.cleanup`). Protocol-level failures emit `PE-04 mcp-protocol-error` with exit code 4. See §3.9. |
+| FR-43 | `chopper validate --features` accepts directory entries in its comma-separated list; each directory expands in place to the sorted (lexicographic), non-recursive set of its immediate `*.json` children. `chopper trim` and `--project` (in any subcommand) still require explicit per-file paths. See §5.1. |
 
 ### 7.2 Non-Functional Requirements
 

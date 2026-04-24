@@ -98,6 +98,10 @@ chopper validate --base jsons/base.json
 chopper validate --base jsons/base.json \
     --features jsons/features/feature_a.feature.json,jsons/features/feature_b.feature.json
 
+# Mode 2b — Validate every feature JSON in a directory at once
+# (validate only; trim/--project still require explicit per-file paths)
+chopper validate --base jsons/base.json --features jsons/features/
+
 # Mode 3 — Project recipe (single flag for a committed base + feature combination)
 chopper validate --project project.json
 ```

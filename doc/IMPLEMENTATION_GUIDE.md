@@ -109,6 +109,8 @@ The three handlers are:
 
 Only `validate` and `trim` enter the orchestrator. `cleanup` is a direct filesystem operation that removes `<domain>_backup/` when `--confirm` is present.
 
+`cmd_validate` performs one extra rewrite before context construction: any directory entry in `--features` is expanded in place to the sorted, non-recursive list of its immediate `*.json` children (helper `_expand_feature_dirs`). This is a validate-only authoring convenience per the bible §5.1; `cmd_trim` and `--project` leave `args.features` untouched so the ordered feature sequence recorded in audit artifacts stays unambiguous.
+
 ### 4.2 Context construction
 
 `cli.commands` turns CLI arguments into `RunConfig` and then wraps it in `ChopperContext`.

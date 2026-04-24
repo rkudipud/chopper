@@ -368,7 +368,7 @@ chopper validate [--domain PATH]
 | --- | --- |
 | `--domain PATH` | Domain root to analyze. Default is the current working directory. |
 | `--base PATH` | Base JSON to load. Required unless you use `--project`. |
-| `--features PATHS` | Comma-separated ordered list of feature JSON paths. Order is preserved and matters for F3 `flow_actions`. |
+| `--features PATHS` | Comma-separated ordered list of feature JSON paths. Order is preserved and matters for F3 `flow_actions`. For `validate` only, any entry may also be a directory; it expands in place to the sorted (lexicographic), non-recursive set of its immediate `*.json` children. This is a convenience for regressions that need to validate an entire `jsons/features/` tree at once; `trim` and `--project` still require explicit per-file paths. |
 | `--project PATH` | Project JSON to load. Mutually exclusive with `--base` and `--features`. |
 
 ### `chopper trim`
