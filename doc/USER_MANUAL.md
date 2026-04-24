@@ -79,6 +79,9 @@ What each one really does:
 
 ## 📋 Operating Tasks
 
+> **When you're stuck on any of the tasks below, ask the Chopper Domain Companion.**
+> Open VS Code Copilot Chat, pick the [Chopper Domain Companion](../.github/agents/chopper-domain-companion.agent.md) agent, and describe your situation — or kick off one of the ready-made prompts under [`.github/prompts/`](../.github/prompts/) (`bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`). The companion is scope-locked to this repo and always reads the current audit bundle before advising.
+
 ### Task 1. Validate a Selection Before You Trim
 
 Inputs:

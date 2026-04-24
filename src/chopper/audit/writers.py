@@ -16,6 +16,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
+from chopper import __version__
 from chopper.audit.sloc import count_raw, count_sloc
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
@@ -38,9 +39,6 @@ __all__ = [
     "render_trim_report_txt",
     "render_trim_stats",
 ]
-
-
-CHOPPER_VERSION = "0.3.1"
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +84,7 @@ def render_chopper_run(
     counts = _severity_counts(diag_snap)
 
     payload = {
-        "chopper_version": CHOPPER_VERSION,
+        "chopper_version": __version__,
         "run_id": record.run_id,
         "command": record.command,
         "mode": "dry-run" if ctx.config.dry_run else "live",
@@ -120,7 +118,7 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
     manifest = record.manifest
     if manifest is None:
         empty: dict[str, object] = {
-            "chopper_version": CHOPPER_VERSION,
+            "chopper_version": __version__,
             "run_id": record.run_id,
             "domain": "",
             "inputs": {"base": "", "features": [], "project": None},
@@ -196,7 +194,7 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
     ]
 
     payload: dict[str, object] = {
-        "chopper_version": CHOPPER_VERSION,
+        "chopper_version": __version__,
         "run_id": record.run_id,
         "domain": loaded.base.domain if loaded else "",
         "inputs": inputs,
@@ -217,7 +215,7 @@ def render_dependency_graph(record: RunRecord) -> tuple[str, str]:
     graph = record.graph
     if graph is None:
         empty: dict[str, object] = {
-            "chopper_version": CHOPPER_VERSION,
+            "chopper_version": __version__,
             "run_id": record.run_id,
             "pi_seeds": [],
             "pi_plus": [],
@@ -239,7 +237,7 @@ def render_dependency_graph(record: RunRecord) -> tuple[str, str]:
         for caller, tok, line, code in graph.unresolved_tokens
     ]
     payload: dict[str, object] = {
-        "chopper_version": CHOPPER_VERSION,
+        "chopper_version": __version__,
         "run_id": record.run_id,
         "pi_seeds": list(graph.pi_seeds),
         "pi_plus": list(graph.nodes),
@@ -276,7 +274,7 @@ def render_diagnostics(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
             }
         )
     payload = {
-        "chopper_version": CHOPPER_VERSION,
+        "chopper_version": __version__,
         "run_id": record.run_id,
         "diagnostics": entries,
     }
@@ -294,7 +292,7 @@ def render_trim_report_json(ctx: ChopperContext, record: RunRecord) -> tuple[str
     proc_report = _build_proc_report(record.manifest)
     diagnostics = _build_diag_entries(ctx.diag.snapshot())
     payload = {
-        "chopper_version": CHOPPER_VERSION,
+        "chopper_version": __version__,
         "run_id": record.run_id,
         "mode": "dry-run" if ctx.config.dry_run else "live",
         "summary": summary,
@@ -376,7 +374,7 @@ def render_trim_stats(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]
         return (after / before) if before else 0.0
 
     payload = {
-        "chopper_version": CHOPPER_VERSION,
+        "chopper_version": __version__,
         "run_id": record.run_id,
         "domain": ctx.config.domain_root.name,
         "timestamp": _iso(record.ended_at),

@@ -5,8 +5,7 @@
 ![License](https://img.shields.io/badge/license-Intel%20Proprietary-555555)
 ![Pipeline](https://img.shields.io/badge/pipeline-P0--P7-8a3ffc)
 
-[![Chopper Domain Companion](https://img.shields.io/badge/🤖_Agent-Chopper_Domain_Companion-0f62fe)](https://github.com/github/copilot)
-[![Domain Analyzer](https://img.shields.io/badge/🤖_Agent-Domain_Analyzer-8a3ffc)](.github/agents/domain-analyzer.agent.md)
+[![Chopper Domain Companion](https://img.shields.io/badge/🤖_Agent-Chopper_Domain_Companion-0f62fe)](.github/agents/chopper-domain-companion.agent.md)
 
 **Chopper is a Python CLI that surgically trims VLSI EDA tool-flow domains down to exactly what a project actually needs** — specified by JSON, reproducible on every run, and audited automatically after every trim.
 
@@ -15,39 +14,30 @@ Instead of editing Tcl by hand and hoping you caught every dependency, you write
 
 ---
 
-## 🤖 Two AI Companions Ship With This Repo
+## 🤖 Meet the Companion
 
-You do not have to figure out domain boundaries or JSON structure by hand. Two purpose-built agents are included for VS Code Copilot Chat.
+You do not have to figure out domain boundaries or JSON structure by hand. A purpose-built agent ships in-repo for VS Code Copilot Chat.
 
 ### Chopper Domain Companion
 
 ![Chopper Domain Companion](https://img.shields.io/badge/VS%20Code%20Agent-Chopper%20Domain%20Companion-0f62fe)
 
-The **Chopper Domain Companion** (`.github/agents/chopper-domain-companion.agent.md`) guides you from a customer codebase all the way to a validated, trimmed output:
+The **Chopper Domain Companion** ([.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md)) is the **single user-facing agent** for anything Chopper-related — from a convoluted Tcl codebase all the way to a validated, trimmed output. It absorbs the former Domain Analyzer.
 
-- Scans a codebase and identifies domain boundaries, entry points, proc libraries, and optional flows
-- Authors `base.json`, feature JSONs, and `project.json` from your domain
+**What it does:**
+
+- Runs the **Q1–Q5 discovery protocol** on an unfamiliar codebase (domain root, stack files, scripts, configs, utility dirs)
+- Authors `base.json`, `*.feature.json`, and `project.json` from your domain
 - Runs `chopper validate` and `chopper trim --dry-run` and explains the results
 - Reads `.chopper/` audit artifacts (manifests, trace graphs, diagnostics) and tells you what to fix
-- Refines JSON selections when trim output does not match intent
+- Explains any diagnostic code against [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md)
+- Runs named CLI playbooks: **bisect** a feature that broke trim, **compare** two runs, **prove-safe** a JSON change
+- Works in two modes: **analyze-only** (JSON authoring, no CLI calls) or **full-loop** (analyze + run + audit)
+
+**Prompt library** — ready-to-use starting points under [.github/prompts/](.github/prompts/): `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
 
 > [!TIP]
-> Open VS Code Copilot Chat and say: *"Analyze my domain at `path/to/domain/` and help me author the base JSON."* The companion takes it from there.
-
-### Domain Analyzer
-
-![Domain Analyzer](https://img.shields.io/badge/VS%20Code%20Agent-Domain%20Analyzer-8a3ffc)
-
-The **Domain Analyzer** (`.github/agents/domain-analyzer.agent.md`) is a focused agent for JSON authoring. Use it to get all three JSON files authored and schema-validated when onboarding a new domain:
-
-- Discovers domain structure from a file listing
-- Extracts stage definitions from scheduler stack files (translating N/J/L/D/I/O fields into JSON)
-- Classifies procs as core, feature-specific, or deprecated
-- Splits content between `base.json` (universal) and feature JSONs (optional/conditional)
-- Validates each output against the authoritative schemas in `schemas/`
-
-> [!TIP]
-> Ask Copilot Chat: *"Analyze my domain directory and help me author the base, feature, and project JSONs."*
+> Open VS Code Copilot Chat, pick the Chopper Domain Companion, and say: *"bootstrap a starter JSON for my domain at `path/to/domain/`"* — or just *"hi"* and it will show you a two-tier menu of everything it can do.
 
 ---
 
@@ -162,7 +152,7 @@ The project JSON can also sit outside the domain — in a separate `configs/` di
 
 Copy the nearest example into your domain root, replace every placeholder, then validate with `python scripts/validate_jsons.py <domain_root>/`. Full field reference is in [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md).
 
-Use the **Domain Analyzer** agent to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
+Use the **Chopper Domain Companion** ([.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md)) to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
 
 ### Step 3 — Validate first, always
 
@@ -267,7 +257,14 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 ## Changelog
 
-Major milestones only. The canonical release version lives in [VERSION.md](VERSION.md) and [VERSION.txt](VERSION.txt).
+Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 0.3.2 — 2026-04-24
+
+- **Companion consolidation + discoverability.** The former `domain-analyzer` agent was absorbed into the [Chopper Domain Companion](.github/agents/chopper-domain-companion.agent.md), now the **single user-facing agent** for anything Chopper-related. The companion card gained explicit **Operating Modes** (`analyze-only` vs `full-loop`), a **Q1–Q5 Discovery Protocol** for unfamiliar codebases, **JSON Templates & Checklists**, a **Schema Error → Fix Mapping** table, a **Bootstrapping-a-new-domain** playbook, and named **Common CLI Workflows** (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic). The greeting is now a tier-2 menu (Tier 1 "where are you starting from?" table → Tier 2 full capability list).
+- **Prompt library.** New [`.github/prompts/`](.github/prompts/) directory with six ready-to-use starting points: `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
+- **USER_MANUAL cross-ref.** [doc/USER_MANUAL.md](doc/USER_MANUAL.md) now points at the companion at the top of the Operating Tasks section.
+- No runtime, schema, diagnostic-registry, or scope-lock changes — agents, docs, and version files only.
 
 ### 0.3.1 — 2026-04-24
 
@@ -277,12 +274,12 @@ Major milestones only. The canonical release version lives in [VERSION.md](VERSI
 ### 0.3.0 — 2026-04-24
 
 - **F3 stack-file auto-generation (`options.generate_stack`).** Base JSON gains an optional `options.generate_stack` boolean (default `false`). When enabled alongside `stages`, the generator (P5b) emits one `<stage>.stack` per resolved stage alongside `<stage>.tcl`, using the N/J/L/D/I/O/R format documented in the bible §3.6. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Generated `.stack` files participate in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like `.tcl` run scripts. **This feature is newly implemented and has not yet been exercised against real customer domains — feedback, bug reports, and expected-behaviour descriptions are actively solicited.**
-- **`json_kit/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to [.github/agents/domain-analyzer.agent.md](.github/agents/domain-analyzer.agent.md), and the validator to [scripts/validate_jsons.py](scripts/validate_jsons.py). A single consolidated [VERSION.txt](VERSION.txt) replaces the kit's private version file.
+...it/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to `.github/agents/domain-analyzer.agent.md` (later absorbed into the Chopper Domain Companion in 0.3.2), and the validator to [scripts/validate_jsons.py](scripts/validate_jsons.py). The kit's private version file was folded into the main package metadata.
 - Authoring guide §2.1 added; example 03 and example 07 opted in to `generate_stack` for demonstration.
 
 ### 0.2.0 — 2026-04-23
 
-- Release channel and packaging metadata stabilized; canonical version surface consolidated into [VERSION.md](VERSION.md) with a small list of version-carrying files.
+- Release channel and packaging metadata stabilized; canonical version surface consolidated into [pyproject.toml](pyproject.toml) as the single source of truth.
 - Documentation suite modernized: user manual expanded with detailed JSON usage and invocation examples; audience-targeted formatting pass across all technical guides.
 - Repository rebranded to **Chopper** (from earlier internal name), with all schemas, help text, and audit artifacts updated in lockstep.
 
