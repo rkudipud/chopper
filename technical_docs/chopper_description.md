@@ -1102,6 +1102,8 @@ By default, owner-curated base and feature JSONs live under the current working 
 
 `--project` is mutually exclusive with `--base` and `--features`. Providing both is `VE-11` (`conflicting-cli-options`, exit code 2).
 
+For `chopper validate` only, any entry in the `--features` comma-separated list may be a directory path instead of a file path. A directory entry expands in place to the sorted list of its immediate `*.json` children (non-recursive, lexicographic order, POSIX-normalized). File and directory entries may be mixed freely. This expansion is a validate-only authoring convenience — it lets regressions validate an entire `jsons/features/` folder in one command. `chopper trim` (and `--project` in any subcommand) require explicit per-file paths so that the ordered feature sequence recorded in audit artifacts is unambiguous; passing a directory to `trim` fails at config load.
+
 Given the same current working directory, base JSON, and ordered feature list, project mode and direct CLI mode must produce identical compilation and trim results.
 
 When `--project` is provided, Chopper assumes it is being run from the domain root. The current working directory is therefore the root for resolving `base` and `features`, not the project JSON file location. The resolved inputs then enter the same compilation pipeline as `--base`/`--features`. The `project`, `owner`, `release_branch`, and `notes` fields from the project JSON are recorded in audit artifacts.

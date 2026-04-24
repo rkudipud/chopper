@@ -46,6 +46,37 @@ def _make_progress(args: argparse.Namespace) -> ProgressSink:
         return SilentProgress()
 
 
+def _expand_feature_dirs(features: str | None) -> str | None:
+    """Expand directory entries in a ``--features`` comma-separated list.
+
+    Validate-only authoring convenience per
+    ``technical_docs/chopper_description.md`` §5.1: any entry that resolves
+    to a directory is replaced in place by the sorted (lexicographic),
+    non-recursive list of its immediate ``*.json`` children. File entries
+    pass through unchanged. Empty segments are preserved so that the
+    downstream empty-segment stripping in :func:`_build_run_config` keeps
+    its existing behavior.
+
+    Called only from :func:`cmd_validate`. ``chopper trim`` and
+    ``--project`` require explicit per-file paths.
+    """
+    if not features:
+        return features
+    expanded: list[str] = []
+    for raw in features.split(","):
+        segment = raw.strip()
+        if not segment:
+            expanded.append(raw)
+            continue
+        candidate = Path(segment)
+        if candidate.is_dir():
+            children = sorted(candidate.glob("*.json"))
+            expanded.extend(child.as_posix() for child in children)
+        else:
+            expanded.append(segment)
+    return ",".join(expanded)
+
+
 def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
     domain_root = _resolve_domain_root(args)
     backup_root = domain_root.with_name(domain_root.name + "_backup")
@@ -94,6 +125,11 @@ def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperCo
 
 def cmd_validate(args: argparse.Namespace) -> int:
     """Run the pipeline in dry-run mode (validate only; no writes)."""
+
+    # Validate-only convenience: expand any directory in ``--features`` to
+    # its sorted ``*.json`` children. See bible §5.1.
+    if getattr(args, "project", None) is None:
+        args.features = _expand_feature_dirs(getattr(args, "features", None))
 
     ctx, sink = _make_context(args, dry_run=True)
     result = ChopperRunner().run(ctx, command="validate")

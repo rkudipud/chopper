@@ -131,3 +131,145 @@ def test_build_run_config_with_project_ignores_base_and_features(tmp_path: Path)
     assert cfg.project_path == project.resolve()
     assert cfg.base_path is None
     assert cfg.feature_paths == ()
+
+
+# ---------------------------------------------------------------------------
+# _expand_feature_dirs — validate-only directory expansion (bible §5.1)
+# ---------------------------------------------------------------------------
+
+
+def test_expand_feature_dirs_none_and_empty_pass_through() -> None:
+    from chopper.cli.commands import _expand_feature_dirs
+
+    assert _expand_feature_dirs(None) is None
+    assert _expand_feature_dirs("") == ""
+
+
+def test_expand_feature_dirs_leaves_file_entries_unchanged(tmp_path: Path) -> None:
+    from chopper.cli.commands import _expand_feature_dirs
+
+    a = tmp_path / "a.feature.json"
+    b = tmp_path / "b.feature.json"
+    for p in (a, b):
+        p.write_text("{}", encoding="utf-8")
+
+    result = _expand_feature_dirs(f"{a},{b}")
+    assert result == f"{a},{b}"
+
+
+def test_expand_feature_dirs_expands_directory_to_sorted_json_children(tmp_path: Path) -> None:
+    from chopper.cli.commands import _expand_feature_dirs
+
+    feats = tmp_path / "features"
+    feats.mkdir()
+    # Intentionally create out of lexicographic order.
+    (feats / "zeta.feature.json").write_text("{}", encoding="utf-8")
+    (feats / "alpha.feature.json").write_text("{}", encoding="utf-8")
+    (feats / "middle.feature.json").write_text("{}", encoding="utf-8")
+    # Non-json files must be ignored.
+    (feats / "README.md").write_text("ignored", encoding="utf-8")
+
+    result = _expand_feature_dirs(str(feats))
+    parts = result.split(",")
+    assert parts == [
+        (feats / "alpha.feature.json").as_posix(),
+        (feats / "middle.feature.json").as_posix(),
+        (feats / "zeta.feature.json").as_posix(),
+    ]
+
+
+def test_expand_feature_dirs_mixes_files_and_directories(tmp_path: Path) -> None:
+    from chopper.cli.commands import _expand_feature_dirs
+
+    standalone = tmp_path / "standalone.feature.json"
+    standalone.write_text("{}", encoding="utf-8")
+    feats = tmp_path / "features"
+    feats.mkdir()
+    (feats / "a.feature.json").write_text("{}", encoding="utf-8")
+    (feats / "b.feature.json").write_text("{}", encoding="utf-8")
+    trailing = tmp_path / "trailing.feature.json"
+    trailing.write_text("{}", encoding="utf-8")
+
+    result = _expand_feature_dirs(f"{standalone},{feats},{trailing}")
+    assert result.split(",") == [
+        str(standalone),
+        (feats / "a.feature.json").as_posix(),
+        (feats / "b.feature.json").as_posix(),
+        str(trailing),
+    ]
+
+
+def test_expand_feature_dirs_empty_directory_yields_no_entries(tmp_path: Path) -> None:
+    from chopper.cli.commands import _expand_feature_dirs
+
+    empty = tmp_path / "empty_features"
+    empty.mkdir()
+    other = tmp_path / "x.feature.json"
+    other.write_text("{}", encoding="utf-8")
+
+    result = _expand_feature_dirs(f"{empty},{other}")
+    # Empty dir contributes nothing; only the file entry survives.
+    assert result == str(other)
+
+
+def test_cmd_validate_expands_feature_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``cmd_validate`` rewrites ``args.features`` via ``_expand_feature_dirs``."""
+    from chopper.cli import commands
+
+    feats = tmp_path / "features"
+    feats.mkdir()
+    (feats / "a.feature.json").write_text("{}", encoding="utf-8")
+    (feats / "b.feature.json").write_text("{}", encoding="utf-8")
+    base = tmp_path / "base.json"
+    base.write_text("{}", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    class _StubResult:
+        exit_code = 0
+        warnings: tuple = ()
+
+    def _fake_make_context(args, *, dry_run):  # noqa: ANN001
+        captured["features"] = args.features
+        captured["dry_run"] = dry_run
+        raise RuntimeError("short-circuit after capture")
+
+    monkeypatch.setattr(commands, "_make_context", _fake_make_context)
+
+    args = _ns(domain=str(tmp_path), base=str(base), features=str(feats))
+    with pytest.raises(RuntimeError, match="short-circuit"):
+        commands.cmd_validate(args)
+
+    # Directory expanded to sorted POSIX-normalized *.json children.
+    assert captured["features"] == ",".join(
+        [
+            (feats / "a.feature.json").as_posix(),
+            (feats / "b.feature.json").as_posix(),
+        ]
+    )
+
+
+def test_cmd_trim_does_not_expand_feature_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``cmd_trim`` must leave ``args.features`` untouched — trim requires explicit files."""
+    from chopper.cli import commands
+
+    feats = tmp_path / "features"
+    feats.mkdir()
+    (feats / "a.feature.json").write_text("{}", encoding="utf-8")
+    base = tmp_path / "base.json"
+    base.write_text("{}", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def _fake_make_context(args, *, dry_run):  # noqa: ANN001
+        captured["features"] = args.features
+        raise RuntimeError("short-circuit after capture")
+
+    monkeypatch.setattr(commands, "_make_context", _fake_make_context)
+
+    args = _ns(domain=str(tmp_path), base=str(base), features=str(feats), dry_run=False)
+    with pytest.raises(RuntimeError, match="short-circuit"):
+        commands.cmd_trim(args)
+
+    # Trim leaves the raw directory path alone (downstream config load will error).
+    assert captured["features"] == str(feats)

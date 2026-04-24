@@ -51,7 +51,9 @@ Does not modify domain content files.
 options:
   --domain PATH       Domain root path (default: current directory)
   --base PATH         Path to base JSON (required unless --project is used)
-  --features PATHS    Comma-separated ordered list of feature JSON paths
+  --features PATHS    Comma-separated ordered list of feature JSON paths.
+                      Validate-only: any entry may also be a directory, which
+                      expands in place to its sorted *.json children (non-recursive).
   --project PATH      Path to project JSON (mutually exclusive with --base/--features)
 ```
 
