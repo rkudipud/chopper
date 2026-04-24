@@ -217,6 +217,64 @@ The bundle is designed to be machine-readable. The `run-result-v1.schema.json` a
 
 ---
 
+## MCP Server (`chopper mcp-serve`)
+
+Since 0.4.0, Chopper ships a **Model Context Protocol** server so MCP-capable clients — Claude Desktop, Claude Code, or any conforming MCP host — can inspect a domain without a shell. The surface is intentionally small, **read-only**, and stdio-only.
+
+### What it is (and isn't)
+
+| Property | Value |
+| --- | --- |
+| Transport | **stdio JSON-RPC only** — reads frames on stdin, writes responses on stdout, logs to stderr |
+| Network exposure | **None** — no TCP, no HTTP, no WebSocket, no daemon, no discovery beacon |
+| Side effects | **None** — the server cannot trim, cleanup, or otherwise mutate the filesystem under any parameter combination |
+| Runtime dependency | Hard dependency on the `mcp` Python SDK (declared in [pyproject.toml](pyproject.toml)) |
+| Lifecycle | Starts on `chopper mcp-serve`, blocks until the client disconnects (stdin EOF) or SIGINT |
+| Exit codes | `0` clean shutdown · `3` programmer error · `4` MCP protocol error (`PE-04 mcp-protocol-error`) |
+
+### Tools exposed
+
+The server advertises **exactly three** tools via `tools/list`. A runtime guard plus an integration test (`tests/integration/test_mcp_stdio_e2e.py`) assert that nothing else is ever registered.
+
+| Tool | Parameters | Returns |
+| --- | --- | --- |
+| `chopper.validate` | `{ domain_root, base?, features?, project?, strict? }` | Typed `RunResult` JSON — exit code, diagnostics array, artifact paths. Same code path as `chopper validate` on the CLI. |
+| `chopper.explain_diagnostic` | `{ code }` (e.g. `"VE-06"`) | Registry entry: `{ code, slug, severity, phase, source, exit_code, description, recovery_hint }` sourced from [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md). |
+| `chopper.read_audit` | `{ bundle_path }` | Full JSON contents of every file under the `.chopper/` bundle, keyed by relative path. |
+
+**Explicitly NOT exposed:** `chopper.trim` and `chopper.cleanup`. These destructive operations are never registered on the MCP server — by design, by code, and by test.
+
+### Running it
+
+```text
+chopper mcp-serve
+```
+
+That's the whole invocation. The process stays in the foreground, speaking JSON-RPC on stdin/stdout. Point any MCP client at it as a subprocess command.
+
+#### Example: Claude Desktop `claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "chopper": {
+      "command": "chopper",
+      "args": ["mcp-serve"]
+    }
+  }
+}
+```
+
+Once connected, ask the client to validate a domain or explain a diagnostic — the calls route through the three tools above.
+
+### Diagnostics
+
+Protocol-level failures (malformed frames, unknown tool name, bad parameter shape) surface as `PE-04 mcp-protocol-error` with exit code `4`. Diagnostics returned inside a tool response use the same codes the underlying CLI path would have produced — the MCP surface does not invent or rewrite codes.
+
+The authoritative specification for the MCP surface is [technical_docs/chopper_description.md](technical_docs/chopper_description.md) §3.9.
+
+---
+
 ## Documentation
 
 | Who You Are | Where to Start |
@@ -310,5 +368,5 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 Chopper was inspired by and builds on the foundational thinking behind:
 
-- **SNORT** by Mike McCurdy — domain state detection and trim-lifecycle design
-- **FlowBuilder** by Stelian Alupoaei — stage-driven flow modeling and the run-file generation concept
+- **SNORT** by Mike McCurdy ([michael.mccurdy@intel.com](mailto:michael.mccurdy@intel.com)) — domain state detection and trim-lifecycle design
+- **FlowBuilder** by Stelian Alupoaei ([stelian.alupoaei@intel.com](mailto:stelian.alupoaei@intel.com)) — stage-driven flow modeling and the run-file generation concept
