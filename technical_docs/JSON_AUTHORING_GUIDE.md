@@ -117,9 +117,7 @@ Equivalent JSON stage definition:
 >
 > **Note on optional stack files:** If you are not using stages, keep your stack file workflow separate. Chopper will still trim your domain files and procs (F1 + F2) when you provide base/feature JSONs.
 
-### 2.1 Auto-generation via `options.generate_stack` (new, untested)
-
-> **Status:** This option is newly implemented and has not yet been exercised against real customer domains. Bug reports, behavioural feedback, and descriptions of how your scheduler consumes stack files are actively solicited.
+### 2.1 Auto-generation via `options.generate_stack`
 
 Set `"generate_stack": true` in the base JSON `options` block to have Chopper emit one `<stage>.stack` file alongside each `<stage>.tcl`. The flag has no effect when the base declares no stages.
 

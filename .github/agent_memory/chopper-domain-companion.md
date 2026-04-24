@@ -6,6 +6,12 @@
 
 ## Last Completed Work
 
+- **0.3.3 generate_stack end-to-end tests (2026-04-24).** `options.generate_stack` is now fully tested and production-ready (D1 + D2):
+  - New `tests/fixtures/stages_domain/` fixture (three-stage domain with `generate_stack: true`).
+  - Four integration tests in `tests/integration/test_runner_localfs_e2e.py` covering dry-run manifest shape, live-trim file emission, stack-file content, and audit-bundle recording.
+  - Eight unit tests in `tests/unit/orchestrator/test_runner.py` covering the same paths via `InMemoryFS`.
+  - `(new, untested)` label and pilot-user guidance removed from `JSON_AUTHORING_GUIDE.md`, `README.md`, and this memory file.
+
 - **0.3.2 consolidation (2026-04-24).** Absorbed the former `domain-analyzer.agent.md` into this companion card. Now the single user-facing agent for anything Chopper-related. Added:
   - **Operating Modes** — `analyze-only` (JSON authoring only, no CLI calls) vs `full-loop` (validate + dry-run + audit walk + live trim on explicit direction).
   - **Q1–Q5 Discovery Protocol** — explicit discovery sequence for unfamiliar codebases (root, stack files, scripts, configs, utility dirs).
@@ -20,22 +26,19 @@
 ## Next Actions
 
 - Read this file at the start of each invocation and replace placeholders with the active domain-analysis state.
-- When a user enables `options.generate_stack: true`, follow the pilot-user callout below.
+- When a user enables `options.generate_stack: true`, guide them through the standard trim workflow — this is a fully tested feature.
 
 ## Open Questions
 
 - None.
 
-## Known Untested Features (feedback solicited)
+## Supported Features
 
-- **`options.generate_stack` (F3 stack-file auto-generation).** Newly implemented in release 0.3.0. When set to `true` in the base JSON, Chopper emits one `<stage>.stack` file per resolved stage alongside `<stage>.tcl` using the N/J/L/D/I/O/R format defined in the bible §3.6. This feature has **not** yet been exercised against real customer domains. When guiding users who enable `generate_stack`, actively solicit:
-  - **Feedback** on whether the emitted stack-file layout matches what their scheduler expects.
-  - **Bug reports** for any unexpected output, missing fields, or format deviations.
-  - **Expected-behaviour descriptions** from domain owners — concrete examples of what the `.stack` file *should* contain for their flow. These descriptions are high-value and should be captured verbatim when received.
-
-  Until this feature has real-world coverage, treat any domain using `generate_stack: true` as a pilot user and call out the experimental status in your guidance.
+- **`options.generate_stack` (F3 stack-file auto-generation).** When set to `true` in the base JSON, Chopper emits one `<stage>.stack` file per resolved stage alongside `<stage>.tcl` using the N/J/L/D/I/O/R format defined in the bible §3.6. Dependency-line derivation: `dependencies` > `load_from` > bare `D`. Fully tested in the integration suite (`tests/fixtures/stages_domain/`). No experimental caveats.
 
 ## Validation Notes
 
 - Created from the repository local-memory convention in `.github/agent_memory/README.md`.
 - 0.3.2 consolidation: card and memory now aligned on analyzer-absorbed scope, Operating Modes, and tier-2 menu.
+- 0.3.3: `generate_stack` promoted from "known untested" to "supported feature"; pilot-user framing removed.
+

@@ -1,0 +1,41 @@
+{
+  "$schema": "chopper/base/v1",
+  "domain": "stages_domain",
+  "description": "Fixture for testing F3 stage + stack-file generation end-to-end.",
+  "options": {
+    "generate_stack": true
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw my_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source setup.tcl",
+        "load_design"
+      ]
+    },
+    {
+      "name": "run_flow",
+      "load_from": "setup",
+      "command": "-xt vw my_shell -B BLOCK -T run_flow",
+      "exit_codes": [0, 3],
+      "dependencies": ["setup"],
+      "steps": [
+        "source flow.tcl",
+        "run_checks",
+        "report_results"
+      ]
+    },
+    {
+      "name": "promote",
+      "load_from": "run_flow",
+      "command": "vw promote.tcl -B BLOCK -T run_flow -force",
+      "dependencies": ["run_flow"],
+      "steps": [
+        "promote_outputs"
+      ]
+    }
+  ]
+}
