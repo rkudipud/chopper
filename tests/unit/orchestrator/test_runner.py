@@ -11,6 +11,7 @@ from chopper.adapters import CollectingSink, InMemoryFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, Phase, Severity
 from chopper.core.errors import ChopperError
+from chopper.core.models import FileTreatment
 from chopper.orchestrator import ChopperRunner, has_errors
 
 DOMAIN = Path("dom")
@@ -399,3 +400,153 @@ def test_runner_writes_audit_bundle_in_dry_run() -> None:
     ChopperRunner().run(ctx, command="validate")
     # Audit service always runs — chopper_run.json is written.
     assert fs.exists(DOMAIN / ".chopper" / "chopper_run.json")
+
+
+# ---------------------------------------------------------------------------
+# options.generate_stack — InMemoryFS end-to-end
+# ---------------------------------------------------------------------------
+
+
+def _seed_stages_domain(fs: InMemoryFS) -> None:
+    """Plant a stages-only domain with ``options.generate_stack: true``."""
+
+    fs.mkdir(DOMAIN, parents=True, exist_ok=True)
+    fs.write_text(
+        BASE_JSON,
+        json.dumps(
+            {
+                "$schema": "chopper/base/v1",
+                "domain": "dom",
+                "options": {"generate_stack": True},
+                "stages": [
+                    {
+                        "name": "setup",
+                        "load_from": "",
+                        "command": "shell -T setup",
+                        "exit_codes": [0],
+                        "steps": ["source setup.tcl"],
+                    },
+                    {
+                        "name": "run",
+                        "load_from": "setup",
+                        "command": "shell -T run",
+                        "exit_codes": [0, 3],
+                        "dependencies": ["setup"],
+                        "steps": ["source run.tcl", "check_results"],
+                    },
+                ],
+            }
+        ),
+    )
+
+
+class TestGenerateStackPipeline:
+    """End-to-end tests for ``options.generate_stack`` through the full runner."""
+
+    def test_dry_run_manifest_has_generated_stack_entries(self) -> None:
+        """Dry-run: manifest records GENERATED for both .tcl and .stack per stage."""
+        fs = InMemoryFS()
+        _seed_stages_domain(fs)
+        ctx, sink = _make_ctx(fs, dry_run=True)
+        result = ChopperRunner().run(ctx, command="validate")
+
+        codes = [d.code for d in sink.snapshot()]
+        assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+        assert result.manifest is not None
+        assert result.manifest.generate_stack is True
+
+        file_decisions = result.manifest.file_decisions
+        assert file_decisions.get(Path("setup.tcl")) is FileTreatment.GENERATED
+        assert file_decisions.get(Path("setup.stack")) is FileTreatment.GENERATED
+        assert file_decisions.get(Path("run.tcl")) is FileTreatment.GENERATED
+        assert file_decisions.get(Path("run.stack")) is FileTreatment.GENERATED
+
+    def test_dry_run_does_not_write_stack_files(self) -> None:
+        """Dry-run must not write any .tcl or .stack files to the filesystem."""
+
+        fs = InMemoryFS()
+        _seed_stages_domain(fs)
+        ctx, _ = _make_ctx(fs, dry_run=True)
+        ChopperRunner().run(ctx, command="validate")
+
+        assert not fs.exists(DOMAIN / "setup.tcl")
+        assert not fs.exists(DOMAIN / "setup.stack")
+        assert not fs.exists(DOMAIN / "run.tcl")
+        assert not fs.exists(DOMAIN / "run.stack")
+
+    def test_live_trim_writes_tcl_and_stack_files(self) -> None:
+        """Live trim writes one .tcl and one .stack file per resolved stage."""
+
+        fs = InMemoryFS()
+        _seed_stages_domain(fs)
+        ctx, sink = _make_ctx(fs, dry_run=False)
+        result = ChopperRunner().run(ctx, command="trim")
+
+        codes = [d.code for d in sink.snapshot()]
+        assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+        assert result.trim_report is not None
+
+        # GeneratorService emitted 4 artifacts: tcl+stack for 2 stages.
+        assert len(result.generated_artifacts) == 4
+        kinds = tuple(a.kind for a in result.generated_artifacts)
+        assert kinds == ("tcl", "stack", "tcl", "stack")
+
+        assert fs.exists(DOMAIN / "setup.tcl")
+        assert fs.exists(DOMAIN / "setup.stack")
+        assert fs.exists(DOMAIN / "run.tcl")
+        assert fs.exists(DOMAIN / "run.stack")
+
+    def test_live_trim_stack_content_setup_stage(self) -> None:
+        """setup.stack has correct N/J/L/D/R lines for the first stage."""
+
+        fs = InMemoryFS()
+        _seed_stages_domain(fs)
+        ctx, _ = _make_ctx(fs, dry_run=False)
+        ChopperRunner().run(ctx, command="trim")
+
+        content = fs.read_text(DOMAIN / "setup.stack")
+        assert content.startswith("# Chopper-generated stack: setup\n")
+        assert "N setup\n" in content
+        assert "J shell -T setup\n" in content
+        assert "L 0\n" in content
+        assert "D\n" in content  # first stage — bare D (no predecessor)
+        assert "R serial\n" in content
+
+    def test_live_trim_stack_content_run_stage(self) -> None:
+        """run.stack has D-line derived from ``dependencies`` field."""
+
+        fs = InMemoryFS()
+        _seed_stages_domain(fs)
+        ctx, _ = _make_ctx(fs, dry_run=False)
+        ChopperRunner().run(ctx, command="trim")
+
+        content = fs.read_text(DOMAIN / "run.stack")
+        assert "N run\n" in content
+        assert "D setup\n" in content
+        assert "L 0 3\n" in content
+
+    def test_live_trim_tcl_content_setup_stage(self) -> None:
+        """setup.tcl contains the generated banner and the authored steps."""
+
+        fs = InMemoryFS()
+        _seed_stages_domain(fs)
+        ctx, _ = _make_ctx(fs, dry_run=False)
+        ChopperRunner().run(ctx, command="trim")
+
+        content = fs.read_text(DOMAIN / "setup.tcl")
+        assert "# Chopper-generated" in content
+        assert "source setup.tcl" in content
+
+    def test_generate_stack_false_does_not_emit_stack_files(self) -> None:
+        """When ``generate_stack`` is absent (default false), no .stack files are written."""
+
+        fs = InMemoryFS()
+        _seed_good_domain(fs)  # mini domain — no stages, generate_stack defaults to False
+        ctx, sink = _make_ctx(fs, dry_run=False)
+        result = ChopperRunner().run(ctx, command="trim")
+
+        codes = [d.code for d in sink.snapshot()]
+        assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+        # No .stack files written.
+        for p in fs._files:  # type: ignore[attr-defined]
+            assert not str(p).endswith(".stack"), f"unexpected .stack file: {p}"
