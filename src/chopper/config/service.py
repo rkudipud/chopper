@@ -138,11 +138,22 @@ class ConfigService:
         surface = _collect_surface_files(base_json, sorted_features)
         surface_sorted = tuple(sorted(surface, key=lambda p: p.as_posix()))
 
+        # --- tool_command_pool: built-in lists + any --tool-commands paths ---
+        # See architecture doc §3.10 and FR-44. The pool is a flat
+        # frozenset of bare external-tool-command names that P4 trace
+        # consults before emitting TW-02. Built-in lists under
+        # ``src/chopper/data/tool_commands/`` are always loaded; user
+        # paths from ``RunConfig.tool_command_paths`` extend the set.
+        from chopper.compiler.tool_commands import load_pool as _load_pool
+
+        pool = _load_pool(ctx.config.tool_command_paths)
+
         return LoadedConfig(
             base=base_json,
             features=tuple(sorted_features),
             project=project_json,
             surface_files=surface_sorted,
+            tool_command_pool=pool,
         )
 
     # ------------------------------------------------------------------

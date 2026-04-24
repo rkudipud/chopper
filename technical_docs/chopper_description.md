@@ -691,6 +691,39 @@ Chopper ships a **Model Context Protocol** server that lets MCP-capable clients 
 
 **Scope-lock alignment.** This section is the single authoritative spec for the MCP surface. The closed items in `.github/instructions/project.instructions.md` §1 — destructive MCP tools, `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code, HTTP/TCP/WebSocket transports — remain closed. See §1.1 of the same file for the narrowed-closure wording.
 
+### 3.10 Tool-Command Pool — 0.5.0+
+
+The P4 trace phase resolves every non-dynamic proc call token against the domain's proc index (see §5.4). Tokens that do not resolve to any canonical proc currently emit `TW-02 unresolved-proc-call`. On real EDA domains this fires on every call to a vendor tool command (`get_app_var`, `set_dont_touch`, `create_clock`, `report_timing`, …) — dozens to thousands of warnings per domain, all of which are **not** authoring errors. The volume hides genuine `TW-02` hits on actual missing procs.
+
+The **tool-command pool** is a domain-agnostic set of known external tool-command names. When P4 cannot resolve a token *and* the token's bare leaf name is a member of the pool, the tracer emits `TI-01 known-tool-command` (trace info, exit 0) instead of `TW-02`, and does not add the edge to `dependency_graph.json`.
+
+**Pool composition.** The pool is the union of two sources:
+
+- **Built-in lists**, shipped under `src/chopper/data/tool_commands/*.commands`, always loaded on every run. The initial 0.5.0 seed is `pt.commands` (PrimeTime ~850 commands). Additional vendor lists (Formality, Tempus, Genus, Innovus) ship as they are curated; no per-vendor opt-in is required — the pool is a single flat set.
+- **User-supplied lists**, passed via the repeatable CLI flag `--tool-commands <path>` (see §5.1 CLI surface). Each path points to a plain-text file authored outside the domain (infrastructure-owned, not checked into the domain tree); the paths **are not** stored in any JSON, the base schema, or the project JSON. Users layer their own PDK / lib / internal-wrapper command lists on top of the built-ins.
+
+**File format.** Plain text, UTF-8. Tokens are separated by any whitespace (space, tab, newline). Blank lines and lines beginning with `#` (after stripping leading whitespace) are skipped. Token ordering, casing, and duplication are preserved on read and normalized to a single `frozenset[str]` of bare names. No escaping, no quoting, no namespacing — the format matches vendor `help` dumps verbatim (e.g. `primetime -help` → one-line or multi-line token list).
+
+**Matching rule.** A call token matches the pool when **either** of the following holds:
+
+1. The raw token equals a pool entry exactly (e.g. `get_app_var`).
+2. The token's namespace-stripped leaf equals a pool entry (e.g. `::snps::get_app_var` → `get_app_var` matches).
+
+This covers the two shapes EDA tool commands appear in (bare and namespace-qualified) without the pool having to enumerate both. The pool contains **bare names only**; qualified names must not appear as entries.
+
+**Emission contract.** When a token matches the pool, the tracer:
+
+1. Emits `TI-01 known-tool-command` (severity info, exit 0) at the call site's line.
+2. Records an `Edge` with `status = "tool_command"` and `diagnostic_code = "TI-01"` — visible in `dependency_graph.json` under `unresolved_tokens` so users can still see which tool commands are invoked and from where, without it counting against the warning tally.
+3. Does **not** emit `TW-02` for that token.
+4. Does **not** add a graph node for the token (tool commands are external and not part of the domain's proc index).
+
+**Non-interference with TW-01 and TW-03.** A token that matches the pool can still be ambiguous (`TW-01`) or dynamic (`TW-03`). The pool is checked **only on the TW-02 unresolved branch** — after namespace resolution has failed. Ambiguity (multiple in-domain matches) and dynamic form are independent conditions and are reported regardless of pool membership.
+
+**Pool is never user-authored per-domain.** Tool-command lists describe tools (PrimeTime, Formality, etc.), not domains. They belong to infrastructure, not to the domain being trimmed. There is no base-JSON field, no feature-JSON field, and no project-JSON field for tool commands. The CLI flag is the sole user-side extension point, and authors typically point it at a single shared `/nfs/.../known_tool_commands/<tool>.commands` file their site maintains.
+
+**Scope cap.** Tool-command pool entries do **not** influence file-level decisions (F1), proc-level decisions (F2), or run-file generation (F3). They are a P4 diagnostic-routing mechanism and nothing else. A tool-command match never causes a file or proc to survive, be copied, or be dropped.
+
 ---
 
 ## 4. Architecture Rules
@@ -1374,8 +1407,20 @@ P4 runs the BFS trace expansion (R3) seeded by PI. Its outputs are:
 | **PT** (PI+ − PI, traced-only procs) | Trim report, diagnostics | **None** — reporting only |
 | **Call-tree edges** | `dependency_graph.json` | **None** — reporting only |
 | **TW-\* diagnostics** | Diagnostics log, trim report | **None** — advisory warnings |
+| **TI-\* diagnostics** | Diagnostics log | **None** — informational, not counted against `--strict` warning tally |
 
 PI+ helps the domain owner understand what their explicit selections depend on. It never adds procs or files to the surviving set.
+
+**Per-token resolution order (deterministic).** For every non-dynamic call token the tracer applies this decision ladder exactly once and in this order:
+
+1. **TW-03 dynamic guard** — if the token is dynamic (`$cmd`, bracketed substitution, empty after stripping), emit `TW-03` and stop.
+2. **Candidate resolution** — build the lexical-namespace candidate list (absolute / relative-then-bare) and look each up in the domain proc index.
+3. **Unique match → edge** — if exactly one candidate resolves, record a resolved `Edge` and enqueue the callee.
+4. **Multiple matches → TW-01** — if any candidate resolves to more than one canonical proc, emit `TW-01 ambiguous-proc-match` and stop.
+5. **No match → tool-command pool check** — if zero candidates resolve, the tracer checks the token against the tool-command pool (§3.10). The raw token and its namespace-stripped leaf are both tested. On a pool hit: emit `TI-01 known-tool-command`, record an `Edge` with `status = "tool_command"`, and stop.
+6. **Pool miss → TW-02** — emit `TW-02 unresolved-proc-call` and record an `Edge` with `status = "unresolved"`.
+
+Rule ordering is fixed: the pool is checked **only after** namespace resolution has failed, and **never** suppresses `TW-01` (ambiguity is an authoring issue even for tool-command names) or `TW-03` (dynamic call forms are always unresolvable statically). A pool hit is always the final rung that would have otherwise produced a `TW-02`; it cannot intercept any other diagnostic.
 
 **Frontier and visited-set semantics (BFS contract).** The BFS frontier does **not** deduplicate on enqueue. If proc `A` calls `B` three times (from three different call sites), all three enqueue operations push `B` onto the frontier and all three are recorded as distinct `Edge` records in `dependency_graph.json` with their own `call_site` locations. Deduplication happens at the **visited-set level only**: when a canonical name is popped from the frontier, if it is already in `visited` the pop is a no-op (no call extraction, no re-enqueue, no duplicate `TW-*` diagnostic). This design preserves the full caller → callee edge set for downstream analysis (users routinely care *where* a proc was called from, not just *whether* it was called), while still guaranteeing BFS termination in the presence of cycles. The frontier is sorted lex-ascending before each pop so the traversal is deterministic.
 
@@ -2666,6 +2711,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
 | FR-42 | `chopper mcp-serve` starts a stdio-only Model Context Protocol server that exposes exactly three read-only tools — `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit` — and never registers destructive tools (`chopper.trim`, `chopper.cleanup`). Protocol-level failures emit `PE-04 mcp-protocol-error` with exit code 4. See §3.9. |
 | FR-43 | `chopper validate --features` accepts directory entries in its comma-separated list; each directory expands in place to the sorted (lexicographic), non-recursive set of its immediate `*.json` children. `chopper trim` and `--project` (in any subcommand) still require explicit per-file paths. See §5.1. |
+| FR-44 | P4 maintains a **tool-command pool** (§3.10) — the union of built-in `.commands` files under `src/chopper/data/tool_commands/` and user-supplied files passed via the repeatable CLI flag `--tool-commands <path>`. When a call token fails namespace resolution and its raw or leaf name is in the pool, the tracer emits `TI-01 known-tool-command` instead of `TW-02 unresolved-proc-call` and records an `Edge` with `status = "tool_command"`. The pool is not surfaced in any JSON (base / feature / project); CLI flag is the sole user extension. The pool never affects file-level (F1), proc-level (F2), or run-file (F3) decisions. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -3042,6 +3088,8 @@ This log records the conscious design decisions that shaped the current document
 | 2026-04-24 | **0.3.2 — Companion consolidation + discoverability.** The former `.github/agents/domain-analyzer.agent.md` was absorbed into `.github/agents/chopper-domain-companion.agent.md`, making the companion the **single user-facing agent** for anything Chopper-related. Companion card gained: Operating Modes (`analyze-only` vs `full-loop`), explicit Q1–Q5 Discovery Protocol, JSON Templates & Checklists (base/feature/project skeletons), Schema Error → Fix Mapping, Bootstrapping a New Domain playbook, Common CLI Workflows (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic), and a tier-2 greeting menu (Tier 1 "where are you starting from?" → Tier 2 full capability list). A prompt library was created at `.github/prompts/` with six ready-to-use starting points (`bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`). `doc/USER_MANUAL.md` cross-references the companion at the top of the Operating Tasks section. README `🤖 Two AI Companions` section rewritten as `🤖 Meet the Companion` (single agent); analyzer badge removed; the stale `.github/agents/domain-analyzer.agent.md` link in the 0.3.0 json_kit-dissolution history row unlinked with a note pointing to this absorption. No runtime, schema, diagnostic-registry, or scope-lock changes — agents, docs, and version files only. |
 
 | 2026-04-24 | **0.4.0 — MCP stdio surface (read-only).** Narrowed the MCP row of the scope-lock (closed decision §1) from "all MCP integration closed" to "destructive MCP surface closed; stdio read-only `chopper mcp-serve` permitted". Added architecture doc §3.9 specifying the transport (stdio only, no TCP/HTTP/WebSocket), the three exposed tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`), and the destructive-tool guard (`chopper.trim` and `chopper.cleanup` are never registered). Added **FR-42** stating the contract. Added `PE-04 mcp-protocol-error` to the diagnostic registry (exit code 4, emitted only from `src/chopper/mcp/`). Added `mcp>=1.0,<2` as a **hard runtime dependency** in `pyproject.toml`. Created `src/chopper/mcp/` package (`server.py`, `tools.py`) and wired `mcp-serve` into `src/chopper/cli/` with lazy-import pattern so core CLI paths are unaffected by MCP-side changes. `chopper.read_audit` returns the **full** JSON contents of every file under a `.chopper/` bundle keyed by relative path (not a curated summary). CLI_HELP_TEXT_REFERENCE, ARCHITECTURE_PLAN §7, DIAGNOSTIC_CODES, and FUTURE_PLANNED_DEVELOPMENTS all cascaded. Companion card gained a "Calling Chopper from an MCP client" callout. Version bumped 0.3.3 → 0.4.0 (SemVer minor: new subcommand + new hard dep). |
+
+| 2026-04-24 | **0.5.0 — Tool-command pool (TI-01).** Real EDA domains emit dozens to thousands of `TW-02 unresolved-proc-call` warnings per trim run, one per vendor-tool-command call (`get_app_var`, `set_dont_touch`, `report_timing`, …). The volume buries genuine `TW-02` hits on actually-missing procs. Added architecture doc **§3.10 Tool-Command Pool** and **FR-44** specifying a domain-agnostic registry of known external tool-command names, seeded 0.5.0 with PrimeTime (~850 commands shipped as `src/chopper/data/tool_commands/pt.commands`). Composition is the union of always-loaded built-in `.commands` files and user-supplied lists passed via the repeatable CLI flag `--tool-commands <path>`. Extended **§5.4 P4 trace** with an explicit six-step decision ladder pinning the pool check to the TW-02 branch only (never intercepts `TW-01` ambiguity, `TW-03` dynamic, or resolved tokens). Added new **`TI` diagnostic family** (Trace Info) to `DIAGNOSTIC_CODES.md` with `TI-01 known-tool-command` (severity info, exit 0, not counted against `--strict`). Matching rule: raw-token equality OR namespace-stripped leaf equality against pool entries (pool itself contains bare names only). **Deliberate non-features** (rejected during review): no base-JSON `options.tool_commands` field; no feature-JSON surface; no per-vendor opt-in; no effect on F1/F2/F3. Tool-command lists describe tools, not domains — they are infrastructure-owned and live outside the checked-in domain tree. Cascaded to `CLI_HELP_TEXT_REFERENCE.md` (new `--tool-commands` flag on `validate` and `trim`), `LoadedConfig.tool_command_pool`, `TracerService` (new pool-check step before `_emit_tw02`), and a new fixture + integration test reproducing the STA-PT scenario from the user report. |
 
 ---
 

@@ -68,6 +68,13 @@ class RunConfig:
     * ``feature_paths``: tuple of feature JSON paths when invoked with
       ``--features``; empty when ``project_path`` is set. Order is
       authoritative for F3 ``flow_actions`` sequencing.
+    * ``tool_command_paths``: tuple of paths to user-supplied tool-
+      command list files (from the repeatable CLI flag
+      ``--tool-commands``). These extend the always-loaded built-in
+      pool under ``src/chopper/data/tool_commands/`` (see
+      ``technical_docs/chopper_description.md`` §3.10). The order does
+      not affect behaviour — the pool is a set — but is preserved for
+      audit reproducibility.
     """
 
     domain_root: Path
@@ -78,6 +85,7 @@ class RunConfig:
     project_path: Path | None = None
     base_path: Path | None = None
     feature_paths: tuple[Path, ...] = ()
+    tool_command_paths: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)

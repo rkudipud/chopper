@@ -95,6 +95,19 @@ def _add_input_args(sub: argparse.ArgumentParser) -> None:
         "--project",
         help="Path to project JSON (mutually exclusive with --base/--features)",
     )
+    sub.add_argument(
+        "--tool-commands",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help=(
+            "Path to a plain-text file of known external tool-command names "
+            "(whitespace-separated, '#' line comments). Repeatable. Each file "
+            "extends the built-in tool-command pool so P4 trace emits TI-01 "
+            "known-tool-command instead of TW-02 unresolved-proc-call for "
+            "listed names. See architecture doc §3.10."
+        ),
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

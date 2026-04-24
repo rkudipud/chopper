@@ -41,6 +41,7 @@ options:
 ```text
 usage: chopper validate [--domain PATH]
                         (--base PATH [--features PATHS] | --project PATH)
+                        [--tool-commands PATH]...
                         [global options]
 
 Run read-only validation against JSON inputs. Checks schema
@@ -49,12 +50,21 @@ parses Tcl, compiles selections, and runs the trace phase.
 Does not modify domain content files.
 
 options:
-  --domain PATH       Domain root path (default: current directory)
-  --base PATH         Path to base JSON (required unless --project is used)
-  --features PATHS    Comma-separated ordered list of feature JSON paths.
-                      Validate-only: any entry may also be a directory, which
-                      expands in place to its sorted *.json children (non-recursive).
-  --project PATH      Path to project JSON (mutually exclusive with --base/--features)
+  --domain PATH        Domain root path (default: current directory)
+  --base PATH          Path to base JSON (required unless --project is used)
+  --features PATHS     Comma-separated ordered list of feature JSON paths.
+                       Validate-only: any entry may also be a directory, which
+                       expands in place to its sorted *.json children (non-recursive).
+  --project PATH       Path to project JSON (mutually exclusive with --base/--features)
+  --tool-commands PATH Path to a plain-text file of known external tool-command
+                       names (whitespace-separated tokens, '#' comments, blank
+                       lines ignored). Repeatable. Each file extends the pool
+                       of names that silence TW-02 unresolved-proc-call in P4
+                       trace and emit TI-01 known-tool-command instead. The
+                       built-in lists under src/chopper/data/tool_commands/
+                       (e.g. pt.commands) are always loaded; this flag only
+                       adds to that set. No effect on F1/F2/F3 decisions.
+                       See architecture doc §3.10.
 ```
 
 ---
@@ -64,7 +74,7 @@ options:
 ```text
 usage: chopper trim [--domain PATH]
                     (--base PATH [--features PATHS] | --project PATH)
-                    [--dry-run] [global options]
+                    [--tool-commands PATH]... [--dry-run] [global options]
 
 Execute the full trim pipeline: compile selections, trace proc dependencies,
 build trimmed output, validate results, and emit audit trail.
@@ -76,11 +86,16 @@ On failure:  leave state as-is and exit non-zero; re-run to resume (the next
              or manually run `rm -rf domain && mv domain_backup domain` to reset.
 
 options:
-  --domain PATH       Domain root path (default: current directory)
-  --base PATH         Path to base JSON (required unless --project is used)
-  --features PATHS    Comma-separated ordered list of feature JSON paths
-  --project PATH      Path to project JSON (mutually exclusive with --base/--features)
-  --dry-run           Compile, trace, run synthetic post-trim validation, and emit reports without rebuilding domain content files
+  --domain PATH        Domain root path (default: current directory)
+  --base PATH          Path to base JSON (required unless --project is used)
+  --features PATHS     Comma-separated ordered list of feature JSON paths
+  --project PATH       Path to project JSON (mutually exclusive with --base/--features)
+  --tool-commands PATH Path to a plain-text file of known external tool-command
+                       names. Repeatable. Extends the built-in tool-command
+                       pool so TW-02 unresolved-proc-call becomes TI-01
+                       known-tool-command for listed names during P4 trace.
+                       See architecture doc §3.10.
+  --dry-run            Compile, trace, run synthetic post-trim validation, and emit reports without rebuilding domain content files
 ```
 
 ---

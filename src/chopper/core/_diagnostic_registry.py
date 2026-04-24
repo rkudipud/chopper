@@ -58,8 +58,8 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-26, VW-01..VW-19, VI-01..VI-02, TW-01..TW-04,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 69 active codes, matching the
+# VE-01..VE-26, VW-01..VW-19, VI-01..VI-02, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 70 active codes, matching the
 # Code Space Summary table in the registry.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -127,6 +127,7 @@ _REGISTRY: dict[str, _Entry] = {
     "TW-02": _Entry(slug="unresolved-proc-call", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),
     "TW-03": _Entry(slug="dynamic-call-form", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),
     "TW-04": _Entry(slug="cycle-in-call-graph", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),
+    "TI-01": _Entry(slug="known-tool-command", severity=Severity.INFO, phase=4, source="compiler", exit_code=0),
     "PE-01": _Entry(slug="duplicate-proc-definition", severity=Severity.ERROR, phase=2, source="parser", exit_code=1),
     "PE-02": _Entry(slug="unbalanced-braces", severity=Severity.ERROR, phase=2, source="parser", exit_code=1),
     "PE-03": _Entry(slug="ambiguous-short-name", severity=Severity.ERROR, phase=2, source="parser", exit_code=1),

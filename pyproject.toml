@@ -44,6 +44,12 @@ chopper = "chopper.cli.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Ship the built-in tool-command lists inside the wheel so the P4 trace
+# pool (architecture doc §3.10) is populated out-of-the-box without any
+# post-install steps.
+"chopper.data.tool_commands" = ["*.commands"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 120

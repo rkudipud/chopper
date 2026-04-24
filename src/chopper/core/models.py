@@ -603,12 +603,21 @@ class LoadedConfig:
       :class:`ParserService.run` consumes in P2. Glob expansion against
       the real filesystem is **not** done here — that is the compiler's
       responsibility in P3.
+    * ``tool_command_pool`` — frozen set of known external tool-command
+      bare names consulted by P4 trace (see architecture doc §3.10 and
+      ``FR-44``). Composed by :class:`ConfigService` from the always-
+      loaded built-in ``.commands`` files under
+      ``src/chopper/data/tool_commands/`` plus any user lists passed via
+      the CLI flag ``--tool-commands``. The pool is a single flat set of
+      bare names; matching happens on raw token OR namespace-stripped
+      leaf. Empty in unit tests that bypass the CLI layer.
     """
 
     base: BaseJson
     features: tuple[FeatureJson, ...] = ()
     project: ProjectJson | None = None
     surface_files: tuple[Path, ...] = ()
+    tool_command_pool: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         # Feature names are unique (VE-14 is the loader's job; this is a
@@ -834,22 +843,26 @@ class Edge:
       for ``kind in {"source", "iproc_source"}``; empty string when
       ``status != "resolved"``.
     * ``kind`` — ``"proc_call"``, ``"source"``, or ``"iproc_source"``.
-    * ``status`` — ``"resolved"``, ``"ambiguous"``, ``"unresolved"``, or
-            ``"dynamic"``.
+    * ``status`` — ``"resolved"``, ``"ambiguous"``, ``"unresolved"``,
+      ``"dynamic"``, or ``"tool_command"``. The ``"tool_command"`` status
+      is reported for call tokens whose raw name or namespace-stripped
+      leaf matches the P4 tool-command pool (see architecture doc §3.10
+      and ``FR-44``); those edges carry ``diagnostic_code="TI-01"``.
     * ``token`` — the raw call token the parser extracted. Retained for
       diagnostic rendering and for downstream tooling that wants to show
       the user what was written on the page.
     * ``line`` — 1-indexed source line at which the token was recorded.
       When the parser does not retain per-token line numbers, the tracer
       stamps the enclosing proc's ``body_start_line`` as a fallback.
-    * ``diagnostic_code`` — the ``TW-*`` code associated with this edge
-      when ``status != "resolved"``; ``None`` for resolved edges.
+    * ``diagnostic_code`` — the ``TW-*`` / ``TI-*`` code associated with
+      this edge when ``status != "resolved"``; ``None`` for resolved
+      edges.
     """
 
     caller: str
     callee: str
     kind: Literal["proc_call", "source", "iproc_source"]
-    status: Literal["resolved", "ambiguous", "unresolved", "dynamic"]
+    status: Literal["resolved", "ambiguous", "unresolved", "dynamic", "tool_command"]
     token: str
     line: int
     diagnostic_code: str | None = None

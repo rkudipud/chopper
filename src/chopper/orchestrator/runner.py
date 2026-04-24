@@ -106,7 +106,7 @@ class ChopperRunner:
 
             # P4 — Trace (reporting-only; no gate).
             ctx.progress.phase_started(Phase.P4_TRACE)
-            graph = TracerService().run(ctx, manifest, parsed)
+            graph = TracerService().run(ctx, manifest, parsed, loaded)
             ctx.progress.phase_done(Phase.P4_TRACE)
 
             if not ctx.config.dry_run:

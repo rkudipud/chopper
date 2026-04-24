@@ -28,10 +28,11 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | `VW` Validation Warnings | VW-01–VW-20 | 18 | 2 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
 | `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
+| `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **69** | **36** | **105** | |
+| **Total** | | **70** | **40** | **110** | |
 
 ---
 
@@ -125,6 +126,17 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | TW-03 | `dynamic-call-form` | compiler | 0 | Dynamic or syntactically unresolvable call form (`$cmd`, `eval`, `uplevel`) — cannot statically trace | Add missing dependency explicitly to `procedures.include` if needed; review call site |
 | TW-04 | `cycle-in-call-graph` | compiler | 0 | Cycle detected in proc call graph (e.g., A → B → A or self-recursion A → A) | Both procs are included in the reported call tree (reporting-only); survival requires explicit include |
 | — | — | — | — | **TW-05 through TW-10 reserved** | — |
+
+---
+
+## 4a. Trace Info — `TI-01` through `TI-05`
+
+> Severity **info** (exit 0). Emitted during Phase 4 (Trace) by the compiler. `TI-*` codes do **not** count against the `--strict` warning tally — they are observational only. Added in 0.5.0 alongside architecture doc §3.10 (Tool-Command Pool) and FR-44.
+
+| Code | Slug | Source | Exit | Description | Recovery Hint |
+| --- | --- | --- | --- | --- | --- |
+| TI-01 | `known-tool-command` | compiler | 0 | Call token did not resolve to any in-domain canonical proc but its raw name or namespace-stripped leaf is a member of the **tool-command pool** (§3.10 — built-in `.commands` files shipped under `src/chopper/data/tool_commands/` plus any user lists passed via `--tool-commands`). Emitted *instead of* `TW-02 unresolved-proc-call`; graph edge is recorded with `status = "tool_command"`. | None — informational; the token is an external EDA tool command (PrimeTime, Formality, Tempus, etc.). If the token is in fact an in-domain proc, add it to `procedures.include` or fix the call site. |
+| — | — | — | — | **TI-02 through TI-05 reserved** | — |
 
 ---
 

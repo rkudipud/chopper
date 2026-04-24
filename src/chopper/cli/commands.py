@@ -85,6 +85,7 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
     project_path: Path | None = None
     base_path: Path | None = None
     feature_paths: tuple[Path, ...] = ()
+    tool_command_paths: tuple[Path, ...] = ()
 
     if getattr(args, "project", None) is not None:
         project_path = Path(args.project).resolve()
@@ -93,6 +94,12 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
             base_path = Path(args.base).resolve()
         if getattr(args, "features", None):
             feature_paths = tuple(Path(p).resolve() for p in args.features.split(",") if p.strip())
+
+    # ``--tool-commands`` is ``action="append"`` on both ``validate`` and
+    # ``trim``; the attribute is absent on other subcommands. Treat
+    # missing / empty identically.
+    raw_tc = getattr(args, "tool_commands", None) or []
+    tool_command_paths = tuple(Path(p).resolve() for p in raw_tc)
 
     return RunConfig(
         domain_root=domain_root,
@@ -103,6 +110,7 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
         project_path=project_path,
         base_path=base_path,
         feature_paths=feature_paths,
+        tool_command_paths=tool_command_paths,
     )
 
 

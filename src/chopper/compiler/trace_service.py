@@ -41,6 +41,7 @@ from chopper.core.models import (
     CompiledManifest,
     DependencyGraph,
     Edge,
+    LoadedConfig,
     ParseResult,
     ProcEntry,
 )
@@ -60,7 +61,21 @@ __all__ = ["TracerService"]
 class TracerService:
     """Phase 4 BFS trace service."""
 
-    def run(self, ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult) -> DependencyGraph:
+    def run(
+        self,
+        ctx: ChopperContext,
+        manifest: CompiledManifest,
+        parsed: ParseResult,
+        loaded: LoadedConfig | None = None,
+    ) -> DependencyGraph:
+        # ``loaded`` is the source of the tool-command pool (see
+        # architecture doc §3.10 and FR-44). Accept ``None`` so unit
+        # tests that exercise the tracer in isolation keep their
+        # existing call sites — an empty frozenset means no token will
+        # ever be downgraded from TW-02 to TI-01, matching pre-0.5.0
+        # behaviour exactly.
+        tool_pool: frozenset[str] = loaded.tool_command_pool if loaded is not None else frozenset()
+
         seeds: tuple[str, ...] = tuple(sorted(manifest.proc_decisions.keys()))
         # Only seeds that exist in the parsed index can drive the walk;
         # everything else is already covered by VE-08 (proc-not-in-file)
@@ -106,6 +121,7 @@ class TracerService:
                     token=token,
                     qname_lookup=qname_lookup,
                     visited=visited,
+                    tool_pool=tool_pool,
                 )
                 edges.append(edge)
                 if edge.status == "resolved" and edge.callee not in visited:
@@ -134,11 +150,15 @@ class TracerService:
 
         sorted_nodes = tuple(sorted(nodes))
         pt = tuple(sorted(set(sorted_nodes) - set(valid_seeds)))
+        # ``unresolved_tokens`` reports genuinely-unresolved call tokens
+        # (TW-01 / TW-02 / TW-03). ``tool_command`` edges are
+        # informational (TI-01) and do NOT belong here — they represent
+        # tokens that were intentionally downgraded via the pool.
         unresolved = tuple(
             sorted(
                 (e.caller, e.token, e.line, e.diagnostic_code or "")
                 for e in edges
-                if e.status != "resolved" and e.diagnostic_code is not None
+                if e.status not in ("resolved", "tool_command") and e.diagnostic_code is not None
             )
         )
 
@@ -164,11 +184,13 @@ def _resolve_token(
     token: str,
     qname_lookup: dict[str, tuple[str, ...]],
     visited: set[str],
+    tool_pool: frozenset[str],
 ) -> Edge:
     """Resolve ``token`` under the lexical namespace contract.
 
     Returns exactly one :class:`Edge` per call site. Emits ``TW-01`` /
-    ``TW-02`` / ``TW-03`` diagnostics as side effects via ``ctx.diag``.
+    ``TW-02`` / ``TW-03`` / ``TI-01`` diagnostics as side effects via
+    ``ctx.diag``. See architecture doc §5.4 for the full six-step ladder.
     """
     caller_cn = caller.canonical_name
     line = caller.body_start_line  # parser doesn't pin per-token lines yet
@@ -212,6 +234,24 @@ def _resolve_token(
         )
 
     if matched_canonical is None:
+        # Tool-command pool check (architecture doc §3.10). The pool is
+        # consulted ONLY on the TW-02 branch — after the lexical ladder
+        # has failed to resolve the token to an in-domain canonical
+        # proc. Matching is on raw token OR namespace-stripped leaf so
+        # both ``get_app_var`` and ``::pt::get_app_var`` downgrade.
+        leaf = token.rsplit("::", 1)[-1] if "::" in token else token
+        if token in tool_pool or leaf in tool_pool:
+            _emit_ti01(ctx, caller_cn, token, line)
+            return Edge(
+                caller=caller_cn,
+                callee="",
+                kind="proc_call",
+                status="tool_command",
+                token=token,
+                line=line,
+                diagnostic_code="TI-01",
+            )
+
         _emit_tw02(ctx, caller_cn, token, line)
         return Edge(
             caller=caller_cn,
@@ -383,6 +423,28 @@ def _emit_tw02(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> No
             ),
             line_no=line,
             hint="If this proc is needed, add it explicitly or verify it lives in external libraries",
+        )
+    )
+
+
+def _emit_ti01(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> None:
+    """Emit ``TI-01 known-tool-command`` — the pool-match informational variant of TW-02.
+
+    Emitted from the P4 tracer when a call token's raw name or
+    namespace-stripped leaf is a member of the tool-command pool (see
+    architecture doc §3.10 and ``FR-44``). Exit code 0, does not count
+    against ``--strict``. The edge carries ``status="tool_command"``.
+    """
+    ctx.diag.emit(
+        Diagnostic.build(
+            "TI-01",
+            phase=Phase.P4_TRACE,
+            message=(
+                f"Proc call {token!r} in {caller_cn!r} matches the tool-command pool "
+                f"(external EDA tool command; not an in-domain proc)"
+            ),
+            line_no=line,
+            hint=None,
         )
     )
 

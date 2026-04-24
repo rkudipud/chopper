@@ -14,11 +14,13 @@ from pathlib import Path
 
 from chopper.compiler import TracerService
 from chopper.core.models import (
+    BaseJson,
     CompiledManifest,
     DependencyGraph,
     Edge,
     FileProvenance,
     FileTreatment,
+    LoadedConfig,
     ParsedFile,
     ParseResult,
     ProcDecision,
