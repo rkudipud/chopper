@@ -5,6 +5,10 @@
   "vendor": "synopsys",
   "tool": "my_tool",
   "description": "Full base with all three sections — files, procedures, and stages. Maximum control: files define the inclusion boundary, procs control granular trimming, and stages drive run-file and stack generation.",
+  "options": {
+    "cross_validate": true,
+    "generate_stack": true
+  },
   "files": {
     "include": [
       "setup.tcl",

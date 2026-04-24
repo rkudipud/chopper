@@ -109,13 +109,49 @@ Equivalent JSON stage definition:
 ```
 
 > **What Chopper emits:**  
-> Chopper writes the generated `<stage>.tcl` file only. It does not auto-write a scheduler stack file. Use the field mapping above when you need to maintain a stack file by hand.
+> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to also emit one `<stage>.stack` per resolved stage — see the auto-generation subsection below.
 >
 > **Note on `load_from` vs `dependencies`:**  
 > `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). It is **not** the stack `D` line.  
 > `dependencies` is the explicit stack `D` line and controls scheduler execution order.
 >
 > **Note on optional stack files:** If you are not using stages, keep your stack file workflow separate. Chopper will still trim your domain files and procs (F1 + F2) when you provide base/feature JSONs.
+
+### 2.1 Auto-generation via `options.generate_stack` (new, untested)
+
+> **Status:** This option is newly implemented and has not yet been exercised against real customer domains. Bug reports, behavioural feedback, and descriptions of how your scheduler consumes stack files are actively solicited.
+
+Set `"generate_stack": true` in the base JSON `options` block to have Chopper emit one `<stage>.stack` file alongside each `<stage>.tcl`. The flag has no effect when the base declares no stages.
+
+```json
+{
+  "$schema": "chopper/base/v1",
+  "domain": "my_domain",
+  "options": { "generate_stack": true },
+  "stages": [ ... ]
+}
+```
+
+**Emitted format (one file per stage):**
+
+```
+# Chopper-generated stack: <name>
+N <name>
+J <command>            # omitted when command is empty
+L <c1> <c2> ...        # omitted when exit_codes is empty
+D <dependency>         # always emitted; see derivation rules below
+I <input>              # one line per entry; block omitted when empty
+O <output>             # one line per entry; block omitted when empty
+R <run_mode>           # always emitted ("serial" or "parallel")
+```
+
+**`D`-line derivation (in order):**
+
+1. If `dependencies` is non-empty → one `D <dep>` line per entry, in authored order.
+2. Else if `load_from` is non-empty → a single `D <load_from>` line.
+3. Else → a bare `D` line (first stage, no predecessor).
+
+Generated `.stack` files participate in the `compiled_manifest.json`, trimmer skip-set, and audit bundle exactly like generated `.tcl` files (treatment `GENERATED`, reason `fi-literal`).
 
 ---
 
@@ -149,6 +185,7 @@ Equivalent JSON stage definition:
 | `tool` | string | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | string | No | Human-readable summary |
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
+| `options.generate_stack` | boolean | No | Emit one `<stage>.stack` per resolved stage (see §2.1). Default: `false` |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |

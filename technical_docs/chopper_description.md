@@ -368,6 +368,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 | `tool` | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | No | Human-readable summary |
 | `options.cross_validate` | No | Cross-validate F3 run-file output against the F1/F2 surviving set. When `true` (default), every step in every surviving stage is checked against the set of files and procs that survived trim; missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) — all warnings, never errors. Set to `false` to suppress those warnings when F3 intentionally references content outside the trimmed domain. |
+| `options.generate_stack` | No | When `true`, F3 emits one `<stage>.stack` file per resolved stage alongside `<stage>.tcl` (N/J/L/D/I/O/R format derived from the stage's authored fields; see §3.6). Default: `false`. No effect when `stages` is empty. |
 | `files.include` | No* | Glob patterns or literal paths to include |
 | `files.exclude` | No | Glob patterns to exclude |
 | `procedures.include` | No* | Proc-level includes — array of `{ file, procs[] }` |
@@ -556,12 +557,12 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 
 ### 3.6 F3 — Run-File Generation
 
-F3 generates stage-based run files from JSON stage definitions. Users who want generated run scripts define stages; users who still maintain scheduler stack files author those stack files separately from the same stage metadata, or skip stages entirely.
+F3 generates stage-based run files from JSON stage definitions. Users who want generated run scripts define stages; users who still maintain scheduler stack files author those stack files separately from the same stage metadata, or skip stages entirely. When the base JSON sets `options.generate_stack: true`, F3 additionally emits one `<stage>.stack` file per resolved stage alongside `<stage>.tcl` using the same authored metadata.
 
 | Behavior | Description |
 |---|---|
 | **Input unit** | Ordered `stages` array in base JSON; `flow_actions` in feature JSONs |
-| **Output unit** | `<stage>.tcl` (when stages are defined). Any scheduler stack file remains manually authored. |
+| **Output unit** | `<stage>.tcl` (always, when stages are defined). Additionally `<stage>.stack` when `options.generate_stack` is `true` — otherwise any scheduler stack file remains manually authored. |
 | **Purpose** | Build clean project-facing run orchestration for domains that want generated run scripts with injectable step sequences |
 
 **`stageDefinition` fields:**
@@ -582,6 +583,21 @@ F3 generates stage-based run files from JSON stage definitions. Users who want g
 > **`run_mode` semantics.** `run_mode` is advisory metadata surfaced to the scheduler via the stack `R` line; Chopper itself does not parallelize trim execution. Its only effect is to annotate the generated stack entry. Default is `"serial"`.
 
 > **`load_from` vs `dependencies`:** `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). `dependencies` is the stack `D` line controlling scheduler execution order. They serve different purposes.
+
+**Stack-file auto-generation (`options.generate_stack`).** When the base JSON sets `options.generate_stack: true`, F3 also emits one `<stage>.stack` per resolved stage. The file contains one record per stage rendered as:
+
+```
+# Chopper-generated stack: <name>
+N <name>
+J <command>         (omitted when command is empty)
+L <c1> <c2> ...     (omitted when exit_codes is empty)
+D <dependency>      (always; see derivation below)
+I <input>           (one line per entry; omitted when empty)
+O <output>          (one line per entry; omitted when empty)
+R <run_mode>        (always; "serial" or "parallel")
+```
+
+The `D` line is derived in this order: (1) if `dependencies` is non-empty, emit one `D <dep>` line per entry in authored order; (2) else if `load_from` is non-empty, emit `D <load_from>`; (3) else emit a bare `D` line. Generated `.stack` files are registered in `CompiledManifest.file_decisions` as `GENERATED` (reason `fi-literal`), skipped by the trimmer, and surfaced in the audit bundle exactly like generated `.tcl` files. The flag has no effect when `stages` is empty. Default is `false`.
 
 Steps are stored and processed as **plain strings** — a step may be a Tcl filename, a raw `source` command, an ivar-based reference, or a conditional directive such as `#if` / `#else` / `#endif`. See R4 for the rationale.
 
@@ -2260,7 +2276,7 @@ This base example intentionally shows:
 - Raw `source` usage, normal step files, and optional step references
 - Stage-level `load_from` (required), optional `dependencies`, `exit_codes`, `command`, `inputs`, `outputs`, `language`, and `run_mode`
 
-For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, and `outputs` -> `O`. Chopper emits only the generated `<stage>.tcl` scripts; use this mapping when you need to author or maintain a scheduler stack file manually.
+For users who define stages, the optional mapping to stack files is direct: `name` -> `N`, `command` -> `J`, `exit_codes` -> `L`, `dependencies` -> `D`, `inputs` -> `I`, `outputs` -> `O`, and `run_mode` -> `R`. By default Chopper emits only the generated `<stage>.tcl` scripts; set `options.generate_stack: true` to additionally auto-generate `<stage>.stack` files from this mapping (see §3.6), or apply the mapping by hand when maintaining an external stack file.
 
 **Validation rule:** an entry in `procedures.include` or `procedures.exclude` with an empty `procs` array (`"procs": []`) is a **hard error (`VE-03`)**. For include: if the author intended to keep the whole file, the correct action is to move the file into `files.include`. For exclude: if there's nothing to exclude, omit the entry entirely. Chopper rejects empty procs arrays during validation and dry-run, with an actionable error message.
 
@@ -2783,7 +2799,7 @@ The GUI-readiness surface is defined in §5.11 above. At the architecture level 
 
 | ID | Question | Status |
 |---|---|---|
-| OQ-01 | For `.stack` files, which domains generate them and which domains keep them as-is? | **Open — domain-specific** |
+| OQ-01 | For `.stack` files, which domains generate them and which domains keep them as-is? | **Resolved** — per-domain, author-controlled via `options.generate_stack` in the base JSON. Default `false` (Chopper does not touch stack files). Setting it to `true` causes F3 to emit `<stage>.stack` alongside `<stage>.tcl` using the derivation rules in §3.6. |
 | OQ-02 | For each domain, what exact template-generated outputs are required under F3? | **Open — domain-specific** |
 | OQ-03 | Which domains should be used first as implementation proving grounds? | **Open — decided by domain leadership** |
 
@@ -3022,7 +3038,7 @@ This log records the conscious design decisions that shaped the current document
 | **ivar** | Internal variable registry used by TFM code (`ivar(key)`); treated as configuration, not trimmed. |
 | **iproc_source** | TFM sourcing primitive (`iproc_source -file <path>`); understood by the parser, flags `-optional`, `-use_hooks`, `-quiet`, `-required`. |
 | **Hook file** | Pre/post extension point (`pre_*.tcl`, `post_*.tcl`) loaded by `-use_hooks`; reported in diagnostics, copied only when explicitly included. |
-| **Stack file** | Optional scheduler metadata file (`N`/`J`/`L`/`D`/`I`/`O`/`R` lines); authored manually from the same stage metadata when needed. |
+| **Stack file** | Optional scheduler metadata file (`N`/`J`/`L`/`D`/`I`/`O`/`R` lines). Authored manually by default; auto-generated per-stage when the base JSON sets `options.generate_stack: true` (see §3.6). |
 | **Signoff** | Final verification stage of the VLSI flow (timing, power, DFT, formality); Chopper's primary adoption target. |
 | **Domain boundary** | The directory tree rooted at the domain directory; Chopper never reads, writes, or backs up outside this boundary. |
 | **Dry-run** | `--dry-run` mode: full pipeline simulation producing `.chopper/` artifacts without modifying any domain files. |

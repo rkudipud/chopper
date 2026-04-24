@@ -265,6 +265,35 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 ---
 
+## Changelog
+
+Major milestones only. The canonical release version lives in [VERSION.md](VERSION.md); the JSON Kit maintains its own version in [json_kit/VERSION.txt](json_kit/VERSION.txt).
+
+### 0.3.0 — 2026-04-24
+
+- **F3 stack-file auto-generation (`options.generate_stack`).** Base JSON gains an optional `options.generate_stack` boolean (default `false`). When enabled alongside `stages`, the generator (P5b) emits one `<stage>.stack` per resolved stage alongside `<stage>.tcl`, using the N/J/L/D/I/O/R format documented in the bible §3.6. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Generated `.stack` files participate in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like `.tcl` run scripts. **This feature is newly implemented and has not yet been exercised against real customer domains — feedback, bug reports, and expected-behaviour descriptions are actively solicited.**
+- JSON Kit schema `chopper/base/v1` extended with the new property; authoring guide §2.1 added; example 03 and example 07 opted in for demonstration.
+- JSON Kit version bumped to 1.1.0.
+
+### 0.2.0 — 2026-04-23
+
+- Release channel and packaging metadata stabilized; canonical version surface consolidated into [VERSION.md](VERSION.md) with a small list of version-carrying files.
+- Documentation suite modernized: user manual expanded with detailed JSON usage and invocation examples; audience-targeted formatting pass across all technical guides.
+- Repository rebranded to **Chopper** (from earlier internal name), with all schemas, help text, and audit artifacts updated in lockstep.
+
+### 0.1.x — Early Buildout
+
+- **CLI surface complete.** Three subcommands — `validate`, `trim`, `cleanup` — with `--project`, `--base`, feature selection, `--dry-run`, and `--strict` all wired through.
+- **Pre- and post-trim validators.** `validate_pre()` and `validate_post()` enforce schema, structural, and cross-validation invariants; `VE-*` / `VW-*` / `VI-*` families registered and emitted.
+- **Trimmer + generator path.** File-level, proc-level, and stage-based trimming land; `GeneratorService` emits `<stage>.tcl` run files from resolved stages.
+- **Parser hardening.** Tokenizer state machine and proc extractor cover the Tcl edge cases catalogued in [technical_docs/TCL_PARSER_SPEC.md](technical_docs/TCL_PARSER_SPEC.md) and the `tests/fixtures/edge_cases/` corpus.
+- **Audit bundle.** Every run (success or failure) writes `.chopper/` with `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, and JSON-Lines event log.
+- **JSON Kit extraction.** Base/feature/project schemas, validator, authoring guide, and eleven worked examples packaged as a standalone kit under `json_kit/` so domain owners can author JSON before the runtime ships.
+- **Agentic workflow.** Chopper Buildout Agent and Chopper Domain Companion shipped with the repository, each backed by a local memory file under `.github/agent_memory/`.
+- **Spec-first foundation.** Eight-phase pipeline (P0–P7), R1 merge rules, diagnostic-code registry, and risks/pitfalls catalogue established as the authoritative basis for every subsequent change.
+
+---
+
 ## Acknowledgments
 
 Chopper was inspired by and builds on the foundational thinking behind:

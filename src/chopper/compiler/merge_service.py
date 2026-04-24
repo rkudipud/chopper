@@ -144,6 +144,7 @@ class CompilerService:
             proc_decisions=proc_decisions,
             provenance=provenance,
             stages=stages,
+            generate_stack=loaded.base.options.generate_stack,
         )
 
 
@@ -166,6 +167,11 @@ def _register_generated_stage_files(
     them (generator owns the writes) and the audit bundle (P7) can
     surface them in ``compiled_manifest.json``.
 
+    When ``base.options.generate_stack`` is ``True``, the same registration
+    is performed for ``<stage>.stack`` so the stack files participate in
+    the manifest, trimmer skip-set, and audit bundle just like the
+    ``.tcl`` run scripts.
+
     Collisions with trimmer-managed paths are a programmer-authoring
     error; we raise :class:`ChopperError` (exit 3) rather than invent
     a cross-phase diagnostic.
@@ -183,23 +189,43 @@ def _register_generated_stage_files(
             contributors.append(f"{feature.name}:flow_actions")
     input_sources = tuple(sorted(contributors))
 
+    emit_stack = loaded.base.options.generate_stack
+
     for stage in stages:
-        path = Path(f"{stage.name}.tcl")
-        if path in file_decisions:
+        tcl_path = Path(f"{stage.name}.tcl")
+        if tcl_path in file_decisions:
             raise ChopperError(
-                f"F3 generated path {path.as_posix()!r} collides with an "
+                f"F3 generated path {tcl_path.as_posix()!r} collides with an "
                 f"existing file decision; rename the stage or drop the "
                 f"colliding files.* entry"
             )
-        file_decisions[path] = FileTreatment.GENERATED
-        provenance[path] = FileProvenance(
-            path=path,
+        file_decisions[tcl_path] = FileTreatment.GENERATED
+        provenance[tcl_path] = FileProvenance(
+            path=tcl_path,
             treatment=FileTreatment.GENERATED,
             reason="fi-literal",
             input_sources=input_sources,
             vetoed_entries=(),
             proc_model=None,
         )
+
+        if emit_stack:
+            stack_path = Path(f"{stage.name}.stack")
+            if stack_path in file_decisions:
+                raise ChopperError(
+                    f"F3 generated path {stack_path.as_posix()!r} collides with an "
+                    f"existing file decision; rename the stage, disable "
+                    f"options.generate_stack, or drop the colliding files.* entry"
+                )
+            file_decisions[stack_path] = FileTreatment.GENERATED
+            provenance[stack_path] = FileProvenance(
+                path=stack_path,
+                treatment=FileTreatment.GENERATED,
+                reason="fi-literal",
+                input_sources=input_sources,
+                vetoed_entries=(),
+                proc_model=None,
+            )
 
     # CompiledManifest requires lex-sorted keys by POSIX form. Re-sort
     # file_decisions and provenance in place after insertion.

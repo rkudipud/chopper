@@ -487,12 +487,19 @@ FlowAction = (
 class BaseOptions:
     """``options`` block in base JSON.
 
-    Only one flag in v1: ``cross_validate``. Defaults to ``True`` —
-    post-trim cross-validation emits ``VW-14`` / ``VW-15`` / ``VW-16``
-    unless authors opt out.
+    * ``cross_validate`` — defaults to ``True``; post-trim
+      cross-validation emits ``VW-14`` / ``VW-15`` / ``VW-16``
+      unless authors opt out.
+    * ``generate_stack`` — defaults to ``False``; when ``True`` and
+      the base JSON declares at least one stage, Chopper emits one
+      ``<stage>.stack`` file per resolved stage alongside the
+      ``<stage>.tcl`` run script. Stack-file format (N/J/L/D/I/O/R)
+      is defined in bible §3.6; derivation rules live in
+      :mod:`chopper.generators.stack_emitter`.
     """
 
     cross_validate: bool = True
+    generate_stack: bool = False
 
 
 @dataclass(frozen=True)
@@ -765,6 +772,10 @@ class CompiledManifest:
       no base stage is declared; populated by
             :mod:`chopper.compiler.flow_resolver` when the base JSON declares
             at least one stage.
+    * ``generate_stack`` — mirrored from ``base.options.generate_stack``;
+      when ``True`` the generator (P5b) additionally emits one
+      ``<stage>.stack`` file per resolved stage. Has no effect when
+      ``stages`` is empty.
 
     Invariants enforced by ``__post_init__``:
 
@@ -778,6 +789,7 @@ class CompiledManifest:
     proc_decisions: dict[str, ProcDecision] = field(default_factory=dict)
     provenance: dict[Path, FileProvenance] = field(default_factory=dict)
     stages: tuple[StageSpec, ...] = ()
+    generate_stack: bool = False
 
     def __post_init__(self) -> None:
         fd_keys = [p.as_posix() for p in self.file_decisions]

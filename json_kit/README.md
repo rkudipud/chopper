@@ -1,6 +1,6 @@
 # 🧰 Chopper JSON Kit — Standalone Package
 
-![Version](https://img.shields.io/badge/version-1.0.2-0a7a3d)
+![Version](https://img.shields.io/badge/version-1.1.0-0a7a3d)
 ![Status](https://img.shields.io/badge/status-shippable%20standalone-0f62fe)
 ![Schemas](https://img.shields.io/badge/schemas-base%20%7C%20feature%20%7C%20project-8a3ffc)
 
@@ -21,7 +21,7 @@ Chopper trims EDA tool domain codebases via three JSON configuration files:
 
 You author these JSONs now. When Chopper is released, you run `chopper trim --project project.json` and it does the rest.
 
-If your JSON defines `stages`, Chopper emits generated `<stage>.tcl` run files. Scheduler stack files remain manually authored; use the same stage fields as the source for those files when your environment requires them.
+If your JSON defines `stages`, Chopper emits generated `<stage>.tcl` run files. Scheduler stack files are opt-in: set `"options": { "generate_stack": true }` in the base JSON and Chopper will also auto-generate `<stage>.stack` files alongside the run scripts (see the authoring guide §2.1 for the N/J/L/D/I/O/R format). Otherwise stack files remain manually authored from the same stage fields.
 
 ---
 

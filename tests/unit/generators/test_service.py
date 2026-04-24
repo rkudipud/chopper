@@ -77,6 +77,31 @@ def _manifest_with_stages(stages: tuple[StageSpec, ...]) -> CompiledManifest:
     )
 
 
+def _manifest_with_stages_and_stack(stages: tuple[StageSpec, ...]) -> CompiledManifest:
+    """Manifest mirroring compiler output when ``generate_stack`` is on."""
+
+    file_decisions: dict[Path, FileTreatment] = {}
+    provenance: dict[Path, FileProvenance] = {}
+    for stage in stages:
+        for path in (Path(f"{stage.name}.tcl"), Path(f"{stage.name}.stack")):
+            file_decisions[path] = FileTreatment.GENERATED
+            provenance[path] = FileProvenance(
+                path=path,
+                treatment=FileTreatment.GENERATED,
+                reason="fi-literal",
+                input_sources=("base:stages",),
+            )
+    file_decisions = {k: file_decisions[k] for k in sorted(file_decisions, key=lambda p: p.as_posix())}
+    provenance = {k: provenance[k] for k in sorted(provenance, key=lambda p: p.as_posix())}
+    return CompiledManifest(
+        file_decisions=file_decisions,
+        proc_decisions={},
+        provenance=provenance,
+        stages=stages,
+        generate_stack=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # stage_emitter
 # ---------------------------------------------------------------------------
@@ -155,6 +180,52 @@ def test_service_no_stages_returns_empty_tuple() -> None:
     assert GeneratorService().run(ctx, manifest) == ()
     # No writes.
     assert not fs.exists(DOMAIN)
+
+
+# ---------------------------------------------------------------------------
+# options.generate_stack → .stack emission
+# ---------------------------------------------------------------------------
+
+
+def test_service_does_not_emit_stack_files_when_flag_off() -> None:
+    ctx, fs = _make_ctx()
+    stages = (StageSpec(name="setup", steps=("a",)),)
+    manifest = _manifest_with_stages(stages)
+    arts = GeneratorService().run(ctx, manifest)
+    assert tuple(a.kind for a in arts) == ("tcl",)
+    assert not fs.exists(DOMAIN / "setup.stack")
+
+
+def test_service_emits_stack_pair_per_stage_when_flag_on() -> None:
+    ctx, fs = _make_ctx()
+    stages = (
+        StageSpec(name="setup", steps=("a",)),
+        StageSpec(name="run", steps=("b",), load_from="setup"),
+    )
+    manifest = _manifest_with_stages_and_stack(stages)
+
+    arts = GeneratorService().run(ctx, manifest)
+    # Ordering: per stage, .tcl immediately precedes .stack.
+    assert tuple((a.source_stage, a.kind) for a in arts) == (
+        ("setup", "tcl"),
+        ("setup", "stack"),
+        ("run", "tcl"),
+        ("run", "stack"),
+    )
+    assert fs.exists(DOMAIN / "setup.stack")
+    assert fs.exists(DOMAIN / "run.stack")
+    assert fs.read_text(DOMAIN / "setup.stack").startswith("# Chopper-generated stack: setup\n")
+
+
+def test_service_dry_run_builds_stack_artifacts_but_writes_nothing() -> None:
+    ctx, fs = _make_ctx(dry_run=True)
+    stages = (StageSpec(name="setup", steps=("a",)),)
+    manifest = _manifest_with_stages_and_stack(stages)
+
+    arts = GeneratorService().run(ctx, manifest)
+    assert tuple(a.kind for a in arts) == ("tcl", "stack")
+    assert not fs.exists(DOMAIN / "setup.tcl")
+    assert not fs.exists(DOMAIN / "setup.stack")
 
 
 # ------------------------------------------------------------------

@@ -8,8 +8,8 @@ This file is the canonical location for product release naming and release-numbe
 | --- | --- |
 | Product name | Chopper |
 | Release channel | Stable |
-| Release version | 0.2.0 |
-| Release date | 2026-04-23 |
+| Release version | 0.3.0 |
+| Release date | 2026-04-24 |
 
 ## Version-Carrying Files
 

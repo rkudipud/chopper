@@ -4,6 +4,9 @@
   "owner": "platform-team",
   "tool": "my_tool",
   "description": "Base with stage definitions only. Use when the domain is purely flow-driven (no proc trimming needed) and you want Chopper to generate the run files and stack entries.",
+  "options": {
+    "generate_stack": true
+  },
   "stages": [
     {
       "name": "setup",

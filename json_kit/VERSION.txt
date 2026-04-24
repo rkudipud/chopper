@@ -1,4 +1,4 @@
-1.0.2
+1.1.0
 
 Schema versions included:
   base-v1.schema.json    — chopper/base/v1    (Draft-07)
@@ -9,6 +9,13 @@ Released: April 2026
 Status: Standalone (pre-runtime shippable)
 
 Changelog:
+  1.1.0 — Stack-file auto-generation option
+           * Added options.generate_stack (boolean, default false) to base JSON schema
+           * When enabled with stages defined, Chopper emits one <stage>.stack per resolved stage
+             alongside <stage>.tcl using the N/J/L/D/I/O/R format
+           * Authoring guide §2.1 documents the derivation rules (dependencies > load_from > bare D)
+           * example 03 (base_stages_only) and example 07 (base_full) demonstrate the new option
+           * Feature is newly implemented; real-domain feedback and bug reports actively solicited
   1.0.2 — Agent workflow and deployment readiness update
            * Clarified collaborative JSON authoring workflow and user-in-the-loop analysis expectations
            * Added explicit domain-boundary confirmation rules and prohibition on scanning outside user-confirmed scope

@@ -40,6 +40,11 @@
           "type": "boolean",
           "default": true,
           "description": "Whether post-trim validation emits the documented F3 cross-validation warnings (VW-14, VW-15, VW-16)."
+        },
+        "generate_stack": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the base declares at least one stage, Chopper emits one <stage>.stack file per resolved stage alongside the <stage>.tcl run script. The .stack format uses N/J/L/D/I/O/R records derived directly from the authored stage fields; see the JSON authoring guide for details. No effect when stages is empty."
         }
       },
       "additionalProperties": false

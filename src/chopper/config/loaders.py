@@ -215,7 +215,10 @@ def load_base(
     :returns: Populated :class:`BaseJson` instance.
     """
     options_raw = raw.get("options") or {}
-    options = BaseOptions(cross_validate=options_raw.get("cross_validate", True))
+    options = BaseOptions(
+        cross_validate=options_raw.get("cross_validate", True),
+        generate_stack=options_raw.get("generate_stack", False),
+    )
 
     stages = tuple(_load_stage_def(s) for s in (raw.get("stages") or []))
     files = _load_files_section(raw.get("files") or {})
