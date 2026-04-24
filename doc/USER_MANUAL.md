@@ -190,7 +190,7 @@ Expected Output:
 1. Chopper renames `my_domain/` to `my_domain_backup/`
 2. Chopper builds a new trimmed `my_domain/`
 3. Chopper writes `.chopper/` inside the rebuilt domain
-4. If `stages` are defined, Chopper writes one generated `<stage>.tcl` file per resolved stage
+4. If `stages` are defined, Chopper writes one generated `<stage>.tcl` file per resolved stage (plus a matching `<stage>.stack` when `options.generate_stack: true`)
 
 > [!IMPORTANT]
 > **Always validate and dry-run first.** Run live trim only after reviewing `.chopper/compiled_manifest.json` and confirming the domain root is correct.
@@ -232,18 +232,20 @@ Common Failure Modes:
 - Operators edit files directly inside the trimmed domain and expect those changes to survive a re-trim
 - Backup content no longer matches the manifest assumptions, which can trigger backup-content diagnostics
 
-### Task 5. Use Stage JSON and Manual Stack Files Correctly
+### Task 5. Use Stage JSON and Stack Files Correctly
 
 Inputs:
 
 - Base or feature JSON containing `stages` or `flow_actions`
+- Optional: `options.generate_stack: true` in the base JSON to auto-emit `<stage>.stack`
 
 Procedure:
 
 1. Define stage names, command lines, dependencies, and steps in JSON
-2. Run `chopper validate` or `chopper trim --dry-run`
-3. Inspect `.chopper/compiled_manifest.json` for `GENERATED` entries
-4. Run live `chopper trim` when the compiled stage plan is correct
+2. Optionally set `options.generate_stack: true` in the base JSON to also auto-emit scheduler stack files
+3. Run `chopper validate` or `chopper trim --dry-run`
+4. Inspect `.chopper/compiled_manifest.json` for `GENERATED` entries
+5. Run live `chopper trim` when the compiled stage plan is correct
 
 Expected Output:
 
@@ -252,22 +254,26 @@ Expected Output:
 | No `stages` | No generated run files | No generated run files |
 | `stages` in base only | One `<stage>.tcl` per base stage | Generated entries in the manifest |
 | `stages` plus feature `flow_actions` | One `<stage>.tcl` per final compiled stage | Generated entries in the manifest |
+| `stages` with `options.generate_stack: true` | One `<stage>.tcl` **and** one `<stage>.stack` per resolved stage | Both files as `GENERATED` entries in the manifest |
 
-Stack files stay manual. Use the same stage metadata to author scheduler lines yourself:
+Stage field → stack line mapping (used by the auto-generator and for hand-authored stack files):
 
-| Stage field | Manual stack line |
+| Stage field | Stack line |
 | --- | --- |
 | `name` | `N <name>` |
 | `command` | `J <command>` |
 | `exit_codes` | `L <codes>` |
-| `dependencies` | `D <deps>` |
+| `dependencies` | `D <deps>` (one `D` line per dependency; falls back to `load_from`, else bare `D`) |
 | `inputs` | `I <artifact>` |
 | `outputs` | `O <artifact>` |
 | `run_mode` | `R <value>` |
 
+When `options.generate_stack` is `false` (the default), scheduler stack files stay manual and Chopper does not touch them — use the table above to author them by hand.
+
 Common Failure Modes:
 
-- Expecting Chopper to auto-write the scheduler stack file
+- Setting `options.generate_stack: true` but authoring no `stages` (the flag is a no-op in that case)
+- Hand-editing a generated `<stage>.stack` and expecting the edit to survive a re-trim
 - Confusing `load_from` with scheduler dependency ordering
 
 ### Task 6. Start From the Correct JSON Example

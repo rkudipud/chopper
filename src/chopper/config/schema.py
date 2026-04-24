@@ -74,9 +74,7 @@ def _schema_dir() -> Path:
     repo_root = here.parent.parent.parent.parent  # src/chopper/config/schema.py → repo root
     schemas = repo_root / "schemas"
     if not schemas.is_dir():
-        raise RuntimeError(
-            f"schemas/ not found at {schemas}; check the repo layout (schemas/ must sit alongside src/)"
-        )
+        raise RuntimeError(f"schemas/ not found at {schemas}; check the repo layout (schemas/ must sit alongside src/)")
     return schemas
 
 

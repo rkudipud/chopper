@@ -12,8 +12,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
 
 try:
     import jsonschema
@@ -49,8 +49,8 @@ def iter_json_files(paths: Iterable[Path]) -> Iterable[Path]:
                     yield candidate
 
 
-def load_schemas(schema_dir: Path) -> Dict[str, dict]:
-    schemas: Dict[str, dict] = {}
+def load_schemas(schema_dir: Path) -> dict[str, dict]:
+    schemas: dict[str, dict] = {}
     for schema_id, filename in SCHEMA_IDS.items():
         schema_path = schema_dir / filename
         with schema_path.open("r", encoding="utf-8") as handle:
@@ -58,7 +58,7 @@ def load_schemas(schema_dir: Path) -> Dict[str, dict]:
     return schemas
 
 
-def validate_file(json_file: Path, schemas: Dict[str, dict]) -> Tuple[str, str]:
+def validate_file(json_file: Path, schemas: dict[str, dict]) -> tuple[str, str]:
     try:
         with json_file.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
