@@ -1,0 +1,74 @@
+{
+  // JSON Schema wiring for Chopper authoring files. Gives schema-driven
+  // completion, validation, and hover documentation in any `base.json`,
+  // `*.feature.json`, or `project.json` opened in this workspace —
+  // including every file under `examples/` and any customer JSON the
+  // user drops at the repo root or in a `jsons/` subdirectory.
+  //
+  // The canonical schemas live at repository-root `schemas/` (moved out
+  // of the old `json_kit/` package in 0.3.0). The `$schema` const inside
+  // each JSON file (e.g. `"chopper/base/v1"`) still matches on its own —
+  // these entries are the convenience layer so authors don't have to
+  // configure anything per-file.
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "base.json",
+        "**/base.json",
+        "**/jsons/base.json"
+      ],
+      "url": "./schemas/base-v1.schema.json"
+    },
+    {
+      "fileMatch": [
+        "*.feature.json",
+        "**/*.feature.json",
+        "**/features/*.json"
+      ],
+      "url": "./schemas/feature-v1.schema.json"
+    },
+    {
+      "fileMatch": [
+        "project.json",
+        "**/project.json"
+      ],
+      "url": "./schemas/project-v1.schema.json"
+    }
+  ],
+
+  // Show schema-driven hints inline and surface unknown-property warnings
+  // as the author types, not only on save.
+  "json.validate.enable": true,
+  "json.format.enable": true,
+
+  // Chopper writes UTF-8, LF-normalized JSON. Match the authoring
+  // environment to the runtime so diffs stay stable.
+  "files.eol": "\n",
+  "files.encoding": "utf8",
+
+  // Chopper Python code targets the 3.13 dev venv created by setup.ps1 /
+  // setup.sh / setup.csh / setup.bat. Pointing the Python extension at it
+  // means `chopper`, `pytest`, `ruff`, and `mypy` all resolve against the
+  // right interpreter without a per-workspace prompt.
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.terminal.activateEnvironment": true,
+
+  // Line length 120 is the project's declared style (ruff + .editorconfig).
+  "editor.rulers": [120],
+
+  // Large generated artifacts live under `.chopper/` after a trim run.
+  // Exclude them from the default file watcher and search to keep the
+  // editor responsive; users can still open them explicitly.
+  "files.watcherExclude": {
+    "**/.chopper/**": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true
+  },
+  "search.exclude": {
+    "**/.chopper/**": true,
+    "**/.venv/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.pytest_cache/**": true
+  }
+}
