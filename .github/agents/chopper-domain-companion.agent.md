@@ -809,8 +809,32 @@ Use this exact phrasing — friendly, not alarmist:
 > - The `.chopper/` audit bundle (zip the folder and drag it into the form)
 > - Your `base.json` / `project.json` with sensitive paths removed
 > - A screenshot if the terminal rendering looks wrong
+>
+> If one of those artifacts is unavailable, say why in the form field instead of leaving it blank.
 
 Adjust the phrasing to fit the conversation tone — the key requirement is that you always give them the direct link and the short checklist.
+
+### When helping file the report
+
+When the user asks you to prepare or file the bug report:
+
+- Produce field-by-field answers that match `.github/ISSUE_TEMPLATE/bug_report.yml`.
+- Fill every required field with concrete text from the audit bundle, terminal output, or the user's answers.
+- Never use a filesystem path to an external markdown file as a substitute for the summary or reproduction steps.
+- Never emit empty fenced code blocks, blank sections, or `_No response_`; if evidence is unavailable, write one sentence explaining why.
+- Prefer a compact log excerpt plus an attachment note over pasting megabytes of terminal output.
+- When enough evidence is available, write a JSON payload and run `python scripts/file_bug_report.py --payload <payload> --create` so the GitHub issue is created automatically.
+- Default fallback is the simple local path: if automatic issue creation fails for any reason, keep the generated issue-body file and local bundle, return those paths, and do not require a second pass.
+
+### VS Code Unix upload helper
+
+When the user is in VS Code on a Unix host and has local paths to evidence rather than a pre-zipped attachment:
+
+- Accept absolute Unix paths to `.chopper/`, logs, markdown reports, and screenshots.
+- Package them with `python scripts/package_bug_report.py <paths...>` so the user gets one upload-ready zip.
+- Tell the user exactly where the zip was written and what it contains.
+- If they want to file immediately, use `scripts/file_bug_report.py` to create the GitHub issue body and file the issue automatically when `gh` is available.
+- Never say the attachment was uploaded automatically; GitHub still requires the browser upload step for any raw local zip bundle.
 
 ### What not to do
 

@@ -6,7 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to report a bug. Fill in as much of the form as you can — the more context you provide, the faster we can reproduce and fix it.
+        Thank you for taking the time to report a bug. Fill in every required field with concrete information from the failing run.
+
+        Do not leave the evidence sections blank. If an artifact is unavailable, say why in that field so the report still contains a complete record.
+
+        If you are using the Chopper Domain Companion in VS Code, ask it to `report-chopper-bug` and it can prepare this issue body automatically. Raw local zip attachments, when needed, still use the GitHub attachment UI.
 
         **Before submitting:** check that no existing open issue covers the same problem.
 
@@ -62,11 +66,12 @@ body:
     id: what_happened
     attributes:
       label: What happened?
-      description: Describe the bug clearly. What did you run? What did you expect? What did you get instead?
+      description: Describe the bug directly in this field. Do not answer with only a path to another markdown file.
       placeholder: |
-        1. I ran `chopper trim --project project.json`
-        2. Expected: domain trimmed, audit bundle written to .chopper/
-        3. Got: error message / wrong output / crash
+        Command: `chopper trim --project project.json`
+        Expected: domain trimmed, audit bundle written to .chopper/
+        Actual: PE-02 raised during P2_PARSE and trim stopped before output generation
+        Why this looks wrong: the failing file is Python, not Tcl
     validations:
       required: true
 
@@ -74,7 +79,7 @@ body:
     id: reproduce
     attributes:
       label: Steps to reproduce
-      description: Minimum steps someone else can follow to see the same bug.
+      description: Write the reproduction directly here so a maintainer does not need a separate report file.
       placeholder: |
         1. Create a domain with ...
         2. Author a project.json with ...
@@ -86,28 +91,46 @@ body:
   - type: textarea
     id: terminal_output
     attributes:
-      label: Terminal output
+      label: Terminal output or log excerpt
       description: |
-        Paste the full terminal output here (stdout + stderr). 
+        Paste the failing stdout/stderr here, or paste the most relevant excerpt and say where the full log is attached.
+        Do not leave this blank.
+
         Tip — redirect both streams: `chopper trim --project project.json 2>&1 | tee chopper.log`
+      placeholder: |
+        [P0_STATE] started
+        [P0_STATE] done
+        [P2_PARSE] started
+        ERROR PE-02: [generate_summary_html.py:986] Unbalanced braces: negative depth
+        Summary: 1 error(s), 0 warning(s), 0 info(s); exit 1
       render: text
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: audit_bundle
     attributes:
-      label: .chopper/ audit bundle contents
+      label: Audit artifacts attached or why unavailable
       description: |
-        If Chopper reached the audit phase, paste the relevant content from `.chopper/`:
-        - `diagnostics.json` — all emitted diagnostic codes
-        - `chopper_run.json` — exit code, phase reached, timing
-        - `trim_report.txt` — file/proc decisions (for trim bugs)
+        Tell us what you attached from `.chopper/`, or explain why no audit bundle was produced.
+        Include the most useful files when available:
+        - `diagnostics.json`
+        - `chopper_run.json`
+        - `trim_report.json` or `trim_report.txt`
 
-        You can drag and drop a `.zip` of the `.chopper/` folder directly into this box.
-      render: json
+        If you are filing from VS Code on a Unix host, you can package local evidence first:
+        `python scripts/package_bug_report.py /abs/path/to/.chopper /abs/path/to/report.md`
+
+        If uploads are blocked, paste file paths, key excerpts, or a short explanation instead of leaving this empty.
+      placeholder: |
+        Attached: .chopper.zip containing diagnostics.json, chopper_run.json, and trim_report.json
+
+        or
+
+        No audit bundle: run failed before P7 after PE-02 in P2_PARSE
+      render: text
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: screenshots
@@ -122,13 +145,26 @@ body:
   - type: textarea
     id: json_files
     attributes:
-      label: JSON configuration (base.json / feature JSON / project.json)
+      label: Minimal JSON reproduction or why you cannot share it
       description: |
-        Paste a minimal reproduction of your JSON configuration. Remove any sensitive paths or identifiers.
-        If the full files are large, include only the relevant sections.
-      render: json
+        Paste the smallest failing JSON snippets here. Remove sensitive paths or identifiers.
+        If you cannot share the files verbatim, explain which JSON file and keys matter and what was redacted.
+      placeholder: |
+        base.json:
+        {
+          "domain": "sta_pt",
+          "files": {
+            "include": ["scripts/run_sta.tcl"]
+          }
+        }
+
+        If redacted, explain:
+        - which file(s) matter
+        - which key(s) trigger the bug
+        - what you removed
+      render: text
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: additional_context
@@ -145,7 +181,9 @@ body:
       options:
         - label: I searched existing open issues and this is not a duplicate.
           required: true
-        - label: I included the full terminal output or attached a log file.
-          required: false
-        - label: I attached the `.chopper/` audit bundle or the relevant artifacts from it.
-          required: false
+        - label: I pasted terminal output or a real log excerpt, not an empty code block.
+          required: true
+        - label: I attached audit artifacts or explained why no audit bundle was produced.
+          required: true
+        - label: I pasted a minimal JSON reproduction or explained why I cannot share it verbatim.
+          required: true

@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or usage help
-    url: https://github.com/YOUR_ORG/chopper/discussions
-    about: Ask questions and get help using Chopper in GitHub Discussions.
-  - name: Documentation
-    url: https://github.com/YOUR_ORG/chopper/blob/main/doc/USER_MANUAL.md
-    about: Read the User Manual before opening an issue.
+    url: https://github.com/rkudipud/chopper/blob/main/doc/USER_MANUAL.md
+    about: Read the User Manual before opening a non-bug issue.
+  - name: Diagnostic reference
+    url: https://github.com/rkudipud/chopper/blob/main/technical_docs/DIAGNOSTIC_CODES.md
+    about: Look up diagnostic codes and recovery hints before filing an issue.

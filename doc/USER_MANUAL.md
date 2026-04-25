@@ -80,7 +80,7 @@ What each one really does:
 ## 📋 Operating Tasks
 
 > **When you're stuck on any of the tasks below, ask the Chopper Domain Companion.**
-> Open VS Code Copilot Chat, pick the [Chopper Domain Companion](../.github/agents/chopper-domain-companion.agent.md) agent, and describe your situation — or kick off one of the ready-made prompts under [`.github/prompts/`](../.github/prompts/) (`bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`). The companion is scope-locked to this repo and always reads the current audit bundle before advising.
+> Open VS Code Copilot Chat, pick the [Chopper Domain Companion](../.github/agents/chopper-domain-companion.agent.md) agent, and describe your situation — or kick off one of the ready-made prompts under [`.github/prompts/`](../.github/prompts/) (`bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`, `package-bug-artifacts`). The companion is scope-locked to this repo and always reads the current audit bundle before advising. When `gh` is available, `report-chopper-bug` can create the GitHub issue for you after it prepares the evidence; if not, it falls back automatically to the local issue-body and bundle output.
 
 ### Task 1. Validate a Selection Before You Trim
 

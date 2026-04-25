@@ -58,6 +58,19 @@ A machine-readable stdio wire protocol for a future GUI client is documented in 
 
 GUI-relevant data surfaces (file selection, proc selection, dependency graph, trim stats, JSON viewing, diagnostics) are enumerated in §5.11.5. No additional data models or artifacts are needed — the current pipeline already produces everything a GUI would consume.
 
+### FD-13: Host-Integrated GitHub Issue Attachment Upload
+
+The Chopper Domain Companion may package local evidence and create a GitHub issue body automatically, but v1 does not standardize binary attachment upload to the created issue. GitHub's attachment flow is host- and credential-dependent: browser UI upload works today, while CLI/API support for issue attachments varies by environment and is not exposed through a stable Chopper-owned contract.
+
+If future users require truly end-to-end companion filing, this FD would define:
+
+- which host transports are allowed (`gh`, browser automation, extension API, or none)
+- how credentials are sourced and validated without expanding Chopper's runtime surface
+- size and file-type limits for uploaded bundles
+- failure behavior when issue creation succeeds but attachment upload does not
+
+**Deferred because:** packaging plus issue-body creation solves the reproducibility problem today without forcing Chopper to own browser automation, token storage, or an unstable GitHub attachment API.
+
 ---
 
 ## Documentation Enhancements
@@ -128,3 +141,4 @@ Per the scope-lock policy in [`.github/instructions/project.instructions.md`](..
 | FD-10 | CLI/UX | Machine-readable CLI output (`--json` / `--jsonl`) | Deferred; v1 is table-only |
 | FD-11 | Platform | Multi-platform domain support (trim on Windows) | Deferred; v1 is Linux-only |
 | FD-12 | Generator | Template-script generation (post-trim executor) | Deferred; scope-lock removed the reserved seam |
+| FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload | Deferred; issue creation may be automated, binary attachment upload is not |

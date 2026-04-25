@@ -34,7 +34,7 @@ The **Chopper Domain Companion** ([.github/agents/chopper-domain-companion.agent
 - Runs named CLI playbooks: **bisect** a feature that broke trim, **compare** two runs, **prove-safe** a JSON change
 - Works in two modes: **analyze-only** (JSON authoring, no CLI calls) or **full-loop** (analyze + run + audit)
 
-**Prompt library** — ready-to-use starting points under [.github/prompts/](.github/prompts/): `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
+**Prompt library** — ready-to-use starting points under [.github/prompts/](.github/prompts/): `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`, `package-bug-artifacts`.
 
 > [!TIP]
 > Open VS Code Copilot Chat, pick the Chopper Domain Companion, and say: *"bootstrap a starter JSON for my domain at `path/to/domain/`"* — or just *"hi"* and it will show you a two-tier menu of everything it can do.
@@ -297,6 +297,8 @@ The authoritative specification for the MCP surface is [technical_docs/chopper_d
 
 Found a bug? [Open a bug report](../../issues/new?template=bug_report.yml) on GitHub. The form guides you through providing everything needed to reproduce the problem quickly.
 
+If you are in VS Code, ask the Chopper Domain Companion to `report-chopper-bug`. It now packages local evidence, renders the GitHub issue body, and files the issue automatically when `gh` is installed and authenticated. If that step fails, it falls back to the simple local behavior automatically and leaves you with the ready-to-submit issue body and bundle paths.
+
 **What to include:**
 
 | What | How |
@@ -305,6 +307,8 @@ Found a bug? [Open a bug report](../../issues/new?template=bug_report.yml) on Gi
 | `.chopper/` audit bundle | Zip the `.chopper/` folder and drag it into the issue form — it contains `diagnostics.json`, `chopper_run.json`, and `trim_report.txt` |
 | JSON configuration | Paste a minimal reproduction of your `base.json`, feature JSON, or `project.json` (remove sensitive paths) |
 | Screenshots | Drag and drop PNG/JPG/GIF directly into any GitHub text field |
+
+**From VS Code on Unix:** package local evidence first with `python scripts/package_bug_report.py /abs/path/to/.chopper /abs/path/to/report.md`, or ask the companion to run `report-chopper-bug` and it will package the paths plus file the GitHub issue automatically when host GitHub auth is available. If that create step fails, it falls back to local output automatically. Raw zip upload still uses the GitHub attachment UI.
 
 > [!TIP]
 > Run `chopper validate` before `chopper trim` — it often surfaces the root cause without modifying your domain. Attach the validate output alongside the trim output when both are relevant.
