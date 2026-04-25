@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from chopper.core.context import ChopperContext
@@ -193,14 +194,18 @@ def _resolve_token(
     ``ctx.diag``. See architecture doc §5.4 for the full six-step ladder.
     """
     caller_cn = caller.canonical_name
-    line = caller.body_start_line  # parser doesn't pin per-token lines yet
+    caller_path = caller.source_file
+    # Per-call line numbers are recorded by the parser on each call-site
+    # tuple; if absent we fall back to the proc's body_start_line so the
+    # diagnostic still carries a non-null line in the audit bundle.
+    line = caller.body_start_line
 
     # TW-03 — dynamic / syntactically unresolvable call forms.
     # A token is "dynamic" when the parser could not strip it to a pure
     # identifier chain: variable substitution (``$cmd``), bracket-command
     # substitution (``[expr ...]``), or empty after suppression.
     if _is_dynamic(token):
-        _emit_tw03(ctx, caller_cn, token, line)
+        _emit_tw03(ctx, caller_cn, token, caller_path, line)
         return Edge(
             caller=caller_cn,
             callee="",
@@ -222,7 +227,7 @@ def _resolve_token(
             matched_canonical = hits[0]
             break
         # More than one canonical proc shares this qualified name → TW-01.
-        _emit_tw01(ctx, caller_cn, token, line, hits)
+        _emit_tw01(ctx, caller_cn, token, caller_path, line, hits)
         return Edge(
             caller=caller_cn,
             callee="",
@@ -241,7 +246,7 @@ def _resolve_token(
         # both ``get_app_var`` and ``::pt::get_app_var`` downgrade.
         leaf = token.rsplit("::", 1)[-1] if "::" in token else token
         if token in tool_pool or leaf in tool_pool:
-            _emit_ti01(ctx, caller_cn, token, line)
+            _emit_ti01(ctx, caller_cn, token, caller_path, line)
             return Edge(
                 caller=caller_cn,
                 callee="",
@@ -252,7 +257,7 @@ def _resolve_token(
                 diagnostic_code="TI-01",
             )
 
-        _emit_tw02(ctx, caller_cn, token, line)
+        _emit_tw02(ctx, caller_cn, token, caller_path, line)
         return Edge(
             caller=caller_cn,
             callee="",
@@ -385,11 +390,26 @@ def _emit_cycle_diagnostics(ctx: ChopperContext, edges: Iterable[Edge]) -> None:
     self_loops = {e.caller for e in edges if e.kind == "proc_call" and e.status == "resolved" and e.caller == e.callee}
     for component in sccs:
         if len(component) > 1:
-            path = " → ".join(sorted(component) + [sorted(component)[0]])
-            _emit_tw04(ctx, sorted(component)[0], path)
+            path_str = " → ".join(sorted(component) + [sorted(component)[0]])
+            anchor = sorted(component)[0]
+            _emit_tw04(ctx, anchor, path_str, _path_from_canonical(anchor))
         elif component and component[0] in self_loops:
             proc = component[0]
-            _emit_tw04(ctx, proc, f"{proc} → {proc}")
+            _emit_tw04(ctx, proc, f"{proc} → {proc}", _path_from_canonical(proc))
+
+
+def _path_from_canonical(canonical_name: str) -> Path | None:
+    """Recover the source-file :class:`Path` from a canonical name.
+
+    Canonical names follow ``<source_file.as_posix()>::<qualified_name>``
+    (see :class:`ProcEntry`). Domain paths are domain-relative POSIX
+    strings that never contain ``::``, so splitting on the first ``::``
+    is unambiguous. Returns ``None`` if the canonical name is malformed.
+    """
+    sep = canonical_name.find("::")
+    if sep < 0:
+        return None
+    return Path(canonical_name[:sep])
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +417,9 @@ def _emit_cycle_diagnostics(ctx: ChopperContext, edges: Iterable[Edge]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _emit_tw01(ctx: ChopperContext, caller_cn: str, token: str, line: int, candidates: tuple[str, ...]) -> None:
+def _emit_tw01(
+    ctx: ChopperContext, caller_cn: str, token: str, path: Path, line: int, candidates: tuple[str, ...]
+) -> None:
     ctx.diag.emit(
         Diagnostic.build(
             "TW-01",
@@ -406,13 +428,14 @@ def _emit_tw01(ctx: ChopperContext, caller_cn: str, token: str, line: int, candi
                 f"Proc call {token!r} in {caller_cn!r} is ambiguous: matches "
                 f"{len(candidates)} canonical procs ({', '.join(candidates)})"
             ),
+            path=path,
             line_no=line,
             hint="Disambiguate by using the fully-qualified namespace or add explicit procedures.include",
         )
     )
 
 
-def _emit_tw02(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> None:
+def _emit_tw02(ctx: ChopperContext, caller_cn: str, token: str, path: Path, line: int) -> None:
     ctx.diag.emit(
         Diagnostic.build(
             "TW-02",
@@ -421,13 +444,14 @@ def _emit_tw02(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> No
                 f"Proc call {token!r} in {caller_cn!r} resolves to no canonical proc in the domain; "
                 f"assumed external or cross-domain"
             ),
+            path=path,
             line_no=line,
             hint="If this proc is needed, add it explicitly or verify it lives in external libraries",
         )
     )
 
 
-def _emit_ti01(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> None:
+def _emit_ti01(ctx: ChopperContext, caller_cn: str, token: str, path: Path, line: int) -> None:
     """Emit ``TI-01 known-tool-command`` — the pool-match informational variant of TW-02.
 
     Emitted from the P4 tracer when a call token's raw name or
@@ -443,13 +467,14 @@ def _emit_ti01(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> No
                 f"Proc call {token!r} in {caller_cn!r} matches the tool-command pool "
                 f"(external EDA tool command; not an in-domain proc)"
             ),
+            path=path,
             line_no=line,
             hint=None,
         )
     )
 
 
-def _emit_tw03(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> None:
+def _emit_tw03(ctx: ChopperContext, caller_cn: str, token: str, path: Path, line: int) -> None:
     ctx.diag.emit(
         Diagnostic.build(
             "TW-03",
@@ -457,18 +482,20 @@ def _emit_tw03(ctx: ChopperContext, caller_cn: str, token: str, line: int) -> No
             message=(
                 f"Dynamic or syntactically unresolvable call form {token!r} in {caller_cn!r}; cannot statically trace"
             ),
+            path=path,
             line_no=line,
             hint="Add missing dependencies explicitly to procedures.include if needed; review call site",
         )
     )
 
 
-def _emit_tw04(ctx: ChopperContext, anchor_cn: str, cycle_path: str) -> None:
+def _emit_tw04(ctx: ChopperContext, anchor_cn: str, cycle_path: str, path: Path | None = None) -> None:
     ctx.diag.emit(
         Diagnostic.build(
             "TW-04",
             phase=Phase.P4_TRACE,
             message=f"Cycle detected in proc call graph: {cycle_path}",
+            path=path,
             hint="Cycles are reporting-only; survival still requires explicit include",
             dedupe_bucket=anchor_cn,
         )

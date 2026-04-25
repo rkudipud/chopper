@@ -189,8 +189,12 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
     manifest_path = domain / ".chopper" / "compiled_manifest.json"
     assert manifest_path.exists(), "compiled_manifest.json not written"
     data = json.loads(manifest_path.read_text())
-    file_decisions = data.get("file_decisions", {})
+    files = data.get("files", [])
+    by_path = {entry["path"]: entry for entry in files}
     for stage_name in ("setup", "run_flow", "promote"):
-        assert f"{stage_name}.tcl" in file_decisions, f"{stage_name}.tcl missing from manifest"
-        assert f"{stage_name}.stack" in file_decisions, f"{stage_name}.stack missing from manifest"
-        assert file_decisions[f"{stage_name}.stack"] == "GENERATED"
+        tcl_path = f"{stage_name}.tcl"
+        stack_path = f"{stage_name}.stack"
+        assert tcl_path in by_path, f"{tcl_path} missing from manifest"
+        assert stack_path in by_path, f"{stack_path} missing from manifest"
+        assert by_path[tcl_path]["treatment"] == "generated"
+        assert by_path[stack_path]["treatment"] == "generated"

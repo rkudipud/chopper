@@ -75,21 +75,24 @@ Chopper uses a simplified, brace-aware tokenizer that follows Tcl 8.6 Rules [1],
 
 ### 3.0 State-Machine Summary (D2)
 
-The tokenizer state is the tuple `(brace_depth: int, in_quote: bool, in_comment: bool, context_stack_top)` where `context_stack_top` is one of `FILE_ROOT | NAMESPACE_EVAL | CONTROL_FLOW | PROC_BODY` (see §4.2 for the full context stack). Transitions are per-character within the current logical line; `\\\n` line continuation (§3.2) does not reset state. The table below specifies every structural transition; characters not listed are inert and only advance position.
+The tokenizer state is the tuple `(brace_depth: int, in_quote: bool, quoted_bracket_depth: int, in_comment: bool, context_stack_top)` where `context_stack_top` is one of `FILE_ROOT | NAMESPACE_EVAL | CONTROL_FLOW | PROC_BODY` (see §4.2 for the full context stack). Transitions are per-character within the current logical line; `\\\n` line continuation (§3.2) does not reset state. The table below specifies every structural transition; characters not listed are inert and only advance position.
+
+**Tcl Endekas/Dodekalogue Rule 5 (Double quotes), authoritative:** an unescaped `"` at a *word boundary* opens a quoted word **at any brace depth**. Inside the quoted word, `;`, `\n`, whitespace and `}` are LITERAL; only an unescaped `"` at quoted-bracket-depth 0 closes the word. `[...]` inside a quoted word is command substitution (§3.3.3); the inner command is parsed as Tcl and any `"` inside the substitution belongs to the inner command, not the outer word. (See `RISKS_AND_PITFALLS.md` Pitfall P-01 for the production bug that motivated this clarification.)
 
 | Current state | Input | Next state | Side effect |
 |---|---|---|---|
 | `brace_depth=d`, `in_quote=False`, `in_comment=False` | unescaped `{` | `brace_depth=d+1` | If the `{` opens a proc body, push `PROC_BODY` onto context stack. If it opens `namespace eval`, push `NAMESPACE_EVAL` + push the name onto namespace stack. If it opens a control-flow body (`if`, `for`, `foreach`, `while`, `switch`, `catch`, `eval`), push `CONTROL_FLOW`. |
 | `brace_depth=d>0`, `in_quote=False`, `in_comment=False` | unescaped `}` | `brace_depth=d-1` | If the new depth matches the `entered_at_depth` of the context-stack top, pop the context. If popping `NAMESPACE_EVAL`, also pop the namespace stack. If popping `PROC_BODY`, finalize the current `ProcEntry` (record `end_line`). |
 | any | `\` followed by `\n` | (unchanged) | Log-only; `PW-05 backslash-continuation` on first occurrence in a file. Does **not** reset `in_comment` or `in_quote`. |
-| `brace_depth=0`, `in_quote=False`, `in_comment=False`, at command position | `"` beginning a word | `in_quote=True` | Only at §3.3.1 pre-body positions. Braces inside the quoted word do NOT change `brace_depth`. |
-| `in_quote=True` | unescaped `"` | `in_quote=False` | End quoted word. Escaped `\"` does not exit. |
-| `in_quote=True` | `{` / `}` | (unchanged) | Literal character; `brace_depth` unchanged. |
+| `in_quote=False`, `in_comment=False`, at word boundary, **any `brace_depth`** | unescaped `"` | `in_quote=True`, `quoted_bracket_depth=0` | Open a quoted word per Endekas Rule 5. Applies inside proc bodies, switch arms, control-flow bodies — anywhere a word boundary exists. |
+| `in_quote=True`, `quoted_bracket_depth=0` | unescaped `"` | `in_quote=False` | Close the quoted word. Escaped `\"` does not close. |
+| `in_quote=True` | unescaped `[` | `quoted_bracket_depth+=1` | Enter command substitution inside the quoted word. |
+| `in_quote=True`, `quoted_bracket_depth>0` | unescaped `]` | `quoted_bracket_depth-=1` | Exit one level of command substitution. While `quoted_bracket_depth>0`, `"` is parsed by the inner command, not as the outer word's terminator. |
+| `in_quote=True`, `quoted_bracket_depth=0` | `{` / `}` / `;` / `\n` / whitespace | (unchanged) | Literal characters; `brace_depth` unchanged, no command split. |
 | `brace_depth=d`, `in_quote=False`, `in_comment=False`, at command position | `#` | `in_comment=True` | Comment extends to end of logical line (respecting `\\\n` continuation). |
 | `in_comment=True` | `\n` not preceded by `\` | `in_comment=False` | End of comment line. |
 | `in_comment=True` | `{` / `}` | (unchanged) | Inert; `brace_depth` unchanged. |
-| `in_quote=False`, `in_comment=False`, `brace_depth>0` | `"` | (unchanged) | Literal (per §3.3.2 "in-body rule"); does NOT enter quoted context. |
-| any | `[` / `]` | (unchanged) | Inert for brace tracking. Call-extraction (§5) inspects bracketed tokens separately. |
+| any | `[` / `]` (outside `in_quote`) | (unchanged) | Inert for brace tracking. Call-extraction (§5) inspects bracketed tokens separately. |
 | `brace_depth<0` at any point | — | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
 | end-of-file with `brace_depth>0` | — | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
 
@@ -103,7 +106,7 @@ Braces `{` and `}` define word boundaries in Tcl. Chopper must track brace depth
 1. An unescaped `{` increments brace depth by 1.
 2. An unescaped `}` decrements brace depth by 1.
 3. A brace preceded by an odd number of consecutive backslashes is **escaped** and does NOT affect depth.
-4. Inside braces, no substitutions occur (no `$`, `[...]`, or `"` processing) — braces are opaque containers.
+4. Inside braces, no substitutions occur for the *value* of the brace-quoted word (no `$`, `[...]` substitution at this level). However, when the brace-quoted region is later interpreted as Tcl script (e.g. a proc body, an `if`/`while`/`foreach` body, a `namespace eval` body), it is re-parsed as Tcl and Endekas Rule 5 applies inside it — `"` opens a quoted word at the inner depth. Chopper's tokenizer therefore tracks `in_quote` independently of `brace_depth`.
 5. The only exception inside braces: backslash-newline (`\` immediately before `\n`) is a line continuation at the parser level. This affects the **line count** but does NOT affect brace depth.
 6. Nested braces must balance: `{ { } }` is valid (depth goes 0→1→2→1→0).
 
@@ -121,41 +124,44 @@ A backslash `\` immediately before a newline character joins the next line.
 
 **Implementation note:** Do NOT physically join lines. Track them as separate source lines but recognize that a `\` at end-of-line means the logical command continues.
 
-### 3.3 Double Quotes (Tcl Rule 4)
+### 3.3 Double Quotes (Tcl Endekas/Dodekalogue Rule 5)
 
-Double-quoted strings `"..."` group content and allow substitutions only when Tcl is parsing a quote-delimited word.
+Double-quoted strings `"..."` group content into a single word and enable substitutions (`$var`, `[cmd]`, `\x`) inside that word.
+
+**Authoritative rule:** an unescaped `"` at a *word boundary* (after whitespace, after `;`, after `\n`, or at the start of a brace-delimited body) opens a quoted word **at any brace depth**. The previous "quotes are literal inside braces" rule was incorrect and produced false TW-02 diagnostics whenever a real-world proc contained `puts "...;..."` or similar (see `RISKS_AND_PITFALLS.md` Pitfall P-01 and bug report `TW-02_quoted_string_semicolon_misparse.md`).
 
 **Rules for Chopper:**
-1. When the current word began with `"`, braces inside that quoted word do NOT affect brace depth. `set x "text { more"` keeps the `{` as ordinary text within the quoted word.
-2. The parser must track whether it is inside a double-quoted word so it does not falsely count braces while scanning proc names, argument words, or other non-braced words before a proc or `namespace eval` body opens.
-3. A backslash before a `"` inside a quoted word escapes the quote (e.g. `\"`). The parser must explicitly check for this so it does not incorrectly exit the quoted context.
-4. Double quotes are only special at the beginning of a word (after whitespace or at command start).
-5. Inside a brace-delimited word, including a brace-delimited proc body, `"` has no structural meaning. Tcl Rule 6 applies: quotes are literal characters there, and unescaped `{` / `}` still participate in brace matching.
+1. `"` at a word boundary opens a quoted word regardless of `brace_depth`.
+2. Inside a quoted word:
+   - `;`, `\n`, whitespace, `{`, `}` are **literal characters**. They do NOT split commands and do NOT change `brace_depth`.
+   - `\"` is an escaped literal quote and does NOT close the word.
+   - `\<other>` follows ordinary Tcl backslash-escape rules.
+   - `[...]` is command substitution. The contents are parsed as Tcl with full rules (including a fresh quote/brace context). Track this with a separate `quoted_bracket_depth` counter so an inner `"` cannot close the outer word until brackets balance.
+3. The quoted word ends at the next unescaped `"` encountered while `quoted_bracket_depth == 0`.
+4. A genuine unbalanced `{` *inside a string literal* is still a Tcl error, but the file-level brace-depth check at EOF catches it via `PE-02`. The tokenizer does not need to inspect string contents for brace balance.
 
 #### 3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)
 
-While the parser is at brace_depth 0 and scanning the proc name or args specification before the proc body `{` opens:
+While the parser is at `brace_depth == 0` scanning the proc name or args specification before the proc body `{` opens, the rules above apply unchanged:
+- A word that begins with `"` is a quoted word.
+- Inside it, braces and other word-boundary characters are literal.
+- The word ends at the next unescaped `"` at `quoted_bracket_depth == 0`.
 
-- If a word begins with `"`, treat it as a quote-delimited word.
-- Inside a quote-delimited word, braces do NOT affect `brace_depth`.
-- Escaped quotes `\"` do not end the quoted word.
-- The quote-delimited word ends at the next unescaped `"` that is not preceded by a backslash.
-
-Example: `proc foo "arg1 {arg2}" { body }` — the `{` inside the quoted args does NOT increment brace_depth. The body `{` is found after the closing `"`.
+Example: `proc foo "arg1 {arg2}" { body }` — the `{` inside the quoted args is literal, does not increment `brace_depth`. The body `{` is found after the closing `"`.
 
 #### 3.3.2 In-Body Rule (Inside Brace-Delimited Blocks)
 
-Once the parser is inside a brace-delimited block (brace_depth > 0), including a proc body or `namespace eval` body:
+Once the parser is inside a brace-delimited block (`brace_depth > 0`) — proc body, `namespace eval` body, control-flow body — the **same** quote rule applies:
 
-- `"` has **NO structural meaning** — it is a literal character.
-- The parser must **NOT** enter a quoted-string context.
-- Unescaped `{` and `}` **still affect** brace_depth.
-- `$`, `[`, `]` are inert for structural purposes (no substitution tracking).
-- Only `\` before `\n` (line continuation) and `#` at command position (comments) have structural effects.
+- `"` at a word boundary opens a quoted word.
+- The quoted word's contents are literal w.r.t. command separation and brace counting.
+- `[...]` inside the quoted word is a substitution; track it with `quoted_bracket_depth`.
+- `{` and `}` inside the quoted word are **literal** (they do NOT change `brace_depth`).
+- The word ends at the matching unescaped `"`.
 
-Example: `proc foo {} { set x "text { brace" }` — the `{` inside the quoted text IS a brace_depth event. This makes the proc body unbalanced (an extra `{` with no matching `}`), and Chopper must report an unbalanced-brace parse error.
+Example (production pattern): `puts "$intel_info applied; defined by $used"` inside any proc body. The `;` is literal; no command split; no spurious extraction of `defined` as a proc.
 
-**Mnemonic:** Outside braces, quotes suppress braces. Inside braces, nothing suppresses braces.
+**Mnemonic:** Quotes always group. Brace depth and quoted-word state are independent counters.
 
 ### 3.4 Comments (Tcl Rule 10)
 
@@ -405,29 +411,30 @@ define_proc_attributes read_libs \
    e. **Cursor advance after DPA block.** After recording the DPA block, the main-loop line cursor must be advanced past **all physical source lines** consumed by the block — including every backslash-continuation line. Each `\<newline>` pair is one physical source line and must increment the cursor by 1. Advancing by logical lines instead of physical lines causes an off-by-one error in `start_line` for every subsequent proc in the file. In production EDA files (e.g., `default_fm_procs.tcl`) every proc has a multi-line DPA block with continuation lines, so this error is systematic — all proc spans after the first DPA are wrong if step (e) is omitted.
 4. No DPA found within the lookahead window → `dpa_start_line = dpa_end_line = None`.
 
-**DPA proc name extraction** (adapted from SNORT's `_GetDefineProcAttributesProcName`):
+**DPA proc name extraction.** Per the Tcl `define_proc_attributes` calling convention (Synopsys SDC/PT), the proc name is **the first whitespace-delimited token after the keyword** — independent of how many `-flag value` pairs follow, how those values are brace-quoted, or how many physical lines the call spans via `\`-continuation. Earlier revisions of this spec attempted a regex-based "strip known flags" walk; in production that walk could not balance nested `{…}` arg descriptors and concatenated parts of the option list onto the name, producing false `PW-11` plus `PI-04` diagnostics on every DPA block with multi-line `-define_args` (see `RISKS_AND_PITFALLS.md` Pitfall P-40 and bug report `PW-11_PI-04_dpa_line_continuation_misparse.md`). The correct, simple implementation follows:
 
 ```python
 import re
 
-def extract_dpa_proc_name(line: str) -> str:
-    """Extract the proc name from a define_proc_attributes line.
+_DPA_KEYWORD_RE = re.compile(r"^\s*define_proc_(attributes|arguments)\s+")
 
-    Adapted from SNORT's _GetDefineProcAttributesProcName() (Perl, Intel 2009+).
+def extract_dpa_proc_name(joined_line: str) -> str:
+    """Extract the proc name from a (possibly continuation-joined) DPA line.
+
+    Tcl convention: `define_proc_(attributes|arguments) <proc_name> ?<options>...?`
+    The name is the first whitespace-delimited token after the keyword. Nothing else
+    in the option list — regardless of nested braces, quotes, or how many physical
+    lines it spans — contributes to the name.
     """
-    # Strip the define_proc_attributes/arguments keyword prefix
-    name = re.sub(r'^.*define_proc_(attributes|arguments)\s+', '', line)
-    # Strip boolean flags that appear before the proc name
-    for flag in ('-permanent', '-hide_body', '-hidden', '-dont_abbrev', '-obsolete', '-deprecated'):
-        name = name.replace(flag, '')
-    # Strip non-boolean args with quoted, brace-delimited, or bare values
-    for arg in ('-info', '-define_args', '-define_arg_groups', '-command_group', '-return'):
-        name = re.sub(rf'{re.escape(arg)}\s+"[^"]*"', '', name)
-        name = re.sub(rf'{re.escape(arg)}\s+\{{[^}}]*\}}', '', name)
-        name = re.sub(rf'{re.escape(arg)}\s+\S+', '', name)
-    # Strip CR, trailing continuation backslash, trailing whitespace
-    return name.rstrip('\\\r\n').strip()
+    text = joined_line.rstrip("\r\n").rstrip("\\").rstrip()
+    text = _DPA_KEYWORD_RE.sub("", text, count=1)
+    if not text:
+        return ""
+    name = text.split(None, 1)[0]
+    return name[2:] if name.startswith("::") else name
 ```
+
+**Implementation requirement:** the orphan-DPA `PI-04` message detail must also strip a trailing `\r\n` and any trailing `\` so the user-facing diagnostic does not end on a stray continuation backslash.
 
 **New diagnostic codes for DPA:**
 
@@ -543,6 +550,22 @@ order without dedup (§6.1 invariant 6).
 **Why this ordering — and why there is no explicit "recurse into control-flow body" step.** The tokenizer eliminates ~90% of false positives structurally (quotes, comments, brace bodies); the SNORT suppression cascade eliminates the remaining content-dependent false positives (log-string mentions, option-flag arguments, vendor commands). Running regex first on raw lines inverts this and recreates the exact class of bugs SNORT spent 15 years fixing.
 
 Control-structure bodies (`if`, `foreach`, `foreach_in_collection`, `while`, `switch`, `catch`, `try`) do **not** need an explicit recursion step. The tokenizer re-establishes `at_command_position == True` at every brace-depth transition — the first WORD after a `NEWLINE` or `{`-transition inside any body is automatically a command-position token, regardless of how deeply nested. The flat body walk above therefore visits every in-body command without recursion, which also eliminates the stack-overflow risk noted in the original phrasing and removes an entire class of "skip-to-command-boundary" bugs where a top-level scan would fast-forward past control-flow body contents. See [IMPLEMENTATION_DECISION_LOG.md](IMPLEMENTATION_DECISION_LOG.md) entry **D-1e-01** for the incident and resolution.
+
+#### 5.3.0.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)
+
+Before the main walk above runs, `call_extractor` performs a structural pre-pass that builds a `skip_indices: set[int]` of tokens to be excluded from BOTH command-position classification AND embedded-bracket regex scanning. This pre-pass enforces three Tcl semantics that the tokenizer cannot determine on its own (because the tokenizer does not know what command name a brace-quoted argument belongs to):
+
+**(a) Opaque-brace commands** — `regexp`, `regsub`, `exec`, `glob`, `string match`. When any of these names appears at command position (either at `at_command_position == True` from the tokenizer OR as the first WORD after an `LBRACE` token at the range's enclosing depth — see §5.3.0.2 below), every `LBRACE…RBRACE` token range that constitutes a *value argument* to that command is marked entirely as `skip`. This prevents regex character classes (`{[A-Za-z_]+}`), regex alternations (`{Warning|Error|Fatal}`), `exec grep -P {…}` patterns, and glob patterns from being mis-extracted as proc calls. Reference: `RISKS_AND_PITFALLS.md` Pitfall P-38; fixture `tests/fixtures/bug_reports/regex_literals.tcl`.
+
+**(b) `switch` pattern labels** — for `switch ?-options? string {pattern body ?pattern body…?}`, the body's *odd-indexed* WORD tokens are pattern literals (not commands) and must be marked `skip`. A body of `-` is a fall-through marker. Bodies (the `{…}` immediately following each pattern) are NOT marked `skip` — code inside them is real Tcl and is walked normally. Reference: `RISKS_AND_PITFALLS.md` Pitfall P-39; fixture `tests/fixtures/bug_reports/switch_patterns.tcl`.
+
+**(c) Code-block recursion** — for `if`, `elseif`, `else`, `while`, `for`, `foreach`, `foreach_in_collection`, `catch`, `try`, `eval`, `uplevel`, `namespace eval`, `expr`, the pre-pass recurses into each `{…}` body argument and re-runs (a)/(b) at the inner depth. Without this, an opaque command nested inside `if {[catch {exec grep -P {…}}]}` would be reached only by the main walk (which does not apply rule (a)) and produce false positives. The recursion descends with the heuristic that the first WORD inside any code-block LBRACE is at command position, with subsequent command positions reset on NEWLINE / SEMICOLON at that depth.
+
+**Implementation:** `call_extractor._compute_skip_indices(tokens)` returns the union skip set; `_classify_and_handle` consults it before classifying any WORD as a call, and `_INNER_CMD_RE` substitutions inside skipped ranges are themselves skipped. The pre-pass also walks `[…]` bracket substitutions so that, e.g., `[regexp {…} $s]` inside a regular command argument is also opaque.
+
+#### 5.3.0.2 Why First-WORD-After-LBRACE Heuristic Is Needed
+
+The tokenizer flags `at_command_position` only at file/proc-body command boundaries it can detect from the surface stream. It does NOT flag the first WORD inside an arbitrary `{…}` argument as cmd-pos, because at the time of tokenisation the tokenizer cannot know whether that brace is a code body (`if {…}`) or a value (`set x {a b c}`). The pre-pass resolves this ambiguity by command name: only when the enclosing command name is in `_CODE_BRACE_COMMANDS` does it descend into the body and treat its first WORD as cmd-position.
 
 
 ### 5.3.1 Deterministic Proc Name Resolution Contract
@@ -1158,3 +1181,4 @@ This log records the conscious design decisions that shaped this specification.
 | 2026-04-19 | **Rev 9:** Replaced all ad-hoc parser diagnostic code strings (`PARSER-DUP-01`, `PARSE-DYNA-01`, `PARSE-ENCODING-01`, `PARSE-UNBRACE-01`, `PARSE-NOBODY-01`, `PARSE-COMPNS-01`, `PARSE-DPA-MISMATCH-01`, `PARSE-DPA-ORPHAN-01`) with authoritative registry codes (`PE-01`, `PW-01`, `PW-02`, `PE-02`, `PW-03`, `PW-04`, `PW-11`, `PI-04`). Registered `PW-11` and `PI-04` in `technical_docs/DIAGNOSTIC_CODES.md`. Added cross-reference note in §8.4 directing implementors to the registry. |
 | 2026-04-19 | **Rev 10:** Production integration review. Added `calls` and `source_refs` fields to `ProcEntry` (§6) — the typed channel from parser to tracer and dependency graph. Added invariants 5–6 for these fields (§6.1). Added §8.5 (Parser-to-Pipeline Integration) mapping every `ProcEntry` field to its trimmer, compiler/tracer, and dry-run consumer with concrete code examples. Added `foreach_in_collection` to §4.2 step 4 control-flow keyword set with note to §7.14/P-36. Added `PW-05`, `PI-01`, `PI-02`, `PI-03` rows to §8.4 emission table. Replaced remaining ad-hoc trace codes (`TRACE-AMBIG-01` → `TW-01`, `TRACE-CROSS-DOMAIN-01` → `TW-02`, `TRACE-UNRESOLV-01` → `TW-03`) in §5.3.1, §5.5 (×2), and Rev 4 history. |
 | 2026-04-20 | **Rev 11:** Folded §11 "Addendum A: Clarifications from Production Review" into the main body. A.1 (PE-01 timing and error-message format) became new §6.3 so readers encounter the timing contract alongside the §6.1 invariants that govern it. A.2 (namespace-resolution cross-reference) was dropped as redundant with §5.3.1, which already specifies the deterministic namespace lookup contract. The general rule against Addendum sections is recorded in `.github/instructions/project.instructions.md` under Documentation Conventions. |
+| 2026-04-25 | **Rev 12 — Tcl-fidelity uplift.** Reversed Rev 3's quote rule. The §3.0 state-machine table, §3.3, §3.3.1, and §3.3.2 now state Tcl Endekas/Dodekalogue rule 5 correctly: an unescaped `"` at a word boundary opens a quoted word at *any* brace depth; inside the quoted word `;`, `\n`, whitespace, `{`, `}` are literal and `[...]` is command substitution tracked by `quoted_bracket_depth`. Added §5.3.0.1 (skip-index pre-pass for opaque commands `regexp`/`regsub`/`exec`/`glob`/`string match` and `switch` pattern labels) and §5.3.0.2 (first-WORD-after-LBRACE heuristic for code-block recursion). Replaced the regex-based DPA name extractor in §4.6 with a positional-token implementation that ignores the option list entirely. Each change is anchored to a verbatim production fixture under `tests/fixtures/bug_reports/` and a corresponding `RISKS_AND_PITFALLS.md` pitfall (P-01, P-38, P-39, P-40). |

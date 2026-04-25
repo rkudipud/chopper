@@ -131,12 +131,20 @@ class TestQuotedWords:
         word_values = [t.value for t in r.tokens if t.kind == TokenKind.WORD]
         assert '"a \\" b"' in word_values
 
-    def test_quote_inside_braces_is_literal(self) -> None:
-        # §3.3.2: inside a brace block, `"` is a literal character — the
-        # `{` inside the string still counts and produces an unbalance.
+    def test_quote_inside_braces_opens_quoted_word(self) -> None:
+        # Tcl Endekas/Dodekalogue rule 5: a ``"`` at a word boundary opens
+        # a quoted word at ANY brace depth. The contents of the quoted
+        # word — including unmatched ``{`` — are LITERAL until the
+        # matching ``"``. The example below is a well-formed proc whose
+        # body contains a string literal carrying an unbalanced ``{``.
+        # The outer braces remain balanced.
+        # Bug repro anchor: ``TW-02_quoted_string_semicolon_misparse.md``.
         r = tokenize('proc foo {} { set x "text { more" }')
-        # The extra `{` inside the string is structural → brace imbalance.
-        assert r.final_brace_depth != 0 or any(e.kind == "unclosed_braces" for e in r.errors)
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+        # The string literal is a single WORD token at depth 1.
+        word_values = [t.value for t in r.tokens if t.kind == TokenKind.WORD]
+        assert '"text { more"' in word_values
 
 
 class TestComments:

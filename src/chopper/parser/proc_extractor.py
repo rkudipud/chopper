@@ -250,11 +250,15 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
     # any proc's dpa span → PI-04.
     for lineno_0, line in enumerate(lines):
         if _DPA_LINE_RE.match(line) and (lineno_0 + 1) not in dpa_covered_lines:
+            # Strip a trailing line-continuation backslash so the user-facing
+            # message does not carry the raw ``\`` (bug:
+            # ``PW-11_PI-04_dpa_line_continuation_misparse.md``).
+            detail = line.rstrip("\r\n").rstrip("\\").rstrip()
             diagnostics.append(
                 ExtractorDiagnostic(
                     kind="dpa-orphan",
                     line_no=lineno_0 + 1,
-                    detail=line.strip(),
+                    detail=detail,
                 )
             )
 
@@ -645,21 +649,30 @@ def _line_ends_with_continuation(line: str) -> bool:
 def _extract_dpa_proc_name(line: str) -> str:
     """Extract the proc name from a joined ``define_proc_attributes`` line.
 
-    Adapted from SNORT's ``_GetDefineProcAttributesProcName``.
+    Tcl semantics: ``define_proc_attributes <proc_name> <option>...`` —
+    the target proc name is the **first whitespace-delimited word**
+    after the keyword. Anything after that (option flags, brace-quoted
+    argument descriptors, possibly with nested ``{...}`` such as
+    ``-define_args { {-clock ...} {-rptname ...} }``) is descriptor
+    content and must NOT bleed into the name.
+
+    The previous implementation tried to strip flags via regex, but
+    ``\\{[^}]*\\}`` does not balance nested braces, so multi-line DPA
+    blocks with nested arg descriptors absorbed the whole tail into
+    the "name" and produced spurious PW-11 / PI-04 (see bug report
+    ``PW-11_PI-04_dpa_line_continuation_misparse.md``).
     """
-    # Strip the keyword prefix.
-    name = re.sub(r"^.*define_proc_(attributes|arguments)\s+", "", line)
-    # Strip boolean flags.
-    for flag in _DPA_BOOL_FLAGS:
-        name = name.replace(flag, "")
-    # Strip value flags with quoted / braced / bare values.
-    for arg in _DPA_VALUE_FLAGS:
-        name = re.sub(rf'{re.escape(arg)}\s+"[^"]*"', "", name)
-        name = re.sub(rf"{re.escape(arg)}\s+\{{[^}}]*\}}", "", name)
-        name = re.sub(rf"{re.escape(arg)}\s+\S+", "", name)
-    # Strip CR, trailing continuation backslash, trailing whitespace.
-    name = name.rstrip("\\\r\n").strip()
-    # If the result still starts with ``::``, strip it (per §4.3.1 absolute-name rule).
+    # Strip CR / continuation backslash / leading whitespace.
+    line = line.rstrip("\\\r\n").strip()
+    # Strip the keyword prefix (everything up to and including
+    # ``define_proc_(attributes|arguments)`` plus its trailing
+    # whitespace).
+    m = re.match(r"^.*?define_proc_(?:attributes|arguments)\s+", line)
+    if m:
+        line = line[m.end() :]
+    # The proc name is the first whitespace-delimited token. Strip a
+    # leading ``::`` per §4.3.1 absolute-name rule.
+    name = line.split(None, 1)[0] if line else ""
     if name.startswith("::"):
         name = name[2:]
     return name

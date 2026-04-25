@@ -23,30 +23,36 @@ The document is organized by module. Each module section opens with the relevant
 
 **TC-02 — Canonical Proc Naming:** Resolved to **file + proc name** with namespace-qualified synthesis. Canonical form: `file.tcl::proc_name`. Incorrect canonicalization breaks JSON stability and traceability. JSON authoring uses the short proc name; Chopper resolves the canonical form internally.
 
-### Pitfall P-01: Brace Tracking Invents Quote Context Inside Braced Bodies
+### Pitfall P-01: Quote Context Must Track Inside Braced Bodies
 
-**THE TRAP:**
+**THE TRAP (revised 2026-04-25):**
 ```tcl
-proc bad_tracking {args} {
-    set text "this has { an unmatched brace without closing"
-    set x 1
+proc apply_max_transition_constraint {use clock_name max_trans_clock used_const_clock intel_info} {
+    puts "$intel_info Applied max transition constraint '[format "%.3f" \
+         $max_trans_clock($clock_name)]' ns on clock path for clock \
+         '$clock_name' (based on $use($clock_name); defined by $used_const_clock)"
 }
 ```
 
-**Naïve Parser:** Treats `"` as opening a quoted-string context inside the brace-delimited proc body, ignores the `{` inside it, and incorrectly accepts the proc as balanced.
+**Naïve Parser (the original Chopper bug):** Treats the proc body's `{...}` as code where `"` is literal and `;` is always a command separator. It then sees the `;` inside the quoted string and tokenises `defined by $used_const_clock` as a new command, producing a spurious `TW-02` "no canonical proc" warning for `defined`. Production runs against the `sta_pt` domain emitted ~80 such false positives across `puts "...;..."`, `iproc_msg -info "...;..."`, and similar patterns (bug report `TW-02_quoted_string_semicolon_misparse.md`).
 
-**Correct Behavior:** In a brace-delimited proc body, quotes are literal characters under Tcl Rule 6. The unescaped `{` in the example above still affects brace depth, so this input is syntactically invalid and must produce a parse error. Quote tracking is still needed for quote-delimited words outside braced bodies, such as unusual quoted proc-argument words before the body opens.
+**Correct Behavior — Tcl Endekas/Dodekalogue Rule 5 (Double quotes):** an unescaped `"` at a word boundary opens a quoted word **at any brace depth**. Inside the quoted word:
+- `;`, `\n`, whitespace, and `}` are literal characters (no command-separator role).
+- `[...]` is command substitution; the contents adopt full Tcl tokenisation rules and any inner `"` belongs to the inner command, not to the outer word.
+- The word ends only at the matching unescaped `"` (where bracket-substitution depth is zero).
 
-**Implementation Requirement:** State machine must track:
-- `brace_depth` (current nesting level)
-- whether the current word is brace-delimited or quote-delimited
-- `in_quote` only while parsing quote-delimited words outside brace-delimited bodies
-    - *Mitigation Note:* When quote tracking is active, explicitly check for escaped quotes `\"` to avoid falsely exiting the quoted context.
-- `in_comment` (boolean: rest of line is comment?)
+**Implementation Requirement (Chopper tokenizer):**
+- `in_quoted_word` must be entered on `"` at word start regardless of `brace_depth`.
+- Inside `in_quoted_word`, maintain a `quoted_bracket_depth` counter so `"` only closes the word when bracket depth is zero.
+- Backslash escape (`\"`, `\$`, `\<newline>`) honoured throughout.
+- A genuine unbalanced `{` inside a string literal is still a Tcl error, but it is detected by ordinary brace-depth accounting at file end (`final_brace_depth > 0` ⇒ `PE-02`), not by treating `"` as inert.
 
-**Why It Matters:** Inventing quote context inside braced bodies makes the parser accept invalid Tcl and corrupts proc boundaries later in the file.
+**Why It Matters:** Honoring quotes faithfully is the only way to read real Tcl. The previous "quotes inert in braces" rule was incorrect and produced cascading TW-02 noise that buried genuine undefined-call diagnostics.
 
-**Test:** Fixture `brace_in_string_literal` must fail with an unbalanced-brace parse diagnostic. Separate quoted-word handling before the body brace should be tested independently if implemented.
+**Tests:**
+- `tests/fixtures/bug_reports/quoted_semicolon.tcl` — every quoted-string-with-semicolon pattern from production.
+- `tests/unit/parser/test_tokenizer.py::TestQuotedWords::test_quote_inside_braces_opens_quoted_word`
+- `tests/unit/parser/test_bug_report_regressions.py::TestQuotedSemicolon`
 
 ---
 
@@ -383,6 +389,117 @@ def coalesce_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
 **Test:** Create a two-proc test fixture where both procs are dropped. Assert that the output file contains no consecutive blank lines at the deletion site.
 
 **Why It Matters:** In production EDA domains, feature selection often drops adjacent utility procs (e.g., all EDA-vendor-specific helpers in a file). Without coalescing, the trimmed file visually signals removed sections through blank-line patterns — a minor but reproducible quality defect. More importantly, it is a sign that the deletion loop may be applying overlapping or inconsistently-ordered range logic.
+
+---
+
+### Pitfall P-38: Regex / Glob / `exec` Brace-Quoted Args Must Be Opaque
+
+**THE TRAP (sta_pt domain, bug `TW-02_regex_literal_misparse.md`):**
+
+```tcl
+# (a) exec grep -P with alternation
+exec grep -P {^-F-|^Fatal|^FATAL|^(INTEL_)?FATAL|^\[FATAL\]|^-E-|^Error|^ERROR|^(INTEL_)?ERROR|^\[ERROR\]} $log
+
+# (b) regexp character classes
+regexp {([\*]+[L]+[o]+[g]+[i]+[c]+[0-1]+[\*]+)} $name tmp
+
+# (c) regexp alternation
+regexp {(?:Warning|Error|Fatal):\s+.*?\s+([0-9]+)\s+.*} $line match count
+```
+
+**Naïve Parser:** Walks every WORD inside the `{...}` argument, runs the bracket-call scan, and produces TW-02 for `ERROR`, `FATAL`, `L`, `o`, `g`, `i`, `c`, `Warning`, etc. — none of which are Tcl proc invocations. Production logs ~12 false TW-02 entries per `sta_pt` run from this pattern alone.
+
+**Correct Behavior — Tcl Endekas Rule 6 (Braces):** the contents of a `{...}` brace-quoted word are LITERAL; the caller does not parse them as Tcl code. For the specific commands `regexp`, `regsub`, `exec`, `glob`, and `string match`, the brace-quoted arguments are also semantically opaque to Chopper's call extractor — they hold regular expressions, glob patterns, or external command lines.
+
+**Implementation Requirement (`call_extractor`):** A pre-pass walks the proc body's token stream and, when it sees one of `regexp` / `regsub` / `exec` / `glob` / `string match` at command position OR inside a `[...]` bracket substitution, marks the entire `LBRACE…RBRACE` token range of every brace argument as `skip`. The main extraction walk skips any token whose index is in that set, both for command-position classification AND for the inner bracket-call regex.
+
+**Implementation also requires recursive descent into Tcl-script-containing braces** (`if`, `while`, `for`, `foreach`, `foreach_in_collection`, `catch`, `try`, `eval`, `uplevel`, `namespace`, `expr`). Without recursion, an opaque command nested inside `if {[catch {exec grep -P {...}} ]}` is never reached because nothing inside the `if` body is at command position from the outer pre-pass's point of view. The pre-pass therefore treats the first WORD after each code-block LBRACE as cmd-position and recurses.
+
+**Tests:**
+- `tests/fixtures/bug_reports/regex_literals.tcl` — verbatim production patterns (a), (b), (c), plus `exec egrep -i {voltage_map\s*\(...)`.
+- `tests/unit/parser/test_bug_report_regressions.py::TestRegexLiteralOpacity`
+
+---
+
+### Pitfall P-39: `switch` Pattern Labels Are Not Proc Calls
+
+**THE TRAP (sta_pt domain, bug `TW-02_switch_pattern_label_misparse.md`):**
+
+```tcl
+proc ::psgen::get_path_data {attr_name} {
+    switch $attr_name {
+        child_int_type -
+        clock_skew -
+        crpr_value -
+        ...
+        tag {
+            set variable_name "::psgen::_path_attr_$attr_name"
+            return [set $variable_name]
+        }
+    }
+}
+```
+
+**Naïve Parser:** The 32 fall-through labels (`child_int_type`, `clock_skew`, …, `tag`) appear at command-like positions inside the `switch` body brace and get extracted as proc calls — producing 67 TW-02 false positives from this single procedure in the production sta_pt run.
+
+**Correct Behavior — Tcl `switch(n)` man page:** `switch ?-options? string {pattern body ?pattern body ...?}`. Pattern words are LITERAL strings to compare against the expr. A body of `-` means "use the next pattern's body" (fall-through marker). Pattern words are NOT command invocations.
+
+**Implementation Requirement (`call_extractor` pre-pass):** When the pre-pass identifies a `switch` invocation, it locates the body brace (the LAST `{...}` argument at the command's depth) and marks every WORD token at the body's inner depth as `skip`. Bodies (the `{...}` that follow each pattern) live at depth+2 and are walked normally — code inside them is real Tcl.
+
+**Tests:**
+- `tests/fixtures/bug_reports/switch_patterns.tcl` — verbatim 32-label switch plus `switch -exact --` form with `-`-fallthrough.
+- `tests/unit/parser/test_bug_report_regressions.py::TestSwitchPatternLabels`
+
+---
+
+### Pitfall P-40: DPA Name Extraction Across Backslash Continuations
+
+**THE TRAP (sta_pt domain, bug `PW-11_PI-04_dpa_line_continuation_misparse.md`):**
+
+```tcl
+define_proc_attributes gen_clock_arrival_report \
+    -info "Generate the ptsim reports" \
+    -define_args {\
+     {-clock "Collection of clock(s)" "clk" list required}\
+     {-startpoint "..." "startpoint" list optional}\
+     ...
+ }
+```
+
+**Naïve Parser:** Joins the backslash-continued lines into one logical line and applies a regex that strips known boolean and value flags. The regex `\{[^}]*\}` does not balance nested braces, so the `{...}` of `-define_args` (which contains nested `{-clock ...}`, `{-startpoint ...}` descriptors) is partially consumed and the remainder is concatenated onto the proc-name string. The resulting "name" is hundreds of characters long, fails the equality check against the preceding proc, and emits a false `PW-11` plus `PI-04` (whose message also carries the trailing `\`).
+
+**Correct Behavior — Tcl `define_proc_attributes` calling convention:** `define_proc_attributes <proc_name> ?option value ...?`. The proc name is the first whitespace-delimited token after the keyword. Anything else (regardless of nested braces, quotes, or how many physical lines the option list spans) is option content and must NOT contribute to the name.
+
+**Implementation Requirement (`proc_extractor._extract_dpa_proc_name`):**
+- After joining backslash-continued physical lines, strip a trailing `\` and any CR characters.
+- Strip the `define_proc_(attributes|arguments)` keyword and following whitespace.
+- Take the first whitespace-delimited token as the target proc name. Strip a leading `::`.
+- Do NOT attempt to parse the option list with regex — there is no need to, because the name is positional.
+
+**Implementation Requirement (PI-04 message):** the orphan-DPA detail must rstrip `\r\n` and a trailing `\` so the user-facing diagnostic does not end in a stray continuation backslash.
+
+**Tests:**
+- `tests/fixtures/bug_reports/dpa_multiline.tcl` — verbatim 6-line DPA with nested `{...}` arg descriptors.
+- `tests/unit/parser/test_bug_report_regressions.py::TestDpaMultilineContinuation`
+
+---
+
+### Pitfall P-41: P4 / P6 Diagnostics Must Carry the Source File Path
+
+**THE TRAP (sta_pt domain, bug `diagnostics_file_null_for_p4_p6.md`):**
+
+In `.chopper/diagnostics.json` and `.chopper/trim_report.json`, every `TW-01` / `TW-02` / `TW-03` / `TW-04` / `TI-01` (P4) and every `VW-05` / `VW-06` (P6) entry serialised with `"file": null`, even though each diagnostic's `message` clearly identifies the caller as `<file>::<proc>`. Production runs against `sta_pt` showed 617 of 621 diagnostics had `file: null` — making downstream filtering and editor jump-to-source useless.
+
+**Root cause:** The emit helpers in `compiler/trace_service.py` and `validator/functions.py` did not pass `path=` to `Diagnostic.build()`. The `Diagnostic.path` field defaulted to `None` and the audit serialiser then wrote `null`.
+
+**Correct Behavior:** Every emit site that knows which proc produced the diagnostic must pass the proc's source file as the `path` keyword:
+- P4 (`_emit_tw01` / `_emit_tw02` / `_emit_tw03` / `_emit_ti01`): pass `caller.source_file`.
+- P4 cycle (`_emit_tw04`): recover the file from the cycle anchor's canonical name (`<file>::<qname>` ⇒ `Path(<file>)`) via `_path_from_canonical`.
+- P6 (`VW-05` / `VW-06`): same `_path_from_canonical(edge.caller)` recovery — the validator does not have the original `ProcEntry` but the canonical name shape is invariant.
+
+**Tests:**
+- `tests/unit/compiler/test_tracer.py::TestUnresolvedMatch::test_tw02_diagnostic_carries_caller_path`
+- `tests/unit/validator/test_validator.py::test_validate_post_vw05_carries_caller_path`
 
 ---
 
@@ -1014,7 +1131,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 
 | Module | Mistake | Prevention |
 |--------|---------|-----------|
-| **Parser** | Quotes inside braced bodies treated as structural shields | Follow Tcl Rule 6: quotes are literal inside braced words (P-01) |
+| **Parser** | Quotes treated as inert inside braced bodies (old, incorrect rule) | Apply Tcl Endekas rule 5: `"` opens a quoted word at any brace depth; track `quoted_bracket_depth` (P-01) |
 | **Parser** | Line continuation corrupts line numbers | Don't physically join lines (P-02) |
 | **Parser** | Namespace context resets incorrectly | LIFO stack management (P-03) |
 | **Parser** | Computed proc names not skipped | Log `PW-01`, skip proc (P-04) |
@@ -1024,6 +1141,10 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Parser** | Comment banner orphaned after proc drop | Record `comment_start_line`/`comment_end_line`; drop atomically with proc (P-34) |
 | **Parser** | DPA proc name extracted as false call dependency | Extract first word only; Level 2c suppression filter (P-35) |
 | **Parser** | `foreach_in_collection` not in control-flow keywords | Add to `CONTROL_FLOW_KEYWORDS`; push `CONTROL_FLOW` context (P-36) |
+| **Parser** | `regexp`/`regsub`/`exec`/`glob` brace args walked as code | Pre-pass marks opaque `{…}` token ranges as skip; recurse into code-block braces (P-38) |
+| **Parser** | `switch` pattern labels extracted as proc calls | Pre-pass marks odd-indexed body WORDs as skip (P-39) |
+| **Parser** | DPA name parser concatenates option-list fragments | Take first whitespace-token after keyword; ignore option list entirely (P-40) |
+| **Compiler/Validator** | Diagnostics serialise with `"file": null` | P4/P6 emit sites must pass `path=`; recover from canonical name where ProcEntry is absent (P-41) |
 | **Trimmer** | Adjacent drop-ranges leave blank-line artifacts | Coalesce adjacent/overlapping ranges before deletion pass (P-37) |
 | **Compiler** | Trace expansion is non-deterministic | Require exact match, not ambiguous (P-08) |
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |

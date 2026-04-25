@@ -368,6 +368,42 @@ def test_validate_post_emits_vw06_for_source_into_removed_file() -> None:
     assert "VW-06" in _codes(ctx)
 
 
+def test_validate_post_vw05_carries_caller_path() -> None:
+    """Bug ``diagnostics_file_null_for_p4_p6.md``: VW-05/VW-06 had ``file: null``.
+
+    The fix populates ``Diagnostic.path`` from the caller's source file
+    recovered from the canonical name. The audit JSON ``file`` field is
+    now a real domain-relative POSIX path, not None.
+    """
+    caller = "a.tcl::foo"
+    removed = "a.tcl::gone"
+    manifest = _make_manifest(
+        files={Path("a.tcl"): FileTreatment.FULL_COPY},
+        procs={
+            caller: ProcDecision(
+                canonical_name=caller,
+                source_file=Path("a.tcl"),
+                selection_source="base:files.include",
+            )
+        },
+    )
+    edge = Edge(
+        caller=caller, callee=removed, kind="proc_call", status="resolved",
+        token="gone", line=5,
+    )
+    graph = DependencyGraph(
+        pi_seeds=(caller,), nodes=(caller,), pt=(), edges=(edge,),
+        reachable_from_includes=frozenset({caller}),
+    )
+    ctx = _ctx()
+    validate_post(ctx, manifest, graph, rewritten=())
+    vw05 = [d for d in ctx.diag.snapshot() if d.code == "VW-05"]
+    assert vw05, "expected at least one VW-05 emission"
+    assert vw05[0].path == Path("a.tcl"), (
+        f"VW-05 must carry caller's source file, got {vw05[0].path!r}"
+    )
+
+
 def test_validate_post_ignores_unresolved_edges() -> None:
     caller = "a.tcl::foo"
     manifest = _make_manifest(

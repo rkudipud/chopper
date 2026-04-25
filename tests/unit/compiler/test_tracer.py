@@ -243,6 +243,28 @@ class TestUnresolvedMatch:
         assert graph.edges[0].status == "unresolved"
         assert graph.edges[0].diagnostic_code == "TW-02"
 
+    def test_tw02_diagnostic_carries_caller_path(self) -> None:
+        """Bug ``diagnostics_file_null_for_p4_p6.md``: TW-02 emitted ``file: null``.
+
+        The fix populates ``Diagnostic.path`` from ``caller.source_file``
+        so the audit JSON ``file`` field is a real domain-relative POSIX
+        path, not None. Same wiring covers TW-01 / TW-03 / TW-04 / TI-01.
+        """
+        from pathlib import Path
+
+        ctx, sink = make_ctx()
+        foo = make_proc("a.tcl", "foo", calls=("missing_util",))
+        parsed = _parse(foo)
+        manifest = _manifest_with_seeds("a.tcl::foo")
+
+        TracerService().run(ctx, manifest, parsed)
+
+        assert len(sink.emissions) == 1
+        assert sink.emissions[0].code == "TW-02"
+        assert sink.emissions[0].path == Path("a.tcl"), (
+            f"TW-02 must carry caller's source_file, got {sink.emissions[0].path!r}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tool-command pool — TI-01 (architecture doc §3.10, FR-44)

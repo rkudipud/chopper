@@ -269,8 +269,16 @@ def extract_body_refs(
     # suppressed (so we do not classify it) — for source/iproc_source.
     source_cmd_starts: set[int] = set()
 
+    # Pre-pass: mark token indices that must be skipped because they are
+    # contents of an opaque braced argument (regex/exec/string-match
+    # pattern, etc.) or a switch pattern label. See `_compute_skip_indices`.
+    skip_indices = _compute_skip_indices(tokens, body_lbrace_idx, body_rbrace_idx)
+
     i = body_lbrace_idx + 1
     while i < body_rbrace_idx:
+        if i in skip_indices:
+            i += 1
+            continue
         tok = tokens[i]
         if tok.kind is TokenKind.WORD and tok.at_command_position:
             first_word = tok.value
@@ -415,3 +423,310 @@ def _strip_quotes(value: str) -> str:
         if value[0] == "{" and value[-1] == "}":
             return value[1:-1]
     return value
+
+
+# ---------------------------------------------------------------------------
+# Structural pre-pass — opaque braces and switch patterns
+# ---------------------------------------------------------------------------
+
+
+# Commands whose ``{...}`` arguments are LITERAL strings, not Tcl source.
+# The contents of these braces must not be walked for proc-call extraction
+# (they are typically regular expressions, glob patterns, or external
+# command lines passed verbatim to a system program).
+#
+# References:
+# * Tcl ``regexp`` / ``regsub`` (n) man pages — pattern argument is a
+#   regular expression, not Tcl source.
+# * ``string match`` (n) — pattern is a glob, not Tcl.
+# * ``exec`` — argv tokens are passed to a child process; brace-quoted
+#   arguments are commonly grep/awk/sed regex literals.
+# * ``glob`` — pattern is a glob.
+# * ``after``, ``binary scan`` — format strings, not Tcl.
+_OPAQUE_BRACE_COMMANDS: frozenset[str] = frozenset(
+    {
+        "regexp",
+        "regsub",
+        "exec",
+        "glob",
+    }
+)
+
+
+# Commands whose ``{...}`` arguments contain Tcl code that must be
+# recursively scanned by the structural pre-pass. Without this list, an
+# opaque command nested inside (for example) ``if {[catch {exec grep -P
+# {...}} ]}`` would never be discovered because its ``[exec`` reference
+# lives inside a body brace whose contents are not at command position.
+# Recursing the pre-pass into these bodies finds those nested commands.
+_CODE_BRACE_COMMANDS: frozenset[str] = frozenset(
+    {
+        "if",
+        "elseif",
+        "else",
+        "while",
+        "for",
+        "foreach",
+        "foreach_in_collection",
+        "catch",
+        "try",
+        "eval",
+        "uplevel",
+        "namespace",
+        "expr",
+    }
+)
+
+
+def _compute_skip_indices(
+    tokens: tuple[Token, ...],
+    body_lbrace_idx: int,
+    body_rbrace_idx: int,
+) -> set[int]:
+    """Identify token indices the extractor must skip during the body walk.
+
+    Three structural cases produce skips:
+
+    1. **Opaque braced arguments** to commands in
+       :data:`_OPAQUE_BRACE_COMMANDS` (regex/exec/glob/string-match).
+       The full ``{ ... }`` range (LBRACE through matching RBRACE,
+       inclusive) is marked skip so embedded ``|`` / ``[abc]`` regex
+       characters do not leak into call extraction (bug
+       ``TW-02_regex_literal_misparse.md``).
+
+    2. **Recursive descent into Tcl code blocks** (:data:`_CODE_BRACE_COMMANDS`:
+       ``if``, ``catch``, ``while``, ``foreach``, etc.). The body
+       brace's contents ARE Tcl code, so we recursively pre-pass the
+       inner range to discover any nested opaque/switch commands.
+       Without this, an ``exec`` inside ``[catch {exec grep -P {...}}]``
+       is never found because nothing in the inner range is at command
+       position from the outer pre-pass's point of view.
+
+    3. **switch pattern labels.** Inside ``switch <expr> { ... }``,
+       the WORD tokens at the body brace's inner depth are pattern
+       labels or the ``-`` fall-through marker, never proc invocations
+       (bug ``TW-02_switch_pattern_label_misparse.md``).
+    """
+    skip: set[int] = set()
+    _scan_command_range(tokens, body_lbrace_idx + 1, body_rbrace_idx, skip)
+    return skip
+
+
+def _scan_command_range(
+    tokens: tuple[Token, ...],
+    start: int,
+    end: int,
+    skip: set[int],
+) -> None:
+    """Pre-pass over a Tcl-code range, populating ``skip`` in-place.
+
+    Discovers command-position WORD tokens, classifies them against
+    the opaque/code/switch sets, and either marks brace ranges
+    skipped, recurses into code-block bodies, or marks switch pattern
+    labels — depending on classification.
+
+    Also scans every WORD value for ``[<cmd>`` substitutions; if the
+    inner ``<cmd>`` is opaque/code/switch, the next ``{...}`` at the
+    surrounding depth receives the same treatment as a command-position
+    invocation.
+
+    Tcl semantics correction: when the pre-pass enters a code-block
+    body brace (e.g. the body of ``catch {script}`` or ``if
+    {condition}``), the contents START at command position regardless
+    of the tokenizer's ``at_command_position`` flag (the tokenizer
+    flips that flag off on every LBRACE because it cannot know whether
+    a brace introduces a value or a script). The pre-pass therefore
+    treats the FIRST WORD it encounters at the range's enclosing depth
+    as cmd-position — and similarly for the first WORD after every
+    NEWLINE / SEMICOLON at that depth.
+    """
+    if start >= end:
+        return
+    enclosing_depth = tokens[start].brace_depth if start < end else 0
+    expecting_cmd = True
+    i = start
+    while i < end:
+        tok = tokens[i]
+        if tok.kind is TokenKind.NEWLINE or tok.kind is TokenKind.SEMICOLON:
+            if tok.brace_depth == enclosing_depth:
+                expecting_cmd = True
+            i += 1
+            continue
+        if tok.kind is TokenKind.WORD:
+            base_depth = tok.brace_depth
+            cmd_end = _find_command_end(tokens, i + 1, end, base_depth)
+            is_cmd_pos = (
+                tok.at_command_position
+                or (expecting_cmd and base_depth == enclosing_depth)
+            )
+            if is_cmd_pos and i not in skip:
+                _classify_and_handle(tokens, tok.value, i + 1, cmd_end, base_depth, skip)
+                expecting_cmd = False
+            for m in _INNER_CMD_RE.finditer(tok.value):
+                inner_cmd = m.group(1)
+                _classify_and_handle(tokens, inner_cmd, i + 1, cmd_end, base_depth, skip)
+        elif tok.kind is TokenKind.LBRACE or tok.kind is TokenKind.RBRACE:
+            # Brace tokens never reset cmd expectation; they are
+            # part of an argument or close the enclosing scope.
+            pass
+        i += 1
+
+
+def _classify_and_handle(
+    tokens: tuple[Token, ...],
+    cmd: str,
+    arg_start: int,
+    arg_end: int,
+    depth: int,
+    skip: set[int],
+) -> None:
+    """Apply opaque/code/switch handling for one (possibly inner) command."""
+    if cmd in _OPAQUE_BRACE_COMMANDS:
+        _mark_opaque_arg_braces(tokens, arg_start, arg_end, depth, skip)
+    elif cmd == "string":
+        if _is_string_match(tokens, arg_start, arg_end):
+            _mark_opaque_arg_braces(tokens, arg_start, arg_end, depth, skip)
+    elif cmd == "switch":
+        _mark_switch_pattern_words(tokens, arg_start, arg_end, depth, skip)
+    elif cmd in _CODE_BRACE_COMMANDS:
+        # Recurse into every ``{...}`` argument at this depth — those
+        # contents are Tcl code that may contain further opaque / switch
+        # / nested code-block commands.
+        j = arg_start
+        while j < arg_end:
+            t = tokens[j]
+            if t.kind is TokenKind.LBRACE and t.brace_depth == depth:
+                rbrace = _matching_rbrace(tokens, j, arg_end)
+                if rbrace is not None:
+                    _scan_command_range(tokens, j + 1, rbrace, skip)
+                    j = rbrace + 1
+                    continue
+            j += 1
+
+
+# Match ``[<cmd>`` openings inside a WORD value. ``<cmd>`` is captured
+# without ``::`` qualifiers; this is sufficient because all the
+# classified commands (opaque + code-block + switch + ``string``) are
+# global builtins. Quoting/escape cases (``\[``) are handled at the
+# tokenizer layer; by the time we see a WORD value, the ``\[`` character
+# pair is preserved verbatim and matches harmlessly (the inner cmd then
+# fails classification).
+_INNER_CMD_RE = re.compile(r"\[\s*([A-Za-z_][A-Za-z_0-9]*)")
+
+
+def _find_command_end(
+    tokens: tuple[Token, ...],
+    start: int,
+    limit: int,
+    base_depth: int,
+) -> int:
+    """Return the exclusive index where this command ends.
+
+    A command terminates at the first NEWLINE or SEMICOLON whose
+    ``brace_depth`` equals ``base_depth`` (the depth at which the
+    command's first word lives). Tokens deeper than ``base_depth`` are
+    inside arguments and do not terminate the command.
+    """
+    j = start
+    while j < limit:
+        t = tokens[j]
+        if (t.kind is TokenKind.NEWLINE or t.kind is TokenKind.SEMICOLON) and t.brace_depth == base_depth:
+            return j
+        j += 1
+    return limit
+
+
+def _mark_opaque_arg_braces(
+    tokens: tuple[Token, ...],
+    start: int,
+    end: int,
+    base_depth: int,
+    skip: set[int],
+) -> None:
+    """Mark every ``{...}`` argument of the current command as opaque.
+
+    A ``{...}`` argument's LBRACE has ``brace_depth == base_depth``
+    (depth before the brace increments it). Walks the command range,
+    finds each such LBRACE, locates the matching RBRACE by depth, and
+    adds every token index in ``[lbrace, rbrace]`` (inclusive) to
+    ``skip``.
+    """
+    j = start
+    while j < end:
+        t = tokens[j]
+        if t.kind is TokenKind.LBRACE and t.brace_depth == base_depth:
+            rbrace = _matching_rbrace(tokens, j, end)
+            if rbrace is not None:
+                for k in range(j, rbrace + 1):
+                    skip.add(k)
+                j = rbrace + 1
+                continue
+        j += 1
+
+
+def _mark_switch_pattern_words(
+    tokens: tuple[Token, ...],
+    start: int,
+    end: int,
+    base_depth: int,
+    skip: set[int],
+) -> None:
+    """Mark ``switch`` pattern-label WORDs inside the body brace as skip.
+
+    The body brace is the LAST LBRACE at ``base_depth`` before
+    ``end``. Inside it, WORD tokens at ``base_depth + 1`` are pattern
+    labels or the ``-`` fall-through marker; bodies are nested
+    ``{...}`` blocks whose code lives at ``base_depth + 2`` and is left
+    walkable.
+    """
+    body_lbrace = _last_lbrace_at_depth(tokens, start, end, base_depth)
+    if body_lbrace is None:
+        return
+    body_rbrace = _matching_rbrace(tokens, body_lbrace, end)
+    if body_rbrace is None:
+        return
+    inner_depth = base_depth + 1
+    for j in range(body_lbrace + 1, body_rbrace):
+        t = tokens[j]
+        if t.kind is TokenKind.WORD and t.brace_depth == inner_depth:
+            skip.add(j)
+
+
+def _matching_rbrace(tokens: tuple[Token, ...], lbrace_idx: int, limit: int) -> int | None:
+    """Find the index of the RBRACE matching ``tokens[lbrace_idx]``."""
+    depth_after_open = tokens[lbrace_idx].brace_depth + 1
+    j = lbrace_idx + 1
+    while j < limit:
+        t = tokens[j]
+        # Per Token docstring, RBRACE.brace_depth is the enclosing-scope
+        # depth (depth AFTER the close), so the matching RBRACE has
+        # ``brace_depth == depth_after_open - 1 == lbrace.brace_depth``.
+        if t.kind is TokenKind.RBRACE and t.brace_depth == depth_after_open - 1:
+            return j
+        j += 1
+    return None
+
+
+def _last_lbrace_at_depth(
+    tokens: tuple[Token, ...], start: int, end: int, depth: int
+) -> int | None:
+    """Return the index of the LAST LBRACE within [start, end) at ``depth``."""
+    last: int | None = None
+    j = start
+    while j < end:
+        t = tokens[j]
+        if t.kind is TokenKind.LBRACE and t.brace_depth == depth:
+            last = j
+        j += 1
+    return last
+
+
+def _is_string_match(tokens: tuple[Token, ...], start: int, end: int) -> bool:
+    """True iff this ``string`` command is ``string match ...``."""
+    j = start
+    while j < end:
+        t = tokens[j]
+        if t.kind is TokenKind.WORD:
+            return t.value == "match"
+        j += 1
+    return False

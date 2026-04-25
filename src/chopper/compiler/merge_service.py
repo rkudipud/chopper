@@ -36,6 +36,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
+from re import Pattern, compile as re_compile, escape as re_escape
 from typing import Literal
 
 from chopper.compiler.flow_resolver import resolve_stages
@@ -823,15 +824,18 @@ def _is_glob(entry: str) -> bool:
 
 def _match_glob(pattern: str, parsed_paths: frozenset[Path]) -> set[Path]:
     """Match ``pattern`` against every path in ``parsed_paths`` using POSIX
-    semantics. Supports ``*``, ``?``, ``[...]``, and ``**`` (recursive).
+    semantics. Supports ``*``, ``?``, ``[...]``, and ``**`` (recursive,
+    matching zero or more path components).
 
-    ``PurePath.full_match`` (Python 3.13+) handles ``**`` natively; we
-    fall back to :func:`fnmatch.fnmatchcase` otherwise. Both are tried
-    so ``**/foo`` and ``*.tcl`` style patterns both match. The method
-    is resolved via :func:`getattr` so the module type-checks under the
-    Python 3.11 runtime floor while still using the native matcher on
-    3.13+ interpreters at run time.
+    ``PurePath.full_match`` (Python 3.13+) handles ``**`` natively; on
+    older interpreters we translate the pattern into a regex so ``**/``
+    correctly collapses to zero or more intermediate directories
+    (``rules/**/*.fm.tcl`` matches ``rules/r1.fm.tcl`` and
+    ``rules/sub/r2.fm.tcl`` alike). ``fnmatch.fnmatchcase`` does not
+    honour the zero-directory case for ``**`` and is therefore used
+    only as a final fallback for patterns that contain no ``**``.
     """
+    regex = _glob_to_regex(pattern)
     hits: set[Path] = set()
     for path in parsed_paths:
         posix = path.as_posix()
@@ -843,6 +847,70 @@ def _match_glob(pattern: str, parsed_paths: frozenset[Path]) -> set[Path]:
                     continue
             except ValueError:
                 pass
-        if fnmatchcase(posix, pattern):
+        if regex is not None:
+            if regex.fullmatch(posix):
+                hits.add(path)
+        elif fnmatchcase(posix, pattern):
             hits.add(path)
     return hits
+
+
+def _glob_to_regex(pattern: str) -> Pattern[str] | None:
+    """Translate a POSIX-style glob with ``**`` semantics into a regex.
+
+    - ``**/`` matches zero or more path components (``a/b/c/``, ``b/c/`` or ``""``).
+    - Trailing ``**`` matches any remainder including empty.
+    - ``*`` matches any run of non-``/`` characters.
+    - ``?`` matches a single non-``/`` character.
+    - ``[...]`` is passed through as a character class (``!`` is converted
+      to ``^`` for negation; literal ``]`` and ``\\`` inside the class
+      are preserved verbatim).
+
+    Returns ``None`` if the pattern does not contain ``**`` so the caller
+    can fall back to :func:`fnmatch.fnmatchcase` (which has identical
+    semantics for the remaining metacharacters).
+    """
+    if "**" not in pattern:
+        return None
+    out: list[str] = []
+    i = 0
+    n = len(pattern)
+    while i < n:
+        ch = pattern[i]
+        if ch == "*":
+            if i + 1 < n and pattern[i + 1] == "*":
+                # ``**`` recursive segment.
+                if i + 2 < n and pattern[i + 2] == "/":
+                    out.append("(?:.*/)?")  # zero or more directory components
+                    i += 3
+                else:
+                    out.append(".*")  # trailing ``**``
+                    i += 2
+            else:
+                out.append("[^/]*")
+                i += 1
+        elif ch == "?":
+            out.append("[^/]")
+            i += 1
+        elif ch == "[":
+            j = i + 1
+            if j < n and pattern[j] == "!":
+                j += 1
+            if j < n and pattern[j] == "]":
+                j += 1
+            while j < n and pattern[j] != "]":
+                j += 1
+            if j >= n:
+                # Unterminated class — treat as literal ``[``.
+                out.append(re_escape("["))
+                i += 1
+            else:
+                cls = pattern[i + 1 : j]
+                if cls.startswith("!"):
+                    cls = "^" + cls[1:]
+                out.append("[" + cls + "]")
+                i = j + 1
+        else:
+            out.append(re_escape(ch))
+            i += 1
+    return re_compile("".join(out))

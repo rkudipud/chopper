@@ -168,7 +168,8 @@ def tokenize(text: str) -> TokenizerResult:
     word_start = -1
     word_line = 0
     word_at_cmd_pos = False
-    in_quoted_word = False  # True only when brace_depth == 0 and word began with "
+    in_quoted_word = False  # True while scanning between matched ``"`` quotes
+    quoted_bracket_depth = 0  # ``[...]`` nesting inside a quoted word
 
     def _flush_word(end_idx: int) -> None:
         nonlocal word_start, at_cmd_pos
@@ -204,9 +205,24 @@ def tokenize(text: str) -> TokenizerResult:
             i += 2
             continue
 
-        # Quoted-word in progress — only active at brace_depth == 0.
+        # Quoted-word in progress — track ``[...]`` bracket nesting
+        # because in Tcl ``"..."`` words, ``[...]`` is command
+        # substitution and any ``"`` inside it is part of the inner
+        # command, not a closing quote of the outer word. Without this
+        # nesting accounting, an inner ``[format "%.3f" ...]`` would
+        # close the outer quote and leak the rest of the message text
+        # back into the command stream — see bug
+        # ``TW-02_quoted_string_semicolon_misparse.md``.
         if in_quoted_word:
-            if ch == '"' and not _is_escaped(text, i):
+            if ch == "[" and not _is_escaped(text, i):
+                quoted_bracket_depth += 1
+                i += 1
+                continue
+            if ch == "]" and not _is_escaped(text, i) and quoted_bracket_depth > 0:
+                quoted_bracket_depth -= 1
+                i += 1
+                continue
+            if ch == '"' and quoted_bracket_depth == 0 and not _is_escaped(text, i):
                 # Close the quoted word; include the closing ``"`` in value.
                 tokens.append(
                     Token(
@@ -219,6 +235,7 @@ def tokenize(text: str) -> TokenizerResult:
                 )
                 word_start = -1
                 in_quoted_word = False
+                quoted_bracket_depth = 0
                 at_cmd_pos = False
                 i += 1
                 continue
@@ -336,9 +353,19 @@ def tokenize(text: str) -> TokenizerResult:
             i += 1
             continue
 
-        # Double-quote — only opens a quoted word at brace_depth == 0, at
-        # word start. Inside braces, `"` is a literal character (§3.3.2).
-        if ch == '"' and brace_depth == 0 and word_start == -1 and not _is_escaped(text, i):
+        # Double-quote — opens a quoted word at word-start position. Tcl's
+        # rule (Endekas/Dodekalogue rule 5: "Double-quotes") is that an
+        # unescaped ``"`` at a word boundary opens a quoted word that runs
+        # until the matching unescaped ``"``; whitespace, ``;``, ``\n``,
+        # and ``}`` inside the quoted word are LITERAL characters.
+        # The previous implementation gated this on ``brace_depth == 0``,
+        # which broke every proc body (depth ≥ 1) and was the root cause
+        # of TW-02 false positives where ``;`` inside a quoted string was
+        # treated as a command separator (bug report
+        # ``TW-02_quoted_string_semicolon_misparse.md``). Quoting must
+        # work at every depth — Chopper re-tokenizes proc bodies as Tcl
+        # source and Tcl source honors ``"..."`` regardless of nesting.
+        if ch == '"' and word_start == -1 and not _is_escaped(text, i):
             word_start = i  # include opening `"` in value
             word_line = line_no
             word_at_cmd_pos = at_cmd_pos

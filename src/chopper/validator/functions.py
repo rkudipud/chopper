@@ -391,6 +391,7 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
                         "VW-05",
                         phase=Phase.P6_POSTVALIDATE,
                         message=(f"Surviving proc {edge.caller!r} calls removed proc {edge.callee!r}"),
+                        path=_path_from_canonical(edge.caller),
                         line_no=edge.line,
                     )
                 )
@@ -402,9 +403,23 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
                         "VW-06",
                         phase=Phase.P6_POSTVALIDATE,
                         message=(f"Surviving proc {edge.caller!r} {edge.kind}s removed file {edge.callee!r}"),
+                        path=_path_from_canonical(edge.caller),
                         line_no=edge.line,
                     )
                 )
+
+
+def _path_from_canonical(canonical_name: str) -> Path | None:
+    """Recover the source-file :class:`Path` from a proc canonical name.
+
+    Canonical names follow ``<source_file.as_posix()>::<qualified_name>``.
+    Domain paths are POSIX-relative and never contain ``::``, so the
+    first ``::`` is the unambiguous boundary.
+    """
+    sep = canonical_name.find("::")
+    if sep < 0:
+        return None
+    return Path(canonical_name[:sep])
 
 
 # ---------------------------------------------------------------------------
