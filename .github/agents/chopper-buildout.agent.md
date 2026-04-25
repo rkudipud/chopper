@@ -26,6 +26,61 @@ You embody:
 
 ---
 
+## GitNexus Code Intelligence & Memory
+
+### On Every Invocation
+
+**1. Read memory file**
+Read `.github/agent_memory/chopper-buildout.md`. If it does not exist, create it from the template in `.github/agent_memory/README.md`. This is your persistent working context across sessions — decisions made, active stage, open blockers.
+
+**2. Check GitNexus availability**
+Run `npx gitnexus status 2>&1` to check availability.
+
+**If available:**
+- Read `gitnexus://repo/chopper/context` — codebase overview and index staleness check.
+- If stale, run `npx gitnexus analyze` before proceeding.
+- **First time on a new stage or after major module changes:** Run `npx gitnexus analyze --skills` to regenerate per-module skill files into `.github/skills/generated/`. These give pinpoint execution-flow context for each Chopper module (parser, compiler, trimmer, etc.) and dramatically reduce the search needed to understand a module.
+- All code intelligence tasks use GitNexus tools (see skill table below).
+
+**If NOT available** (npx missing, gitnexus not installed, no `.gitnexus/` index):
+- Fall back to: `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile`, `search/listDirectory`.
+- Read `.github/agent_memory/chopper-buildout.md` for accumulated codebase context.
+- Consult `technical_docs/chopper_description.md` for architecture reference.
+
+**3. MANDATORY pre-edit impact analysis**
+Before modifying **any** symbol (function, class, constant), run:
+```
+gitnexus_impact({target: "symbolName", direction: "upstream"})
+```
+Report blast radius (direct callers, affected processes, risk level) to the user. **Do not proceed with HIGH or CRITICAL risk changes without explicit user confirmation.**
+
+Fallback (GitNexus unavailable): use `search/usages` + `search/textSearch` to locate all references first.
+
+**4. MANDATORY pre-commit change verification**
+Run `gitnexus_detect_changes()` before committing to verify only expected symbols and execution flows changed.
+
+Fallback: use `search/changes` to review all modified files.
+
+**5. Task → skill mapping**
+
+| Task | Read this skill | Fallback |
+|------|-----------------|----------|
+| Explore architecture / "How does X work?" | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
+| Blast radius / "What breaks if I change X?" | `.github/skills/gitnexus-impact-analysis/SKILL.md` | `search/usages` + `search/textSearch` |
+| Debug / "Why is X failing?" | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | `.github/skills/gitnexus-refactoring/SKILL.md` | `search/usages` + manual multi-file edits |
+| Index / status / clean / wiki | `.github/skills/gitnexus-cli/SKILL.md` | Skip — GitNexus required |
+| Tools / schema reference | `.github/skills/gitnexus-guide/SKILL.md` | Consult architecture doc instead |
+
+**6. Update memory file after milestones**
+After completing significant work, update `.github/agent_memory/chopper-buildout.md` with:
+- What was accomplished
+- Decisions made and rationale
+- Next actions
+- Blockers or open questions
+
+---
+
 ## CRITICAL: The Architecture Doc Is Law
 
 `technical_docs/chopper_description.md` is the **single source of truth**. Every implementation decision must trace back to a specific section.
@@ -165,6 +220,19 @@ After implementing ANY feature, perform this checklist:
 - [ ] Diagnostic codes match DIAGNOSTIC_CODES.md exactly
 - [ ] Exit codes follow architecture doc §5.10 policy
 - [ ] Tests cover spec requirements, not implementation details
+```
+
+### Phase 6: GitNexus Self-Check Before Finishing
+
+Before marking any task done, verify all four (GitNexus) or use fallbacks if unavailable:
+
+```
+1. gitnexus_impact was run for ALL modified symbols
+   Fallback: search/usages confirmed all references are updated
+2. No HIGH/CRITICAL risk warnings were ignored
+3. gitnexus_detect_changes() confirms only expected symbols/flows changed
+   Fallback: search/changes reviewed for unexpected modifications
+4. All d=1 dependents (WILL BREAK) were updated
 ```
 
 ---

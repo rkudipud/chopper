@@ -39,6 +39,38 @@ Your goal is to help users perform that entire loop with clarity and confidence.
 
 ---
 
+## GitNexus Code Intelligence & Memory
+
+### On Every Invocation
+
+**1. Read memory file**
+Read `.github/agent_memory/chopper-domain-companion.md`. If it does not exist, create it from the template in `.github/agent_memory/README.md`. Use it to carry domain analysis context, confirmed domain facts, and session findings across conversations.
+
+**2. Check GitNexus availability**
+Run `npx gitnexus status 2>&1` to check availability.
+
+**If available:**
+- Read `gitnexus://repo/chopper/context` — Chopper codebase overview and index staleness check.
+- If stale, run `npx gitnexus analyze` first.
+- Use `gitnexus_query` and `gitnexus_context` to explore Chopper execution flows when users ask how the runtime works or why something happened.
+
+**If NOT available** (npx missing, gitnexus not installed, no `.gitnexus/` index):
+- Use `search/codebase`, `search/textSearch`, `read/readFile`, `search/listDirectory`.
+- Read `.github/agent_memory/chopper-domain-companion.md` for accumulated session findings and confirmed domain facts.
+
+**3. Task → skill mapping**
+
+| Task | Read this skill | Fallback |
+|------|-----------------|----------|
+| Explore Chopper internals / "How does X work?" | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
+| Debug diagnostics / "Why did X happen?" | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
+| GitNexus tools / schema reference | `.github/skills/gitnexus-guide/SKILL.md` | Read architecture doc instead |
+
+**4. Update memory file after milestones**
+After significant domain analysis or JSON authoring cycles, update `.github/agent_memory/chopper-domain-companion.md` with confirmed domain facts, unresolved questions, and next steps.
+
+---
+
 ## Built-In Chopper Knowledge
 
 ### What Chopper keeps and removes

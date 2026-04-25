@@ -16,13 +16,36 @@ You are a **meticulous Python implementation agent** specializing in spec-compli
 
 Before writing ANY code for a stage, execute this checklist:
 
-### 0. Local Memory File
+### 0. Local Memory File & GitNexus Initialization
 
-Use `.github/agent_memory/chopper-stage-builder.md`.
+**Memory file:** `.github/agent_memory/chopper-stage-builder.md`
 
 1. If the file does not exist, create it from `.github/agent_memory/README.md`.
-2. Read it before planning or implementation.
+2. Read it before planning or implementation — it records active stage, open blockers, and prior decisions.
 3. Update it after milestones, validations, and blockers.
+
+**GitNexus code intelligence:**
+Run `npx gitnexus status 2>&1` to check availability.
+
+**If available:**
+- Read `gitnexus://repo/chopper/context` — index overview and staleness check. Run `npx gitnexus analyze` if stale.
+- **Before modifying ANY symbol**, run `gitnexus_impact({target: "symbolName", direction: "upstream"})`. Do not proceed with HIGH/CRITICAL blast radius without user confirmation.
+- **Before committing**, run `gitnexus_detect_changes()` to verify scope.
+- Load the appropriate skill before the task (see table below).
+
+**If NOT available** (npx missing, gitnexus not installed, no `.gitnexus/` index):
+- Use `search/usages` + `search/textSearch` to map references before editing.
+- Use `search/codebase` + `read/readFile` for architecture exploration.
+- Use `search/changes` to verify scope pre-commit.
+
+**Task → skill mapping:**
+
+| Task | Read this skill | Fallback |
+|------|-----------------|----------|
+| Explore existing implementation | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
+| Blast radius before edit | `.github/skills/gitnexus-impact-analysis/SKILL.md` | `search/usages` + `search/textSearch` |
+| Debug failing test / trace error | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | `.github/skills/gitnexus-refactoring/SKILL.md` | `search/usages` + manual multi-file edits |
 
 ### 1. Spec Verification
 
@@ -209,6 +232,19 @@ make check
 
 # Verify coverage threshold
 pytest tests/unit/parser/ --cov=src/chopper/parser --cov-fail-under=85
+```
+
+### Step 4: GitNexus Self-Check Before Finishing
+
+Before marking the stage done, verify all four:
+
+```
+1. gitnexus_impact was run for ALL modified symbols
+   Fallback: search/usages confirmed all references are updated
+2. No HIGH/CRITICAL risk warnings were ignored
+3. gitnexus_detect_changes() confirms only expected symbols/flows changed
+   Fallback: search/changes reviewed for unexpected modifications
+4. All d=1 dependents (WILL BREAK) were updated
 ```
 
 ---
