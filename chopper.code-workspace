@@ -95,5 +95,11 @@
         "group": "test"
       }
     ]
+  },
+  "extensions": {
+    "recommendations": [
+      "bitwisecook.tcl-lsp",
+      "EditorConfig.EditorConfig"
+    ]
   }
 }
