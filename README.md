@@ -325,6 +325,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 0.5.1 — 2026-04-27
+
+- **`$schema` IDs are now short, path-agnostic identifiers.** The `$schema` field in all Chopper JSONs changed from slash-delimited paths (`chopper/base/v1`, `chopper/feature/v1`, `chopper/project/v1`) to short identifiers (`base-v1`, `feature-v1`, `project-v1`). Chopper resolves each ID by looking it up in `schemas/` relative to its own install root — no file-system path is encoded in the value, so the JSONs work regardless of where the repo is checked out or where `schemas/` is on disk. The schema files themselves (`base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`) were updated in lockstep (`$id` and `const`). All examples, test fixtures, tests, docs, and the Chopper Domain Companion were updated in the same pass.
+
 ### 0.5.0 — 2026-04-25
 
 - **Tool-command pool (`TI-01`).** Real EDA domains emit thousands of `TW-02 unresolved-proc-call` warnings per trim run, one per vendor-tool-command call (`get_app_var`, `set_dont_touch`, `report_timing`, …), burying genuine hits on actually-missing procs. Chopper now ships a domain-agnostic registry of known external tool-command names, seeded with PrimeTime (~850 commands at `src/chopper/data/tool_commands/pt.commands`) and extensible via the repeatable CLI flag `--tool-commands <path>`. Matches against the pool are reported as the new info-severity diagnostic `TI-01 known-tool-command` (exit 0, not counted against `--strict`). Architecture Doc §3.10 and **FR-44** specify the contract.

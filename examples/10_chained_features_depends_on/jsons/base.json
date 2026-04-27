@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base for a domain with chained feature dependencies. DFT must be applied before power, and both must be applied before pipeline.",

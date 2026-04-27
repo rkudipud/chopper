@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "power_analysis",
   "domain": "my_domain",
   "description": "Power analysis feature. Requires dft_support because power checks rely on scan-chain configuration established by the DFT foundation.",

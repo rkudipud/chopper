@@ -25,9 +25,9 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 
 | JSON Type | Schema `$id` | Purpose |
 |-----------|-------------|---------|
-| **Base** | `chopper/base/v1` | Defines the minimal viable flow for a domain. Every project needs exactly one base. |
-| **Feature** | `chopper/feature/v1` | Extends or removes elements of the base via file/proc/stage selections. Zero or more features per project. |
-| **Project** | `chopper/project/v1` | Selects and orders one base and zero or more features for a specific trim run. |
+| **Base** | `base-v1` | Defines the minimal viable flow for a domain. Every project needs exactly one base. |
+| **Feature** | `feature-v1` | Extends or removes elements of the base via file/proc/stage selections. Zero or more features per project. |
+| **Project** | `project-v1` | Selects and orders one base and zero or more features for a specific trim run. |
 
 **Relationship:**
 
@@ -123,7 +123,7 @@ Set `"generate_stack": true` in the base JSON `options` block to have Chopper em
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "options": { "generate_stack": true },
   "stages": [ ... ]
@@ -159,7 +159,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "files": {
     "include": ["setup.tcl"]
@@ -176,7 +176,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | `"chopper/base/v1"` | Yes | Schema identifier (literal string) |
+| `$schema` | `"base-v1"` | Yes | Schema identifier (literal string) |
 | `domain` | string | Yes | Domain directory name (e.g., `my_domain`) |
 | `owner` | string | No | Team responsible for this base |
 | `vendor` | string | No | Vendor (e.g., `synopsys`, `cadence`) |
@@ -246,7 +246,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 
 ```json
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "dft",
   "files": {
     "include": ["procs/dft_procs.tcl"]
@@ -263,7 +263,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | `"chopper/feature/v1"` | Yes | Schema identifier |
+| `$schema` | `"feature-v1"` | Yes | Schema identifier |
 | `name` | string | Yes | Feature identifier — referenced by `depends_on` and project `features` list |
 | `domain` | string | No | Target domain. If set, Chopper warns if mismatched with selected base |
 | `description` | string | No | Human-readable summary |
@@ -297,7 +297,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 
 ```json
 {
-  "$schema": "chopper/project/v1",
+  "$schema": "project-v1",
   "project": "PROJECT_ABC",
   "domain": "my_domain",
   "base": "jsons/base.json"
@@ -308,7 +308,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | `"chopper/project/v1"` | Yes | Schema identifier |
+| `$schema` | `"project-v1"` | Yes | Schema identifier |
 | `project` | string | Yes | Project identifier (e.g., `PROJECT_ABC`) |
 | `domain` | string | Yes | Domain identifier — must match base `domain` field |
 | `base` | string | Yes | Domain-relative path to the base JSON |
@@ -343,17 +343,17 @@ All paths in `base` and `features` must be:
 
 ```json
 // dft_support.feature.json — no prerequisites
-{ "$schema": "chopper/feature/v1", "name": "dft_support", ... }
+{ "$schema": "feature-v1", "name": "dft_support", ... }
 
 // power_analysis.feature.json — needs dft first
-{ "$schema": "chopper/feature/v1", "name": "power_analysis", "depends_on": ["dft_support"], ... }
+{ "$schema": "feature-v1", "name": "power_analysis", "depends_on": ["dft_support"], ... }
 
 // pipeline_signoff.feature.json — needs both
-{ "$schema": "chopper/feature/v1", "name": "pipeline_signoff", "depends_on": ["dft_support", "power_analysis"], ... }
+{ "$schema": "feature-v1", "name": "pipeline_signoff", "depends_on": ["dft_support", "power_analysis"], ... }
 
 // project.json — order must respect all depends_on
 {
-  "$schema": "chopper/project/v1",
+  "$schema": "project-v1",
   "project": "FULL_SIGNOFF",
   "domain": "my_domain",
   "base": "jsons/base.json",
@@ -720,9 +720,9 @@ import json, jsonschema, pathlib
 
 schema_dir = pathlib.Path("schemas")  # relative to the Chopper repo root
 schemas = {
-    "chopper/base/v1":    json.load(open(schema_dir / "base-v1.schema.json")),
-    "chopper/feature/v1": json.load(open(schema_dir / "feature-v1.schema.json")),
-    "chopper/project/v1": json.load(open(schema_dir / "project-v1.schema.json")),
+    "base-v1":    json.load(open(schema_dir / "base-v1.schema.json")),
+    "feature-v1": json.load(open(schema_dir / "feature-v1.schema.json")),
+    "project-v1": json.load(open(schema_dir / "project-v1.schema.json")),
 }
 
 for json_file in pathlib.Path(".").rglob("*.json"):

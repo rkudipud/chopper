@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "stages_domain",
   "description": "Fixture for testing F3 stage + stack-file generation end-to-end.",
   "options": {

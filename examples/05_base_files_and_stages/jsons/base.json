@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "tool": "my_tool",

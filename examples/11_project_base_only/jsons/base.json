@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base-only project: no features selected. The project JSON simply points to this base and applies no feature overrides — use for minimal or locked-down flows.",

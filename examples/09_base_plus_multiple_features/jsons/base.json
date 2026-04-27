@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base for a domain that supports multiple independent features. DFT and power features are applied separately, with no inter-feature dependency.",

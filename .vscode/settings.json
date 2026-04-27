@@ -6,8 +6,8 @@
   // user drops at the repo root or in a `jsons/` subdirectory.
   //
   // The canonical schemas live at repository-root `schemas/` (moved out
-  // of the old `json_kit/` package in 0.3.0). The `$schema` const inside
-  // each JSON file (e.g. `"chopper/base/v1"`) still matches on its own —
+  // of the old `json_kit/` package in 0.3.0). The `$schema` value inside
+  // each JSON file (e.g. `"base-v1"`) is matched by Chopper's schema loader;
   // these entries are the convenience layer so authors don't have to
   // configure anything per-file.
   "json.schemas": [

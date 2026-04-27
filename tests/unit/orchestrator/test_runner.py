@@ -31,7 +31,7 @@ def _seed_good_domain(fs: InMemoryFS) -> None:
         BASE_JSON,
         json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": "dom",
                 "files": {"include": ["vars.tcl", "helper.tcl"]},
             }
@@ -133,7 +133,7 @@ class TestP1ConfigGate:
             BASE_JSON,
             json.dumps(
                 {
-                    "$schema": "chopper/base/v1",
+                    "$schema": "base-v1",
                     "domain": "dom",
                     "files": {"include": ["ghost.tcl"]},
                 }
@@ -415,7 +415,7 @@ def _seed_stages_domain(fs: InMemoryFS) -> None:
         BASE_JSON,
         json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": "dom",
                 "options": {"generate_stack": True},
                 "stages": [

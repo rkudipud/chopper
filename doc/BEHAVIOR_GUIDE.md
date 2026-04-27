@@ -113,7 +113,7 @@ Tracing runs in phase P4 and produces:
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "procedures": {
     "include": [{"file": "procs/core.tcl", "procs": ["foo"]}]
@@ -201,7 +201,7 @@ Don't also add the file to `files.include` — that silently upgrades to whole-f
 
 ```json
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "dft",
   "files": {"include": ["procs/dft_procs.tcl"]},
   "flow_actions": [{
@@ -219,7 +219,7 @@ Selected via project JSON `features` array. Feature order matters for `flow_acti
 
 ```json
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "scan_eco",
   "depends_on": ["dft"]
 }

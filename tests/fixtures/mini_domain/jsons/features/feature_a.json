@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "feature_a",
   "description": "Test feature that adds a proc via procedures.include and exercises same-source procedures.exclude PROC_TRIM pruning",
   "files": {

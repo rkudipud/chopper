@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "dft_support",
   "domain": "my_domain",
   "description": "DFT foundation feature. No prerequisites — can be applied to any base. Other features that add DFT-aware stages should declare depends_on: [\"dft_support\"].",

@@ -42,7 +42,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 | Code | Slug | Phase | Source | Exit | Description | Recovery Hint |
 | --- | --- | --- | --- | --- | --- | --- |
-| VE-01 | `missing-schema` | 1 | schema | 1 | JSON `$schema` field missing or not a known Chopper schema version | Add `"$schema": "chopper/base/v1"` (or feature/project variant) |
+| VE-01 | `missing-schema` | 1 | schema | 1 | JSON `$schema` field missing or not a known Chopper schema version | Add `"$schema": "base-v1"` (or `feature-v1` / `project-v1` variant) |
 | VE-02 | `missing-required-fields` | 1 | schema | 1 | Required fields missing (base: `domain`; feature: `name`; project: `project`, `domain`, `base`) | Add the missing required field to your JSON |
 | VE-03 | `empty-procs-array` | 1 | compiler | 1 | Any `procEntry` (in `procedures.include` or `procedures.exclude`) has empty `procs` array (`"procs": []`). An entry with no procs is an authoring error; if you want whole-file inclusion use `files.include`, if you have nothing to exclude omit the entry. | For include: move the file to `files.include` for whole-file inclusion. For exclude: remove the entry (nothing to exclude). |
 | VE-04 | `unsupported-flow-action` | 1 | compiler | 1 | `flow_actions` entry uses an unsupported `action` value | Use one of: `add_step_before`, `add_step_after`, `add_stage_before`, `add_stage_after`, `remove_step`, `remove_stage`, `load_from`, `replace_step`, `replace_stage` |
@@ -53,7 +53,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-09 | `malformed-glob` | 1 | validator | 1 | Malformed glob pattern in file rules | Fix the glob syntax; supported: `*`, `?`, `**` |
 | VE-10 | `occurrence-suffix-overflow` | 1 | compiler | 1 | `@n` suffix where `n` exceeds actual occurrence count for that step string | Reduce `@n` or verify the step appears enough times |
 | VE-11 | `conflicting-cli-options` | 1 | cli | **2** | `--project` provided alongside `--base` or `--features` | Use `--project` alone or `--base`/`--features` alone |
-| VE-12 | `project-schema-invalid` | 1 | schema | 1 | Project JSON fails `chopper/project/v1` schema validation | Fix project JSON: requires `$schema`, `project`, `domain`, `base` |
+| VE-12 | `project-schema-invalid` | 1 | schema | 1 | Project JSON fails `project-v1` schema validation | Fix project JSON: requires `$schema`, `project`, `domain`, `base` |
 | VE-13 | `project-path-unresolvable` | 1 | cli | **2** | `base` or `features` paths in project JSON cannot be resolved to existing files. Owned by the **CLI pre-runner check**: Chopper prints the offending path(s) on stderr and exits 2 without entering the pipeline. | Fix the paths in the project JSON (relative to the domain root; no `..`, no absolute paths) and re-run |
 | VE-14 | `duplicate-feature-name` | 1 | compiler | 1 | Two or more selected features have the same `name` field | Rename one feature or remove the duplicate |
 | VE-15 | `missing-depends-on-feature` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite is not selected in project `features` | Add the prerequisite feature to the project or remove the dependency declaration |

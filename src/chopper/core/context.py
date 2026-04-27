@@ -57,7 +57,7 @@ class RunConfig:
       does not rewrite :attr:`Diagnostic.severity`.
     * ``dry_run``: services skip all filesystem mutations; audit bundles
       and diagnostic output still flow.
-    * ``project_path``: path to a ``chopper/project/v1`` JSON when the
+    * ``project_path``: path to a ``project-v1`` JSON when the
       CLI was invoked with ``--project``; ``None`` otherwise. Mutually
       exclusive with ``base_path`` / ``feature_paths`` — the CLI enforces
       ``VE-11`` before :class:`RunConfig` is constructed, so services

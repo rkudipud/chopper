@@ -50,7 +50,7 @@ def _collect_feat(raw: dict, path: Path = Path("feat.json")) -> tuple[FeatureJso
 class TestLoadBase:
     def test_minimal(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "my_domain",
             "files": {"include": ["setup.tcl"]},
         }
@@ -61,7 +61,7 @@ class TestLoadBase:
 
     def test_optional_fields_default(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["a.tcl"]},
         }
@@ -75,7 +75,7 @@ class TestLoadBase:
 
     def test_options_cross_validate_false(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["a.tcl"]},
             "options": {"cross_validate": False},
@@ -85,7 +85,7 @@ class TestLoadBase:
 
     def test_procedures_include_hydrated(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "procedures": {"include": [{"file": "a.tcl", "procs": ["foo", "bar"]}]},
         }
@@ -99,7 +99,7 @@ class TestLoadBase:
 
     def test_ve03_on_empty_procs_in_include(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "procedures": {"include": [{"file": "a.tcl", "procs": []}]},
         }
@@ -110,7 +110,7 @@ class TestLoadBase:
 
     def test_ve03_on_empty_procs_in_exclude(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["a.tcl"]},
             "procedures": {"exclude": [{"file": "a.tcl", "procs": []}]},
@@ -120,7 +120,7 @@ class TestLoadBase:
 
     def test_stage_def_hydrated(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "stages": [
                 {
@@ -148,7 +148,7 @@ class TestLoadBase:
 
     def test_source_path_recorded(self) -> None:
         raw = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["a.tcl"]},
         }
@@ -164,14 +164,14 @@ class TestLoadBase:
 
 class TestLoadFeature:
     def test_minimal(self) -> None:
-        raw = {"$schema": "chopper/feature/v1", "name": "dft"}
+        raw = {"$schema": "feature-v1", "name": "dft"}
         feat, diags = _collect_feat(raw)
         assert feat.name == "dft"
         assert diags == []
 
     def test_depends_on_hydrated(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "depends_on": ["base_feat", "other"],
         }
@@ -180,7 +180,7 @@ class TestLoadFeature:
 
     def test_metadata_hydrated(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "metadata": {
                 "owner": "team",
@@ -197,7 +197,7 @@ class TestLoadFeature:
 
     def test_add_step_before_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [
                 {
@@ -216,7 +216,7 @@ class TestLoadFeature:
 
     def test_add_step_after_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [
                 {
@@ -234,7 +234,7 @@ class TestLoadFeature:
 
     def test_add_stage_after_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [
                 {
@@ -254,7 +254,7 @@ class TestLoadFeature:
 
     def test_remove_step_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [{"action": "remove_step", "stage": "s", "reference": "old.tcl"}],
         }
@@ -264,7 +264,7 @@ class TestLoadFeature:
 
     def test_remove_stage_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [{"action": "remove_stage", "reference": "old_stage"}],
         }
@@ -275,7 +275,7 @@ class TestLoadFeature:
 
     def test_load_from_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [{"action": "load_from", "stage": "s", "reference": "new_src"}],
         }
@@ -286,7 +286,7 @@ class TestLoadFeature:
 
     def test_replace_step_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [{"action": "replace_step", "stage": "s", "reference": "old.tcl", "with": "new.tcl"}],
         }
@@ -297,7 +297,7 @@ class TestLoadFeature:
 
     def test_replace_stage_action(self) -> None:
         raw = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [
                 {
@@ -321,7 +321,7 @@ class TestLoadFeature:
 class TestLoadProject:
     def test_minimal(self) -> None:
         raw = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
             "base": "jsons/base.json",
@@ -334,7 +334,7 @@ class TestLoadProject:
 
     def test_features_preserved(self) -> None:
         raw = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
             "base": "jsons/base.json",
@@ -345,7 +345,7 @@ class TestLoadProject:
 
     def test_notes_preserved(self) -> None:
         raw = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
             "base": "b.json",
@@ -449,7 +449,7 @@ def test_load_base_emits_ve03_for_empty_procs_array_in_exclude() -> None:
         diagnostics.append(d)
 
     raw = {
-        "$schema": "chopper/base/v1",
+        "$schema": "base-v1",
         "domain": "d",
         "procedures": {
             "exclude": [

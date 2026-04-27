@@ -504,7 +504,7 @@ class BaseOptions:
 
 @dataclass(frozen=True)
 class BaseJson:
-    """Hydrated ``chopper/base/v1`` JSON.
+    """Hydrated ``base-v1`` JSON.
 
     Required: ``$schema`` and ``domain``; at least one of ``files`` /
     ``procedures`` / ``stages`` must be present. The loader enforces
@@ -545,7 +545,7 @@ class FeatureMetadata:
 
 @dataclass(frozen=True)
 class FeatureJson:
-    """Hydrated ``chopper/feature/v1`` JSON.
+    """Hydrated ``feature-v1`` JSON.
 
     Required: ``$schema`` and ``name``; everything else is optional.
     Feature ``name`` must be unique across a project (``VE-14``);
@@ -566,7 +566,7 @@ class FeatureJson:
 
 @dataclass(frozen=True)
 class ProjectJson:
-    """Hydrated ``chopper/project/v1`` JSON.
+    """Hydrated ``project-v1`` JSON.
 
     Required: ``$schema``, ``project``, ``domain``, ``base``. ``base``
     and each entry in ``features`` are domain-relative path strings

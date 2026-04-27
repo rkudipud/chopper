@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base with procs and stages but no file-level declarations. Use when all file presence is governed by stage steps, but individual procs still need surgical trimming.",

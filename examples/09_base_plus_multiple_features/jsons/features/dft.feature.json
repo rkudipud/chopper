@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "dft",
   "domain": "my_domain",
   "description": "DFT feature: scan-chain related procs and a dedicated dft_check stage. No dependency on other features.",

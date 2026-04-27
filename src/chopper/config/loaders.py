@@ -204,7 +204,7 @@ def load_base(
     source_path: Path,
     on_diagnostic: DiagnosticEmitter,
 ) -> BaseJson:
-    """Hydrate a validated ``chopper/base/v1`` dict into :class:`BaseJson`.
+    """Hydrate a validated ``base-v1`` dict into :class:`BaseJson`.
 
     :param raw: Already-validated dict (caller invoked
         :func:`~chopper.config.schema.validate_json` and got ``True``).
@@ -243,7 +243,7 @@ def load_feature(
     source_path: Path,
     on_diagnostic: DiagnosticEmitter,
 ) -> FeatureJson:
-    """Hydrate a validated ``chopper/feature/v1`` dict into :class:`FeatureJson`."""
+    """Hydrate a validated ``feature-v1`` dict into :class:`FeatureJson`."""
     meta_raw = raw.get("metadata") or {}
     metadata = FeatureMetadata(
         owner=meta_raw.get("owner"),
@@ -271,7 +271,7 @@ def load_feature(
 
 
 def load_project(raw: dict[str, Any], source_path: Path) -> ProjectJson:
-    """Hydrate a validated ``chopper/project/v1`` dict into :class:`ProjectJson`.
+    """Hydrate a validated ``project-v1`` dict into :class:`ProjectJson`.
 
     No diagnostics are emitted here — structural errors were caught by the
     schema validator; semantic errors (VE-17, VE-18) are the

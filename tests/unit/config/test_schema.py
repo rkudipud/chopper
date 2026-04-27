@@ -30,7 +30,7 @@ def _valid(raw: dict, path: Path = Path("test.json")) -> bool:
 class TestBaseSchema:
     def test_minimal_valid_files(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "my_domain",
             "files": {"include": ["setup.tcl"]},
         }
@@ -38,7 +38,7 @@ class TestBaseSchema:
 
     def test_minimal_valid_procedures(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "my_domain",
             "procedures": {"include": [{"file": "a.tcl", "procs": ["foo"]}]},
         }
@@ -46,7 +46,7 @@ class TestBaseSchema:
 
     def test_minimal_valid_stages(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "my_domain",
             "stages": [{"name": "setup", "load_from": "", "steps": ["source setup.tcl"]}],
         }
@@ -54,7 +54,7 @@ class TestBaseSchema:
 
     def test_missing_domain(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "files": {"include": ["setup.tcl"]},
         }
         diags = _collect(doc)
@@ -63,14 +63,14 @@ class TestBaseSchema:
 
     def test_no_capability_block(self) -> None:
         # anyOf fails: at least one of files/procedures/stages required
-        doc = {"$schema": "chopper/base/v1", "domain": "d"}
+        doc = {"$schema": "base-v1", "domain": "d"}
         diags = _collect(doc)
         assert len(diags) == 1
         assert diags[0].code == "VE-02"
 
     def test_additional_property_rejected(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["a.tcl"]},
             "unexpected_field": True,
@@ -82,7 +82,7 @@ class TestBaseSchema:
     def test_empty_files_include_rejected(self) -> None:
         # minItems: 1 on files.include
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": []},
         }
@@ -92,7 +92,7 @@ class TestBaseSchema:
 
     def test_path_traversal_rejected(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["../etc/passwd"]},
         }
@@ -101,7 +101,7 @@ class TestBaseSchema:
 
     def test_absolute_path_rejected(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "d",
             "files": {"include": ["/abs/path.tcl"]},
         }
@@ -110,7 +110,7 @@ class TestBaseSchema:
 
     def test_full_base_valid(self) -> None:
         doc = {
-            "$schema": "chopper/base/v1",
+            "$schema": "base-v1",
             "domain": "my_domain",
             "owner": "team",
             "vendor": "synopsys",
@@ -128,7 +128,7 @@ class TestBaseSchema:
 
     def test_only_one_diagnostic_emitted_per_file(self) -> None:
         # Multiple schema errors — only the first should be forwarded.
-        doc = {"$schema": "chopper/base/v1"}  # missing domain AND no capability block
+        doc = {"$schema": "base-v1"}  # missing domain AND no capability block
         diags = _collect(doc)
         assert len(diags) == 1
 
@@ -140,17 +140,17 @@ class TestBaseSchema:
 
 class TestFeatureSchema:
     def test_minimal_valid(self) -> None:
-        doc = {"$schema": "chopper/feature/v1", "name": "dft"}
+        doc = {"$schema": "feature-v1", "name": "dft"}
         assert _valid(doc)
 
     def test_missing_name(self) -> None:
-        doc = {"$schema": "chopper/feature/v1"}
+        doc = {"$schema": "feature-v1"}
         diags = _collect(doc)
         assert diags[0].code == "VE-02"
 
     def test_full_feature_valid(self) -> None:
         doc = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "dft",
             "domain": "my_domain",
             "description": "DFT feature",
@@ -178,7 +178,7 @@ class TestFeatureSchema:
 
     def test_invalid_flow_action(self) -> None:
         doc = {
-            "$schema": "chopper/feature/v1",
+            "$schema": "feature-v1",
             "name": "x",
             "flow_actions": [{"action": "teleport", "stage": "s", "reference": "r", "items": ["i"]}],
         }
@@ -194,7 +194,7 @@ class TestFeatureSchema:
 class TestProjectSchema:
     def test_minimal_valid(self) -> None:
         doc = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
             "base": "jsons/base.json",
@@ -203,7 +203,7 @@ class TestProjectSchema:
 
     def test_missing_base(self) -> None:
         doc = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
         }
@@ -212,7 +212,7 @@ class TestProjectSchema:
 
     def test_base_path_traversal_rejected(self) -> None:
         doc = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
             "base": "../outside/base.json",
@@ -222,7 +222,7 @@ class TestProjectSchema:
 
     def test_full_project_valid(self) -> None:
         doc = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "P",
             "domain": "d",
             "owner": "team",
@@ -255,5 +255,5 @@ class TestUnknownSchema:
 
     def test_diagnostic_carries_source_path(self) -> None:
         path = Path("jsons/base.json")
-        diags = _collect({"$schema": "chopper/base/v1"}, path=path)
+        diags = _collect({"$schema": "base-v1"}, path=path)
         assert diags[0].path == path

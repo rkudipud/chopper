@@ -8,9 +8,9 @@ Schemas are read from ``schemas/`` relative to the *repo root*
 (the directory four levels above this source file). The authoritative
 schema files are:
 
-* ``schemas/base-v1.schema.json``     → ``$schema: chopper/base/v1``
-* ``schemas/feature-v1.schema.json``  → ``$schema: chopper/feature/v1``
-* ``schemas/project-v1.schema.json``  → ``$schema: chopper/project/v1``
+* ``schemas/base-v1.schema.json``     → ``$schema: base-v1``
+* ``schemas/feature-v1.schema.json``  → ``$schema: feature-v1``
+* ``schemas/project-v1.schema.json``  → ``$schema: project-v1``
 
 Diagnostic mapping:
 
@@ -43,9 +43,9 @@ __all__ = ["validate_json"]
 # Known schema $id values.
 # ---------------------------------------------------------------------------
 
-_SCHEMA_ID_BASE = "chopper/base/v1"
-_SCHEMA_ID_FEATURE = "chopper/feature/v1"
-_SCHEMA_ID_PROJECT = "chopper/project/v1"
+_SCHEMA_ID_BASE = "base-v1"
+_SCHEMA_ID_FEATURE = "feature-v1"
+_SCHEMA_ID_PROJECT = "project-v1"
 
 _KNOWN_SCHEMAS: frozenset[str] = frozenset([_SCHEMA_ID_BASE, _SCHEMA_ID_FEATURE, _SCHEMA_ID_PROJECT])
 
@@ -133,7 +133,7 @@ def validate_json(
                 phase=Phase.P1_CONFIG,
                 message=(f"Unknown or missing $schema: {schema_id!r}. Expected one of: {sorted(_KNOWN_SCHEMAS)}"),
                 path=source_path,
-                hint='Add "$schema": "chopper/base/v1" (or feature/project variant)',
+                hint='Add "$schema": "base-v1" (or feature-v1 / project-v1 variant)',
             )
         )
         return False

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "chopper/base/v1",
+  "$id": "base-v1",
   "title": "Chopper Base JSON",
   "description": "Bare-minimum flow definition for a tool domain. Defines the files, procs, and stages that constitute the minimal viable flow. At least one of files, procedures, or stages must be present. When stages are used, Chopper generates run scripts, and the same stage fields can be reused when manually authoring stack-file entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs).",
   "type": "object",
@@ -9,7 +9,7 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "chopper/base/v1"
+      "const": "base-v1"
     },
     "domain": {
       "type": "string",

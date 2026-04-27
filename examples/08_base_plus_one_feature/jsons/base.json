@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base for a domain with a standard flow. This becomes the unchanged foundation; the dft feature layers on top.",

@@ -95,7 +95,7 @@ def _make_ctx(
 
 _MINIMAL_BASE = json.dumps(
     {
-        "$schema": "chopper/base/v1",
+        "$schema": "base-v1",
         "domain": "my_domain",
         "files": {"include": ["setup.tcl"]},
     }
@@ -103,7 +103,7 @@ _MINIMAL_BASE = json.dumps(
 
 _MINIMAL_FEATURE = json.dumps(
     {
-        "$schema": "chopper/feature/v1",
+        "$schema": "feature-v1",
         "name": "dft",
         "files": {"include": ["procs/dft.tcl"]},
     }
@@ -160,7 +160,7 @@ class TestDirectMode:
 
     def test_schema_violation_emits_ve02(self) -> None:
         # Base missing required 'domain' field.
-        bad_base = json.dumps({"$schema": "chopper/base/v1", "files": {"include": ["a.tcl"]}})
+        bad_base = json.dumps({"$schema": "base-v1", "files": {"include": ["a.tcl"]}})
         base_path = _DOMAIN / "jsons/base.json"
         ctx, sink = _make_ctx({base_path: bad_base}, base_path=base_path)
         ConfigService().run(ctx, _default_state())
@@ -170,7 +170,7 @@ class TestDirectMode:
         # Feature with missing required 'name' — loads base fine, feature skipped.
         base_path = _DOMAIN / "jsons/base.json"
         feat_path = _DOMAIN / "jsons/features/bad.json"
-        bad_feat = json.dumps({"$schema": "chopper/feature/v1"})  # missing name
+        bad_feat = json.dumps({"$schema": "feature-v1"})  # missing name
         ctx, sink = _make_ctx(
             {base_path: _MINIMAL_BASE, feat_path: bad_feat},
             base_path=base_path,
@@ -189,7 +189,7 @@ class TestDirectMode:
 class TestProjectMode:
     def _project_json(self, base: str = "jsons/base.json", features: list[str] | None = None) -> str:
         doc: dict = {
-            "$schema": "chopper/project/v1",
+            "$schema": "project-v1",
             "project": "PROJ",
             "domain": "my_domain",
             "base": base,
@@ -235,7 +235,7 @@ class TestProjectMode:
 
     def test_project_schema_invalid_emits_ve12(self) -> None:
         proj_path = _DOMAIN / "project.json"
-        bad_proj = json.dumps({"$schema": "chopper/project/v1", "project": "P", "domain": "d"})  # missing base
+        bad_proj = json.dumps({"$schema": "project-v1", "project": "P", "domain": "d"})  # missing base
         ctx, sink = _make_ctx({proj_path: bad_proj}, project_path=proj_path)
         ConfigService().run(ctx, _default_state())
         assert any(d.code == "VE-12" for d in sink.emissions)
@@ -251,7 +251,7 @@ class TestSurfaceFiles:
         base_path = _DOMAIN / "jsons/base.json"
         base_doc = json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": "d",
                 "procedures": {"include": [{"file": "procs/core.tcl", "procs": ["setup"]}]},
             }
@@ -266,7 +266,7 @@ class TestSurfaceFiles:
         base_path = _DOMAIN / "jsons/base.json"
         base_doc = json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": "d",
                 "files": {"include": ["procs/**/*.tcl", "setup.tcl"]},
             }
@@ -282,7 +282,7 @@ class TestSurfaceFiles:
         feat_path = _DOMAIN / "jsons/features/x.json"
         base_doc = json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": "d",
                 "procedures": {
                     "include": [
@@ -294,7 +294,7 @@ class TestSurfaceFiles:
         )
         feat_doc = json.dumps(
             {
-                "$schema": "chopper/feature/v1",
+                "$schema": "feature-v1",
                 "name": "x",
                 "procedures": {"include": [{"file": "m.tcl", "procs": ["c"]}]},
             }
@@ -313,14 +313,14 @@ class TestSurfaceFiles:
         feat_path = _DOMAIN / "jsons/features/x.json"
         base_doc = json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": "d",
                 "files": {"include": ["setup.tcl"]},
             }
         )
         feat_doc = json.dumps(
             {
-                "$schema": "chopper/feature/v1",
+                "$schema": "feature-v1",
                 "name": "x",
                 "files": {"include": ["extra.tcl"]},
             }
@@ -347,8 +347,8 @@ class TestDeterminism:
         base_path = _DOMAIN / "jsons/base.json"
         a_path = _DOMAIN / "jsons/features/a.json"
         b_path = _DOMAIN / "jsons/features/b.json"
-        a_doc = json.dumps({"$schema": "chopper/feature/v1", "name": "a"})
-        b_doc = json.dumps({"$schema": "chopper/feature/v1", "name": "b", "depends_on": ["a"]})
+        a_doc = json.dumps({"$schema": "feature-v1", "name": "a"})
+        b_doc = json.dumps({"$schema": "feature-v1", "name": "b", "depends_on": ["a"]})
         ctx, _ = _make_ctx(
             {base_path: _MINIMAL_BASE, a_path: a_doc, b_path: b_doc},
             base_path=base_path,

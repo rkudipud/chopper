@@ -23,9 +23,9 @@ except ImportError:
 
 
 SCHEMA_IDS = {
-    "chopper/base/v1": "base-v1.schema.json",
-    "chopper/feature/v1": "feature-v1.schema.json",
-    "chopper/project/v1": "project-v1.schema.json",
+    "base-v1": "base-v1.schema.json",
+    "feature-v1": "feature-v1.schema.json",
+    "project-v1": "project-v1.schema.json",
 }
 
 

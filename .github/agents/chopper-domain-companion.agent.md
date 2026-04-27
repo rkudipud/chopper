@@ -102,7 +102,7 @@ Always steer users toward this path unless they explicitly want something else:
 - explicit include wins
 - tracing is reporting-only
 - traced callees are not auto-copied into the trimmed domain
-- Chopper reads runtime schemas from `schemas/`
+- Chopper reads runtime schemas from `schemas/` relative to its install root; `$schema` values are short IDs (`base-v1`, `feature-v1`, `project-v1`) — never slash-delimited paths
 
 ### Audit artifacts you must know how to interpret
 
@@ -429,7 +429,7 @@ Use these as starting points and adapt by example.
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "<DOMAIN_NAME>",
   "owner": "<TEAM>",
   "vendor": "<VENDOR>",
@@ -462,7 +462,7 @@ Use these as starting points and adapt by example.
 Checklist for base JSON:
 
 - [ ] `domain` matches the directory name
-- [ ] `$schema` is exactly `"chopper/base/v1"`
+- [ ] `$schema` is exactly `"base-v1"`
 - [ ] All universally required files are in `files.include`
 - [ ] Procs that must survive trim are in `procedures.include`
 - [ ] All stage `N/J/L/D/I/O/R` fields extracted from stack files
@@ -475,7 +475,7 @@ Checklist for base JSON:
 
 ```json
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "<feature_name>",
   "domain": "<DOMAIN_NAME>",
   "description": "<what this feature adds or modifies>",
@@ -513,7 +513,7 @@ Checklist for each feature JSON:
 
 ```json
 {
-  "$schema": "chopper/project/v1",
+  "$schema": "project-v1",
   "project": "<PROJECT_ID>",
   "domain": "<DOMAIN_NAME>",
   "owner": "<PROJECT_OWNER>",
@@ -554,7 +554,7 @@ When `scripts/validate_jsons.py` or `chopper validate` surfaces a schema error, 
 | `Additional properties are not allowed ('X')` | Remove unrecognized field `X` |
 | `does not match '^(?!\\.\\.)...'` | Remove `..`, `//`, backslashes, or absolute path prefix |
 | `is not of type 'array'` | Change bare string `"setup"` → array `["setup"]` |
-| `'$schema' is a required property` | Add `"$schema": "chopper/base/v1"` (or feature / project) |
+| `'$schema' is a required property` | Add `"$schema": "base-v1"` (or `feature-v1` / `project-v1`) |
 | `is not valid under any of the given schemas` | Check `action` field spelling against allowed values |
 | `'name' is a required property` | Add missing `name` field to feature or stage |
 

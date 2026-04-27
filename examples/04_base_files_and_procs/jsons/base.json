@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base combining file-level and proc-level control. Use when most files are kept whole but a few files need selective proc trimming.",

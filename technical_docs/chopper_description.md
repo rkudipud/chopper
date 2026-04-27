@@ -300,7 +300,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "description": "Base with file-level includes only.",
@@ -321,7 +321,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
   "vendor": "synopsys",
@@ -361,7 +361,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `$schema` | Yes | Must be `"chopper/base/v1"` |
+| `$schema` | Yes | Must be `"base-v1"` |
 | `domain` | Yes | Domain directory name (e.g., `my_domain`) |
 | `owner` | No | Team responsible for this base |
 | `vendor` | No | Vendor (e.g., `synopsys`, `cadence`) |
@@ -389,7 +389,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 
 ```json
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "dft",
   "domain": "my_domain",
   "description": "DFT feature: adds scan-chain related procs and a dedicated dft_check stage.",
@@ -430,7 +430,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 
 | Field | Required | Description |
 |-------|----------|--------------|
-| `$schema` | Yes | Must be `"chopper/feature/v1"` |
+| `$schema` | Yes | Must be `"feature-v1"` |
 | `name` | Yes | Feature identifier — referenced by `depends_on` and project `features` list |
 | `domain` | No | Target domain. Chopper warns if mismatched with selected base |
 | `description` | No | Human-readable summary |
@@ -459,7 +459,7 @@ Schema: `schemas/project-v1.schema.json`
 
 ```json
 {
-  "$schema": "chopper/project/v1",
+  "$schema": "project-v1",
   "project": "PROJECT_ABC",
   "domain": "my_domain",
   "owner": "integration-team",
@@ -483,7 +483,7 @@ Schema: `schemas/project-v1.schema.json`
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `$schema` | Yes | Must be `"chopper/project/v1"` |
+| `$schema` | Yes | Must be `"project-v1"` |
 | `project` | Yes | Project identifier (e.g., `PROJECT_ABC`) |
 | `domain` | Yes | Domain identifier — must match the basename of the current working directory |
 | `base` | Yes | Domain-relative path to the base JSON file |
@@ -633,7 +633,7 @@ All examples below assume Chopper is invoked from the domain root. The current w
 
 ```
 1. Author jsons/base.json and feature JSONs; create a project JSON at any chosen path:
-   { "$schema": "chopper/project/v1", "project": "...", "domain": "...", "base": "...", "features": [...] }
+   { "$schema": "project-v1", "project": "...", "domain": "...", "base": "...", "features": [...] }
 
 2. chopper validate --project configs/project_abc.json
    → Validates all referenced JSONs via Phase 1 checks
@@ -2208,7 +2208,7 @@ Chopper must not replicate FlowBuilder's dynamic-key model.
 Every Chopper JSON carries a schema version.
 
 ```json
-{ "$schema": "chopper/base/v1", ... }
+{ "$schema": "base-v1", ... }
 ```
 
 ### 6.3.1 Path and Glob Semantics
@@ -2282,7 +2282,7 @@ By default, owner-curated configuration JSONs live under the selected domain at 
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "fev_formality",
   "description": "Bare-minimum formality flow for rtl2gate and gate2gate verification",
   "options": {
@@ -2379,7 +2379,7 @@ For users who define stages, the optional mapping to stack files is direct: `nam
 
 ```json
 {
-  "$schema": "chopper/feature/v1",
+  "$schema": "feature-v1",
   "name": "dft",
   "description": "DFT-related verification support, scan setup, and optional audit stages",
   "metadata": {
@@ -2553,7 +2553,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 
 ```json
 {
-  "$schema": "chopper/project/v1",
+  "$schema": "project-v1",
   "project": "PROJECT_ABC",
   "domain": "fev_formality",
   "owner": "domain_owner",
@@ -2575,7 +2575,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 
 | Field | Type | Description |
 |---|---|---|
-| `$schema` | string | Must be `"chopper/project/v1"` |
+| `$schema` | string | Must be `"project-v1"` |
 | `project` | string | Project identifier (e.g., `PROJECT_ABC`) |
 | `domain` | string | Domain identifier. It must match the basename of the current working directory, which is the operational domain root. |
 | `base` | string | Path to the base JSON file (resolved relative to the current working directory / domain root). Default expected location: `jsons/base.json`. |
@@ -3125,9 +3125,9 @@ This log records the conscious design decisions that shaped the current document
 | Term | Definition |
 |---|---|
 | **Domain** | A single EDA tool / flow-stage subtree under `global/<vendor>/<domain>/`. The unit of trimming. |
-| **Base JSON** | Required domain baseline JSON (schema `chopper/base/v1`). Declares minimum viable F1/F2/F3 content for the domain. |
-| **Feature JSON** | Optional overlay JSON (schema `chopper/feature/v1`) layered on top of base to add or remove files, procs, or stages. |
-| **Project JSON** | Reproducible selection manifest (schema `chopper/project/v1`) bundling a base plus ordered feature list for a specific project branch. |
+| **Base JSON** | Required domain baseline JSON (schema `base-v1`). Declares minimum viable F1/F2/F3 content for the domain. |
+| **Feature JSON** | Optional overlay JSON (schema `feature-v1`) layered on top of base to add or remove files, procs, or stages. |
+| **Project JSON** | Reproducible selection manifest (schema `project-v1`) bundling a base plus ordered feature list for a specific project branch. |
 | **F1** | File-level capability: whole-file include/exclude via `files.include` / `files.exclude`. |
 | **F2** | Proc-level capability: per-proc include/exclude inside Tcl files via `procedures.include` / `procedures.exclude`. |
 | **F3** | Stage-level capability: generated `<stage>.tcl` run files driven by the `stages` array and `flow_actions`. |

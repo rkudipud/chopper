@@ -1,5 +1,5 @@
 {
-  "$schema": "chopper/project/v1",
+  "$schema": "project-v1",
   "project": "PROJECT_FULL_SIGNOFF",
   "domain": "my_domain",
   "owner": "integration-team",

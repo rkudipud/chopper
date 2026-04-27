@@ -436,7 +436,7 @@ Save as `jsons/base.json`:
 
 ```json
 {
-  "$schema": "chopper/base/v1",
+  "$schema": "base-v1",
   "domain": "my_domain",
   "files": {
     "include": ["setup.tcl", "procs/**/*.tcl"],

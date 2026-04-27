@@ -31,7 +31,7 @@ def _seed_valid_domain(domain: Path) -> Path:
     base_path.write_text(
         json.dumps(
             {
-                "$schema": "chopper/base/v1",
+                "$schema": "base-v1",
                 "domain": domain.name,
                 "files": {"include": ["vars.tcl", "helper.tcl"]},
             }

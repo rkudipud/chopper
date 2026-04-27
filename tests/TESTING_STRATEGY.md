@@ -76,7 +76,7 @@ def virgin_domain(tmp_path: Path) -> Path:
     (domain / "jsons").mkdir()
     (domain / "jsons" / "base.json").write_text(
         '{\n'
-        '  "$schema": "chopper/base/v1",\n'
+        '  "$schema": "base-v1",\n'
         '  "domain": "test_domain",\n'
         '  "files": {"include": ["main_procs.tcl"]}\n'
         '}\n'
