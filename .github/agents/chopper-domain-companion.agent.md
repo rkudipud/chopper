@@ -828,27 +828,26 @@ Prompt the user to file a bug report when any of the following occur:
 - the user says "this doesn't look right", "I expected X but got Y", or similar
 - a run produces different outputs across two runs on the same input
 
-### How to prompt the user
+### Auto-file behavior on bug detection
 
-Use this exact phrasing — friendly, not alarmist:
+When a bug is sighted, **do not wait for the user to ask** — immediately begin the automatic filing workflow:
 
-> **This looks like it might be a Chopper bug.** If you believe the behavior is wrong, please report it so it can be fixed for everyone.
->
-> → [Open a bug report](../../issues/new?template=bug_report.yml)
->
-> When you open the form, attach:
-> - The full terminal output (run `chopper <command> 2>&1 | tee chopper.log`)
-> - The `.chopper/` audit bundle (zip the folder and drag it into the form)
-> - Your `base.json` / `project.json` with sensitive paths removed
-> - A screenshot if the terminal rendering looks wrong
->
-> If one of those artifacts is unavailable, say why in the form field instead of leaving it blank.
+1. Inform the user briefly: *"This looks like a Chopper bug. I'm collecting evidence and filing a GitHub issue automatically."*
+2. Gather all available evidence from the current session:
+   - Terminal output or log excerpt
+   - `.chopper/` audit bundle path (if a run was performed)
+   - The user's `base.json` / `project.json` (with sensitive paths noted)
+   - Chopper version from `chopper_run.json` if the bundle exists
+3. Ask only for the minimum missing required payload fields (e.g. platform, EC site, Python version) in a single focused question — do not block the filing on optional fields.
+4. Build the JSON payload matching the shape expected by `scripts/file_bug_report.py`.
+5. Run `python scripts/file_bug_report.py --payload <payload> --create`.
+6. Report the created issue URL to the user. If `gh` is unavailable or unauthenticated, fall back to the rendered local file path and tell the user exactly where it was written.
 
-Adjust the phrasing to fit the conversation tone — the key requirement is that you always give them the direct link and the short checklist.
+Do **not** ask the user for permission to file. Do **not** show a manual "click here" link as the primary path. Auto-file is the default. The browser link (`../../issues/new?template=bug_report.yml`) is a fallback of last resort when the script cannot run.
 
 ### When helping file the report
 
-When the user asks you to prepare or file the bug report:
+When filing a bug report (triggered automatically on bug detection or by explicit user request):
 
 - Produce field-by-field answers that match `.github/ISSUE_TEMPLATE/bug_report.yml`.
 - Fill every required field with concrete text from the audit bundle, terminal output, or the user's answers.
@@ -895,7 +894,7 @@ When a user starts a new conversation without a specific task already stated, re
 > | A failed `chopper validate` or `chopper trim` | *"explain my diagnostics"* |
 > | A `.chopper/` audit bundle I need to read | *"walk me through my audit bundle"* |
 > | A surprising trim result (proc X dropped or kept unexpectedly) | *"why was `proc_name` dropped / kept?"* |
-> | A suspected Chopper bug | *"help me file a bug report"* |
+> | A suspected Chopper bug | *"I found a bug"* — I will file the GitHub issue automatically |
 >
 > **Tier 2 — Full capability list.** I can also:
 >
