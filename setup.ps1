@@ -36,6 +36,20 @@ $proxy = "http://proxy-chain.intel.com:912"
 Write-Host "=== Chopper Dev Environment Setup ===" -ForegroundColor Cyan
 Write-Host "Platform: Windows (PowerShell)" -ForegroundColor Cyan
 
+Write-Host "[1/5] Updating repository (git pull)..." -ForegroundColor Yellow
+if (Get-Command git -ErrorAction SilentlyContinue) {
+    try {
+        git -C $scriptDir pull
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARN: git pull failed (network issue or local changes). Continuing with current code." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "WARN: git pull failed. Continuing with current code." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "WARN: git not found on PATH; skipping update." -ForegroundColor Yellow
+}
+
 # Check if venv exists
 if (Test-Path $venvDir) {
     # Detect a stale/relocated venv (e.g. copied from another repo): the venv's
@@ -59,19 +73,19 @@ if (Test-Path $venvDir) {
         }
     }
     if (-not $venvHealthy) {
-        Write-Host "[1/4] Existing .venv is stale or relocated — recreating..." -ForegroundColor Yellow
+        Write-Host "[2/5] Existing .venv is stale or relocated — recreating..." -ForegroundColor Yellow
         Remove-Item -Recurse -Force $venvDir
         Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
     } else {
-        Write-Host "[1/4] Virtual environment exists and is healthy, reusing." -ForegroundColor Yellow
+        Write-Host "[2/5] Virtual environment exists and is healthy, reusing." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "[1/4] Creating virtual environment (prefers Python 3.13)..." -ForegroundColor Yellow
+    Write-Host "[2/5] Creating virtual environment (prefers Python 3.13)..." -ForegroundColor Yellow
     Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
 }
 
 # Activate venv
-Write-Host "[2/4] Activating venv..." -ForegroundColor Yellow
+Write-Host "[3/5] Activating venv..." -ForegroundColor Yellow
 $activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
 if (Test-Path $activateScript) {
     & $activateScript
@@ -87,7 +101,7 @@ if (Test-Path $activateScript) {
 
 # Configure pip proxy (optional, skip if -NoProxy)
 if (-not $NoProxy) {
-Write-Host "[3/4] Configuring pip and Git proxy..." -ForegroundColor Yellow
+Write-Host "[4/5] Configuring pip and Git proxy..." -ForegroundColor Yellow
     try {
         python -m pip config set global.proxy "$proxy" --quiet 2>$null
         python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>$null
@@ -98,14 +112,14 @@ Write-Host "[3/4] Configuring pip and Git proxy..." -ForegroundColor Yellow
         Write-Host "  (Proxy config skipped)" -ForegroundColor Gray
     }
 } else {
-    Write-Host "[3/4] Skipping pip proxy configuration (-NoProxy)" -ForegroundColor Yellow
+    Write-Host "[4/5] Skipping pip proxy configuration (-NoProxy)" -ForegroundColor Yellow
 }
 
 # Install dependencies. `--force-reinstall --no-deps` on the last line
 # regenerates the chopper.exe console-script shim against THIS venv's
 # python, which fixes the common "copied venv" failure mode where the
 # shim still points at the Python that originally created it.
-Write-Host "[4/4] Installing dependencies..." -ForegroundColor Yellow
+Write-Host "[5/5] Installing dependencies..." -ForegroundColor Yellow
 python -m pip install --upgrade pip --quiet
 python -m pip install -e ".[dev]" --quiet
 python -m pip install -e . --force-reinstall --no-deps --quiet

@@ -367,6 +367,21 @@ class TestToolCommandPool:
         assert graph.edges[0].status == "resolved"
         assert graph.edges[0].callee == "a.tcl::helper"
 
+    def test_builtin_pool_contains_primepower_commands(self) -> None:
+        """Regression for issue #9: set_power_name_mapping_options and
+        set_lib_cell_logic_function must be in the built-in PT/PrimePower
+        command pool so TW-02 is not emitted for them.
+        """
+        from chopper.compiler.tool_commands import load_pool
+
+        pool = load_pool()
+        assert "set_power_name_mapping_options" in pool, (
+            "set_power_name_mapping_options missing from built-in PT command pool (issue #9)"
+        )
+        assert "set_lib_cell_logic_function" in pool, (
+            "set_lib_cell_logic_function missing from built-in PT command pool (issue #9)"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Dynamic — TW-03

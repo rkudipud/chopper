@@ -27,8 +27,17 @@ echo.
 echo === Chopper Dev Environment Setup ===
 echo Platform: Windows (cmd.exe / Command Prompt)
 
+echo [1/5] Updating repository (git pull)...
+where git >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    git -C "%scriptDir%" pull
+    if !ERRORLEVEL! NEQ 0 echo WARN: git pull failed (network issue or local changes). Continuing with current code.
+) else (
+    echo WARN: git not found on PATH; skipping update.
+)
+
 if not exist "%venvDir%" (
-    echo [1/4] Creating virtual environment...
+    echo [2/5] Creating virtual environment...
     call %pythonCmd% -m venv "%venvDir%"
 ) else (
     REM Detect a stale/relocated venv (e.g. copied from another repo): the
@@ -41,18 +50,18 @@ if not exist "%venvDir%" (
         if /i "!reportedPrefix!"=="%venvDir%" set "venvHealthy=1"
     )
     if "!venvHealthy!"=="1" (
-        echo [1/4] Virtual environment exists and is healthy, reusing.
+        echo [2/5] Virtual environment exists and is healthy, reusing.
     ) else (
-        echo [1/4] Existing .venv is stale or relocated - recreating...
+        echo [2/5] Existing .venv is stale or relocated - recreating...
         rmdir /s /q "%venvDir%"
         call %pythonCmd% -m venv "%venvDir%"
     )
 )
 
-echo [2/4] Activating venv...
+echo [3/5] Activating venv...
 call "%venvDir%\Scripts\activate.bat"
 
-echo [3/4] Configuring pip and Git proxy...
+echo [4/5] Configuring pip and Git proxy...
 REM Always invoke pip as `python -m pip`. pip's own shim (pip.exe) can be
 REM stale when a venv is copied, and `python -m pip` bypasses the shim.
 python -m pip config set global.proxy "%proxy%" --quiet 2>nul
@@ -62,7 +71,7 @@ python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" -
 REM Install dependencies. `--force-reinstall --no-deps` on the last line
 REM regenerates the chopper.exe console-script shim against THIS venv's
 REM python, fixing the common "copied venv" failure mode.
-echo [4/4] Installing dependencies...
+echo [5/5] Installing dependencies...
 python -m pip install --upgrade pip --quiet
 python -m pip install -e ".[dev]" --quiet
 python -m pip install -e . --force-reinstall --no-deps --quiet

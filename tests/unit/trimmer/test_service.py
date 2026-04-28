@@ -598,3 +598,53 @@ def test_plan_only_report_unknown_treatment_raises_valueerror() -> None:
 
     with pytest.raises(ValueError, match="unknown FileTreatment"):
         _plan_only_report(_ManifestShim())  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# Issue #10 regression — Case 2 re-trim with subdirectory files (VE-24 false
+# positive when domain was wiped and subdir tree is absent).
+# ---------------------------------------------------------------------------
+
+
+def test_case_2_full_copy_into_subdirectory_succeeds() -> None:
+    """Regression for #10: Case 2 prep wipes the domain; writing files into
+    subdirectory paths must succeed even though the parent dir no longer
+    exists after the wipe.  InMemoryFS auto-creates parents; production
+    LocalFS was fixed to do the same.  This test covers the happy path.
+    """
+    fs = InMemoryFS(
+        {
+            DOMAIN / "stale.tcl": "STALE",
+            BACKUP / "onepower" / "analyze_power.tcl": "proc analyze_power {} {}\n",
+            BACKUP / "onepower" / "power_utils.tcl": "proc power_utils {} {}\n",
+        }
+    )
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {
+            "onepower/analyze_power.tcl": FileTreatment.FULL_COPY,
+            "onepower/power_utils.tcl": FileTreatment.FULL_COPY,
+        },
+        {
+            "onepower/analyze_power.tcl::analyze_power": "files.include",
+            "onepower/power_utils.tcl::power_utils": "files.include",
+        },
+    )
+    parsed = _parsed(
+        {
+            "onepower/analyze_power.tcl": [_proc("onepower/analyze_power.tcl", "analyze_power", start=1, end=1)],
+            "onepower/power_utils.tcl": [_proc("onepower/power_utils.tcl", "power_utils", start=1, end=1)],
+        }
+    )
+    state = _state(2, domain_exists=True, backup_exists=True)
+
+    report = TrimmerService().run(ctx, manifest, parsed, state)
+
+    # No VE-24 and both files written successfully.
+    assert sink.codes() == [], f"unexpected diagnostics: {sink.codes()}"
+    assert report.rebuild_interrupted is False
+    assert fs.read_text(DOMAIN / "onepower" / "analyze_power.tcl") == "proc analyze_power {} {}\n"
+    assert fs.read_text(DOMAIN / "onepower" / "power_utils.tcl") == "proc power_utils {} {}\n"
+    # Backup must remain intact.
+    assert fs.read_text(BACKUP / "onepower" / "analyze_power.tcl") == "proc analyze_power {} {}\n"

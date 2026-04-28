@@ -97,3 +97,18 @@ def test_remove_dir_nonrecursive_raises_if_nonempty(tmp_path: Path) -> None:
     (d / "x").write_text("", encoding="utf-8")
     with pytest.raises(OSError):
         fs.remove(d, recursive=False)
+
+
+def test_write_text_creates_missing_parent_directories(tmp_path: Path) -> None:
+    """Regression for issue #10: LocalFS.write_text must create parent dirs.
+
+    After a Case 2 re-trim, the domain is wiped and rebuilt as an empty
+    directory. Writing files into subdirectory paths (e.g.
+    ``onepower/analyze_power.tcl``) previously raised ``FileNotFoundError``
+    because ``LocalFS.write_text`` did not create intermediate directories.
+    """
+    fs = LocalFS()
+    target = tmp_path / "sub" / "nested" / "file.tcl"
+    assert not target.parent.exists()
+    fs.write_text(target, "proc foo {} {}\n")
+    assert target.read_text(encoding="utf-8") == "proc foo {} {}\n"

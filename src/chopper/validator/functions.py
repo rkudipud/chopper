@@ -397,7 +397,9 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
                 )
         else:  # source / iproc_source
             callee_path = Path(edge.callee)
-            if callee_path not in surviving_files:
+            if callee_path not in surviving_files and not _source_matches_surviving_file(
+                callee_path, surviving_files
+            ):
                 ctx.diag.emit(
                     Diagnostic.build(
                         "VW-06",
@@ -407,6 +409,25 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
                         line_no=edge.line,
                     )
                 )
+
+
+def _source_matches_surviving_file(callee: Path, surviving_files: frozenset[Path]) -> bool:
+    """Return ``True`` if any surviving file path ends with ``callee``.
+
+    Tcl ``source`` statements often use bare filenames (e.g.
+    ``source write_power_reports.tcl``) even when the domain-relative
+    path contains a subdirectory prefix
+    (e.g. ``onepower/write_power_reports.tcl``). A literal
+    ``callee not in surviving_files`` check would therefore emit a
+    false-positive VW-06 for every such bare-filename source.
+
+    The fix: if ``callee`` is not an exact key in ``surviving_files``,
+    also accept any surviving file whose POSIX path ends with
+    ``'/' + callee.as_posix()``.
+    """
+    callee_posix = callee.as_posix()
+    suffix = "/" + callee_posix
+    return any(sf.as_posix().endswith(suffix) for sf in surviving_files)
 
 
 def _path_from_canonical(canonical_name: str) -> Path | None:

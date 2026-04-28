@@ -846,6 +846,7 @@ set_isolation_control
 set_latch_loop_breaker
 set_level_shifter_strategy
 set_level_shifter_threshold
+set_lib_cell_logic_function
 set_lib_cell_spacing_label
 set_lib_rail_connection
 set_library_driver_waveform
@@ -891,6 +892,7 @@ set_power_check_attributes
 set_power_clock_scaling
 set_power_delay_shifted_event_analysis_options
 set_power_derate
+set_power_name_mapping_options
 set_power_profile_options
 set_power_replay_options
 set_process

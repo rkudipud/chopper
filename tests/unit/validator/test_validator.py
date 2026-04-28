@@ -502,3 +502,118 @@ def test_validate_post_vw17_triggers_for_dotdot_path() -> None:
     ctx = _ctx()
     validate_post(ctx, manifest, _empty_graph(), rewritten=())
     assert "VW-17" in _codes(ctx)
+
+
+# ---------------------------------------------------------------------------
+# Issue #8 regression — VW-06 false positive for bare filenames in source
+# ---------------------------------------------------------------------------
+
+
+def _source_edge(caller: str, callee: str) -> Edge:
+    return Edge(
+        caller=caller,
+        callee=callee,
+        kind="source",
+        status="resolved",
+        token=f"source {callee}",
+        line=10,
+    )
+
+
+def test_vw06_not_emitted_when_bare_filename_matches_surviving_subdir_file() -> None:
+    """Regression for #8: ``source write_power_reports.tcl`` must not produce
+    VW-06 when ``onepower/write_power_reports.tcl`` is in the active selection.
+
+    The post-trim validator used to compare ``write_power_reports.tcl``
+    literally against the set of domain-relative surviving paths and always
+    missed the match.
+    """
+    caller = "onepower/run_quality.tcl::post_checker"
+    manifest = _make_manifest(
+        files={
+            Path("onepower/run_quality.tcl"): FileTreatment.FULL_COPY,
+            Path("onepower/write_power_reports.tcl"): FileTreatment.FULL_COPY,
+        },
+        procs={
+            caller: ProcDecision(
+                canonical_name=caller,
+                source_file=Path("onepower/run_quality.tcl"),
+                selection_source="base:files.include",
+            )
+        },
+    )
+    # The Tcl source token uses the bare filename, not the full path.
+    edge = _source_edge(caller, "write_power_reports.tcl")
+    graph = DependencyGraph(
+        pi_seeds=(caller,),
+        nodes=(caller,),
+        pt=(),
+        edges=(edge,),
+        reachable_from_includes=frozenset({caller}),
+    )
+    ctx = _ctx()
+    validate_post(ctx, manifest, graph, rewritten=())
+    assert "VW-06" not in _codes(ctx), (
+        "VW-06 must not fire when the bare filename suffix-matches a surviving domain-relative path"
+    )
+
+
+def test_vw06_not_emitted_when_bare_filename_matches_nested_subdir_file() -> None:
+    """Bare filename ``default_report_list.tcl`` must match
+    ``onepower/default_reports/default_report_list.tcl`` (two levels deep).
+    """
+    caller = "onepower/write_power_reports.tcl::get_list_of_reports"
+    manifest = _make_manifest(
+        files={
+            Path("onepower/write_power_reports.tcl"): FileTreatment.FULL_COPY,
+            Path("onepower/default_reports/default_report_list.tcl"): FileTreatment.FULL_COPY,
+        },
+        procs={
+            caller: ProcDecision(
+                canonical_name=caller,
+                source_file=Path("onepower/write_power_reports.tcl"),
+                selection_source="base:files.include",
+            )
+        },
+    )
+    edge = _source_edge(caller, "default_report_list.tcl")
+    graph = DependencyGraph(
+        pi_seeds=(caller,),
+        nodes=(caller,),
+        pt=(),
+        edges=(edge,),
+        reachable_from_includes=frozenset({caller}),
+    )
+    ctx = _ctx()
+    validate_post(ctx, manifest, graph, rewritten=())
+    assert "VW-06" not in _codes(ctx), (
+        "VW-06 must not fire when the bare filename matches a nested surviving path"
+    )
+
+
+def test_vw06_still_emitted_when_bare_filename_is_genuinely_missing() -> None:
+    """VW-06 must still fire when the sourced file is truly absent from the
+    surviving set (not a false positive suppression regression).
+    """
+    caller = "a.tcl::foo"
+    manifest = _make_manifest(
+        files={Path("a.tcl"): FileTreatment.FULL_COPY},
+        procs={
+            caller: ProcDecision(
+                canonical_name=caller,
+                source_file=Path("a.tcl"),
+                selection_source="base:files.include",
+            )
+        },
+    )
+    edge = _source_edge(caller, "genuinely_removed.tcl")
+    graph = DependencyGraph(
+        pi_seeds=(caller,),
+        nodes=(caller,),
+        pt=(),
+        edges=(edge,),
+        reachable_from_includes=frozenset({caller}),
+    )
+    ctx = _ctx()
+    validate_post(ctx, manifest, graph, rewritten=())
+    assert "VW-06" in _codes(ctx), "VW-06 must still fire for a file not in the surviving set"

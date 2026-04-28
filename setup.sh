@@ -39,8 +39,15 @@ echo "=== Chopper Dev Environment Setup ==="
 echo "Platform: Unix/Linux/macOS (bash/zsh - FALLBACK ONLY)"
 echo "Note: tcsh is the PRIMARY shell for this system. Use setup.csh instead if available."
 
+echo "[1/5] Updating repository (git pull)..."
+if command -v git >/dev/null 2>&1; then
+    git -C "$script_dir" pull || echo "WARN: git pull failed (network issue or local changes). Continuing with current code."
+else
+    echo "WARN: git not found on PATH; skipping update."
+fi
+
 if [[ ! -d "$venv_dir" ]]; then
-    echo "[1/4] Creating virtual environment..."
+    echo "[2/5] Creating virtual environment..."
     $python_cmd -m venv "$venv_dir"
 else
     # Detect a stale/relocated venv (e.g. copied from another repo): the
@@ -55,18 +62,18 @@ else
         fi
     fi
     if [[ $venv_healthy -eq 1 ]]; then
-        echo "[1/4] Virtual environment exists and is healthy, reusing."
+        echo "[2/5] Virtual environment exists and is healthy, reusing."
     else
-        echo "[1/4] Existing .venv is stale or relocated — recreating..."
+        echo "[2/5] Existing .venv is stale or relocated — recreating..."
         rm -rf "$venv_dir"
         $python_cmd -m venv "$venv_dir"
     fi
 fi
 
-echo "[2/4] Activating venv..."
+echo "[3/5] Activating venv..."
 source "$venv_dir/bin/activate"
 
-echo "[3/4] Configuring pip and Git proxy..."
+echo "[4/5] Configuring pip and Git proxy..."
 python -m pip config set global.proxy "$proxy" --quiet 2>/dev/null || true
 python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>/dev/null || true
 # Configure Git proxy
@@ -77,7 +84,7 @@ python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" -
 # which fixes the common "copied venv" failure mode. We invoke pip as
 # `python -m pip` throughout: pip's own shim can itself be stale when a
 # venv is copied, and `python -m pip` bypasses that shim entirely.
-echo "[4/4] Installing dependencies..."
+echo "[5/5] Installing dependencies..."
 python -m pip install --upgrade pip --quiet
 python -m pip install -e ".[dev]" --quiet
 python -m pip install -e . --force-reinstall --no-deps --quiet
