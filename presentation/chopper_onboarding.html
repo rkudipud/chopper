@@ -29,7 +29,7 @@
             carbon:  '#262626',
           },
           ink:     { DEFAULT:'#ffffff', dim:'#bcd2ee', mute:'#7a96bf' },
-          surface: { 0:'#001833', 1:'#012147', 2:'#072a55' },
+          surface: { 0:'#0E2A4A', 1:'#143A66', 2:'#1B4880' },
         },
         fontFamily: {
           display: ['"Intel One Display"','"IntelOne Display"','Inter','"Segoe UI"','system-ui','-apple-system','sans-serif'],
@@ -60,15 +60,19 @@
   --intel-rust:#B24501;
   --intel-carbon:#262626;
 
-  /* Surface system */
-  --bg:#001833;
-  --bg2:#012147;
-  --panel:rgba(0,84,174,.16);
-  --panel-2:rgba(0,199,253,.10);
-  --panel-solid:#072a55;
+  /* Surface system — thematic Intel: Classic Blue base, but cooled-with-graphite
+     so the page reads as confident enterprise rather than "only blue". Warm
+     accents (coral, moss) supply the contrast that keeps the eye moving. */
+  --bg:#0E2A4A;            /* graphite-shifted Classic Blue */
+  --bg2:#143A66;
+  --panel:rgba(255,255,255,.06);          /* neutral translucent white */
+  --panel-2:rgba(255,255,255,.10);
+  --panel-warm:rgba(255,130,0,.08);       /* coral seam tint */
+  --panel-cool:rgba(0,199,253,.10);       /* energy seam tint */
+  --panel-solid:#143A66;
   --ink:#ffffff;
-  --ink-dim:#bcd2ee;
-  --ink-mute:#7a96bf;
+  --ink-dim:#e2ebf6;
+  --ink-mute:#9fb1cb;
 
   /* Semantic accents */
   --accent:var(--intel-energy);
@@ -78,9 +82,9 @@
   --warn:var(--intel-coral);
   --bad:#E96666;
 
-  --line:rgba(188,210,238,.16);
-  --line-2:rgba(188,210,238,.30);
-  --code-bg:#001022;
+  --line:rgba(255,255,255,.16);
+  --line-2:rgba(255,255,255,.28);
+  --code-bg:#0B2240;        /* darker than bg, warmer than pure navy */
 
   /* Capability colors */
   --f1:var(--intel-energy);
@@ -120,12 +124,31 @@
 /* ============ Base ============ */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
+/* Presentation UX: no accidental text selection of slide content,
+   default cursor everywhere except interactive controls. */
+html,body,.slide,.slide *{
+  -webkit-user-select:none;
+  -moz-user-select:none;
+  -ms-user-select:none;
+  user-select:none;
+  cursor:default;
+}
+/* Allow native interaction cursors back where it matters. */
+a,button,.btn,.dot,.replay,[role="button"],[onclick]{cursor:pointer}
+input,textarea,[contenteditable="true"],pre.code,.tcl,.tree{cursor:text;-webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text}
+.btn[disabled],.btn.is-disabled{cursor:not-allowed;opacity:.4;pointer-events:none}
+.btn{user-select:none}
 body{
   background:
-    radial-gradient(1400px 700px at 15% -10%,rgba(0,199,253,.16) 0%,transparent 55%),
-    radial-gradient(1100px 600px at 95% 110%,rgba(143,93,162,.14) 0%,transparent 55%),
-    radial-gradient(900px 500px at 50% 60%,rgba(0,84,174,.18) 0%,transparent 60%),
-    var(--bg);
+    /* Top-left: cool energy-blue glow (Intel anchor). */
+    radial-gradient(900px 500px at 12% -10%,rgba(0,199,253,.20) 0%,transparent 55%),
+    /* Top-right: WARM coral wash so the deck isn't "only blue". */
+    radial-gradient(900px 500px at 92% 0%,rgba(255,130,0,.16) 0%,transparent 60%),
+    /* Bottom-left: subtle moss for tonal anchor on the third corner. */
+    radial-gradient(800px 480px at 8% 110%,rgba(139,174,70,.10) 0%,transparent 55%),
+    /* Bottom-right: geode purple to tie back into Intel’s palette. */
+    radial-gradient(900px 520px at 95% 105%,rgba(143,93,162,.16) 0%,transparent 55%),
+    linear-gradient(180deg,#0E2A4A 0%,#143A66 100%);
   color:var(--ink);
   font-family:var(--font-display);
   font-size:var(--fs-md);
@@ -140,9 +163,14 @@ strong{color:var(--ink);font-weight:600}
 
 /* ============ Fixed-canvas scaling ============
    Renders into 1440x900 then transform:scale() to fit the actual viewport.
-   This isolates content from browser zoom: every text/element scales together. */
-.stage{position:fixed;inset:0;overflow:hidden;z-index:1;display:flex;align-items:center;justify-content:center;}
-.deck{position:relative;width:1440px;height:900px;transform-origin:center center;flex-shrink:0;}
+   This isolates content from browser zoom: every text/element scales together.
+   When the user scales UP via the +/- nav buttons, .stage scrolls so no
+   content is clipped; the deck stays anchored to the top so headings remain
+   in view. */
+.stage{position:fixed;inset:0;overflow:auto;z-index:1;display:flex;align-items:flex-start;justify-content:center;scrollbar-width:thin;scrollbar-color:rgba(188,210,238,.25) transparent;}
+.stage::-webkit-scrollbar{width:10px;height:10px}
+.stage::-webkit-scrollbar-thumb{background:rgba(188,210,238,.25);border-radius:6px}
+.deck{position:relative;width:1440px;height:900px;transform-origin:top center;flex-shrink:0;}
 
 /* ============ Slide deck ============ */
 .slide{
@@ -173,7 +201,13 @@ strong{color:var(--ink);font-weight:600}
 }
 .eyebrow::before{content:"";width:24px;height:1px;background:var(--accent)}
 
-.slideHead{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px;flex-shrink:0}
+.slideHead{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px;flex-shrink:0;position:relative;}
+.slideHead::after{
+  /* Warm accent seam beneath the slide title — contrast against the blue body. */
+  content:"";position:absolute;left:0;bottom:-1px;width:64px;height:2px;
+  background:linear-gradient(90deg,var(--intel-coral),var(--intel-energy));
+  border-radius:2px;
+}
 .slideHead h1{font-size:var(--fs-3xl)}
 .slideHead .pg{color:var(--ink-mute);font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;letter-spacing:2.6px;line-height:1}
 
@@ -245,7 +279,18 @@ pre.code .p{color:var(--intel-geode)}
 code{font-family:var(--font-mono);font-size:.92em}
 
 /* ============ File-trim animation (slide 6) ============ */
-.fileTrim{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.f1Viz{
+  margin-top:14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:12px 14px;
+}
+.f1VizHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;}
+.f1VizHead .replay{margin:0}
+.fileTrim{display:grid;grid-template-columns:1fr 28px 1fr;gap:14px;align-items:stretch}
+.fileTrim .col.arrow{
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;color:var(--intel-coral);font-weight:700;line-height:1;
+  text-shadow:0 0 12px rgba(255,130,0,.45);
+}
 .fileTrim .col h4{
   margin:0 0 8px;font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;
   letter-spacing:2px;color:var(--ink-mute);text-transform:uppercase;line-height:1;
@@ -255,24 +300,27 @@ code{font-family:var(--font-mono);font-size:.92em}
   font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;line-height:1;
   color:var(--ink-dim);background:var(--panel-2);padding:3px 8px;border-radius:99px;border:1px solid var(--line);
 }
-.fileTrim .col.before h4{color:var(--intel-geode)}
+.fileTrim .col.before h4{color:var(--intel-coral)}
 .fileTrim .col.after  h4{color:var(--good)}
 .fileGrid{
-  display:grid;grid-template-columns:1fr;gap:6px;
-  padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  min-height:340px;align-content:start;
+  display:grid;grid-template-columns:1fr;gap:5px;
+  padding:10px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:10px;
+  align-content:start;
+  /* Tuned to fit 9 rows comfortably without stretching the slide. */
+  min-height:340px;max-height:340px;overflow:hidden;
 }
 .fileBox{
-  padding:9px 12px;border-radius:8px;background:var(--panel-2);
+  padding:7px 10px;border-radius:7px;background:var(--panel-2);
   border:1px solid var(--line);
-  font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.2;
+  font-family:var(--font-mono);font-size:var(--fs-xs);line-height:1.15;
   display:flex;align-items:center;justify-content:space-between;gap:8px;
   transition:opacity .9s ease, transform .9s ease, background .9s ease, border-color .9s ease, color .9s ease;
 }
+.fileBox > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fileBox .fate{
   font-family:var(--font-mono);font-size:10px;font-weight:700;line-height:1;letter-spacing:1.2px;
   padding:3px 7px;border-radius:99px;border:1px solid var(--line);
-  color:var(--ink-mute);background:transparent;
+  color:var(--ink-mute);background:transparent;flex:none;
 }
 .fileBox.scan{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,199,253,.22)}
 .fileBox.scan.willDrop .fate{color:var(--bad);border-color:rgba(233,102,102,.6);background:rgba(233,102,102,.10)}
@@ -332,6 +380,55 @@ code{font-family:var(--font-mono);font-size:.92em}
 .tcl .nm{color:var(--intel-coral)}
 .tcl .st{color:var(--intel-moss)}
 .tcl .cm{color:var(--ink-mute);font-style:italic}
+
+/* ============ F2 proc-trim diff (slide 7) ============
+   Block-per-proc layout (no white-space:pre on the container) so the
+   strike-through and reveal animations apply cleanly to whole lines
+   without source-level newlines bleeding into the rendered output. */
+.f2Viz{
+  margin-top:14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:12px 14px;
+}
+.f2VizHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;}
+.f2VizHead .replay{margin:0}
+.f2VizHead h3{margin:0}
+.f2Viz .diff{grid-template-columns:1fr 28px 1fr;align-items:stretch}
+.f2Viz .diffArrow{
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;color:var(--intel-coral);font-weight:700;line-height:1;
+  text-shadow:0 0 12px rgba(255,130,0,.45);
+}
+.f2Viz .diffCol h4{justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px}
+.f2Viz .diffCol h4.cBefore{color:var(--intel-coral)}
+.f2Viz .diffCol h4.cAfter {color:var(--good)}
+.tclDiff{
+  background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;
+  font-family:var(--font-mono);font-size:var(--fs-xs);line-height:1.4;
+  color:var(--ink);
+  /* Default flow — each .procBlk is display:block, parent newlines collapse. */
+  min-height:300px;overflow:hidden;
+}
+.tclDiff .cm{display:block;color:var(--ink-mute);font-style:italic;margin-bottom:6px;font-size:var(--fs-xxs)}
+.tclDiff .procBlk{
+  display:block;padding:5px 8px;border-radius:6px;margin:3px 0;
+  border:1px solid transparent;
+  white-space:pre-wrap;word-break:break-word;
+  transition:background .4s ease, color .4s ease, border-color .4s ease, opacity .55s ease, transform .55s ease;
+}
+.tclDiff .procBlk.gone{background:rgba(233,102,102,.10);border-color:rgba(233,102,102,.25);color:#ffd1d1}
+.tclDiff .procBlk.gone.flagged{
+  background:rgba(233,102,102,.28);border-color:rgba(233,102,102,.55);
+  text-decoration:line-through;
+  text-decoration-color:rgba(233,102,102,.85);
+  text-decoration-thickness:2px;
+  color:#ffb3b3;
+}
+.tclDiff .procBlk.keepBlk{opacity:0;transform:translateY(6px)}
+.tclDiff .procBlk.keepBlk.shown{opacity:1;transform:translateY(0);background:rgba(139,174,70,.10);border-color:rgba(139,174,70,.30)}
+.tclDiff .kw{color:var(--intel-energy)}
+.tclDiff .nm{color:var(--intel-coral)}
+.tclDiff .st{color:var(--intel-moss)}
 
 /* ============ Trace tree (slide 8) ============ */
 .tree{
@@ -474,14 +571,14 @@ table.tbl code{font-size:.9em}
 .nav{
   position:fixed;left:0;right:0;bottom:0;
   display:flex;align-items:center;justify-content:space-between;
-  padding:10px 20px;background:rgba(0,16,34,.78);
+  padding:10px 20px;background:rgba(14,42,74,.80);
   border-top:1px solid var(--line);backdrop-filter:blur(8px);
   z-index:50;
   font-family:var(--font-display);
   transition:opacity .35s ease, transform .35s ease, background .35s ease;
 }
-body.fs .nav{background:rgba(0,16,34,.25);border-top-color:transparent;opacity:.18;transform:translateY(8px);}
-body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);background:rgba(0,16,34,.85);}
+body.fs .nav{background:rgba(14,42,74,.25);border-top-color:transparent;opacity:.18;transform:translateY(8px);}
+body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);background:rgba(14,42,74,.85);}
 .navHover{position:fixed;left:0;right:0;bottom:0;height:48px;z-index:49;pointer-events:auto;}
 .nav .grp{display:flex;gap:8px;align-items:center}
 .btn{
@@ -491,7 +588,15 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
   transition:all .15s ease;
 }
 .btn:hover{background:var(--panel-2);border-color:var(--accent)}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#001833}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#0E2A4A}
+.btn.icon{padding:6px 10px;font-family:var(--font-mono);min-width:34px;text-align:center}
+.scaler{display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:2px;}
+.scaler .btn{border:none;background:transparent;padding:6px 10px;border-radius:6px}
+.scaler .btn:hover{background:var(--panel-2)}
+.scaler .scaleVal{
+  font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:700;line-height:1;
+  color:var(--ink-dim);min-width:48px;text-align:center;cursor:default;
+}
 .dots{display:flex;gap:6px;flex-wrap:wrap;max-width:60vw;justify-content:center}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--line);cursor:pointer;transition:all .2s}
 .dot.active{background:var(--accent);transform:scale(1.4)}
@@ -767,7 +872,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
         <tr><td><code>rules/**/*.fm.tcl</code></td><td>any <code>.fm.tcl</code> under <code>rules/</code></td></tr>
       </table>
 
-      <div class="callout warn" style="margin-top:12px">
+      <div class="callout warn" style="margin-top:10px">
         <strong>R1 — explicit include always wins.</strong> A literal path in <code>files.include</code>
         survives even if a glob in <code>files.exclude</code> would match it.
       </div>
@@ -791,29 +896,34 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     ]
   }
 }</pre>
+    </div>
+  </div>
 
-      <h3>Live: before → after</h3>
-      <div class="fileTrim">
-        <div class="col before">
-          <h4><span>Domain on disk</span><span class="ct" id="f1ctBefore">9 files</span></h4>
-          <div class="fileGrid" id="f1Before">
-            <div class="fileBox" data-fate="keep"><span>setup.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="keep"><span>vars.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="keep"><span>procs/core_procs.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="drop"><span>procs/legacy/old_a.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="drop"><span>procs/legacy/old_b.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="keep"><span>rules/fm_basic.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="drop"><span>rules/experimental/wip.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="keep"><span>milestone.tcl</span><span class="fate">···</span></div>
-            <div class="fileBox" data-fate="drop"><span>debug_dump.tcl</span><span class="fate">···</span></div>
-          </div>
-        </div>
-        <div class="col after">
-          <h4><span>After chopper trim</span><span class="ct" id="f1ctAfter">—</span></h4>
-          <div class="fileGrid" id="f1After"></div>
+  <div class="f1Viz">
+    <div class="f1VizHead">
+      <h3 style="margin:0">Live: before → after</h3>
+      <button class="replay" onclick="animateF1()">▶ Replay trim</button>
+    </div>
+    <div class="fileTrim">
+      <div class="col before">
+        <h4><span>Domain on disk</span><span class="ct" id="f1ctBefore">9 files</span></h4>
+        <div class="fileGrid" id="f1Before">
+          <div class="fileBox" data-fate="keep"><span>setup.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="keep"><span>vars.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="keep"><span>procs/core_procs.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="drop"><span>procs/legacy/old_a.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="drop"><span>procs/legacy/old_b.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="keep"><span>rules/fm_basic.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="drop"><span>rules/experimental/wip.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="keep"><span>milestone.tcl</span><span class="fate">···</span></div>
+          <div class="fileBox" data-fate="drop"><span>debug_dump.tcl</span><span class="fate">···</span></div>
         </div>
       </div>
-      <button class="replay" onclick="animateF1()">▶  Replay trim</button>
+      <div class="col arrow"><span aria-hidden="true">→</span></div>
+      <div class="col after">
+        <h4><span>After chopper trim</span><span class="ct" id="f1ctAfter">—</span></h4>
+        <div class="fileGrid" id="f1After"></div>
+      </div>
     </div>
   </div>
 
@@ -850,50 +960,37 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     }
   ]
 }</pre>
+    </div>
+    <div>
+      <h3>How it works</h3>
+      <ul>
+        <li>P2 parser locates each <code>proc</code> definition + its full braced body</li>
+        <li>P3 marks the file as <code>PROC_TRIM</code> and tags the doomed procs</li>
+        <li>P5 rewrites the file in-place, deleting only the marked proc bodies</li>
+        <li>P6 re-parses, verifies brace balance + namespace consistency</li>
+      </ul>
       <div class="callout warn">
         Empty <code>procs:&nbsp;[]</code> is a hard error (<code>VE-03</code>). Use <code>files.include</code>
         if you want to keep a whole file.
       </div>
     </div>
+  </div>
 
-    <div>
-      <h3>Before / After — <code>core_procs.tcl</code></h3>
-      <div class="diff">
-        <div class="diffCol">
-          <h4>BEFORE <span class="pill" id="f2ctBefore">5 procs</span></h4>
-          <div class="tcl" id="tclBefore"><span class="cm"># core_procs.tcl</span>
-<span class="kw">proc</span> <span class="nm">run_setup</span> {} {
-  <span class="kw">puts</span> <span class="st">"setup..."</span>
-}
-<span class="kw">proc</span> <span class="nm">load_design</span> {db} {
-  <span class="kw">read_db</span> $db
-}
-<span class="kw">proc</span> <span class="nm">verify_netlist</span> {} {
-  <span class="kw">check_design</span> -all
-}
-<span class="gone"><span class="kw">proc</span> <span class="nm">debug_dump</span> {} {
-  <span class="kw">puts</span> <span class="st">"... internal debug ..."</span>
-}
-</span><span class="gone"><span class="kw">proc</span> <span class="nm">old_verify</span> {} {
-  <span class="cm"># pre-2024 path</span>
-  <span class="kw">legacy_check</span>
-}</span></div>
-        </div>
-        <div class="diffCol">
-          <h4>AFTER <span class="pill good" id="f2ctAfter">—</span></h4>
-          <div class="tcl" id="tclAfter"><span class="cm"># core_procs.tcl</span>
-<span class="keepBlk"><span class="kw">proc</span> <span class="nm">run_setup</span> {} {
-  <span class="kw">puts</span> <span class="st">"setup..."</span>
-}</span>
-<span class="keepBlk"><span class="kw">proc</span> <span class="nm">load_design</span> {db} {
-  <span class="kw">read_db</span> $db
-}</span>
-<span class="keepBlk"><span class="kw">proc</span> <span class="nm">verify_netlist</span> {} {
-  <span class="kw">check_design</span> -all
-}</span></div>
-        </div>
+  <div class="f2Viz">
+    <div class="f2VizHead">
+      <h3>Before → after — <code>procs/core_procs.tcl</code></h3>
+      <button class="replay" onclick="animateF2()">▶ Replay proc trim</button>
+    </div>
+    <div class="diff">
+      <div class="diffCol">
+        <h4 class="cBefore"><span>Before</span><span class="pill" id="f2ctBefore">5 procs</span></h4>
+        <div class="tclDiff" id="tclBefore"><span class="cm"># core_procs.tcl</span><span class="procBlk"><span class="kw">proc</span> <span class="nm">run_setup</span> {} { <span class="kw">puts</span> <span class="st">"setup..."</span> }</span><span class="procBlk"><span class="kw">proc</span> <span class="nm">load_design</span> {db} { <span class="kw">read_db</span> $db }</span><span class="procBlk"><span class="kw">proc</span> <span class="nm">verify_netlist</span> {} { <span class="kw">check_design</span> -all }</span><span class="procBlk gone"><span class="kw">proc</span> <span class="nm">debug_dump</span> {} { <span class="kw">puts</span> <span class="st">"... internal debug ..."</span> }</span><span class="procBlk gone"><span class="kw">proc</span> <span class="nm">old_verify</span> {} { <span class="kw">legacy_check</span> }</span></div>
       </div>
-      <button class="replay" onclick="animateF2()">▶  Replay proc trim</button>
+      <div class="diffArrow" aria-hidden="true">→</div>
+      <div class="diffCol">
+        <h4 class="cAfter"><span>After</span><span class="pill good" id="f2ctAfter">—</span></h4>
+        <div class="tclDiff" id="tclAfter"><span class="cm"># core_procs.tcl</span><span class="procBlk keepBlk"><span class="kw">proc</span> <span class="nm">run_setup</span> {} { <span class="kw">puts</span> <span class="st">"setup..."</span> }</span><span class="procBlk keepBlk"><span class="kw">proc</span> <span class="nm">load_design</span> {db} { <span class="kw">read_db</span> $db }</span><span class="procBlk keepBlk"><span class="kw">proc</span> <span class="nm">verify_netlist</span> {} { <span class="kw">check_design</span> -all }</span></div>
+      </div>
     </div>
   </div>
 
@@ -1548,13 +1645,18 @@ R serial</div>
 <!-- ============ Nav bar ============ -->
 <div class="nav">
   <div class="grp">
-    <button class="btn" onclick="go(-1)">← Prev</button>
-    <button class="btn primary" onclick="go(1)">Next →</button>
+    <button class="btn" id="btnPrev" onclick="go(-1)" title="Previous slide (←)">← Prev</button>
+    <button class="btn primary" id="btnNext" onclick="go(1)" title="Next slide (→)">Next →</button>
   </div>
   <div class="dots" id="dots"></div>
   <div class="grp">
+    <div class="scaler" role="group" aria-label="Content scaler">
+      <button class="btn icon" id="btnScaleDown" onclick="scaleBy(-0.1)" title="Scale content down (Ctrl+−)" aria-label="Scale down">−</button>
+      <span class="scaleVal" id="scaleVal" title="Click to reset (Ctrl+0)" onclick="resetScale()">100%</span>
+      <button class="btn icon" id="btnScaleUp" onclick="scaleBy(0.1)" title="Scale content up (Ctrl+=)" aria-label="Scale up">+</button>
+    </div>
     <span class="counter" id="counter">1 / 16</span>
-    <button class="btn" onclick="toggleFs()">⛶ Fullscreen</button>
+    <button class="btn" onclick="toggleFs()" title="Fullscreen (F)">⛶ Fullscreen</button>
   </div>
 </div>
 
@@ -1580,6 +1682,9 @@ function show(i){
   slides[idx].classList.add('active');
   dotsEl.children[idx].classList.add('active');
   counter.textContent=`${idx+1} / ${slides.length}`;
+  _updateNavState();
+  // Reset stage scroll so each slide starts at the top.
+  if(_stage){ _stage.scrollTop = 0; _stage.scrollLeft = 0; }
   // re-fire per-slide animations
   if(idx===3) animatePipeline();
   if(idx===4) animateF1();
@@ -1588,12 +1693,25 @@ function show(i){
 function go(d){ show(idx+d); }
 slides[0].classList.add('active');
 
+/* ============ Prev/Next disabled state ============ */
+const _btnPrev = document.getElementById('btnPrev');
+const _btnNext = document.getElementById('btnNext');
+function _updateNavState(){
+  if(_btnPrev) _btnPrev.disabled = (idx === 0);
+  if(_btnNext) _btnNext.disabled = (idx === slides.length - 1);
+}
+_updateNavState();
+
 document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' ') { e.preventDefault(); go(1); }
   else if(e.key==='ArrowLeft'||e.key==='PageUp')           { e.preventDefault(); go(-1); }
   else if(e.key==='Home') show(0);
   else if(e.key==='End')  show(slides.length-1);
   else if(e.key==='f'||e.key==='F') toggleFs();
+  // Ctrl + = / + / - / 0 — in-app content scaler shortcuts.
+  else if(e.ctrlKey && (e.key==='=' || e.key==='+')){ e.preventDefault(); scaleBy(0.1); }
+  else if(e.ctrlKey && e.key==='-'){ e.preventDefault(); scaleBy(-0.1); }
+  else if(e.ctrlKey && e.key==='0'){ e.preventDefault(); resetScale(); }
 });
 
 function toggleFs(){
@@ -1732,6 +1850,10 @@ function animateF2(){
 const _deck  = document.getElementById('deck');
 const _stage = document.getElementById('stage');
 const _baseDPR = window.devicePixelRatio || 1;
+/* User-driven content scaler state — multiplied into fitDeck() below.
+   Declared early so the first fitDeck() call doesn't hit a TDZ. */
+let   _userScale = 1;
+const _scaleVal  = document.getElementById('scaleVal');
 function _zoomFactor(){
   // devicePixelRatio tracks browser zoom on Chromium/Edge/Firefox.
   // Clamp to a sane range so unusual monitor DPIs don't blow things up.
@@ -1747,10 +1869,24 @@ function fitDeck(){
   // Base fit-to-viewport scale.
   const fit = Math.min(w/1440, h/900);
   // Honour browser zoom: Ctrl+= grows the deck, Ctrl+- shrinks it.
-  const s = fit * _zoomFactor();
+  // Honour the in-app +/- scaler buttons via _userScale.
+  const s = fit * _zoomFactor() * _userScale;
   _deck.style.transform = `scale(${s})`;
   _stage.style.paddingBottom = navH + 'px';
+  // Update scaler readout.
+  if(_scaleVal) _scaleVal.textContent = Math.round(_userScale * 100) + '%';
 }
+
+/* ============ User-driven content scaler ============
+   The +/- buttons multiply a manual scale factor on top of fit-to-viewport.
+   When _userScale > 1 the deck overflows the stage, but .stage has
+   overflow:auto so content can be panned via scroll — nothing is clipped. */
+function setScale(s){
+  _userScale = Math.max(0.5, Math.min(s, 3));
+  fitDeck();
+}
+function scaleBy(delta){ setScale(_userScale + delta); }
+function resetScale(){ setScale(1); }
 window.addEventListener('resize', fitDeck);
 // devicePixelRatio change events fire on browser-zoom in modern browsers.
 if(window.matchMedia){
