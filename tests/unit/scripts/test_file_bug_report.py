@@ -95,6 +95,8 @@ def test_file_bug_report_create_uses_gh_issue_create(tmp_path: Path) -> None:
     assert "create" in gh_args
     assert "--repo" in gh_args
     assert "rkudipud/chopper" in gh_args
+    assert "--label" in gh_args
+    assert "bug" in gh_args
 
 
 def test_file_bug_report_create_falls_back_when_gh_is_missing(tmp_path: Path) -> None:
