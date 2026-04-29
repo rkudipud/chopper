@@ -101,22 +101,27 @@
      so px stays proportional under any zoom level. Sizes here are tuned to be
      readable when the 1440x900 canvas is fitted to a typical 1366x768 laptop
      (≈95% scale) without forcing the user to zoom in. */
-  --fs-xxs:13px;
-  --fs-xs:14px;
-  --fs-sm:15px;
-  --fs-base:17px;
-  --fs-md:18px;
-  --fs-lg:21px;
-  --fs-xl:26px;
-  --fs-2xl:32px;
-  --fs-3xl:42px;
-  --fs-4xl:52px;
-  --fs-display:108px;
+  /* Type scale — bumped +10% for better readability when the 1440x900 canvas
+     is fitted to typical laptop viewports (the canvas already auto-scales
+     uniformly via fitDeck(); these values are the *design* sizes). */
+  --ui-scale:1;
+  --viewport-scale:1;
+  --fs-xxs:calc(14px * var(--ui-scale));
+  --fs-xs:calc(15px * var(--ui-scale));
+  --fs-sm:calc(17px * var(--ui-scale));
+  --fs-base:calc(19px * var(--ui-scale));
+  --fs-md:calc(20px * var(--ui-scale));
+  --fs-lg:calc(23px * var(--ui-scale));
+  --fs-xl:calc(29px * var(--ui-scale));
+  --fs-2xl:calc(35px * var(--ui-scale));
+  --fs-3xl:calc(46px * var(--ui-scale));
+  --fs-4xl:calc(57px * var(--ui-scale));
+  --fs-display:calc(118px * var(--ui-scale));
 
   /* Spacing for slide chrome */
-  --slide-pad-x:32px;
-  --slide-pad-t:18px;
-  --slide-pad-b:28px;
+  --slide-pad-x:calc(34px * var(--viewport-scale));
+  --slide-pad-t:calc(20px * var(--viewport-scale));
+  --slide-pad-b:calc(20px * var(--viewport-scale));
 
   --shadow:0 10px 40px -10px rgba(0,0,0,.55),0 4px 12px -4px rgba(0,0,0,.35);
 }
@@ -167,7 +172,9 @@ strong{color:var(--ink);font-weight:600}
    When the user scales UP via the +/- nav buttons, .stage scrolls so no
    content is clipped; the deck stays anchored to the top so headings remain
    in view. */
-.stage{position:fixed;inset:0;overflow:auto;z-index:1;display:flex;align-items:flex-start;justify-content:center;scrollbar-width:thin;scrollbar-color:rgba(188,210,238,.25) transparent;}
+.stage{position:fixed;inset:0;overflow-x:hidden;overflow-y:auto;z-index:1;display:flex;align-items:flex-start;justify-content:center;scrollbar-width:thin;scrollbar-color:rgba(188,210,238,.25) transparent;}
+/* Default state: scrollbars only appear when user scales >100% (overflow exists). */
+body:not(.user-scaled) .stage{overflow:hidden}
 .stage::-webkit-scrollbar{width:10px;height:10px}
 .stage::-webkit-scrollbar-thumb{background:rgba(188,210,238,.25);border-radius:6px}
 .deck{position:relative;width:1440px;height:900px;transform-origin:top center;flex-shrink:0;}
@@ -212,9 +219,9 @@ strong{color:var(--ink);font-weight:600}
 .slideHead .pg{color:var(--ink-mute);font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;letter-spacing:2.6px;line-height:1}
 
 .foot{
-  position:absolute;left:var(--slide-pad-x);right:var(--slide-pad-x);bottom:8px;
-  display:flex;justify-content:space-between;color:var(--ink-mute);
-  font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;letter-spacing:2px;line-height:1;text-transform:uppercase;
+  /* Footer disabled deck-wide — it was overlapping content on dense slides.
+     Page numbers still appear in the slideHead .pg badge. */
+  display:none;
 }
 
 /* ============ Cards ============ */
@@ -697,7 +704,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     leaving the rest of the file intact.
   </div>
 
-  <div class="foot"><span>chopper &middot; what is it</span><span>02 / 16</span></div>
+  <div class="foot"><span>chopper &middot; what is it</span><span>02 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -764,7 +771,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     <tr><td>Reproducible audit bundle</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--good)">&#10003; <code>.chopper/</code></td></tr>
   </table>
 
-  <div class="foot"><span>chopper &middot; vs FlowBuilder + SNORT</span><span>03 / 16</span></div>
+  <div class="foot"><span>chopper &middot; vs FlowBuilder + SNORT</span><span>03 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -816,7 +823,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; problem</span><span>04 / 16</span></div>
+  <div class="foot"><span>chopper &middot; problem</span><span>04 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -851,7 +858,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     Same JSONs + same domain ⇒ <em>byte-identical</em> output every run.
   </div>
 
-  <div class="foot"><span>chopper &middot; pipeline</span><span>05 / 16</span></div>
+  <div class="foot"><span>chopper &middot; pipeline</span><span>05 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -930,7 +937,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; F1 file trimming</span><span>06 / 16</span></div>
+  <div class="foot"><span>chopper &middot; F1 file trimming</span><span>06 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -997,7 +1004,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; F2 proc trimming</span><span>07 / 16</span></div>
+  <div class="foot"><span>chopper &middot; F2 proc trimming</span><span>07 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1061,7 +1068,7 @@ verify_netlist <span class="hit">(PI — kept)</span><br/>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; proc tracing</span><span>08 / 16</span></div>
+  <div class="foot"><span>chopper &middot; proc tracing</span><span>08 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1149,7 +1156,7 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; F3 run-file generation</span><span>09 / 16</span></div>
+  <div class="foot"><span>chopper &middot; F3 run-file generation</span><span>09 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1192,7 +1199,7 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; combinations</span><span>10 / 16</span></div>
+  <div class="foot"><span>chopper &middot; combinations</span><span>10 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1255,7 +1262,7 @@ R serial</div>
     directly. The project JSON is just a committed, named recipe.
   </div>
 
-  <div class="foot"><span>chopper &middot; JSON structure</span><span>11 / 16</span></div>
+  <div class="foot"><span>chopper &middot; JSON structure</span><span>11 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1385,7 +1392,7 @@ R serial</div>
     Synopsys, and Mentor. Vendor and tool are just metadata + a command string.
   </div>
 
-  <div class="foot"><span>chopper &middot; real examples</span><span>12 / 16</span></div>
+  <div class="foot"><span>chopper &middot; real examples</span><span>12 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1436,7 +1443,7 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; Tcl-only proc trim</span><span>13 / 16</span></div>
+  <div class="foot"><span>chopper &middot; Tcl-only proc trim</span><span>13 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1448,10 +1455,10 @@ R serial</div>
   <div class="cards c2">
     <div>
       <h3>Five subcommands</h3>
-<pre class="code mono"><span class="c"># validate — read-only; never touches disk</span>
+<pre class="code mono" style="font-size:13px;line-height:1.5"><span class="c"># validate — read-only; never touches disk</span>
 <span class="p">$</span> chopper validate --project project.json
 
-<span class="c"># trim — live; backs up &amp; rebuilds &lt;domain&gt;/   (add --dry-run to simulate)</span>
+<span class="c"># trim — backs up &amp; rebuilds &lt;domain&gt;/ (--dry-run to simulate)</span>
 <span class="p">$</span> chopper trim --project project.json
 
 <span class="c"># cleanup — remove &lt;domain&gt;_backup/ when happy</span>
@@ -1461,25 +1468,25 @@ R serial</div>
 <span class="p">$</span> chopper mcp-serve</pre>
 
       <h3>Useful flags</h3>
-      <table class="tbl" style="margin-top:4px">
+      <table class="tbl" style="margin-top:4px;font-size:13px">
         <tr><td><code>--base / --features</code></td><td>bypass <code>project.json</code></td></tr>
-        <tr><td><code>--project</code></td><td>committed recipe (mutually exclusive with above)</td></tr>
+        <tr><td><code>--project</code></td><td>committed recipe (exclusive w/ above)</td></tr>
         <tr><td><code>--strict</code></td><td>non-zero exit on any warning (CI gate)</td></tr>
-        <tr><td><code>--dry-run</code></td><td>your authoring iteration loop</td></tr>
-        <tr><td><code>--tool-commands FILE</code></td><td>register vendor builtins → <code>TI-01</code> instead of <code>TW-02</code> (repeatable)</td></tr>
+        <tr><td><code>--dry-run</code></td><td>authoring iteration loop</td></tr>
+        <tr><td><code>--tool-commands FILE</code></td><td>vendor builtins → <code>TI-01</code> not <code>TW-02</code></td></tr>
         <tr><td><code>--no-color</code></td><td>plain-text output for logs</td></tr>
       </table>
     </div>
 
     <div>
       <h3>Every run writes <code>.chopper/</code></h3>
-<pre class="code mono">&lt;domain&gt;/.chopper/
-├── compiled_manifest.json     <span class="c"># every file's fate &amp; reason</span>
-├── dependency_graph.json      <span class="c"># BFS proc call tree</span>
-├── trim_report.txt / .json    <span class="c"># human + machine summary</span>
-├── diagnostics.json           <span class="c"># every VE/VW/PE/PW/TW emitted</span>
-├── run_result.json            <span class="c"># exit code, durations, hashes</span>
-└── inputs/                    <span class="c"># exact base + features used</span></pre>
+<pre class="code mono" style="font-size:13px;line-height:1.5">&lt;domain&gt;/.chopper/
+├── compiled_manifest.json   <span class="c"># every file's fate</span>
+├── dependency_graph.json    <span class="c"># BFS proc call tree</span>
+├── trim_report.txt / .json  <span class="c"># human + machine summary</span>
+├── diagnostics.json         <span class="c"># every VE/VW/PE/PW/TW</span>
+├── run_result.json          <span class="c"># exit code, durations</span>
+└── inputs/                  <span class="c"># exact base + features</span></pre>
 
       <h3>Backup-and-rebuild safety</h3>
       <ul style="margin-top:4px">
@@ -1497,7 +1504,7 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 16</span></div>
+  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1509,77 +1516,441 @@ R serial</div>
     <span class="pg">15</span>
   </div>
 
-  <p style="font-size:19px;max-width:1000px;color:var(--ink)">
-    You don't have to figure out domain boundaries or JSON structure by hand.
-    A purpose-built <strong>VS Code Copilot Chat agent</strong> ships with the repo at
-    <code>.github/agents/chopper-domain-companion.agent.md</code> &mdash; the
-    <strong>single user-facing agent</strong> for anything Chopper-related,
-    from a convoluted Tcl codebase all the way to a validated, trimmed output.
+  <p style="font-size:18px;max-width:1100px;color:var(--ink-dim);margin:6px 0 14px;line-height:1.5">
+    A purpose-built <strong>VS Code Copilot Chat agent</strong> at
+    <code>.github/agents/chopper-domain-companion.agent.md</code> &mdash; the single user-facing agent
+    for anything Chopper-related, from a convoluted Tcl codebase to a validated, trimmed output.
   </p>
 
-  <div class="cards c2" style="margin-top:18px">
-    <div class="card f1">
-      <h3 style="color:var(--f1)">What it does</h3>
-      <ul>
-        <li><strong>Q1&ndash;Q5 discovery protocol</strong> on an unfamiliar codebase &mdash; finds domain root, stack files, scripts, configs, utility dirs</li>
-        <li>Authors <code>base.json</code>, <code>*.feature.json</code>, <code>project.json</code> from your domain</li>
-        <li>Runs <code>chopper validate</code> + <code>trim --dry-run</code> and explains the results in plain English</li>
-        <li>Reads <code>.chopper/</code> artifacts (manifests, trace graphs, diagnostics) and tells you what to fix</li>
-        <li>Explains any diagnostic code against <code>technical_docs/DIAGNOSTIC_CODES.md</code></li>
-        <li>Files structured bug reports to GitHub via <code>scripts/file_bug_report.py</code></li>
+  <div class="cards c2" style="gap:14px">
+    <div class="card f1" style="padding:18px 20px">
+      <h3 style="color:var(--f1);margin:0 0 6px">What it does</h3>
+      <ul style="font-size:16px;margin:4px 0 0 20px;line-height:1.45">
+        <li><strong>Q1&ndash;Q5 discovery protocol</strong> on an unfamiliar codebase</li>
+        <li>Authors <code>base.json</code>, <code>*.feature.json</code>, <code>project.json</code></li>
+        <li>Runs <code>validate</code> + <code>trim --dry-run</code>, explains results</li>
+        <li>Reads <code>.chopper/</code> artifacts and tells you what to fix</li>
+        <li>Explains any diagnostic against the registry</li>
+        <li>Files structured bug reports via <code>scripts/file_bug_report.py</code></li>
       </ul>
     </div>
 
-    <div class="card f2">
-      <h3 style="color:var(--f2)">Two operating modes</h3>
-      <div class="grid grid-cols-2 gap-2.5 mt-1.5">
+    <div class="card f2" style="padding:18px 20px">
+      <h3 style="color:var(--f2);margin:0 0 6px">Two operating modes</h3>
+      <div class="grid grid-cols-2 gap-2 mt-1">
         <div class="modeBox">
-          <div class="lbl energy">ANALYZE&shy;-ONLY</div>
-          <p>JSON authoring &amp; review only.<br/><strong>No CLI calls</strong>, no disk writes.</p>
+          <div class="lbl energy">ANALYZE-ONLY</div>
+          <p style="font-size:15px;margin:2px 0 0;line-height:1.4">JSON authoring &amp; review.<br/><strong>No CLI calls</strong>, no disk writes.</p>
         </div>
         <div class="modeBox">
           <div class="lbl moss">FULL-LOOP</div>
-          <p>analyze + validate + dry-run + audit walk.<br/>Live trim only on <strong>explicit direction</strong>.</p>
+          <p style="font-size:15px;margin:2px 0 0;line-height:1.4">analyze + validate + dry-run + audit walk.<br/>Live trim only on <strong>explicit direction</strong>.</p>
         </div>
       </div>
 
-      <h3 style="color:var(--f2);margin-top:18px">Named playbooks</h3>
-      <ul style="font-size:15px">
+      <h3 style="color:var(--f2);margin:12px 0 4px">Named playbooks</h3>
+      <ul style="font-size:15px;margin:2px 0 0 20px;line-height:1.4">
         <li><strong>Bisect</strong> &mdash; find which feature broke trim</li>
         <li><strong>Compare</strong> &mdash; diff two runs' audit bundles</li>
-        <li><strong>Prove-safe</strong> &mdash; verify a JSON change has no surviving-set delta</li>
+        <li><strong>Prove-safe</strong> &mdash; verify no surviving-set delta</li>
       </ul>
     </div>
   </div>
 
-  <h3 style="margin-top:22px">Prompt library &mdash; <code>.github/prompts/</code></h3>
-  <div class="cards c4" style="gap:12px">
-    <div class="card" style="padding:14px"><strong style="color:var(--accent)">bootstrap-domain</strong><p style="font-size:16px;margin:4px 0 0">Generate starter JSONs from a domain</p></div>
-    <div class="card" style="padding:14px"><strong style="color:var(--accent)">explain-last-run</strong><p style="font-size:16px;margin:4px 0 0">Walk the latest <code>.chopper/</code> bundle</p></div>
-    <div class="card" style="padding:14px"><strong style="color:var(--accent)">why-was-dropped</strong><p style="font-size:16px;margin:4px 0 0">Trace why a file/proc didn't survive</p></div>
-    <div class="card" style="padding:14px"><strong style="color:var(--accent)">validate-my-jsons</strong><p style="font-size:16px;margin:4px 0 0">Schema + cross-source validation</p></div>
-    <div class="card" style="padding:14px"><strong style="color:var(--accent-2)">bisect-feature-breakage</strong><p style="font-size:16px;margin:4px 0 0">Find offending feature JSON</p></div>
-    <div class="card" style="padding:14px"><strong style="color:var(--accent-2)">report-chopper-bug</strong><p style="font-size:16px;margin:4px 0 0">Field-by-field bug report draft</p></div>
-    <div class="card" style="padding:14px"><strong style="color:var(--accent-2)">package-bug-artifacts</strong><p style="font-size:16px;margin:4px 0 0">Zip <code>.chopper/</code> + logs for upload</p></div>
-    <div class="card" style="padding:14px;background:linear-gradient(135deg,rgba(139,174,70,.10),rgba(0,199,253,.10));border-color:var(--good)"><strong style="color:var(--good)">just say "hi"</strong><p style="font-size:16px;margin:4px 0 0">Two-tier menu of everything it can do</p></div>
+  <h3 style="margin:12px 0 8px">Prompt library &mdash; <code>.github/prompts/</code></h3>
+  <div class="cards c2" style="gap:10px">
+    <div class="card" style="padding:12px 14px">
+      <strong style="color:var(--accent);font-size:16px">bootstrap-domain + validate-my-jsons</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Generate starter JSONs, then run schema and cross-source checks.</p>
+    </div>
+    <div class="card" style="padding:12px 14px">
+      <strong style="color:var(--accent);font-size:16px">explain-last-run + why-was-dropped</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Walk <code>.chopper/</code> outputs and pinpoint why files/procs were removed.</p>
+    </div>
+    <div class="card" style="padding:12px 14px">
+      <strong style="color:var(--accent-2);font-size:16px">bisect-feature-breakage + prove-safe</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Find the breaking feature and verify no unintended surviving-set delta.</p>
+    </div>
+    <div class="card" style="padding:12px 14px;background:linear-gradient(135deg,rgba(139,174,70,.10),rgba(0,199,253,.10));border-color:var(--good)">
+      <strong style="color:var(--good);font-size:16px">report-chopper-bug + package-bug-artifacts</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Draft a complete report and package logs/artifacts for upload.</p>
+    </div>
   </div>
 
-  <h3 style="margin-top:22px">Plus &mdash; MCP read-only surface for any MCP-aware client</h3>
-  <div class="callout">
-    <code>chopper mcp-serve</code> exposes three read-only tools over stdio:
-    <strong>chopper.validate</strong>, <strong>chopper.explain_diagnostic</strong>,
-    <strong>chopper.read_audit</strong>. Destructive tools (<code>trim</code>, <code>cleanup</code>)
-    are CLI-only &mdash; guarded by an in-process assertion + integration test.
+  <div class="callout" style="margin-top:10px;padding:10px 14px;font-size:15px;line-height:1.45">
+    <strong>Plus &mdash; MCP read-only surface.</strong>
+    <code>chopper mcp-serve</code> exposes three stdio tools:
+    <strong>chopper.validate</strong>, <strong>chopper.explain_diagnostic</strong>, <strong>chopper.read_audit</strong>.
+    Destructive tools (<code>trim</code>, <code>cleanup</code>) are CLI-only.
   </div>
 
-  <div class="foot"><span>chopper &middot; companion agent</span><span>15 / 16</span></div>
+  <div class="foot"><span>chopper &middot; companion agent</span><span>15 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
-<!-- SLIDE 16 — NEXT STEPS                                          -->
+<!-- SLIDE 16 — BENTO GRID (APPLE KEYNOTE STYLE)                   -->
+<!-- ============================================================ -->
+<section class="slide" data-title="At a glance">
+  <div class="slideHead">
+    <h1 style="font-size:46px;font-weight:800;letter-spacing:-1px;line-height:1.04">
+      One pipeline.
+      <span style="background:linear-gradient(110deg,var(--intel-energy) 0%,var(--intel-geode) 50%,var(--intel-moss) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900">Everything you need.</span>
+    </h1>
+    <span class="pg">16</span>
+  </div>
+
+  <style>
+    /* ---------- Apple-style bento: clean 3-col × 2-row layout ---------- */
+    .bento {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+      height: 720px;
+    }
+    /* Layered glass tile */
+    .tile {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 26px 28px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.07),
+        0 1px 0 rgba(0,0,0,.25),
+        0 22px 44px -22px rgba(0,0,0,.55),
+        0 6px 16px -6px rgba(0,0,0,.30);
+      transition: transform .35s cubic-bezier(.2,.7,.2,1),
+                  border-color .25s ease,
+                  box-shadow .35s ease;
+    }
+    .tile::before{
+      content:"";position:absolute;left:18px;right:18px;top:0;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.24),transparent);
+      pointer-events:none;
+    }
+    .tile:hover {
+      transform: translateY(-3px);
+      border-color: var(--line-2);
+    }
+
+    /* ---------- Hero capability tiles (top row, F1/F2/F3) ---------- */
+    .tile.hero {
+      justify-content: space-between;
+      padding: 30px 30px 28px;
+    }
+    .tile.hero .heroTop {
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .tile.hero .heroLabel {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .tile.hero .heroBig {
+      font-family: var(--font-display);
+      font-size: 168px;
+      font-weight: 900;
+      letter-spacing: -8px;
+      line-height: 0.82;
+      margin: 12px 0 8px 0;
+    }
+    .tile.hero h2 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin: 0 0 8px 0;
+      color: var(--ink);
+      line-height: 1.05;
+    }
+    .tile.hero p {
+      font-size: 15.5px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+      margin: 0;
+      max-width: 96%;
+    }
+    .tile.f1Hero {
+      background:
+        radial-gradient(140% 80% at 0% 0%, rgba(0,199,253,.24) 0%, transparent 55%),
+        var(--panel);
+      border-color: rgba(0,199,253,.34);
+    }
+    .tile.f1Hero .heroBig, .tile.f1Hero .heroLabel { color: var(--f1); }
+    .tile.f2Hero {
+      background:
+        radial-gradient(140% 80% at 100% 0%, rgba(143,93,162,.28) 0%, transparent 55%),
+        var(--panel);
+      border-color: rgba(143,93,162,.36);
+    }
+    .tile.f2Hero .heroBig, .tile.f2Hero .heroLabel { color: var(--f2); }
+    .tile.f3Hero {
+      background:
+        radial-gradient(140% 80% at 0% 100%, rgba(139,174,70,.24) 0%, transparent 55%),
+        var(--panel);
+      border-color: rgba(139,174,70,.34);
+    }
+    .tile.f3Hero .heroBig, .tile.f3Hero .heroLabel { color: var(--f3); }
+
+    .heroIcon { width: 36px; height: 36px; opacity: .55; }
+    .tile.f1Hero .heroIcon { color: var(--f1); }
+    .tile.f2Hero .heroIcon { color: var(--f2); }
+    .tile.f3Hero .heroIcon { color: var(--f3); }
+
+    /* ---------- Bottom row: pipeline / companion / toolset ---------- */
+    .tile .tLab {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3.2px;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      margin-bottom: 8px;
+    }
+    .tile h3.tTitle {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      line-height: 1.1;
+      margin: 0 0 10px 0;
+      color: var(--ink);
+      text-transform: none;
+    }
+    .tile p.tBody {
+      font-size: 14.5px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+      margin: 0;
+    }
+
+    /* Pipeline tile */
+    .tile.pipelineTile {
+      background:
+        linear-gradient(135deg, rgba(0,199,253,.08) 0%, rgba(143,93,162,.08) 100%),
+        var(--panel);
+      border-color: rgba(0,199,253,.28);
+    }
+    .tile.pipelineTile .tLab { color: var(--accent); }
+    .phaseDots {
+      display: flex; align-items: center; gap: 5px;
+      margin-top: auto; padding-top: 12px;
+    }
+    .phaseDots .pdot {
+      flex: 1; height: 36px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+      color: var(--ink);
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--line);
+    }
+    .phaseDots .pdot.warm {
+      background: linear-gradient(135deg, rgba(0,199,253,.24), rgba(143,93,162,.24));
+      border-color: rgba(0,199,253,.45);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+    }
+    .phaseDots .arr { color: var(--ink-mute); font-size: 11px; flex: 0 0 auto; }
+    .phaseLegend {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: .5px;
+      color: var(--ink-mute); margin-top: 8px; line-height: 1.4;
+    }
+
+    /* Companion tile */
+    .tile.companion {
+      background:
+        radial-gradient(circle at 100% 0%, rgba(255,130,0,.30) 0%, transparent 55%),
+        radial-gradient(circle at 0% 100%, rgba(143,93,162,.20) 0%, transparent 55%),
+        var(--panel);
+      border-color: rgba(255,130,0,.36);
+    }
+    .tile.companion .tLab { color: var(--accent-3); }
+    .tile.companion .pills {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-top: auto; padding-top: 12px;
+    }
+    .tile.companion .pill {
+      font-family: var(--font-mono);
+      font-size: 11.5px; font-weight: 700; letter-spacing: .3px;
+      padding: 5px 11px; border-radius: 999px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid var(--line-2);
+      color: var(--ink-dim);
+      margin: 0;
+    }
+
+    /* Toolset tile — replaces the chip clutter with a clean 3×2 mini-grid */
+    .tile.toolset {
+      background:
+        radial-gradient(circle at 0% 0%, rgba(0,199,253,.16) 0%, transparent 55%),
+        var(--panel);
+      border-color: rgba(0,199,253,.26);
+    }
+    .tile.toolset .tLab { color: var(--accent); }
+    .toolsGrid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px 14px;
+      margin-top: auto;
+      padding-top: 8px;
+    }
+    .toolItem {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .toolItem .tIcon {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 9px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      flex: 0 0 32px;
+      color: var(--accent);
+    }
+    .toolItem .tIcon svg { width: 18px; height: 18px; stroke-width: 1.7; }
+    .toolItem .tName {
+      font-family: var(--font-mono);
+      font-size: 13px; font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.1px;
+      line-height: 1;
+    }
+    .toolItem .tSub {
+      font-size: 11.5px;
+      color: var(--ink-mute);
+      line-height: 1.3;
+      margin-top: 3px;
+    }
+    .toolItem.cmd .tIcon   { color: var(--accent-3); }
+    .toolItem.trace .tIcon { color: var(--accent-2); }
+    .toolItem.diag .tIcon  { color: var(--bad); }
+    .toolItem.mcp .tIcon   { color: var(--good); }
+  </style>
+
+  <div class="bento">
+
+    <!-- ===== Hero row: F1 / F2 / F3 ===== -->
+    <div class="tile hero f1Hero">
+      <div class="heroTop">
+        <div class="heroLabel">Capability 01</div>
+        <svg class="heroIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div class="heroBig">F1</div>
+      <div>
+        <h2>File-level trim</h2>
+        <p>Drop entire Tcl files from the domain — globs, includes &amp; excludes reconciled by R1.</p>
+      </div>
+    </div>
+
+    <div class="tile hero f2Hero">
+      <div class="heroTop">
+        <div class="heroLabel">Capability 02</div>
+        <svg class="heroIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div class="heroBig">F2</div>
+      <div>
+        <h2>Proc-level trim</h2>
+        <p>Surgically delete <code style="font-family:var(--font-mono);font-size:13.5px;color:var(--f2)">proc</code> definitions inside files you keep — rewrite in place, re-validate after.</p>
+      </div>
+    </div>
+
+    <div class="tile hero f3Hero">
+      <div class="heroTop">
+        <div class="heroLabel">Capability 03</div>
+        <svg class="heroIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+      </div>
+      <div class="heroBig">F3</div>
+      <div>
+        <h2>Run-file generation</h2>
+        <p>Synthesize <code style="font-family:var(--font-mono);font-size:13.5px;color:var(--f3)">&lt;stage&gt;.tcl</code> orchestrators from declarative stage specs and flow-actions.</p>
+      </div>
+    </div>
+
+    <!-- ===== Bottom row: pipeline / companion / toolset ===== -->
+    <div class="tile pipelineTile">
+      <div class="tLab">The pipeline</div>
+      <h3 class="tTitle">Eight phases.<br/>One deterministic pass.</h3>
+      <p class="tBody">Every run, every domain, in order — no parallelism, no surprises.</p>
+      <div class="phaseDots">
+        <span class="pdot">P0</span><span class="arr">›</span>
+        <span class="pdot">P1</span><span class="arr">›</span>
+        <span class="pdot">P2</span><span class="arr">›</span>
+        <span class="pdot warm">P3</span><span class="arr">›</span>
+        <span class="pdot warm">P4</span><span class="arr">›</span>
+        <span class="pdot warm">P5</span><span class="arr">›</span>
+        <span class="pdot">P6</span><span class="arr">›</span>
+        <span class="pdot">P7</span>
+      </div>
+      <div class="phaseLegend">state · validate · parse · compile · trace · trim · re-validate · audit</div>
+    </div>
+
+    <div class="tile companion">
+      <div class="tLab">In-repo agent</div>
+      <h3 class="tTitle">Domain Companion</h3>
+      <p class="tBody">A purpose-built VS Code Copilot agent. Discovers your domain, authors JSONs, runs validate &amp; dry-run, explains every diagnostic.</p>
+      <div class="pills">
+        <span class="pill">analyze-only</span>
+        <span class="pill">full-loop</span>
+        <span class="pill">bisect</span>
+        <span class="pill">prove-safe</span>
+      </div>
+    </div>
+
+    <div class="tile toolset">
+      <div class="tLab">Toolset</div>
+      <h3 class="tTitle">Three commands.<br/>One audit bundle.</h3>
+      <div class="toolsGrid">
+        <div class="toolItem cmd">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><div class="tName">validate</div><div class="tSub">Schema &amp; structure gate</div></div>
+        </div>
+        <div class="toolItem cmd">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/></svg></div>
+          <div><div class="tName">trim</div><div class="tSub">Run the 8-phase pass</div></div>
+        </div>
+        <div class="toolItem cmd">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>
+          <div><div class="tName">cleanup</div><div class="tSub">Restore from .chopper/</div></div>
+        </div>
+        <div class="toolItem trace">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="8" y1="18" x2="16" y2="18"/><line x1="18" y1="8" x2="18" y2="16"/></svg></div>
+          <div><div class="tName">BFS trace</div><div class="tSub">Reporting-only graph</div></div>
+        </div>
+        <div class="toolItem mcp">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+          <div><div class="tName">mcp-serve</div><div class="tSub">Read-only stdio</div></div>
+        </div>
+        <div class="toolItem diag">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          <div><div class="tName">VE / TW / PW</div><div class="tSub">Diagnostic registry</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot"><span>chopper &middot; at a glance</span><span>16 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 17 — NEXT STEPS (closing)                               -->
 <!-- ============================================================ -->
 <section class="slide" data-title="Next steps">
-  <div class="slideHead"><h1>Next steps</h1><span class="pg">16</span></div>
+  <div class="slideHead"><h1>Next steps</h1><span class="pg">17</span></div>
 
   <div class="cards c2">
     <div class="card f1">
@@ -1636,7 +2007,7 @@ R serial</div>
     Follow-up office hours will be scheduled after this kickoff.
   </div>
 
-  <div class="foot"><span>chopper &middot; next steps</span><span>16 / 16 &mdash; thank you</span></div>
+  <div class="foot"><span>chopper &middot; thank you</span><span>17 / 17</span></div>
 </section>
 
 </div>
@@ -1654,11 +2025,11 @@ R serial</div>
   <div class="dots" id="dots"></div>
   <div class="grp">
     <div class="scaler" role="group" aria-label="Content scaler">
-      <button class="btn icon" id="btnScaleDown" onclick="scaleBy(-0.1)" title="Scale content down (Ctrl+−)" aria-label="Scale down">−</button>
+      <button class="btn icon" id="btnScaleDown" onclick="scaleBy(-0.1)" title="Decrease text size (Ctrl+−)" aria-label="Decrease text size">−</button>
       <span class="scaleVal" id="scaleVal" title="Click to reset (Ctrl+0)" onclick="resetScale()">100%</span>
-      <button class="btn icon" id="btnScaleUp" onclick="scaleBy(0.1)" title="Scale content up (Ctrl+=)" aria-label="Scale up">+</button>
+      <button class="btn icon" id="btnScaleUp" onclick="scaleBy(0.1)" title="Increase text size (Ctrl+=)" aria-label="Increase text size">+</button>
     </div>
-    <span class="counter" id="counter">1 / 16</span>
+    <span class="counter" id="counter">1 / 17</span>
     <button class="btn" onclick="toggleFs()" title="Fullscreen (F)">⛶ Fullscreen</button>
   </div>
 </div>
@@ -1852,10 +2223,12 @@ function animateF2(){
 =========================================================*/
 const _deck  = document.getElementById('deck');
 const _stage = document.getElementById('stage');
+const _root  = document.documentElement;
 const _baseDPR = window.devicePixelRatio || 1;
-/* User-driven content scaler state — multiplied into fitDeck() below.
-   Declared early so the first fitDeck() call doesn't hit a TDZ. */
-let   _userScale = 1;
+/* User-driven readability scaler.
+  +/- changes type size and effective content viewport (padding density),
+  not deck transform zoom. */
+let   _uiScale = 1;
 const _scaleVal  = document.getElementById('scaleVal');
 function _zoomFactor(){
   // devicePixelRatio tracks browser zoom on Chromium/Edge/Firefox.
@@ -1871,24 +2244,32 @@ function fitDeck(){
   const h = window.innerHeight - pad*2 - navH;
   // Base fit-to-viewport scale.
   const fit = Math.min(w/1440, h/900);
-  // Honour browser zoom: Ctrl+= grows the deck, Ctrl+- shrinks it.
-  // Honour the in-app +/- scaler buttons via _userScale.
-  const s = fit * _zoomFactor() * _userScale;
+  // Honour browser zoom (Ctrl+= / Ctrl+-), but keep in-app +/- as readability controls.
+  const s = fit * _zoomFactor();
   _deck.style.transform = `scale(${s})`;
   _stage.style.paddingBottom = navH + 'px';
   // Update scaler readout.
-  if(_scaleVal) _scaleVal.textContent = Math.round(_userScale * 100) + '%';
+  if(_scaleVal) _scaleVal.textContent = Math.round(_uiScale * 100) + '% text';
 }
 
-/* ============ User-driven content scaler ============
-   The +/- buttons multiply a manual scale factor on top of fit-to-viewport.
-   When _userScale > 1 the deck overflows the stage, but .stage has
-   overflow:auto so content can be panned via scroll — nothing is clipped. */
+/* ============ User-driven readability scaler ============
+   Increase/decrease type and slide density; preserve full-slide viewport fit. */
+function _viewportScaleFor(uiScale){
+  // Larger text gets slightly tighter slide chrome so content stays readable.
+  return Math.max(0.86, Math.min(1.14, 1 - ((uiScale - 1) * 0.55)));
+}
+function _applyReadability(){
+  const viewportScale = _viewportScaleFor(_uiScale);
+  _root.style.setProperty('--ui-scale', _uiScale.toFixed(3));
+  _root.style.setProperty('--viewport-scale', viewportScale.toFixed(3));
+}
 function setScale(s){
-  _userScale = Math.max(0.5, Math.min(s, 3));
+  _uiScale = Math.max(0.85, Math.min(s, 1.35));
+  _applyReadability();
+  document.body.classList.toggle('user-scaled', _uiScale > 1.001);
   fitDeck();
 }
-function scaleBy(delta){ setScale(_userScale + delta); }
+function scaleBy(delta){ setScale(_uiScale + delta); }
 function resetScale(){ setScale(1); }
 window.addEventListener('resize', fitDeck);
 // devicePixelRatio change events fire on browser-zoom in modern browsers.
