@@ -6,34 +6,38 @@
 <title>Chopper — Onboarding Brochure</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Inter / JetBrains Mono are public-web fallbacks for Intel One Display / Intel One Mono -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<!-- Theme: "Aurora" — Space Grotesk (display) + JetBrains Mono (code). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <!-- Tailwind CSS Play CDN (single-file, no build step) -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-  // Tailwind config: Intel brand tokens + Intel One typography stack.
-  // Browser zoom doesn't break the layout because the entire deck is rendered
-  // into a fixed 1440x900 design canvas and uniformly scaled by JS (see fitDeck()).
+  // Tailwind config: "Aurora" theme — midnight background with electric cyan,
+  // violet and emerald accents. The whole deck renders into a fixed 1440x900
+  // design canvas and is uniformly scaled by JS (see fitDeck()), so browser
+  // zoom doesn't break the layout.
   tailwind.config = {
     theme: {
       extend: {
         colors: {
+          // Aurora palette — kept under the `intel` key only because the rest
+          // of the stylesheet still references those token names; the values
+          // are the new theme's.
           intel: {
-            classic: '#0054AE',  // Classic Blue (primary)
-            energy:  '#00C7FD',  // Energy / Pacific Blue
-            deep:    '#003C71',  // Deep Blue
-            geode:   '#8F5DA2',  // Geode purple
-            coral:   '#FF8200',  // Coral
-            moss:    '#8BAE46',  // Moss green
-            rust:    '#B24501',
-            carbon:  '#262626',
+            classic: '#3b82f6',  // electric blue
+            energy:  '#22d3ee',  // cyan (primary accent)
+            deep:    '#1e3a8a',  // deep cobalt
+            geode:   '#a78bfa',  // violet
+            coral:   '#fb7185',  // rose
+            moss:    '#34d399',  // emerald
+            rust:    '#f59e0b',  // amber
+            carbon:  '#0a0e1a',  // near-black
           },
-          ink:     { DEFAULT:'#ffffff', dim:'#bcd2ee', mute:'#7a96bf' },
-          surface: { 0:'#0E2A4A', 1:'#143A66', 2:'#1B4880' },
+          ink:     { DEFAULT:'#f8fafc', dim:'#cbd5e1', mute:'#94a3b8' },
+          surface: { 0:'#0a0e1a', 1:'#0f172a', 2:'#1e293b' },
         },
         fontFamily: {
-          display: ['"Intel One Display"','"IntelOne Display"','Inter','"Segoe UI"','system-ui','-apple-system','sans-serif'],
-          mono:    ['"Intel One Mono"','"IntelOne Mono"','"JetBrains Mono"','"SF Mono"','Consolas','"Cascadia Mono"','monospace'],
+          display: ['"Space Grotesk"','Inter','"Segoe UI"','system-ui','-apple-system','sans-serif'],
+          mono:    ['"JetBrains Mono"','"SF Mono"','Consolas','"Cascadia Mono"','monospace'],
         },
       }
     }
@@ -41,7 +45,8 @@
 </script>
 <style type="text/tailwindcss">
 /* ============================================================
-   Chopper Onboarding Presentation — Intel brand theme
+   Chopper Onboarding Presentation — "Aurora" theme
+   (midnight background · cyan / violet / emerald accents)
    - Tailwind utilities for layout/spacing/colors
    - Custom @layer components for repeated UI primitives
    - Plain CSS for animations, fixed-canvas scaling, and stateful
@@ -50,29 +55,28 @@
      via CSS custom properties (zoom-stable inside the scaled canvas).
    ============================================================ */
 :root{
-  /* Intel core palette (mirrored from tailwind config for legacy CSS) */
-  --intel-classic:#0054AE;
-  --intel-energy:#00C7FD;
-  --intel-deep:#003C71;
-  --intel-geode:#8F5DA2;
-  --intel-coral:#FF8200;
-  --intel-moss:#8BAE46;
-  --intel-rust:#B24501;
-  --intel-carbon:#262626;
+  /* Aurora core palette (variable names kept stable so legacy refs still work) */
+  --intel-classic:#3b82f6;     /* electric blue */
+  --intel-energy:#22d3ee;      /* cyan — primary accent */
+  --intel-deep:#1e3a8a;        /* deep cobalt */
+  --intel-geode:#a78bfa;       /* violet — secondary accent */
+  --intel-coral:#fb7185;       /* rose — warm accent */
+  --intel-moss:#34d399;        /* emerald — success */
+  --intel-rust:#f59e0b;        /* amber — warn */
+  --intel-carbon:#0a0e1a;      /* near-black */
 
-  /* Surface system — thematic Intel: Classic Blue base, but cooled-with-graphite
-     so the page reads as confident enterprise rather than "only blue". Warm
-     accents (coral, moss) supply the contrast that keeps the eye moving. */
-  --bg:#0E2A4A;            /* graphite-shifted Classic Blue */
-  --bg2:#143A66;
-  --panel:rgba(255,255,255,.06);          /* neutral translucent white */
-  --panel-2:rgba(255,255,255,.10);
-  --panel-warm:rgba(255,130,0,.08);       /* coral seam tint */
-  --panel-cool:rgba(0,199,253,.10);       /* energy seam tint */
-  --panel-solid:#143A66;
-  --ink:#ffffff;
-  --ink-dim:#e2ebf6;
-  --ink-mute:#9fb1cb;
+  /* Surface system — deep midnight with subtle blue-violet undertones.
+     Aurora glows in the body background supply the contrast and warmth. */
+  --bg:#0a0e1a;
+  --bg2:#111827;
+  --panel:rgba(255,255,255,.04);
+  --panel-2:rgba(255,255,255,.07);
+  --panel-warm:rgba(251,113,133,.08);
+  --panel-cool:rgba(34,211,238,.10);
+  --panel-solid:#0f172a;
+  --ink:#f8fafc;
+  --ink-dim:#cbd5e1;
+  --ink-mute:#94a3b8;
 
   /* Semantic accents */
   --accent:var(--intel-energy);
@@ -82,9 +86,9 @@
   --warn:var(--intel-coral);
   --bad:#E96666;
 
-  --line:rgba(255,255,255,.16);
-  --line-2:rgba(255,255,255,.28);
-  --code-bg:#0B2240;        /* darker than bg, warmer than pure navy */
+  --line:rgba(255,255,255,.10);
+  --line-2:rgba(255,255,255,.20);
+  --code-bg:#070b15;          /* slightly darker than bg, neutral */
 
   /* Capability colors */
   --f1:var(--intel-energy);
@@ -92,8 +96,8 @@
   --f3:var(--intel-moss);
 
   /* ---- Single-source typography stack ---- */
-  --font-display:"Intel One Display","IntelOne Display","Inter","Segoe UI",system-ui,-apple-system,sans-serif;
-  --font-mono:"Intel One Mono","IntelOne Mono","JetBrains Mono","SF Mono","Consolas","Cascadia Mono",monospace;
+  --font-display:"Space Grotesk","Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Consolas,"Cascadia Mono",monospace;
 
   /* ---- Single-source typography scale ---- */
   /* All sizes are px because content is rendered into a fixed canvas; the canvas
@@ -145,20 +149,17 @@ input,textarea,[contenteditable="true"],pre.code,.tcl,.tree{cursor:text;-webkit-
 .btn{user-select:none}
 body{
   background:
-    /* Top-left: cool energy-blue glow (Intel anchor). */
-    radial-gradient(900px 500px at 12% -10%,rgba(0,199,253,.20) 0%,transparent 55%),
-    /* Top-right: WARM coral wash so the deck isn't "only blue". */
-    radial-gradient(900px 500px at 92% 0%,rgba(255,130,0,.16) 0%,transparent 60%),
-    /* Bottom-left: subtle moss for tonal anchor on the third corner. */
-    radial-gradient(800px 480px at 8% 110%,rgba(139,174,70,.10) 0%,transparent 55%),
-    /* Bottom-right: geode purple to tie back into Intel’s palette. */
-    radial-gradient(900px 520px at 95% 105%,rgba(143,93,162,.16) 0%,transparent 55%),
-    linear-gradient(180deg,#0E2A4A 0%,#143A66 100%);
+    /* Aurora — four corner glows over near-black midnight. */
+    radial-gradient(960px 540px at 10% -10%, rgba(34,211,238,.22) 0%, transparent 55%),
+    radial-gradient(880px 520px at 92% 0%,   rgba(167,139,250,.20) 0%, transparent 60%),
+    radial-gradient(900px 520px at 5% 105%,  rgba(52,211,153,.14) 0%, transparent 55%),
+    radial-gradient(900px 540px at 98% 105%, rgba(251,113,133,.14) 0%, transparent 55%),
+    linear-gradient(180deg, #0a0e1a 0%, #0f172a 60%, #111827 100%);
   color:var(--ink);
   font-family:var(--font-display);
   font-size:var(--fs-md);
   line-height:1.55;
-  font-feature-settings:"ss01","cv11";
+  font-feature-settings:"ss01","ss02";
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
   overflow:hidden;
@@ -462,7 +463,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 .titleHero .logo{
   font-family:var(--font-display);font-size:var(--fs-display);font-weight:900;
   letter-spacing:-4px;line-height:.9;
-  background:linear-gradient(135deg,#00C7FD 0%,#0054AE 35%,#8F5DA2 65%,#FF8200 100%);
+  background:linear-gradient(135deg,#22d3ee 0%,#3b82f6 35%,#a78bfa 65%,#f472b6 100%);
   background-size:200% 200%;
   -webkit-background-clip:text;background-clip:text;color:transparent;
   margin-bottom:14px;animation:gradientShift 8s ease infinite;
@@ -605,7 +606,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
   transition:all .15s ease;
 }
 .btn:hover{background:var(--panel-2);border-color:var(--accent)}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#0E2A4A}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#0a0e1a}
 .btn.icon{padding:6px 10px;font-family:var(--font-mono);min-width:34px;text-align:center}
 .scaler{display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:2px;}
 .scaler .btn{border:none;background:transparent;padding:6px 10px;border-radius:6px}
@@ -1178,11 +1179,11 @@ R serial</div>
 
       <h3>Vendor &amp; tool agnostic</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <span class="vendor"><span class="dotc" style="background:#00C7FD"></span>SNPS · primetime</span>
-        <span class="vendor"><span class="dotc" style="background:#8F5DA2"></span>SNPS · fc</span>
-        <span class="vendor"><span class="dotc" style="background:#8BAE46"></span>CDNS · innovus</span>
-        <span class="vendor"><span class="dotc" style="background:#FF8200"></span>CDNS · tempus</span>
-        <span class="vendor"><span class="dotc" style="background:#E96666"></span>Mentor · caliber</span>
+        <span class="vendor"><span class="dotc" style="background:#22d3ee"></span>SNPS · primetime</span>
+        <span class="vendor"><span class="dotc" style="background:#a78bfa"></span>SNPS · fc</span>
+        <span class="vendor"><span class="dotc" style="background:#34d399"></span>CDNS · innovus</span>
+        <span class="vendor"><span class="dotc" style="background:#f59e0b"></span>CDNS · tempus</span>
+        <span class="vendor"><span class="dotc" style="background:#fb7185"></span>Mentor · caliber</span>
       </div>
       <p style="font-size:15px;color:var(--ink-dim);margin-top:6px">
         Same JSON, same Chopper. The <code>command</code> string carries whatever tool invocation
@@ -1667,7 +1668,7 @@ R serial</div>
 
   <div class="cards c3">
     <div class="card f1">
-      <h3><span class="vendor"><span class="dotc" style="background:#00C7FD"></span>SNPS · fev_formality</span></h3>
+      <h3><span class="vendor"><span class="dotc" style="background:#22d3ee"></span>SNPS · fev_formality</span></h3>
 <pre class="code mono">{
   "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
   "<span class="k">domain</span>":"<span class="s">fev_formality</span>",
@@ -1705,7 +1706,7 @@ R serial</div>
     </div>
 
     <div class="card f2">
-      <h3><span class="vendor"><span class="dotc" style="background:#8F5DA2"></span>SNPS · sta_pt (Timing)</span></h3>
+      <h3><span class="vendor"><span class="dotc" style="background:#a78bfa"></span>SNPS · sta_pt (Timing)</span></h3>
 <pre class="code mono">{
   "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
   "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
@@ -1744,7 +1745,7 @@ R serial</div>
     </div>
 
     <div class="card f3">
-      <h3><span class="vendor"><span class="dotc" style="background:#8BAE46"></span>SNPS · power</span></h3>
+      <h3><span class="vendor"><span class="dotc" style="background:#34d399"></span>SNPS · power</span></h3>
 <pre class="code mono">{
   "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
   "<span class="k">domain</span>":"<span class="s">power</span>",
