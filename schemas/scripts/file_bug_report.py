@@ -53,6 +53,8 @@ REQUIRED_FIELDS = (
     "json_files",
 )
 
+BUG_LABEL = "bug"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render and optionally create a GitHub issue for a Chopper bug report")
@@ -211,7 +213,19 @@ def write_issue_body(body: str, output_dir: Path, force: bool) -> Path:
 
 def create_issue(repo: str, title: str, body_path: Path) -> str:
     result = subprocess.run(
-        ["gh", "issue", "create", "--repo", repo, "--title", title, "--body-file", str(body_path)],
+        [
+            "gh",
+            "issue",
+            "create",
+            "--repo",
+            repo,
+            "--title",
+            title,
+            "--body-file",
+            str(body_path),
+            "--label",
+            BUG_LABEL,
+        ],
         capture_output=True,
         text=True,
         check=False,
