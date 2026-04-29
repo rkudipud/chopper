@@ -190,6 +190,16 @@ body:not(.user-scaled) .stage{overflow:hidden}
   font-size:var(--fs-md);
 }
 .slide.active{display:flex;opacity:1;transform:translateY(0) scale(1)}
+.slide.is-entering-right{animation:slideInRight .45s cubic-bezier(.2,.7,.2,1)}
+.slide.is-entering-left{animation:slideInLeft .45s cubic-bezier(.2,.7,.2,1)}
+@keyframes slideInRight{
+  from{opacity:0;transform:translateX(34px) scale(.985)}
+  to{opacity:1;transform:translateX(0) scale(1)}
+}
+@keyframes slideInLeft{
+  from{opacity:0;transform:translateX(-34px) scale(.985)}
+  to{opacity:1;transform:translateX(0) scale(1)}
+}
 
 /* Headings — single, consistent scale */
 .slide h1{font-family:var(--font-display);font-size:var(--fs-3xl);margin:0 0 10px;letter-spacing:-.5px;font-weight:800;line-height:1.05;color:var(--ink)}
@@ -607,6 +617,31 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
 .dots{display:flex;gap:6px;flex-wrap:wrap;max-width:60vw;justify-content:center}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--line);cursor:pointer;transition:all .2s}
 .dot.active{background:var(--accent);transform:scale(1.4)}
+.dot{position:relative}
+.dot::after{
+  content:attr(data-tip);
+  position:absolute;
+  left:50%;
+  bottom:14px;
+  transform:translateX(-50%) translateY(6px);
+  background:rgba(11,34,64,.96);
+  color:var(--ink-dim);
+  border:1px solid var(--line-2);
+  border-radius:7px;
+  padding:3px 7px;
+  font-family:var(--font-mono);
+  font-size:11px;
+  line-height:1;
+  letter-spacing:.3px;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease;
+}
+.dot:hover::after,.dot:focus-visible::after{
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
+}
 .counter{
   color:var(--ink-dim);
   font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:600;line-height:1;
@@ -2045,16 +2080,36 @@ let idx = 0;
 slides.forEach((_, i)=>{
   const d = document.createElement('div');
   d.className='dot'+(i===0?' active':'');
+  d.setAttribute('data-tip', `Slide ${i+1}`);
+  d.setAttribute('title', `Slide ${i+1}`);
+  d.setAttribute('aria-label', `Go to slide ${i+1}`);
+  d.tabIndex = 0;
   d.onclick=()=>show(i);
+  d.onkeydown=(e)=>{
+    if(e.key==='Enter' || e.key===' '){
+      e.preventDefault();
+      show(i);
+    }
+  };
   dotsEl.appendChild(d);
 });
 
 function show(i){
   if(i<0||i>=slides.length) return;
-  slides[idx].classList.remove('active');
-  dotsEl.children[idx].classList.remove('active');
+  if(i===idx) return;
+  const prev = idx;
+  const dirClass = i > prev ? 'is-entering-right' : 'is-entering-left';
+  slides[prev].classList.remove('active','is-entering-right','is-entering-left');
+  dotsEl.children[prev].classList.remove('active');
   idx=i;
-  slides[idx].classList.add('active');
+  const incoming = slides[idx];
+  incoming.classList.remove('is-entering-right','is-entering-left');
+  incoming.classList.add('active');
+  void incoming.offsetWidth;
+  incoming.classList.add(dirClass);
+  incoming.addEventListener('animationend', ()=>{
+    incoming.classList.remove('is-entering-right','is-entering-left');
+  }, { once:true });
   dotsEl.children[idx].classList.add('active');
   counter.textContent=`${idx+1} / ${slides.length}`;
   _updateNavState();
