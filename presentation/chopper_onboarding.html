@@ -1,0 +1,1791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Chopper — Onboarding Brochure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Inter / JetBrains Mono are public-web fallbacks for Intel One Display / Intel One Mono -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<!-- Tailwind CSS Play CDN (single-file, no build step) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Tailwind config: Intel brand tokens + Intel One typography stack.
+  // Browser zoom doesn't break the layout because the entire deck is rendered
+  // into a fixed 1440x900 design canvas and uniformly scaled by JS (see fitDeck()).
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          intel: {
+            classic: '#0054AE',  // Classic Blue (primary)
+            energy:  '#00C7FD',  // Energy / Pacific Blue
+            deep:    '#003C71',  // Deep Blue
+            geode:   '#8F5DA2',  // Geode purple
+            coral:   '#FF8200',  // Coral
+            moss:    '#8BAE46',  // Moss green
+            rust:    '#B24501',
+            carbon:  '#262626',
+          },
+          ink:     { DEFAULT:'#ffffff', dim:'#bcd2ee', mute:'#7a96bf' },
+          surface: { 0:'#001833', 1:'#012147', 2:'#072a55' },
+        },
+        fontFamily: {
+          display: ['"Intel One Display"','"IntelOne Display"','Inter','"Segoe UI"','system-ui','-apple-system','sans-serif'],
+          mono:    ['"Intel One Mono"','"IntelOne Mono"','"JetBrains Mono"','"SF Mono"','Consolas','"Cascadia Mono"','monospace'],
+        },
+      }
+    }
+  };
+</script>
+<style type="text/tailwindcss">
+/* ============================================================
+   Chopper Onboarding Presentation — Intel brand theme
+   - Tailwind utilities for layout/spacing/colors
+   - Custom @layer components for repeated UI primitives
+   - Plain CSS for animations, fixed-canvas scaling, and stateful
+     UI machines (file-trim scanner, proc-trim diff, pipeline)
+   - Single source of truth for fonts and the typography scale
+     via CSS custom properties (zoom-stable inside the scaled canvas).
+   ============================================================ */
+:root{
+  /* Intel core palette (mirrored from tailwind config for legacy CSS) */
+  --intel-classic:#0054AE;
+  --intel-energy:#00C7FD;
+  --intel-deep:#003C71;
+  --intel-geode:#8F5DA2;
+  --intel-coral:#FF8200;
+  --intel-moss:#8BAE46;
+  --intel-rust:#B24501;
+  --intel-carbon:#262626;
+
+  /* Surface system */
+  --bg:#001833;
+  --bg2:#012147;
+  --panel:rgba(0,84,174,.16);
+  --panel-2:rgba(0,199,253,.10);
+  --panel-solid:#072a55;
+  --ink:#ffffff;
+  --ink-dim:#bcd2ee;
+  --ink-mute:#7a96bf;
+
+  /* Semantic accents */
+  --accent:var(--intel-energy);
+  --accent-2:var(--intel-geode);
+  --accent-3:var(--intel-coral);
+  --good:var(--intel-moss);
+  --warn:var(--intel-coral);
+  --bad:#E96666;
+
+  --line:rgba(188,210,238,.16);
+  --line-2:rgba(188,210,238,.30);
+  --code-bg:#001022;
+
+  /* Capability colors */
+  --f1:var(--intel-energy);
+  --f2:var(--intel-geode);
+  --f3:var(--intel-moss);
+
+  /* ---- Single-source typography stack ---- */
+  --font-display:"Intel One Display","IntelOne Display","Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-mono:"Intel One Mono","IntelOne Mono","JetBrains Mono","SF Mono","Consolas","Cascadia Mono",monospace;
+
+  /* ---- Single-source typography scale ---- */
+  /* All sizes are px because content is rendered into a fixed canvas; the canvas
+     is uniformly scaled to the viewport AND to browser zoom (see fitDeck()),
+     so px stays proportional under any zoom level. Sizes here are tuned to be
+     readable when the 1440x900 canvas is fitted to a typical 1366x768 laptop
+     (≈95% scale) without forcing the user to zoom in. */
+  --fs-xxs:13px;
+  --fs-xs:14px;
+  --fs-sm:15px;
+  --fs-base:17px;
+  --fs-md:18px;
+  --fs-lg:21px;
+  --fs-xl:26px;
+  --fs-2xl:32px;
+  --fs-3xl:42px;
+  --fs-4xl:52px;
+  --fs-display:108px;
+
+  /* Spacing for slide chrome */
+  --slide-pad-x:32px;
+  --slide-pad-t:18px;
+  --slide-pad-b:28px;
+
+  --shadow:0 10px 40px -10px rgba(0,0,0,.55),0 4px 12px -4px rgba(0,0,0,.35);
+}
+
+/* ============ Base ============ */
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:
+    radial-gradient(1400px 700px at 15% -10%,rgba(0,199,253,.16) 0%,transparent 55%),
+    radial-gradient(1100px 600px at 95% 110%,rgba(143,93,162,.14) 0%,transparent 55%),
+    radial-gradient(900px 500px at 50% 60%,rgba(0,84,174,.18) 0%,transparent 60%),
+    var(--bg);
+  color:var(--ink);
+  font-family:var(--font-display);
+  font-size:var(--fs-md);
+  line-height:1.55;
+  font-feature-settings:"ss01","cv11";
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow:hidden;
+}
+code,pre,.mono,kbd,samp{font-family:var(--font-mono);font-feature-settings:"calt" 0;}
+strong{color:var(--ink);font-weight:600}
+
+/* ============ Fixed-canvas scaling ============
+   Renders into 1440x900 then transform:scale() to fit the actual viewport.
+   This isolates content from browser zoom: every text/element scales together. */
+.stage{position:fixed;inset:0;overflow:hidden;z-index:1;display:flex;align-items:center;justify-content:center;}
+.deck{position:relative;width:1440px;height:900px;transform-origin:center center;flex-shrink:0;}
+
+/* ============ Slide deck ============ */
+.slide{
+  position:absolute;inset:0;
+  padding:var(--slide-pad-t) var(--slide-pad-x) var(--slide-pad-b);
+  display:none;flex-direction:column;
+  opacity:0;transform:translateY(28px) scale(.99);
+  transition:opacity .55s cubic-bezier(.2,.7,.2,1), transform .55s cubic-bezier(.2,.7,.2,1);
+  overflow:hidden;
+  font-size:var(--fs-md);
+}
+.slide.active{display:flex;opacity:1;transform:translateY(0) scale(1)}
+
+/* Headings — single, consistent scale */
+.slide h1{font-family:var(--font-display);font-size:var(--fs-3xl);margin:0 0 10px;letter-spacing:-.5px;font-weight:800;line-height:1.05;color:var(--ink)}
+.slide h2{font-family:var(--font-display);font-size:var(--fs-2xl);margin:0 0 14px;letter-spacing:-.3px;font-weight:700;color:var(--ink)}
+.slide h3{font-family:var(--font-display);font-size:var(--fs-xs);margin:14px 0 8px;color:var(--ink-mute);text-transform:uppercase;letter-spacing:2.4px;font-weight:700}
+.slide h4{font-family:var(--font-display);font-size:var(--fs-sm);margin:0 0 6px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:1.6px;font-weight:700}
+.slide p{margin:6px 0;color:var(--ink-dim);font-size:var(--fs-md)}
+.slide ul,.slide ol{margin:8px 0 8px 22px;padding:0;color:var(--ink-dim);font-size:var(--fs-md)}
+.slide li{margin:5px 0}
+
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-display);font-size:var(--fs-xxs);
+  letter-spacing:3px;font-weight:700;
+  color:var(--accent);text-transform:uppercase;margin-bottom:14px;
+}
+.eyebrow::before{content:"";width:24px;height:1px;background:var(--accent)}
+
+.slideHead{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px;flex-shrink:0}
+.slideHead h1{font-size:var(--fs-3xl)}
+.slideHead .pg{color:var(--ink-mute);font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;letter-spacing:2.6px;line-height:1}
+
+.foot{
+  position:absolute;left:var(--slide-pad-x);right:var(--slide-pad-x);bottom:8px;
+  display:flex;justify-content:space-between;color:var(--ink-mute);
+  font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;letter-spacing:2px;line-height:1;text-transform:uppercase;
+}
+
+/* ============ Cards ============ */
+.cards{display:grid;gap:18px}
+.cards.c2{grid-template-columns:1fr 1fr}
+.cards.c3{grid-template-columns:1fr 1fr 1fr}
+.cards.c4{grid-template-columns:repeat(4,1fr)}
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:20px 22px;
+  position:relative;overflow:hidden;
+  backdrop-filter:blur(20px) saturate(140%);
+  -webkit-backdrop-filter:blur(20px) saturate(140%);
+  box-shadow:var(--shadow);
+  transition:transform .25s ease, border-color .25s ease;
+  font-size:var(--fs-md);
+}
+.card:hover{transform:translateY(-2px);border-color:var(--line-2)}
+.card.f1{border-color:rgba(0,199,253,.45)}
+.card.f2{border-color:rgba(143,93,162,.45)}
+.card.f3{border-color:rgba(139,174,70,.45)}
+.card .num{
+  position:absolute;top:-14px;right:18px;
+  font-family:var(--font-display);font-weight:900;font-size:84px;line-height:1;
+  color:rgba(255,255,255,.025);letter-spacing:-4px;
+}
+
+/* ============ Tags / pills ============ */
+.tag{
+  display:inline-block;padding:3px 9px;border-radius:99px;
+  font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;line-height:1;
+  letter-spacing:1px;
+}
+.tag.f1{background:rgba(0,199,253,.16);color:var(--f1)}
+.tag.f2{background:rgba(143,93,162,.20);color:var(--f2)}
+.tag.f3{background:rgba(139,174,70,.18);color:var(--f3)}
+.tag.good{background:rgba(139,174,70,.18);color:var(--good)}
+.tag.warn{background:rgba(255,130,0,.18);color:var(--warn)}
+.tag.bad{background:rgba(233,102,102,.18);color:var(--bad)}
+.pill{
+  display:inline-block;padding:3px 8px;border-radius:99px;
+  font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;line-height:1;
+  color:var(--ink-dim);background:var(--panel-2);border:1px solid var(--line);
+  margin-left:8px;
+}
+.pill.good{color:var(--good);background:rgba(139,174,70,.12);border-color:rgba(139,174,70,.45)}
+
+/* ============ Code blocks ============ */
+pre.code{
+  background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;margin:8px 0;color:var(--ink);
+  font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.55;
+  overflow:auto;max-height:50vh;
+}
+pre.code .k{color:var(--intel-energy)}
+pre.code .s{color:var(--intel-moss)}
+pre.code .n{color:var(--intel-coral)}
+pre.code .c{color:var(--ink-mute);font-style:italic}
+pre.code .p{color:var(--intel-geode)}
+code{font-family:var(--font-mono);font-size:.92em}
+
+/* ============ File-trim animation (slide 6) ============ */
+.fileTrim{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.fileTrim .col h4{
+  margin:0 0 8px;font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;
+  letter-spacing:2px;color:var(--ink-mute);text-transform:uppercase;line-height:1;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.fileTrim .col h4 .ct{
+  font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;line-height:1;
+  color:var(--ink-dim);background:var(--panel-2);padding:3px 8px;border-radius:99px;border:1px solid var(--line);
+}
+.fileTrim .col.before h4{color:var(--intel-geode)}
+.fileTrim .col.after  h4{color:var(--good)}
+.fileGrid{
+  display:grid;grid-template-columns:1fr;gap:6px;
+  padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  min-height:340px;align-content:start;
+}
+.fileBox{
+  padding:9px 12px;border-radius:8px;background:var(--panel-2);
+  border:1px solid var(--line);
+  font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.2;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  transition:opacity .9s ease, transform .9s ease, background .9s ease, border-color .9s ease, color .9s ease;
+}
+.fileBox .fate{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;line-height:1;letter-spacing:1.2px;
+  padding:3px 7px;border-radius:99px;border:1px solid var(--line);
+  color:var(--ink-mute);background:transparent;
+}
+.fileBox.scan{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,199,253,.22)}
+.fileBox.scan.willDrop .fate{color:var(--bad);border-color:rgba(233,102,102,.6);background:rgba(233,102,102,.10)}
+.fileBox.scan.willKeep .fate{color:var(--good);border-color:rgba(139,174,70,.55);background:rgba(139,174,70,.10)}
+.fileBox.drop{
+  opacity:.18;transform:translateX(-12px);
+  background:rgba(233,102,102,.08);border-color:rgba(233,102,102,.40);
+  color:var(--bad);text-decoration:line-through;
+}
+.fileBox.keep{border-color:var(--good);background:rgba(139,174,70,.08);color:var(--ink)}
+.fileBox.gen{border-color:var(--f3);background:rgba(139,174,70,.10);color:var(--f3)}
+.fileBox.pending{opacity:.35;border-style:dashed}
+
+/* ============ Pipeline (slide 5) ============ */
+.pipeline{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin:14px 0;}
+.phase{
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;min-width:108px;text-align:center;
+  font-family:var(--font-display);font-size:var(--fs-xs);font-weight:600;line-height:1.3;
+  transition:all .35s;
+}
+.phase .pid{font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;color:var(--accent);letter-spacing:1.5px;line-height:1}
+.phase.lit{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,199,253,.22);background:var(--panel-2)}
+.arrow{color:var(--ink-dim);font-size:21px}
+
+/* ============ Tcl side-by-side (slides 7, 8) ============ */
+.diff{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.diffCol h4{
+  margin:0 0 6px;font-family:var(--font-display);font-size:var(--fs-sm);font-weight:700;
+  color:var(--ink-dim);text-transform:uppercase;letter-spacing:1.3px;
+  display:flex;align-items:center;
+}
+.tcl{
+  background:var(--code-bg);border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;
+  font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.55;
+  color:var(--ink);
+  white-space:pre;overflow:auto;max-height:55vh;
+}
+.tcl .gone{
+  display:inline-block;color:var(--bad);background:rgba(233,102,102,.14);
+  border-radius:4px;padding:0 4px;
+  transition:background .35s ease, color .35s ease, text-decoration-color .35s ease;
+  text-decoration:none;
+}
+.tcl .gone.flagged{
+  background:rgba(233,102,102,.24);
+  text-decoration:line-through;
+  text-decoration-color:rgba(233,102,102,.8);
+  text-decoration-thickness:2px;
+}
+.tcl.trimmed{position:relative}
+.tcl.trimmed .gone{display:none}
+.tcl .keepBlk{display:block;opacity:0;transform:translateY(6px);transition:opacity .45s ease, transform .45s ease;}
+.tcl .keepBlk.shown{opacity:1;transform:translateY(0)}
+.tcl .kw{color:var(--intel-energy)}
+.tcl .nm{color:var(--intel-coral)}
+.tcl .st{color:var(--intel-moss)}
+.tcl .cm{color:var(--ink-mute);font-style:italic}
+
+/* ============ Trace tree (slide 8) ============ */
+.tree{
+  font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.7;
+  color:var(--ink-dim);background:var(--code-bg);
+  border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+}
+.tree .hit{color:var(--good)}
+.tree .traced{color:var(--warn)}
+.tree .miss{color:var(--bad)}
+
+/* ============ Title slide ============ */
+.titleHero{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;height:100%;}
+.titleHero .logo{
+  font-family:var(--font-display);font-size:var(--fs-display);font-weight:900;
+  letter-spacing:-4px;line-height:.9;
+  background:linear-gradient(135deg,#00C7FD 0%,#0054AE 35%,#8F5DA2 65%,#FF8200 100%);
+  background-size:200% 200%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  margin-bottom:14px;animation:gradientShift 8s ease infinite;
+}
+@keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.titleHero .tag{
+  display:block;background:none;padding:0;border-radius:0;letter-spacing:-.2px;
+  font-family:var(--font-display);font-size:var(--fs-xl);font-weight:300;
+  color:var(--ink);margin-bottom:14px;max-width:900px;
+}
+.titleHero .leadIn{
+  font-family:var(--font-display);font-size:var(--fs-md);line-height:1.7;
+  color:var(--ink-dim);max-width:900px;margin-bottom:28px;
+}
+.kpis{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+.kpi{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 24px;
+  backdrop-filter:blur(20px) saturate(140%);box-shadow:var(--shadow);min-width:180px;
+}
+.kpi .v{font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:800;line-height:1;color:var(--ink);letter-spacing:-1px}
+.kpi .v.grad{background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.kpi .l{font-family:var(--font-display);font-size:var(--fs-xxs);font-weight:700;line-height:1.3;color:var(--ink-mute);letter-spacing:2px;text-transform:uppercase;margin-top:8px}
+
+/* ============ Vendors / dots ============ */
+.vendor{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 11px;border-radius:8px;background:var(--panel);
+  border:1px solid var(--line);
+  font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:700;line-height:1;letter-spacing:1px;
+}
+.vendor .dotc{width:8px;height:8px;border-radius:50%}
+
+/* ============ Combo grid (slide 10) ============ */
+.combo{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
+.combo .c{
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:12px;text-align:center;transition:all .25s;
+}
+.combo .c .b{display:flex;justify-content:center;gap:4px;margin-bottom:8px}
+.combo .c .b span{
+  width:30px;height:22px;border-radius:5px;
+  font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;line-height:22px;
+  background:#1a2349;color:#3a4670;border:1px solid #2a3461;
+}
+.combo .c.on .b span.f1{background:rgba(0,199,253,.22);color:var(--f1);border-color:var(--f1)}
+.combo .c.on .b span.f2{background:rgba(143,93,162,.22);color:var(--f2);border-color:var(--f2)}
+.combo .c.on .b span.f3{background:rgba(139,174,70,.22);color:var(--f3);border-color:var(--f3)}
+.combo .c .lbl{font-family:var(--font-display);font-size:var(--fs-sm);font-weight:700;line-height:1.3;color:var(--ink)}
+.combo .c .desc{font-family:var(--font-display);font-size:var(--fs-xs);font-weight:400;line-height:1.3;color:var(--ink-dim);margin-top:6px}
+
+/* ============ Background grid ============ */
+.bgGrid{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.18;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:42px 42px;
+  mask-image:radial-gradient(circle at 50% 50%,#000 30%,transparent 75%);}
+
+/* ============ Callouts ============ */
+.callout{
+  border-left:3px solid var(--accent);background:linear-gradient(90deg,rgba(0,199,253,.10),transparent);
+  padding:12px 16px;margin:10px 0;border-radius:0 12px 12px 0;color:var(--ink);
+  font-size:var(--fs-base);line-height:1.6;
+}
+.callout.warn{border-color:var(--warn);background:linear-gradient(90deg,rgba(255,130,0,.10),transparent)}
+.callout.good{border-color:var(--good);background:linear-gradient(90deg,rgba(139,174,70,.10),transparent)}
+
+/* ============ Tables ============ */
+table.tbl{width:100%;border-collapse:collapse;margin:8px 0;font-size:var(--fs-sm)}
+table.tbl th,table.tbl td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-family:var(--font-display)}
+table.tbl th{color:var(--ink-dim);font-weight:600;letter-spacing:.5px;background:var(--panel)}
+table.tbl tr:hover td{background:rgba(255,255,255,.02)}
+table.tbl code{font-size:.9em}
+
+/* ============ Replay buttons ============ */
+.replay{
+  cursor:pointer;font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:700;line-height:1;
+  color:var(--accent);
+  border:1px solid var(--accent);border-radius:6px;padding:6px 10px;background:transparent;
+  margin-top:8px;
+}
+.replay:hover{background:rgba(0,199,253,.12)}
+
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,199,253,.55)}50%{box-shadow:0 0 0 12px rgba(0,199,253,0)}}
+.pulse{animation:pulse 2s infinite}
+@keyframes flowPath{from{stroke-dashoffset:300}to{stroke-dashoffset:0}}
+.flowing{stroke-dasharray:6 6;animation:flowPath 8s linear infinite}
+
+/* ============ Project Branch Lifecycle (slide 4) ============ */
+.lifecycle{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:12px;align-items:stretch;margin-top:10px;}
+.lifeBox{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;display:flex;flex-direction:column;justify-content:center;min-width:120px;
+}
+.lifeBox .ttl{font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;line-height:1;letter-spacing:1.6px;color:var(--ink-mute);text-transform:uppercase;margin-bottom:6px}
+.lifeBox .val{font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;line-height:1.35;color:var(--ink)}
+.lifeBox.main{border-color:rgba(0,199,253,.40)}
+.lifeBox.main .val{color:var(--accent)}
+.lifeBox.final{border-color:rgba(139,174,70,.45)}
+.lifeBox.final .val{color:var(--good)}
+.lifeArrow{display:flex;align-items:center;color:var(--ink-dim);font-size:22px;font-weight:300}
+.lifeWindow{
+  background:linear-gradient(135deg,rgba(143,93,162,.12),rgba(0,199,253,.08));
+  border:1px dashed rgba(143,93,162,.5);border-radius:12px;padding:10px 14px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.lifeWindow .winTtl{font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;line-height:1;letter-spacing:1.6px;color:var(--intel-geode);text-transform:uppercase;}
+.lifeOwners{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.lifeOwner{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+  font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;line-height:1.3;color:var(--ink);
+  display:flex;align-items:center;justify-content:space-between;gap:6px;
+}
+.lifeOwner code{font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:700;line-height:1;color:var(--f1);background:rgba(0,199,253,.14);padding:2px 6px;border-radius:4px}
+
+/* ============ Operating mode boxes (slide 15) ============ */
+.modeBox{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:14px}
+.modeBox .lbl{font-family:var(--font-mono);font-size:var(--fs-xxs);font-weight:800;line-height:1;letter-spacing:2px;margin-bottom:6px}
+.modeBox .lbl.energy{color:var(--accent)}
+.modeBox .lbl.moss  {color:var(--good)}
+.modeBox p{margin:0;font-size:var(--fs-sm);color:var(--ink)}
+
+/* ============ Nav bar ============ */
+.nav{
+  position:fixed;left:0;right:0;bottom:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;background:rgba(0,16,34,.78);
+  border-top:1px solid var(--line);backdrop-filter:blur(8px);
+  z-index:50;
+  font-family:var(--font-display);
+  transition:opacity .35s ease, transform .35s ease, background .35s ease;
+}
+body.fs .nav{background:rgba(0,16,34,.25);border-top-color:transparent;opacity:.18;transform:translateY(8px);}
+body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);background:rgba(0,16,34,.85);}
+.navHover{position:fixed;left:0;right:0;bottom:0;height:48px;z-index:49;pointer-events:auto;}
+.nav .grp{display:flex;gap:8px;align-items:center}
+.btn{
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:8px 14px;cursor:pointer;
+  font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;line-height:1;
+  transition:all .15s ease;
+}
+.btn:hover{background:var(--panel-2);border-color:var(--accent)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#001833}
+.dots{display:flex;gap:6px;flex-wrap:wrap;max-width:60vw;justify-content:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line);cursor:pointer;transition:all .2s}
+.dot.active{background:var(--accent);transform:scale(1.4)}
+.counter{
+  color:var(--ink-dim);
+  font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:600;line-height:1;
+  min-width:60px;text-align:center;
+}
+</style>
+</head>
+<body class="font-display antialiased text-white bg-surface-0 overflow-hidden">
+<div class="bgGrid"></div>
+
+<div class="stage" id="stage">
+<div class="deck" id="deck">
+
+<!-- ============================================================ -->
+<!-- SLIDE 1 — TITLE                                                -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Title">
+  <div class="titleHero">
+    <span class="eyebrow">CTH R2G &middot; Tool Flow Manager</span>
+    <div class="logo">Chopper</div>
+    <div class="tag">One tool. Three capabilities. JSON in &mdash; trimmed domain out.</div>
+    <p class="leadIn">
+      Chopper collapses what <strong>FlowBuilder</strong> and <strong>SNORT</strong> do across two stages
+      into a <strong>single JSON-driven workflow</strong> &mdash; and adds <strong>surgical Tcl proc-level
+      trimming</strong> that neither tool can do. Reproducible, audited, and vendor-agnostic.
+    </p>
+    <div class="kpis">
+      <div class="kpi"><div class="v grad">3</div><div class="l">Capabilities &mdash; F1 &middot; F2 &middot; F3</div></div>
+      <div class="kpi"><div class="v grad">8</div><div class="l">Pipeline phases P0&ndash;P7</div></div>
+      <div class="kpi"><div class="v grad">4</div><div class="l">CLI subcommands</div></div>
+      <div class="kpi"><div class="v grad">2026.06</div><div class="l">CTH global release</div></div>
+    </div>
+  </div>
+  <div class="foot"><span>chopper &middot; onboarding brochure</span><span>press &rarr; to begin</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2 — WHAT IS CHOPPER?                                     -->
+<!-- ============================================================ -->
+<section class="slide" data-title="What is Chopper">
+  <div class="slideHead"><h1>What is Chopper?</h1><span class="pg">02</span></div>
+
+  <p style="font-size:21px;max-width:1000px;color:var(--ink)">
+    Chopper is the <strong>per-domain trimming tool</strong> in the CTH R2G Tool Flow Manager.
+    Each domain ships with the <em>full</em> mainline feature set; Chopper takes a
+    <strong>JSON specification</strong> of what a project actually needs and produces a
+    <strong>clean, minimal, customer-specific domain</strong> on disk &mdash; reproducibly, with a full audit bundle.
+  </p>
+
+  <h3 style="margin-top:28px">The lineage — FlowBuilder → SNORT → Chopper</h3>
+
+  <div class="cards c3" style="margin-top:8px">
+    <div class="card">
+      <span class="num">1</span>
+      <h3 style="color:var(--accent)">FlowBuilder</h3>
+      <p style="color:var(--ink);font-size:17px"><strong>Builds</strong> the master flow run files.</p>
+      <ul>
+        <li>Generates the full mainline TFM</li>
+        <li>Produces run scripts &amp; stack files</li>
+        <li>No trimming &mdash; ships everything</li>
+        <li><strong>Cannot</strong> do proc-level work</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="num">2</span>
+      <h3 style="color:var(--accent-2)">SNORT</h3>
+      <p style="color:var(--ink);font-size:17px"><strong>Analyzes</strong> the flow to find required files only.</p>
+      <ul>
+        <li>Static dependency discovery</li>
+        <li>Output → P4 templates</li>
+        <li>P4 templates filter the master REPO TFM<br/>down to a customer mini-TFM</li>
+        <li><strong>File-level only</strong> &mdash; no proc surgery</li>
+      </ul>
+    </div>
+    <div class="card f3">
+      <span class="num">3</span>
+      <h3 style="color:var(--good)">Chopper</h3>
+      <p style="color:var(--ink);font-size:17px"><strong>Combines + extends</strong> both into one JSON-driven stage.</p>
+      <ul>
+        <li>Generates <code>&lt;stage&gt;.tcl</code> run scripts (F3)</li>
+        <li>Auto-traces file &amp; proc dependencies</li>
+        <li>Selective file include / exclude (F1)</li>
+        <li><strong>Proc-level trimming (F2)</strong> &mdash; unique to Chopper</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout good" style="margin-top:18px">
+    <strong>Same end goal &mdash; one tool instead of two.</strong> Where FlowBuilder + SNORT need
+    a build pass, an analysis pass, and a P4-template filter pass, Chopper does it in one
+    invocation &mdash; <em>and</em> can surgically remove unwanted procs from inside Tcl files,
+    leaving the rest of the file intact.
+  </div>
+
+  <div class="foot"><span>chopper &middot; what is it</span><span>02 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3 — CHOPPER vs FLOWBUILDER + SNORT (visual)              -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Chopper vs FB+SNORT">
+  <div class="slideHead"><h1>Two stages collapse into one</h1><span class="pg">03</span></div>
+
+  <h3>Traditional: FlowBuilder &rarr; SNORT &rarr; P4 filter</h3>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:14px;align-items:center;margin:8px 0 6px">
+    <div class="card f1" style="text-align:center;padding:18px">
+      <h3 style="margin-top:0;color:var(--f1)">FlowBuilder</h3>
+      <p style="font-size:15px;color:var(--ink)">Builds the<br/>master flow</p>
+    </div>
+    <span style="color:var(--ink-mute);font-size:22px">&rarr;</span>
+    <div class="card f2" style="text-align:center;padding:18px">
+      <h3 style="margin-top:0;color:var(--f2)">SNORT</h3>
+      <p style="font-size:15px;color:var(--ink)">Analyzes &amp;<br/>finds deps</p>
+    </div>
+    <span style="color:var(--ink-mute);font-size:22px">&rarr;</span>
+    <div class="card" style="text-align:center;padding:18px;border-color:var(--warn)">
+      <h3 style="margin-top:0;color:var(--warn)">P4 templates</h3>
+      <p style="font-size:15px;color:var(--ink)">Filter master<br/>REPO TFM</p>
+    </div>
+    <span style="color:var(--ink-mute);font-size:22px">&rarr;</span>
+    <div class="card" style="text-align:center;padding:18px;border-color:var(--good)">
+      <h3 style="margin-top:0;color:var(--good)">Mini TFM</h3>
+      <p style="font-size:15px;color:var(--ink)">Customer<br/>target</p>
+    </div>
+  </div>
+  <p style="text-align:center;color:var(--ink-mute);font-size:16px;letter-spacing:1.5px;text-transform:uppercase;margin-top:0">
+    Three tools &middot; three passes &middot; file-level only
+  </p>
+
+  <h3 style="margin-top:28px">Chopper: one stage, one JSON, one run</h3>
+  <div style="display:grid;grid-template-columns:3fr auto 1fr;gap:14px;align-items:center;margin:8px 0 6px">
+    <div class="card f3" style="padding:24px;background:linear-gradient(135deg,rgba(139,174,70,.10),rgba(0,199,253,.10))">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center">
+        <div><div style="font-size:22px">&#x1F4DC;</div><strong style="color:var(--f3)">F3 Run-files</strong><br/><span style="color:var(--ink-dim);font-size:16px">generates <code>&lt;stage&gt;.tcl</code></span></div>
+        <div><div style="font-size:22px">&#x1F50D;</div><strong style="color:var(--f3)">Auto-trace</strong><br/><span style="color:var(--ink-dim);font-size:16px">deps + call graph</span></div>
+        <div><div style="font-size:22px">&#x1F4C2;</div><strong style="color:var(--f3)">F1 File trim</strong><br/><span style="color:var(--ink-dim);font-size:16px">selective include</span></div>
+        <div><div style="font-size:22px">&#x2702;&#xFE0F;</div><strong style="color:var(--f3)">F2 Proc trim &#9733;</strong><br/><span style="color:var(--ink-dim);font-size:16px">surgical, unique</span></div>
+      </div>
+    </div>
+    <span style="color:var(--ink-mute);font-size:22px">&rarr;</span>
+    <div class="card" style="text-align:center;padding:18px;border-color:var(--good)">
+      <h3 style="margin-top:0;color:var(--good)">Trimmed domain</h3>
+      <p style="font-size:15px;color:var(--ink)">+ <code>.chopper/</code><br/>audit bundle</p>
+    </div>
+  </div>
+  <p style="text-align:center;color:var(--ink-mute);font-size:16px;letter-spacing:1.5px;text-transform:uppercase">
+    One tool &middot; one pass &middot; file <em>and</em> proc level
+  </p>
+
+  <h3 style="margin-top:24px">Capability matrix</h3>
+  <table class="tbl">
+    <tr><th>Capability</th><th style="text-align:center;color:var(--f1)">FlowBuilder</th><th style="text-align:center;color:var(--f2)">SNORT</th><th style="text-align:center;color:var(--good)">Chopper</th></tr>
+    <tr><td>Build run scripts (<code>&lt;stage&gt;.tcl</code>)</td><td style="text-align:center">&#10003;</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--good)">&#10003;</td></tr>
+    <tr><td>Static dependency discovery</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center">&#10003;</td><td style="text-align:center;color:var(--good)">&#10003;</td></tr>
+    <tr><td>Whole-file include / exclude</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center">&#10003; <span style="color:var(--ink-mute)">(via P4 filter)</span></td><td style="text-align:center;color:var(--good)">&#10003;</td></tr>
+    <tr><td><strong>Proc-level surgical trim</strong></td><td style="text-align:center;color:var(--bad)">&#10007;</td><td style="text-align:center;color:var(--bad)">&#10007;</td><td style="text-align:center;color:var(--good)"><strong>&#10003; unique</strong></td></tr>
+    <tr><td>JSON-driven, no shell glue</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--good)">&#10003;</td></tr>
+    <tr><td>Single-tool single-run</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--good)">&#10003;</td></tr>
+    <tr><td>Reproducible audit bundle</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--good)">&#10003; <code>.chopper/</code></td></tr>
+  </table>
+
+  <div class="foot"><span>chopper &middot; vs FlowBuilder + SNORT</span><span>03 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3 — THE PROBLEM                                          -->
+<!-- ============================================================ -->
+<section class="slide" data-title="The Problem">
+  <div class="slideHead"><h1>The problem we are solving</h1><span class="pg">04</span></div>
+
+  <div class="cards c2">
+    <div class="card">
+      <h3>Today — manual trimming</h3>
+      <ul>
+        <li>Every domain ships with <strong>generalized flow code, optional behavior, legacy support, customer-specific feature logic</strong>.</li>
+        <li>Owners hand-edit Tcl, delete files, prune procs, fix dangling references — by eye.</li>
+        <li>Risk: broken sources, missed cleanup, inconsistent domains across teams.</li>
+        <li>Audit trail = git diff. Reproducibility = "trust me".</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Tomorrow — Chopper</h3>
+      <ul>
+        <li>JSON declares <strong>files, procs, stages</strong> the project needs.</li>
+        <li>Chopper parses Tcl, compiles selections, traces the call graph, rewrites the domain on disk.</li>
+        <li>Backup-and-rebuild: <code>&lt;domain&gt;_backup/</code> stays untouched; re-trim is one command.</li>
+        <li>Every run writes <code>.chopper/</code> — manifest, dependency graph, diagnostics, trim report.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top:22px;margin-bottom:10px">Project Branch Lifecycle</h3>
+  <div class="lifecycle">
+    <div class="lifeBox main">
+      <div class="ttl">main branch</div>
+      <div class="val">full TFM &middot; all domains &middot; all features</div>
+    </div>
+    <div class="lifeArrow">→</div>
+    <div class="lifeWindow">
+      <div class="winTtl">git branch project_ABC &middot; 2-week trim window</div>
+      <div class="lifeOwners">
+        <div class="lifeOwner"><span>Owner 1</span><code>trim Domain A</code></div>
+        <div class="lifeOwner"><span>Owner 2</span><code>trim Domain B</code></div>
+        <div class="lifeOwner"><span>Owner 3</span><code>trim Domain C</code></div>
+      </div>
+    </div>
+    <div class="lifeArrow">→</div>
+    <div class="lifeBox final">
+      <div class="ttl">project branch</div>
+      <div class="val">trimmed domains, audit-bundled</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; problem</span><span>04 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4 — 8-PHASE PIPELINE                                     -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Pipeline">
+  <div class="slideHead"><h1>The 8-phase pipeline (P0–P7)</h1><span class="pg">05</span></div>
+  <p>One pipeline, all three capabilities ride through it. F1/F2 decisions are made in <strong>P3 Compile</strong>;
+     F3 stage emission happens in <strong>P5 Build</strong>.</p>
+
+  <div class="pipeline" id="pipeline">
+    <div class="phase"><div class="pid">P0</div>Domain<br/>state</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P1</div>Config +<br/>pre-validate</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P2</div>Parse Tcl</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P3</div>Compile<br/>(F1+F2)</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P4</div>Trace BFS</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P5</div>Build output<br/>(F3)</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P6</div>Post-validate</div><span class="arrow">→</span>
+    <div class="phase"><div class="pid">P7</div>Audit</div>
+  </div>
+  <button class="replay" onclick="animatePipeline()">▶  Replay pipeline animation</button>
+
+  <div class="cards c4" style="margin-top:18px">
+    <div class="card"><h3>P0 → P2</h3><p style="color:var(--ink)">Discover domain state, load JSONs, validate schema, parse Tcl into proc/namespace facts.</p></div>
+    <div class="card"><h3>P3 Compile</h3><p style="color:var(--ink)">Apply <strong>R1 merge rules</strong>: explicit include always wins. Decide each file: KEEP / PROC_TRIM / DROP.</p></div>
+    <div class="card"><h3>P4 Trace</h3><p style="color:var(--ink)">Breadth-first walk of <code>proc → callees</code>. <strong>Reporting only</strong>, never copies extra files.</p></div>
+    <div class="card"><h3>P5 → P7</h3><p style="color:var(--ink)">Rewrite files on disk, generate <code>&lt;stage&gt;.tcl</code>, post-validate, write <code>.chopper/</code> bundle.</p></div>
+  </div>
+
+  <div class="callout">
+    <strong>Determinism:</strong> all expansions are normalized, deduplicated, and sorted lexicographically.
+    Same JSONs + same domain ⇒ <em>byte-identical</em> output every run.
+  </div>
+
+  <div class="foot"><span>chopper &middot; pipeline</span><span>05 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5 — F1                                                   -->
+<!-- ============================================================ -->
+<section class="slide" data-title="F1 File trimming">
+  <div class="slideHead"><h1><span class="tag f1">F1</span> &nbsp; File-level trimming</h1><span class="pg">06</span></div>
+
+  <div class="cards c2">
+    <div>
+      <h3>What it does</h3>
+      <p>Whole-file include / exclude using literal paths or globs.
+      The unit is the <strong>file</strong> — keep all of it or drop all of it.</p>
+
+      <h3 style="margin-top:14px">Glob patterns</h3>
+      <table class="tbl">
+        <tr><th>Pattern</th><th>Matches</th></tr>
+        <tr><td><code>procs/*.tcl</code></td><td><code>.tcl</code> directly under <code>procs/</code></td></tr>
+        <tr><td><code>rule?.fm.tcl</code></td><td><code>rule1.fm.tcl</code>, <code>rule2.fm.tcl</code></td></tr>
+        <tr><td><code>reports/**</code></td><td>any depth under <code>reports/</code></td></tr>
+        <tr><td><code>rules/**/*.fm.tcl</code></td><td>any <code>.fm.tcl</code> under <code>rules/</code></td></tr>
+      </table>
+
+      <div class="callout warn" style="margin-top:12px">
+        <strong>R1 — explicit include always wins.</strong> A literal path in <code>files.include</code>
+        survives even if a glob in <code>files.exclude</code> would match it.
+      </div>
+    </div>
+
+    <div>
+      <h3>JSON</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>": "<span class="s">base-v1</span>",
+  "<span class="k">domain</span>": "<span class="s">fev_formality</span>",
+  "<span class="k">files</span>": {
+    "<span class="k">include</span>": [
+      "<span class="s">setup.tcl</span>",
+      "<span class="s">vars.tcl</span>",
+      "<span class="s">procs/**/*.tcl</span>",
+      "<span class="s">rules/fm_basic.tcl</span>"
+    ],
+    "<span class="k">exclude</span>": [
+      "<span class="s">procs/legacy/*.tcl</span>",
+      "<span class="s">rules/experimental/**</span>"
+    ]
+  }
+}</pre>
+
+      <h3>Live: before → after</h3>
+      <div class="fileTrim">
+        <div class="col before">
+          <h4><span>Domain on disk</span><span class="ct" id="f1ctBefore">9 files</span></h4>
+          <div class="fileGrid" id="f1Before">
+            <div class="fileBox" data-fate="keep"><span>setup.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="keep"><span>vars.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="keep"><span>procs/core_procs.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="drop"><span>procs/legacy/old_a.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="drop"><span>procs/legacy/old_b.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="keep"><span>rules/fm_basic.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="drop"><span>rules/experimental/wip.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="keep"><span>milestone.tcl</span><span class="fate">···</span></div>
+            <div class="fileBox" data-fate="drop"><span>debug_dump.tcl</span><span class="fate">···</span></div>
+          </div>
+        </div>
+        <div class="col after">
+          <h4><span>After chopper trim</span><span class="ct" id="f1ctAfter">—</span></h4>
+          <div class="fileGrid" id="f1After"></div>
+        </div>
+      </div>
+      <button class="replay" onclick="animateF1()">▶  Replay trim</button>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; F1 file trimming</span><span>06 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6 — F2                                                   -->
+<!-- ============================================================ -->
+<section class="slide" data-title="F2 Proc trimming">
+  <div class="slideHead"><h1><span class="tag f2">F2</span> &nbsp; Proc-level trimming</h1><span class="pg">07</span></div>
+
+  <p>Keep the file, surgically <strong>delete unwanted Tcl proc definitions</strong>. Best for
+    <code>*_procs.tcl</code> shared libraries — you keep utility A, drop utility B, the file remains.</p>
+
+  <div class="cards c2">
+    <div>
+      <h3>JSON</h3>
+<pre class="code mono">"<span class="k">procedures</span>": {
+  "<span class="k">include</span>": [
+    {
+      "<span class="k">file</span>": "<span class="s">procs/core_procs.tcl</span>",
+      "<span class="k">procs</span>": [
+        "<span class="s">run_setup</span>",
+        "<span class="s">load_design</span>",
+        "<span class="s">verify_netlist</span>"
+      ]
+    }
+  ],
+  "<span class="k">exclude</span>": [
+    {
+      "<span class="k">file</span>": "<span class="s">procs/core_procs.tcl</span>",
+      "<span class="k">procs</span>": [ "<span class="s">debug_dump</span>", "<span class="s">old_verify</span>" ]
+    }
+  ]
+}</pre>
+      <div class="callout warn">
+        Empty <code>procs:&nbsp;[]</code> is a hard error (<code>VE-03</code>). Use <code>files.include</code>
+        if you want to keep a whole file.
+      </div>
+    </div>
+
+    <div>
+      <h3>Before / After — <code>core_procs.tcl</code></h3>
+      <div class="diff">
+        <div class="diffCol">
+          <h4>BEFORE <span class="pill" id="f2ctBefore">5 procs</span></h4>
+          <div class="tcl" id="tclBefore"><span class="cm"># core_procs.tcl</span>
+<span class="kw">proc</span> <span class="nm">run_setup</span> {} {
+  <span class="kw">puts</span> <span class="st">"setup..."</span>
+}
+<span class="kw">proc</span> <span class="nm">load_design</span> {db} {
+  <span class="kw">read_db</span> $db
+}
+<span class="kw">proc</span> <span class="nm">verify_netlist</span> {} {
+  <span class="kw">check_design</span> -all
+}
+<span class="gone"><span class="kw">proc</span> <span class="nm">debug_dump</span> {} {
+  <span class="kw">puts</span> <span class="st">"... internal debug ..."</span>
+}
+</span><span class="gone"><span class="kw">proc</span> <span class="nm">old_verify</span> {} {
+  <span class="cm"># pre-2024 path</span>
+  <span class="kw">legacy_check</span>
+}</span></div>
+        </div>
+        <div class="diffCol">
+          <h4>AFTER <span class="pill good" id="f2ctAfter">—</span></h4>
+          <div class="tcl" id="tclAfter"><span class="cm"># core_procs.tcl</span>
+<span class="keepBlk"><span class="kw">proc</span> <span class="nm">run_setup</span> {} {
+  <span class="kw">puts</span> <span class="st">"setup..."</span>
+}</span>
+<span class="keepBlk"><span class="kw">proc</span> <span class="nm">load_design</span> {db} {
+  <span class="kw">read_db</span> $db
+}</span>
+<span class="keepBlk"><span class="kw">proc</span> <span class="nm">verify_netlist</span> {} {
+  <span class="kw">check_design</span> -all
+}</span></div>
+        </div>
+      </div>
+      <button class="replay" onclick="animateF2()">▶  Replay proc trim</button>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; F2 proc trimming</span><span>07 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7 — PROC TRACING                                         -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Proc tracing">
+  <div class="slideHead"><h1>Proc tracing &mdash; the safety net</h1><span class="pg">08</span></div>
+
+  <p>For every explicitly-included proc, Chopper performs a deterministic <strong>BFS walk</strong>
+    of its call graph (<code>proc → callees</code>). This produces:</p>
+  <ul>
+    <li><code>.chopper/dependency_graph.json</code> — full call tree</li>
+    <li><code>TW-*</code> diagnostics — unresolved calls, cycles, ambiguity</li>
+    <li>The <strong>traced-only set (PT)</strong> — visibility into what your kept procs depend on</li>
+  </ul>
+
+  <div class="callout warn">
+    <strong>Trace is reporting-only — never copies.</strong> If <code>foo</code> calls <code>bar</code>
+    and only <code>foo</code> is in <code>procedures.include</code>, only <code>foo</code> survives.
+    <code>bar</code> shows up in the dependency graph &amp; diagnostics — you decide whether to add it.
+    No surprises, no silent expansion.
+  </div>
+
+  <div class="cards c2" style="margin-top:14px">
+    <div>
+      <h3>JSON says: keep <code>verify_netlist</code></h3>
+<pre class="code mono">"<span class="k">procedures</span>": {
+  "<span class="k">include</span>": [
+    { "<span class="k">file</span>":"<span class="s">procs/core_procs.tcl</span>",
+      "<span class="k">procs</span>":[ "<span class="s">verify_netlist</span>" ] }
+  ]
+}</pre>
+      <h3>Trace output (P4)</h3>
+      <div class="tree mono">
+verify_netlist <span class="hit">(PI — kept)</span><br/>
+├── check_design <span class="traced">(PT — call site only, NOT copied)</span><br/>
+├── report_summary <span class="traced">(PT)</span><br/>
+│&nbsp;&nbsp; └── format_table <span class="traced">(PT)</span><br/>
+└── log_msg <span class="miss">(unresolved → TW-01)</span>
+      </div>
+    </div>
+
+    <div>
+      <h3>What you see in <code>.chopper/</code></h3>
+<pre class="code mono"><span class="c">// dependency_graph.json (excerpt)</span>
+{
+  "<span class="k">verify_netlist</span>": {
+    "<span class="k">file</span>":   "<span class="s">procs/core_procs.tcl</span>",
+    "<span class="k">status</span>": "<span class="s">PI</span>",
+    "<span class="k">callees</span>":[ "<span class="s">check_design</span>", "<span class="s">report_summary</span>", "<span class="s">log_msg</span>" ]
+  },
+  "<span class="k">log_msg</span>": {
+    "<span class="k">status</span>": "<span class="s">unresolved</span>",
+    "<span class="k">diag</span>":   "<span class="s">TW-01</span>"
+  }
+}</pre>
+      <div class="callout">
+        <strong>Cycles are safe.</strong> BFS visited-set terminates; <code>TW-04</code> records the cycle.
+        Reproducible: callees sorted lexicographically before traversal.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; proc tracing</span><span>08 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8 — F3                                                   -->
+<!-- ============================================================ -->
+<section class="slide" data-title="F3 Run-file generation">
+  <div class="slideHead"><h1><span class="tag f3">F3</span> &nbsp; Run-file generation &amp; tool-command injection</h1><span class="pg">09</span></div>
+
+  <p>F3 generates <code>&lt;stage&gt;.tcl</code> run scripts directly from JSON stage definitions —
+    eliminating manually authored run files. Optional: also emit <code>&lt;stage&gt;.stack</code>
+    files for the scheduler.</p>
+
+  <div class="cards c2">
+    <div>
+      <h3>JSON — stages &amp; tool injection</h3>
+<pre class="code mono">"<span class="k">stages</span>": [
+  {
+    "<span class="k">name</span>":      "<span class="s">setup</span>",
+    "<span class="k">load_from</span>": "<span class="s"></span>",
+    "<span class="k">command</span>":   "<span class="s">-xt vw Imy_shell -B BLOCK -T setup</span>",
+    "<span class="k">exit_codes</span>":[<span class="n">0</span>],
+    "<span class="k">steps</span>": [
+      "<span class="s">source setup.tcl</span>",
+      "<span class="s">source vars.tcl</span>",
+      "<span class="s">run_setup</span>"
+    ]
+  },
+  {
+    "<span class="k">name</span>":      "<span class="s">main</span>",
+    "<span class="k">load_from</span>": "<span class="s">setup</span>",
+    "<span class="k">command</span>":   "<span class="s">-xt vw Imy_shell -B BLOCK -T main</span>",
+    "<span class="k">exit_codes</span>":[<span class="n">0</span>,<span class="n">3</span>],
+    "<span class="k">dependencies</span>":["<span class="s">setup</span>"],
+    "<span class="k">steps</span>": [
+      "<span class="s">load_design</span>",
+      "<span class="s">verify_netlist</span>",
+      "<span class="s">report_summary</span>"
+    ]
+  }
+]</pre>
+      <div class="callout good">
+        The stage <code>command</code> field is the <strong>scheduler-side tool launcher</strong> —
+        emitted verbatim into <code>&lt;stage&gt;.stack</code> as the <code>J</code> line.
+        Vendor / tool agnostic: <code>pt_shell</code>, <code>fc_shell</code>, <code>fm_shell</code>,
+        <code>innovus -nowin</code>, <code>tempus</code>, <code>calibre</code> — Chopper does not interpret it.
+      </div>
+      <div class="callout warn" style="margin-top:8px">
+        <strong>Different injection point:</strong> the <code>--tool-commands FILE</code> CLI flag
+        feeds the <em>parser/trace</em> tool-command pool. Listed names emit <code>TI-01 known-tool-command</code>
+        instead of <code>TW-02 unresolved-proc-call</code>, keeping the dependency graph clean for
+        vendor builtins like <code>read_db</code>, <code>create_clock</code>, <code>setup_design</code>.
+      </div>
+    </div>
+
+    <div>
+      <h3>Generated <code>main.tcl</code></h3>
+      <div class="tcl mono"><span class="cm"># Chopper-generated: main.tcl
+# load_from: setup
+# command:   -xt vw Imy_shell -B BLOCK -T main</span>
+
+load_design
+verify_netlist
+report_summary</div>
+
+      <h3>Generated <code>main.stack</code> &nbsp;<span class="tag warn">opt-in</span></h3>
+      <div class="tcl mono"># Chopper-generated stack: main
+N main
+J -xt vw Imy_shell -B BLOCK -T main
+L 0 3
+D setup
+R serial</div>
+
+      <h3>Vendor &amp; tool agnostic</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="vendor"><span class="dotc" style="background:#00C7FD"></span>SNPS · primetime</span>
+        <span class="vendor"><span class="dotc" style="background:#8F5DA2"></span>SNPS · fc</span>
+        <span class="vendor"><span class="dotc" style="background:#8BAE46"></span>CDNS · innovus</span>
+        <span class="vendor"><span class="dotc" style="background:#FF8200"></span>CDNS · tempus</span>
+        <span class="vendor"><span class="dotc" style="background:#E96666"></span>Mentor · caliber</span>
+      </div>
+      <p style="font-size:15px;color:var(--ink-dim);margin-top:6px">
+        Same JSON, same Chopper. The <code>command</code> string carries whatever tool invocation
+        your scheduler needs — <code>pt_shell</code>, <code>fc_shell</code>, <code>innovus -nowin</code>, …
+      </p>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; F3 run-file generation</span><span>09 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9 — F1+F2+F3 COMBINATIONS                                -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Combinations">
+  <div class="slideHead"><h1>F1 &middot; F2 &middot; F3 &mdash; pick any combination</h1><span class="pg">10</span></div>
+
+  <p>Domain owners have <strong>complete freedom</strong>. Each base/feature JSON declares any subset
+    of the three sections; at least one must be present, and they cleanly compose.</p>
+
+  <div class="combo">
+    <div class="c on" data-x="1"><div class="b"><span class="f1">F1</span><span>F2</span><span>F3</span></div><div class="lbl">F1 only</div><div class="desc">File-only domains, configs, hooks</div></div>
+    <div class="c on" data-x="2"><div class="b"><span>F1</span><span class="f2">F2</span><span>F3</span></div><div class="lbl">F2 only</div><div class="desc">Trim a shared <code>*_procs.tcl</code> in place</div></div>
+    <div class="c on" data-x="3"><div class="b"><span>F1</span><span>F2</span><span class="f3">F3</span></div><div class="lbl">F3 only</div><div class="desc">Generate run scripts; nothing else</div></div>
+    <div class="c on" data-x="4"><div class="b"><span class="f1">F1</span><span class="f2">F2</span><span>F3</span></div><div class="lbl">F1 + F2</div><div class="desc">Drop legacy files <em>and</em> prune procs</div></div>
+    <div class="c on" data-x="5"><div class="b"><span class="f1">F1</span><span>F2</span><span class="f3">F3</span></div><div class="lbl">F1 + F3</div><div class="desc">Trim files; emit run scripts</div></div>
+    <div class="c on" data-x="6"><div class="b"><span>F1</span><span class="f2">F2</span><span class="f3">F3</span></div><div class="lbl">F2 + F3</div><div class="desc">Proc-level + run-file gen</div></div>
+    <div class="c on" data-x="7"><div class="b"><span class="f1">F1</span><span class="f2">F2</span><span class="f3">F3</span></div><div class="lbl">All three</div><div class="desc">Full domain trim</div></div>
+  </div>
+
+  <div class="cards c2" style="margin-top:24px">
+    <div class="card f1">
+      <h3>Optional switches that work everywhere</h3>
+      <ul>
+        <li><code>options.cross_validate</code> — F3 step targets must exist in surviving F1/F2 set (warn, not fail)</li>
+        <li><code>options.generate_stack</code> — emit <code>&lt;stage&gt;.stack</code> alongside <code>&lt;stage&gt;.tcl</code></li>
+        <li><code>--dry-run</code> — full trim simulation, zero disk writes</li>
+        <li><code>--strict</code> — exit non-zero on any warning (CI gate)</li>
+      </ul>
+    </div>
+    <div class="card f2">
+      <h3>Feature composition</h3>
+      <ul>
+        <li>Base JSON + 0..N feature JSONs (additive)</li>
+        <li><code>depends_on</code> declares feature ordering for F3</li>
+        <li>Explicit include from <em>any</em> source <strong>always wins</strong></li>
+        <li>A feature's exclude can only prune <em>its own</em> contributions — never base, never another feature</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; combinations</span><span>10 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10 — JSON STRUCTURE                                      -->
+<!-- ============================================================ -->
+<section class="slide" data-title="JSON structure">
+  <div class="slideHead"><h1>The three JSON files</h1><span class="pg">11</span></div>
+
+  <table class="tbl">
+    <tr><th>JSON</th><th>Where it lives</th><th>Required?</th><th>Purpose</th></tr>
+    <tr><td><code>base.json</code></td><td><code>&lt;domain&gt;/jsons/base.json</code></td><td><span class="tag good">YES</span></td><td>Universal files / procs / stages every project in this domain needs</td></tr>
+    <tr><td><code>*.feature.json</code></td><td><code>&lt;domain&gt;/jsons/features/&lt;name&gt;.feature.json</code></td><td><span class="tag warn">optional</span></td><td>Adds files / procs / stage modifications for one optional capability</td></tr>
+    <tr><td><code>project.json</code></td><td>Anywhere — committed recipe</td><td><span class="tag warn">optional</span></td><td>Names one base + ordered list of features → single <code>--project</code> flag</td></tr>
+  </table>
+
+  <div class="cards c3" style="margin-top:14px">
+    <div class="card f1">
+      <h3>base.json (skeleton)</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
+  "<span class="k">vendor</span>": "<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":   "<span class="s">primetime</span>",
+  "<span class="k">files</span>":      { ... },
+  "<span class="k">procedures</span>": { ... },
+  "<span class="k">stages</span>":     [ ... ]
+}</pre>
+    </div>
+    <div class="card f2">
+      <h3>feature.json</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">feature-v1</span>",
+  "<span class="k">name</span>":   "<span class="s">dft</span>",
+  "<span class="k">depends_on</span>":[],
+  "<span class="k">files</span>":         { ... },
+  "<span class="k">procedures</span>":    { ... },
+  "<span class="k">flow_actions</span>":  [
+    { "<span class="k">action</span>":"<span class="s">add_stage_after</span>",
+      "<span class="k">reference</span>":"<span class="s">main</span>", ... }
+  ]
+}</pre>
+    </div>
+    <div class="card f3">
+      <h3>project.json</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">project-v1</span>",
+  "<span class="k">project</span>":"<span class="s">PROJECT_ABC</span>",
+  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
+  "<span class="k">base</span>":   "<span class="s">jsons/base.json</span>",
+  "<span class="k">features</span>":[
+    "<span class="s">jsons/features/dft.feature.json</span>",
+    "<span class="s">jsons/features/power.feature.json</span>"
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>You do not need a project JSON.</strong> Pass <code>--base</code> and <code>--features</code>
+    directly. The project JSON is just a committed, named recipe.
+  </div>
+
+  <div class="foot"><span>chopper &middot; JSON structure</span><span>11 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11 — REAL EXAMPLES (FEV / TIMING / POWER)                 -->
+<!-- ============================================================ -->
+<section class="slide" data-title="FEV / Timing / Power examples">
+  <div class="slideHead"><h1>Real-domain examples &mdash; FEV &middot; Timing &middot; Power</h1><span class="pg">12</span></div>
+
+  <div class="cards c3">
+    <div class="card f1">
+      <h3><span class="vendor"><span class="dotc" style="background:#00C7FD"></span>SNPS · fev_formality</span></h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">fev_formality</span>",
+  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":"<span class="s">formality</span>",
+  "<span class="k">files</span>":{
+    "<span class="k">include</span>":[
+      "<span class="s">setup.tcl</span>",
+      "<span class="s">vars.tcl</span>",
+      "<span class="s">rules/fm_basic.tcl</span>",
+      "<span class="s">procs/fev_procs.tcl</span>"
+    ],
+    "<span class="k">exclude</span>":[
+      "<span class="s">rules/experimental/**</span>"
+    ]
+  },
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/fev_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">setup_fev</span>","<span class="s">match</span>","<span class="s">verify</span>"] }
+    ]
+  },
+  "<span class="k">stages</span>":[
+    { "<span class="k">name</span>":"<span class="s">fev</span>",
+      "<span class="k">load_from</span>":"<span class="s"></span>",
+      "<span class="k">command</span>":"<span class="s">fm_shell -64 -f main.tcl</span>",
+      "<span class="k">exit_codes</span>":[0],
+      "<span class="k">steps</span>":[
+        "<span class="s">source setup.tcl</span>","<span class="s">setup_fev</span>",
+        "<span class="s">match</span>","<span class="s">verify</span>"
+      ]
+    }
+  ]
+}</pre>
+    </div>
+
+    <div class="card f2">
+      <h3><span class="vendor"><span class="dotc" style="background:#8F5DA2"></span>SNPS · sta_pt (Timing)</span></h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
+  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":"<span class="s">primetime</span>",
+  "<span class="k">files</span>":{
+    "<span class="k">include</span>":[
+      "<span class="s">setup.tcl</span>","<span class="s">vars.tcl</span>",
+      "<span class="s">procs/**/*.tcl</span>",
+      "<span class="s">sdc/*.sdc</span>"
+    ]
+  },
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">read_design</span>","<span class="s">apply_constraints</span>",
+                  "<span class="s">update_timing</span>","<span class="s">report_qor</span>"] }
+    ],
+    "<span class="k">exclude</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">debug_paths</span>","<span class="s">old_report</span>"] }
+    ]
+  },
+  "<span class="k">stages</span>":[
+    { "<span class="k">name</span>":"<span class="s">sta</span>",
+      "<span class="k">load_from</span>":"<span class="s"></span>",
+      "<span class="k">command</span>":"<span class="s">pt_shell -64 -f main.tcl</span>",
+      "<span class="k">exit_codes</span>":[0,3],
+      "<span class="k">steps</span>":[
+        "<span class="s">read_design</span>","<span class="s">apply_constraints</span>",
+        "<span class="s">update_timing</span>","<span class="s">report_qor</span>"
+      ]
+    }
+  ]
+}</pre>
+    </div>
+
+    <div class="card f3">
+      <h3><span class="vendor"><span class="dotc" style="background:#8BAE46"></span>SNPS · power</span></h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">power</span>",
+  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":"<span class="s">primepower</span>",
+  "<span class="k">options</span>":{ "<span class="k">cross_validate</span>":<span class="n">true</span>,
+                "<span class="k">generate_stack</span>":<span class="n">true</span> },
+  "<span class="k">files</span>":{
+    "<span class="k">include</span>":[
+      "<span class="s">setup.tcl</span>","<span class="s">vars.tcl</span>",
+      "<span class="s">procs/power_procs.tcl</span>"
+    ]
+  },
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/power_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">read_vcd</span>","<span class="s">compute_power</span>",
+                  "<span class="s">report_power</span>"] }
+    ]
+  },
+  "<span class="k">stages</span>":[
+    { "<span class="k">name</span>":"<span class="s">power</span>",
+      "<span class="k">load_from</span>":"<span class="s">sta</span>",
+      "<span class="k">command</span>":"<span class="s">pt_shell -64 -ppower -f main.tcl</span>",
+      "<span class="k">exit_codes</span>":[0],
+      "<span class="k">dependencies</span>":["<span class="s">sta</span>"],
+      "<span class="k">steps</span>":[
+        "<span class="s">read_vcd</span>","<span class="s">compute_power</span>","<span class="s">report_power</span>"
+      ]
+    }
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="callout good" style="margin-top:14px">
+    Each example uses <strong>F1 + F2 + F3 together</strong>. Same JSON shape works for
+    Cadence (<code>innovus</code>, <code>tempus</code>, <code>joules</code>),
+    Synopsys, and Mentor. Vendor and tool are just metadata + a command string.
+  </div>
+
+  <div class="foot"><span>chopper &middot; real examples</span><span>12 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12 — TCL-ONLY PROC TRIM (FOCUSED)                         -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Tcl-only proc trim">
+  <div class="slideHead"><h1>Pure proc-level trim &mdash; Tcl files only</h1><span class="pg">13</span></div>
+
+  <p>If your domain only needs to <strong>shrink shared Tcl libraries</strong> — no file-level
+    chopping, no run-file generation — that is a one-section JSON.</p>
+
+  <div class="cards c2">
+    <div>
+      <h3>Minimal F2-only base.json</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">read_design</span>","<span class="s">update_timing</span>","<span class="s">report_qor</span>"] }
+    ],
+    "<span class="k">exclude</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">debug_paths</span>","<span class="s">old_report</span>","<span class="s">scratch_xform</span>"] }
+    ]
+  }
+}</pre>
+      <p style="color:var(--ink-dim)">All other files in the domain are untouched. Non-Tcl files
+        (Perl, Python, csh) are file-level only and are not affected by F2.</p>
+    </div>
+
+    <div>
+      <h3>What Chopper does</h3>
+      <ol style="color:var(--ink-dim);margin-left:18px">
+        <li>P2 — parses every <code>.tcl</code> file, extracts proc table</li>
+        <li>P3 — marks <code>procs/sta_procs.tcl</code> as <code>PROC_TRIM</code></li>
+        <li>P4 — traces call graph from <code>read_design / update_timing / report_qor</code></li>
+        <li>P5 — copies the file, deletes the three excluded proc bodies (with their full braces)</li>
+        <li>P6 — re-parses the trimmed file, checks brace balance, dangling refs</li>
+        <li>P7 — writes <code>.chopper/dependency_graph.json</code>, <code>trim_report.json</code>,
+          <code>diagnostics.json</code></li>
+      </ol>
+      <div class="callout warn">
+        <strong>Computed proc names</strong> like <code>proc ${pfx}_helper</code> are skipped with
+        <code>PW-01</code>. Static analysis only — Chopper never executes Tcl.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; Tcl-only proc trim</span><span>13 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 13 — CLI + AUDIT BUNDLE                                  -->
+<!-- ============================================================ -->
+<section class="slide" data-title="CLI &amp; Audit">
+  <div class="slideHead"><h1>CLI workflow &amp; <code>.chopper/</code> audit bundle</h1><span class="pg">14</span></div>
+
+  <div class="cards c2">
+    <div>
+      <h3>Five subcommands</h3>
+<pre class="code mono"><span class="c"># validate — read-only; never touches disk</span>
+<span class="p">$</span> chopper validate --project project.json
+
+<span class="c"># trim — live; backs up &amp; rebuilds &lt;domain&gt;/   (add --dry-run to simulate)</span>
+<span class="p">$</span> chopper trim --project project.json
+
+<span class="c"># cleanup — remove &lt;domain&gt;_backup/ when happy</span>
+<span class="p">$</span> chopper cleanup --confirm
+
+<span class="c"># mcp-serve — read-only MCP stdio server (0.4.0+)</span>
+<span class="p">$</span> chopper mcp-serve</pre>
+
+      <h3>Useful flags</h3>
+      <table class="tbl" style="margin-top:4px">
+        <tr><td><code>--base / --features</code></td><td>bypass <code>project.json</code></td></tr>
+        <tr><td><code>--project</code></td><td>committed recipe (mutually exclusive with above)</td></tr>
+        <tr><td><code>--strict</code></td><td>non-zero exit on any warning (CI gate)</td></tr>
+        <tr><td><code>--dry-run</code></td><td>your authoring iteration loop</td></tr>
+        <tr><td><code>--tool-commands FILE</code></td><td>register vendor builtins → <code>TI-01</code> instead of <code>TW-02</code> (repeatable)</td></tr>
+        <tr><td><code>--no-color</code></td><td>plain-text output for logs</td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h3>Every run writes <code>.chopper/</code></h3>
+<pre class="code mono">&lt;domain&gt;/.chopper/
+├── compiled_manifest.json     <span class="c"># every file's fate &amp; reason</span>
+├── dependency_graph.json      <span class="c"># BFS proc call tree</span>
+├── trim_report.txt / .json    <span class="c"># human + machine summary</span>
+├── diagnostics.json           <span class="c"># every VE/VW/PE/PW/TW emitted</span>
+├── run_result.json            <span class="c"># exit code, durations, hashes</span>
+└── inputs/                    <span class="c"># exact base + features used</span></pre>
+
+      <h3>Backup-and-rebuild safety</h3>
+      <ul style="margin-top:4px">
+        <li>First trim: <code>&lt;domain&gt;/</code> → <code>&lt;domain&gt;_backup/</code>, rebuild trimmed copy</li>
+        <li>Re-trim rebuilds from backup; backup never touched</li>
+        <li>Failure mid-run: backup intact, next run rebuilds cleanly</li>
+        <li>Cleanup is explicit; <code>--confirm</code> required</li>
+      </ul>
+
+      <div class="callout good" style="margin-top:8px">
+        <strong>MCP read-only surface (0.4.0).</strong> <code>mcp-serve</code> is stdio-only and exposes exactly three tools:
+        <code>chopper.validate</code>, <code>chopper.explain_diagnostic</code>, <code>chopper.read_audit</code>.
+        Destructive tools (<code>trim</code>, <code>cleanup</code>) are never exposed over MCP — protocol errors emit <code>PE-04</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 15 — CHOPPER DOMAIN COMPANION AGENT                      -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Domain Companion">
+  <div class="slideHead">
+    <h1><span style="background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent">Chopper Domain Companion</span> &nbsp;<span class="tag good">in-repo agent</span></h1>
+    <span class="pg">15</span>
+  </div>
+
+  <p style="font-size:19px;max-width:1000px;color:var(--ink)">
+    You don't have to figure out domain boundaries or JSON structure by hand.
+    A purpose-built <strong>VS Code Copilot Chat agent</strong> ships with the repo at
+    <code>.github/agents/chopper-domain-companion.agent.md</code> &mdash; the
+    <strong>single user-facing agent</strong> for anything Chopper-related,
+    from a convoluted Tcl codebase all the way to a validated, trimmed output.
+  </p>
+
+  <div class="cards c2" style="margin-top:18px">
+    <div class="card f1">
+      <h3 style="color:var(--f1)">What it does</h3>
+      <ul>
+        <li><strong>Q1&ndash;Q5 discovery protocol</strong> on an unfamiliar codebase &mdash; finds domain root, stack files, scripts, configs, utility dirs</li>
+        <li>Authors <code>base.json</code>, <code>*.feature.json</code>, <code>project.json</code> from your domain</li>
+        <li>Runs <code>chopper validate</code> + <code>trim --dry-run</code> and explains the results in plain English</li>
+        <li>Reads <code>.chopper/</code> artifacts (manifests, trace graphs, diagnostics) and tells you what to fix</li>
+        <li>Explains any diagnostic code against <code>technical_docs/DIAGNOSTIC_CODES.md</code></li>
+        <li>Files structured bug reports to GitHub via <code>scripts/file_bug_report.py</code></li>
+      </ul>
+    </div>
+
+    <div class="card f2">
+      <h3 style="color:var(--f2)">Two operating modes</h3>
+      <div class="grid grid-cols-2 gap-2.5 mt-1.5">
+        <div class="modeBox">
+          <div class="lbl energy">ANALYZE&shy;-ONLY</div>
+          <p>JSON authoring &amp; review only.<br/><strong>No CLI calls</strong>, no disk writes.</p>
+        </div>
+        <div class="modeBox">
+          <div class="lbl moss">FULL-LOOP</div>
+          <p>analyze + validate + dry-run + audit walk.<br/>Live trim only on <strong>explicit direction</strong>.</p>
+        </div>
+      </div>
+
+      <h3 style="color:var(--f2);margin-top:18px">Named playbooks</h3>
+      <ul style="font-size:15px">
+        <li><strong>Bisect</strong> &mdash; find which feature broke trim</li>
+        <li><strong>Compare</strong> &mdash; diff two runs' audit bundles</li>
+        <li><strong>Prove-safe</strong> &mdash; verify a JSON change has no surviving-set delta</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top:22px">Prompt library &mdash; <code>.github/prompts/</code></h3>
+  <div class="cards c4" style="gap:12px">
+    <div class="card" style="padding:14px"><strong style="color:var(--accent)">bootstrap-domain</strong><p style="font-size:16px;margin:4px 0 0">Generate starter JSONs from a domain</p></div>
+    <div class="card" style="padding:14px"><strong style="color:var(--accent)">explain-last-run</strong><p style="font-size:16px;margin:4px 0 0">Walk the latest <code>.chopper/</code> bundle</p></div>
+    <div class="card" style="padding:14px"><strong style="color:var(--accent)">why-was-dropped</strong><p style="font-size:16px;margin:4px 0 0">Trace why a file/proc didn't survive</p></div>
+    <div class="card" style="padding:14px"><strong style="color:var(--accent)">validate-my-jsons</strong><p style="font-size:16px;margin:4px 0 0">Schema + cross-source validation</p></div>
+    <div class="card" style="padding:14px"><strong style="color:var(--accent-2)">bisect-feature-breakage</strong><p style="font-size:16px;margin:4px 0 0">Find offending feature JSON</p></div>
+    <div class="card" style="padding:14px"><strong style="color:var(--accent-2)">report-chopper-bug</strong><p style="font-size:16px;margin:4px 0 0">Field-by-field bug report draft</p></div>
+    <div class="card" style="padding:14px"><strong style="color:var(--accent-2)">package-bug-artifacts</strong><p style="font-size:16px;margin:4px 0 0">Zip <code>.chopper/</code> + logs for upload</p></div>
+    <div class="card" style="padding:14px;background:linear-gradient(135deg,rgba(139,174,70,.10),rgba(0,199,253,.10));border-color:var(--good)"><strong style="color:var(--good)">just say "hi"</strong><p style="font-size:16px;margin:4px 0 0">Two-tier menu of everything it can do</p></div>
+  </div>
+
+  <h3 style="margin-top:22px">Plus &mdash; MCP read-only surface for any MCP-aware client</h3>
+  <div class="callout">
+    <code>chopper mcp-serve</code> exposes three read-only tools over stdio:
+    <strong>chopper.validate</strong>, <strong>chopper.explain_diagnostic</strong>,
+    <strong>chopper.read_audit</strong>. Destructive tools (<code>trim</code>, <code>cleanup</code>)
+    are CLI-only &mdash; guarded by an in-process assertion + integration test.
+  </div>
+
+  <div class="foot"><span>chopper &middot; companion agent</span><span>15 / 16</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 16 — NEXT STEPS                                          -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Next steps">
+  <div class="slideHead"><h1>Next steps</h1><span class="pg">16</span></div>
+
+  <div class="cards c2">
+    <div class="card f1">
+      <h3>Status</h3>
+      <ul>
+        <li><strong>Currently in alpha testing</strong> — internal validation across pilot domains</li>
+        <li><strong>2026.06</strong> — <span class="tag good">beta release</span> targeted</li>
+      </ul>
+    </div>
+    <div class="card f3">
+      <h3>What domain owners do today</h3>
+      <ol>
+        <li>Pick the closest <code>examples/</code> folder for your shape (F1 / F2 / F3 / combo)</li>
+        <li>Copy <code>jsons/</code> into your domain root, replace placeholders</li>
+        <li>Run <code>python scripts/validate_jsons.py &lt;domain&gt;/</code></li>
+        <li>Use the <strong>Chopper Domain Companion</strong> agent in VS Code Copilot Chat for help authoring</li>
+        <li>File feedback / bug reports via <code>scripts/file_bug_report.py</code></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="cards c3" style="margin-top:18px">
+    <div class="card">
+      <h3>Documentation</h3>
+      <ul style="font-size:15px">
+        <li><code>technical_docs/chopper_description.md</code></li>
+        <li><code>technical_docs/JSON_AUTHORING_GUIDE.md</code></li>
+        <li><code>technical_docs/CLI_HELP_TEXT_REFERENCE.md</code></li>
+        <li><code>technical_docs/DIAGNOSTIC_CODES.md</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Examples (11 progressive)</h3>
+      <ul style="font-size:15px">
+        <li><code>examples/01_base_files_only/</code></li>
+        <li><code>examples/02_base_procs_only/</code></li>
+        <li><code>examples/07_base_full/</code></li>
+        <li><code>examples/09_base_plus_multiple_features/</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Schemas (in repo)</h3>
+      <ul style="font-size:15px">
+        <li><code>schemas/base-v1.schema.json</code></li>
+        <li><code>schemas/feature-v1.schema.json</code></li>
+        <li><code>schemas/project-v1.schema.json</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:18px;text-align:center;font-size:21px">
+    <strong>Questions? Issues? Authoring help?</strong><br/>
+    Open VS Code Copilot Chat → <em>Chopper Domain Companion</em>.<br/>
+    Follow-up office hours will be scheduled after this kickoff.
+  </div>
+
+  <div class="foot"><span>chopper &middot; next steps</span><span>16 / 16 &mdash; thank you</span></div>
+</section>
+
+</div>
+</div><!-- /.stage -->
+
+<!-- Hover hot-zone for revealing nav in fullscreen -->
+<div class="navHover" id="navHover"></div>
+
+<!-- ============ Nav bar ============ -->
+<div class="nav">
+  <div class="grp">
+    <button class="btn" onclick="go(-1)">← Prev</button>
+    <button class="btn primary" onclick="go(1)">Next →</button>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div class="grp">
+    <span class="counter" id="counter">1 / 16</span>
+    <button class="btn" onclick="toggleFs()">⛶ Fullscreen</button>
+  </div>
+</div>
+
+<script>
+/* ============ Slide controller ============ */
+const slides = document.querySelectorAll('.slide');
+const dotsEl = document.getElementById('dots');
+const counter = document.getElementById('counter');
+let idx = 0;
+
+slides.forEach((_, i)=>{
+  const d = document.createElement('div');
+  d.className='dot'+(i===0?' active':'');
+  d.onclick=()=>show(i);
+  dotsEl.appendChild(d);
+});
+
+function show(i){
+  if(i<0||i>=slides.length) return;
+  slides[idx].classList.remove('active');
+  dotsEl.children[idx].classList.remove('active');
+  idx=i;
+  slides[idx].classList.add('active');
+  dotsEl.children[idx].classList.add('active');
+  counter.textContent=`${idx+1} / ${slides.length}`;
+  // re-fire per-slide animations
+  if(idx===3) animatePipeline();
+  if(idx===4) animateF1();
+  if(idx===5) animateF2();
+}
+function go(d){ show(idx+d); }
+slides[0].classList.add('active');
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' ') { e.preventDefault(); go(1); }
+  else if(e.key==='ArrowLeft'||e.key==='PageUp')           { e.preventDefault(); go(-1); }
+  else if(e.key==='Home') show(0);
+  else if(e.key==='End')  show(slides.length-1);
+  else if(e.key==='f'||e.key==='F') toggleFs();
+});
+
+function toggleFs(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+}
+
+/* ============ Pipeline animation ============ */
+let _pipeTick = null;
+function animatePipeline(){
+  const phases = document.querySelectorAll('#pipeline .phase');
+  if(!phases.length) return;
+  if(_pipeTick){ clearInterval(_pipeTick); _pipeTick = null; }
+  phases.forEach(p=>p.classList.remove('lit'));
+  let n = 0;
+  _pipeTick = setInterval(()=>{
+    if(n>0) phases[n-1].classList.remove('lit');
+    if(n>=phases.length){ clearInterval(_pipeTick); _pipeTick = null; return; }
+    phases[n].classList.add('lit');
+    n++;
+  },380);
+}
+
+/* ============ F1 file-trim animation ============ */
+let _f1Timers = [];
+function animateF1(){
+  const before = document.getElementById('f1Before');
+  const after  = document.getElementById('f1After');
+  const ctA    = document.getElementById('f1ctAfter');
+  if(!before || !after) return;
+
+  // cancel anything in flight
+  _f1Timers.forEach(clearTimeout); _f1Timers = [];
+
+  // reset BEFORE column to neutral
+  const srcBoxes = before.querySelectorAll('.fileBox');
+  srcBoxes.forEach(b=>{
+    b.classList.remove('scan','willDrop','willKeep');
+    const f = b.querySelector('.fate'); if(f) f.textContent = '···';
+  });
+
+  // reset AFTER column: clone source, set everything to pending
+  after.innerHTML = '';
+  const clones = [];
+  srcBoxes.forEach(b=>{
+    const c = b.cloneNode(true);
+    c.classList.remove('scan','willDrop','willKeep','keep','drop');
+    c.classList.add('pending');
+    const f = c.querySelector('.fate'); if(f) f.textContent = 'pending';
+    after.appendChild(c);
+    clones.push(c);
+  });
+  ctA.textContent = '… evaluating';
+
+  const SCAN = 280;        // ms between scan steps
+  const SETTLE = 420;      // ms between settle steps after scan
+  const N = srcBoxes.length;
+
+  // Phase 1: scan BEFORE column, marking each as willKeep / willDrop
+  for(let i=0;i<N;i++){
+    _f1Timers.push(setTimeout(()=>{
+      // clear previous scanner glow
+      if(i>0) srcBoxes[i-1].classList.remove('scan');
+      const b = srcBoxes[i];
+      b.classList.add('scan');
+      const fate = b.dataset.fate;
+      b.classList.add(fate==='drop' ? 'willDrop' : 'willKeep');
+      const fEl = b.querySelector('.fate');
+      if(fEl) fEl.textContent = fate==='drop' ? 'drop' : 'keep';
+    }, 200 + i*SCAN));
+  }
+  // remove last scanner glow
+  _f1Timers.push(setTimeout(()=>{
+    srcBoxes[N-1].classList.remove('scan');
+  }, 200 + N*SCAN));
+
+  // Phase 2: settle AFTER column box-by-box
+  let kept = 0, dropped = 0;
+  for(let i=0;i<N;i++){
+    _f1Timers.push(setTimeout(()=>{
+      const c = clones[i];
+      const fate = srcBoxes[i].dataset.fate;
+      c.classList.remove('pending');
+      c.classList.add(fate);
+      const fEl = c.querySelector('.fate');
+      if(fEl) fEl.textContent = fate==='drop' ? 'dropped' : 'kept';
+      if(fate==='drop') dropped++; else kept++;
+      ctA.textContent = `${kept} kept · ${dropped} dropped`;
+    }, 200 + N*SCAN + 250 + i*SETTLE));
+  }
+}
+
+/* ============ F2 proc trim animation ============ */
+let _f2Timers = [];
+function animateF2(){
+  const before = document.getElementById('tclBefore');
+  const after  = document.getElementById('tclAfter');
+  const ctA    = document.getElementById('f2ctAfter');
+  if(!before||!after) return;
+
+  _f2Timers.forEach(clearTimeout); _f2Timers = [];
+
+  // Reset BEFORE: doomed procs visible but un-flagged.
+  // Reset AFTER:  kept procs hidden, will reveal one-by-one.
+  const doomed = before.querySelectorAll('.gone');
+  doomed.forEach(d=>d.classList.remove('flagged'));
+  const keeps = after.querySelectorAll('.keepBlk');
+  keeps.forEach(k=>k.classList.remove('shown'));
+  ctA.textContent = '…';
+
+  // Phase 1: flag each doomed proc in BEFORE (red strikethrough)
+  doomed.forEach((d,i)=>{
+    _f2Timers.push(setTimeout(()=>d.classList.add('flagged'), 350 + i*450));
+  });
+
+  // Phase 2: reveal kept procs in AFTER, staggered
+  const phase2Start = 350 + doomed.length*450 + 350;
+  let shownCount = 0;
+  keeps.forEach((k,i)=>{
+    _f2Timers.push(setTimeout(()=>{
+      k.classList.add('shown');
+      shownCount++;
+      ctA.textContent = `${shownCount} proc${shownCount===1?'':'s'} kept`;
+    }, phase2Start + i*500));
+  });
+}
+
+/* ============ Viewport-fit canvas scaling ============
+   The deck is a fixed 1440×900 design canvas. Scale it to fit
+   the current viewport so every slide is fully visible without
+   any internal scrolling, regardless of monitor size.
+   We also multiply by a zoom factor so browser Ctrl+= actually
+   makes the deck bigger (the naive fit-to-viewport pattern
+   otherwise cancels zoom because innerWidth shrinks 1:1).
+=========================================================*/
+const _deck  = document.getElementById('deck');
+const _stage = document.getElementById('stage');
+const _baseDPR = window.devicePixelRatio || 1;
+function _zoomFactor(){
+  // devicePixelRatio tracks browser zoom on Chromium/Edge/Firefox.
+  // Clamp to a sane range so unusual monitor DPIs don't blow things up.
+  const z = (window.devicePixelRatio || 1) / _baseDPR;
+  return Math.max(0.5, Math.min(z, 4));
+}
+function fitDeck(){
+  if(!_deck) return;
+  const pad = 4; // hairline gutter; the canvas should fill the viewport
+  const navH = document.body.classList.contains('fs') ? 0 : 56;
+  const w = window.innerWidth  - pad*2;
+  const h = window.innerHeight - pad*2 - navH;
+  // Base fit-to-viewport scale.
+  const fit = Math.min(w/1440, h/900);
+  // Honour browser zoom: Ctrl+= grows the deck, Ctrl+- shrinks it.
+  const s = fit * _zoomFactor();
+  _deck.style.transform = `scale(${s})`;
+  _stage.style.paddingBottom = navH + 'px';
+}
+window.addEventListener('resize', fitDeck);
+// devicePixelRatio change events fire on browser-zoom in modern browsers.
+if(window.matchMedia){
+  // Re-bind on any DPR change. The matchMedia pattern catches Ctrl+= reliably.
+  let _dprMQL = null;
+  function _bindDpr(){
+    if(_dprMQL) _dprMQL.removeEventListener && _dprMQL.removeEventListener('change', _onDpr);
+    _dprMQL = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    _dprMQL.addEventListener ? _dprMQL.addEventListener('change', _onDpr) : _dprMQL.addListener(_onDpr);
+  }
+  function _onDpr(){ fitDeck(); _bindDpr(); }
+  _bindDpr();
+}
+fitDeck();
+
+/* ============ Fullscreen-aware nav (translucent + auto-hide) ============ */
+document.addEventListener('fullscreenchange', ()=>{
+  document.body.classList.toggle('fs', !!document.fullscreenElement);
+  fitDeck();
+});
+
+let _navTimer = null;
+function _flashNav(){
+  document.body.classList.add('fs-show');
+  clearTimeout(_navTimer);
+  _navTimer = setTimeout(()=>document.body.classList.remove('fs-show'), 1800);
+}
+document.getElementById('navHover').addEventListener('mouseenter', _flashNav);
+window.addEventListener('mousemove', e=>{
+  if(!document.body.classList.contains('fs')) return;
+  if(e.clientY > window.innerHeight - 80) _flashNav();
+});
+
+// kick off whatever's visible at start
+animatePipeline();
+</script>
+</body>
+</html>
