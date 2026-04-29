@@ -1160,435 +1160,7 @@ R serial</div>
 </section>
 
 <!-- ============================================================ -->
-<!-- SLIDE 9 — F1+F2+F3 COMBINATIONS                                -->
-<!-- ============================================================ -->
-<section class="slide" data-title="Combinations">
-  <div class="slideHead"><h1>F1 &middot; F2 &middot; F3 &mdash; pick any combination</h1><span class="pg">10</span></div>
-
-  <p>Domain owners have <strong>complete freedom</strong>. Each base/feature JSON declares any subset
-    of the three sections; at least one must be present, and they cleanly compose.</p>
-
-  <div class="combo">
-    <div class="c on" data-x="1"><div class="b"><span class="f1">F1</span><span>F2</span><span>F3</span></div><div class="lbl">F1 only</div><div class="desc">File-only domains, configs, hooks</div></div>
-    <div class="c on" data-x="2"><div class="b"><span>F1</span><span class="f2">F2</span><span>F3</span></div><div class="lbl">F2 only</div><div class="desc">Trim a shared <code>*_procs.tcl</code> in place</div></div>
-    <div class="c on" data-x="3"><div class="b"><span>F1</span><span>F2</span><span class="f3">F3</span></div><div class="lbl">F3 only</div><div class="desc">Generate run scripts; nothing else</div></div>
-    <div class="c on" data-x="4"><div class="b"><span class="f1">F1</span><span class="f2">F2</span><span>F3</span></div><div class="lbl">F1 + F2</div><div class="desc">Drop legacy files <em>and</em> prune procs</div></div>
-    <div class="c on" data-x="5"><div class="b"><span class="f1">F1</span><span>F2</span><span class="f3">F3</span></div><div class="lbl">F1 + F3</div><div class="desc">Trim files; emit run scripts</div></div>
-    <div class="c on" data-x="6"><div class="b"><span>F1</span><span class="f2">F2</span><span class="f3">F3</span></div><div class="lbl">F2 + F3</div><div class="desc">Proc-level + run-file gen</div></div>
-    <div class="c on" data-x="7"><div class="b"><span class="f1">F1</span><span class="f2">F2</span><span class="f3">F3</span></div><div class="lbl">All three</div><div class="desc">Full domain trim</div></div>
-  </div>
-
-  <div class="cards c2" style="margin-top:24px">
-    <div class="card f1">
-      <h3>Optional switches that work everywhere</h3>
-      <ul>
-        <li><code>options.cross_validate</code> — F3 step targets must exist in surviving F1/F2 set (warn, not fail)</li>
-        <li><code>options.generate_stack</code> — emit <code>&lt;stage&gt;.stack</code> alongside <code>&lt;stage&gt;.tcl</code></li>
-        <li><code>--dry-run</code> — full trim simulation, zero disk writes</li>
-        <li><code>--strict</code> — exit non-zero on any warning (CI gate)</li>
-      </ul>
-    </div>
-    <div class="card f2">
-      <h3>Feature composition</h3>
-      <ul>
-        <li>Base JSON + 0..N feature JSONs (additive)</li>
-        <li><code>depends_on</code> declares feature ordering for F3</li>
-        <li>Explicit include from <em>any</em> source <strong>always wins</strong></li>
-        <li>A feature's exclude can only prune <em>its own</em> contributions — never base, never another feature</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="foot"><span>chopper &middot; combinations</span><span>10 / 17</span></div>
-</section>
-
-<!-- ============================================================ -->
-<!-- SLIDE 10 — JSON STRUCTURE                                      -->
-<!-- ============================================================ -->
-<section class="slide" data-title="JSON structure">
-  <div class="slideHead"><h1>The three JSON files</h1><span class="pg">11</span></div>
-
-  <table class="tbl">
-    <tr><th>JSON</th><th>Where it lives</th><th>Required?</th><th>Purpose</th></tr>
-    <tr><td><code>base.json</code></td><td><code>&lt;domain&gt;/jsons/base.json</code></td><td><span class="tag good">YES</span></td><td>Universal files / procs / stages every project in this domain needs</td></tr>
-    <tr><td><code>*.feature.json</code></td><td><code>&lt;domain&gt;/jsons/features/&lt;name&gt;.feature.json</code></td><td><span class="tag warn">optional</span></td><td>Adds files / procs / stage modifications for one optional capability</td></tr>
-    <tr><td><code>project.json</code></td><td>Anywhere — committed recipe</td><td><span class="tag warn">optional</span></td><td>Names one base + ordered list of features → single <code>--project</code> flag</td></tr>
-  </table>
-
-  <div class="cards c3" style="margin-top:14px">
-    <div class="card f1">
-      <h3>base.json (skeleton)</h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
-  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
-  "<span class="k">vendor</span>": "<span class="s">synopsys</span>",
-  "<span class="k">tool</span>":   "<span class="s">primetime</span>",
-  "<span class="k">files</span>":      { ... },
-  "<span class="k">procedures</span>": { ... },
-  "<span class="k">stages</span>":     [ ... ]
-}</pre>
-    </div>
-    <div class="card f2">
-      <h3>feature.json</h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">feature-v1</span>",
-  "<span class="k">name</span>":   "<span class="s">dft</span>",
-  "<span class="k">depends_on</span>":[],
-  "<span class="k">files</span>":         { ... },
-  "<span class="k">procedures</span>":    { ... },
-  "<span class="k">flow_actions</span>":  [
-    { "<span class="k">action</span>":"<span class="s">add_stage_after</span>",
-      "<span class="k">reference</span>":"<span class="s">main</span>", ... }
-  ]
-}</pre>
-    </div>
-    <div class="card f3">
-      <h3>project.json</h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">project-v1</span>",
-  "<span class="k">project</span>":"<span class="s">PROJECT_ABC</span>",
-  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
-  "<span class="k">base</span>":   "<span class="s">jsons/base.json</span>",
-  "<span class="k">features</span>":[
-    "<span class="s">jsons/features/dft.feature.json</span>",
-    "<span class="s">jsons/features/power.feature.json</span>"
-  ]
-}</pre>
-    </div>
-  </div>
-
-  <div class="callout">
-    <strong>You do not need a project JSON.</strong> Pass <code>--base</code> and <code>--features</code>
-    directly. The project JSON is just a committed, named recipe.
-  </div>
-
-  <div class="foot"><span>chopper &middot; JSON structure</span><span>11 / 17</span></div>
-</section>
-
-<!-- ============================================================ -->
-<!-- SLIDE 11 — REAL EXAMPLES (FEV / TIMING / POWER)                 -->
-<!-- ============================================================ -->
-<section class="slide" data-title="FEV / Timing / Power examples">
-  <div class="slideHead"><h1>Real-domain examples &mdash; FEV &middot; Timing &middot; Power</h1><span class="pg">12</span></div>
-
-  <div class="cards c3">
-    <div class="card f1">
-      <h3><span class="vendor"><span class="dotc" style="background:#00C7FD"></span>SNPS · fev_formality</span></h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
-  "<span class="k">domain</span>":"<span class="s">fev_formality</span>",
-  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
-  "<span class="k">tool</span>":"<span class="s">formality</span>",
-  "<span class="k">files</span>":{
-    "<span class="k">include</span>":[
-      "<span class="s">setup.tcl</span>",
-      "<span class="s">vars.tcl</span>",
-      "<span class="s">rules/fm_basic.tcl</span>",
-      "<span class="s">procs/fev_procs.tcl</span>"
-    ],
-    "<span class="k">exclude</span>":[
-      "<span class="s">rules/experimental/**</span>"
-    ]
-  },
-  "<span class="k">procedures</span>":{
-    "<span class="k">include</span>":[
-      { "<span class="k">file</span>":"<span class="s">procs/fev_procs.tcl</span>",
-        "<span class="k">procs</span>":["<span class="s">setup_fev</span>","<span class="s">match</span>","<span class="s">verify</span>"] }
-    ]
-  },
-  "<span class="k">stages</span>":[
-    { "<span class="k">name</span>":"<span class="s">fev</span>",
-      "<span class="k">load_from</span>":"<span class="s"></span>",
-      "<span class="k">command</span>":"<span class="s">fm_shell -64 -f main.tcl</span>",
-      "<span class="k">exit_codes</span>":[0],
-      "<span class="k">steps</span>":[
-        "<span class="s">source setup.tcl</span>","<span class="s">setup_fev</span>",
-        "<span class="s">match</span>","<span class="s">verify</span>"
-      ]
-    }
-  ]
-}</pre>
-    </div>
-
-    <div class="card f2">
-      <h3><span class="vendor"><span class="dotc" style="background:#8F5DA2"></span>SNPS · sta_pt (Timing)</span></h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
-  "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
-  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
-  "<span class="k">tool</span>":"<span class="s">primetime</span>",
-  "<span class="k">files</span>":{
-    "<span class="k">include</span>":[
-      "<span class="s">setup.tcl</span>","<span class="s">vars.tcl</span>",
-      "<span class="s">procs/**/*.tcl</span>",
-      "<span class="s">sdc/*.sdc</span>"
-    ]
-  },
-  "<span class="k">procedures</span>":{
-    "<span class="k">include</span>":[
-      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
-        "<span class="k">procs</span>":["<span class="s">read_design</span>","<span class="s">apply_constraints</span>",
-                  "<span class="s">update_timing</span>","<span class="s">report_qor</span>"] }
-    ],
-    "<span class="k">exclude</span>":[
-      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
-        "<span class="k">procs</span>":["<span class="s">debug_paths</span>","<span class="s">old_report</span>"] }
-    ]
-  },
-  "<span class="k">stages</span>":[
-    { "<span class="k">name</span>":"<span class="s">sta</span>",
-      "<span class="k">load_from</span>":"<span class="s"></span>",
-      "<span class="k">command</span>":"<span class="s">pt_shell -64 -f main.tcl</span>",
-      "<span class="k">exit_codes</span>":[0,3],
-      "<span class="k">steps</span>":[
-        "<span class="s">read_design</span>","<span class="s">apply_constraints</span>",
-        "<span class="s">update_timing</span>","<span class="s">report_qor</span>"
-      ]
-    }
-  ]
-}</pre>
-    </div>
-
-    <div class="card f3">
-      <h3><span class="vendor"><span class="dotc" style="background:#8BAE46"></span>SNPS · power</span></h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
-  "<span class="k">domain</span>":"<span class="s">power</span>",
-  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
-  "<span class="k">tool</span>":"<span class="s">primepower</span>",
-  "<span class="k">options</span>":{ "<span class="k">cross_validate</span>":<span class="n">true</span>,
-                "<span class="k">generate_stack</span>":<span class="n">true</span> },
-  "<span class="k">files</span>":{
-    "<span class="k">include</span>":[
-      "<span class="s">setup.tcl</span>","<span class="s">vars.tcl</span>",
-      "<span class="s">procs/power_procs.tcl</span>"
-    ]
-  },
-  "<span class="k">procedures</span>":{
-    "<span class="k">include</span>":[
-      { "<span class="k">file</span>":"<span class="s">procs/power_procs.tcl</span>",
-        "<span class="k">procs</span>":["<span class="s">read_vcd</span>","<span class="s">compute_power</span>",
-                  "<span class="s">report_power</span>"] }
-    ]
-  },
-  "<span class="k">stages</span>":[
-    { "<span class="k">name</span>":"<span class="s">power</span>",
-      "<span class="k">load_from</span>":"<span class="s">sta</span>",
-      "<span class="k">command</span>":"<span class="s">pt_shell -64 -ppower -f main.tcl</span>",
-      "<span class="k">exit_codes</span>":[0],
-      "<span class="k">dependencies</span>":["<span class="s">sta</span>"],
-      "<span class="k">steps</span>":[
-        "<span class="s">read_vcd</span>","<span class="s">compute_power</span>","<span class="s">report_power</span>"
-      ]
-    }
-  ]
-}</pre>
-    </div>
-  </div>
-
-  <div class="callout good" style="margin-top:14px">
-    Each example uses <strong>F1 + F2 + F3 together</strong>. Same JSON shape works for
-    Cadence (<code>innovus</code>, <code>tempus</code>, <code>joules</code>),
-    Synopsys, and Mentor. Vendor and tool are just metadata + a command string.
-  </div>
-
-  <div class="foot"><span>chopper &middot; real examples</span><span>12 / 17</span></div>
-</section>
-
-<!-- ============================================================ -->
-<!-- SLIDE 12 — TCL-ONLY PROC TRIM (FOCUSED)                         -->
-<!-- ============================================================ -->
-<section class="slide" data-title="Tcl-only proc trim">
-  <div class="slideHead"><h1>Pure proc-level trim &mdash; Tcl files only</h1><span class="pg">13</span></div>
-
-  <p>If your domain only needs to <strong>shrink shared Tcl libraries</strong> — no file-level
-    chopping, no run-file generation — that is a one-section JSON.</p>
-
-  <div class="cards c2">
-    <div>
-      <h3>Minimal F2-only base.json</h3>
-<pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
-  "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
-  "<span class="k">procedures</span>":{
-    "<span class="k">include</span>":[
-      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
-        "<span class="k">procs</span>":["<span class="s">read_design</span>","<span class="s">update_timing</span>","<span class="s">report_qor</span>"] }
-    ],
-    "<span class="k">exclude</span>":[
-      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
-        "<span class="k">procs</span>":["<span class="s">debug_paths</span>","<span class="s">old_report</span>","<span class="s">scratch_xform</span>"] }
-    ]
-  }
-}</pre>
-      <p style="color:var(--ink-dim)">All other files in the domain are untouched. Non-Tcl files
-        (Perl, Python, csh) are file-level only and are not affected by F2.</p>
-    </div>
-
-    <div>
-      <h3>What Chopper does</h3>
-      <ol style="color:var(--ink-dim);margin-left:18px">
-        <li>P2 — parses every <code>.tcl</code> file, extracts proc table</li>
-        <li>P3 — marks <code>procs/sta_procs.tcl</code> as <code>PROC_TRIM</code></li>
-        <li>P4 — traces call graph from <code>read_design / update_timing / report_qor</code></li>
-        <li>P5 — copies the file, deletes the three excluded proc bodies (with their full braces)</li>
-        <li>P6 — re-parses the trimmed file, checks brace balance, dangling refs</li>
-        <li>P7 — writes <code>.chopper/dependency_graph.json</code>, <code>trim_report.json</code>,
-          <code>diagnostics.json</code></li>
-      </ol>
-      <div class="callout warn">
-        <strong>Computed proc names</strong> like <code>proc ${pfx}_helper</code> are skipped with
-        <code>PW-01</code>. Static analysis only — Chopper never executes Tcl.
-      </div>
-    </div>
-  </div>
-
-  <div class="foot"><span>chopper &middot; Tcl-only proc trim</span><span>13 / 17</span></div>
-</section>
-
-<!-- ============================================================ -->
-<!-- SLIDE 13 — CLI + AUDIT BUNDLE                                  -->
-<!-- ============================================================ -->
-<section class="slide" data-title="CLI &amp; Audit">
-  <div class="slideHead"><h1>CLI workflow &amp; <code>.chopper/</code> audit bundle</h1><span class="pg">14</span></div>
-
-  <div class="cards c2">
-    <div>
-      <h3>Five subcommands</h3>
-<pre class="code mono" style="font-size:13px;line-height:1.5"><span class="c"># validate — read-only; never touches disk</span>
-<span class="p">$</span> chopper validate --project project.json
-
-<span class="c"># trim — backs up &amp; rebuilds &lt;domain&gt;/ (--dry-run to simulate)</span>
-<span class="p">$</span> chopper trim --project project.json
-
-<span class="c"># cleanup — remove &lt;domain&gt;_backup/ when happy</span>
-<span class="p">$</span> chopper cleanup --confirm
-
-<span class="c"># mcp-serve — read-only MCP stdio server (0.4.0+)</span>
-<span class="p">$</span> chopper mcp-serve</pre>
-
-      <h3>Useful flags</h3>
-      <table class="tbl" style="margin-top:4px;font-size:13px">
-        <tr><td><code>--base / --features</code></td><td>bypass <code>project.json</code></td></tr>
-        <tr><td><code>--project</code></td><td>committed recipe (exclusive w/ above)</td></tr>
-        <tr><td><code>--strict</code></td><td>non-zero exit on any warning (CI gate)</td></tr>
-        <tr><td><code>--dry-run</code></td><td>authoring iteration loop</td></tr>
-        <tr><td><code>--tool-commands FILE</code></td><td>vendor builtins → <code>TI-01</code> not <code>TW-02</code></td></tr>
-        <tr><td><code>--no-color</code></td><td>plain-text output for logs</td></tr>
-      </table>
-    </div>
-
-    <div>
-      <h3>Every run writes <code>.chopper/</code></h3>
-<pre class="code mono" style="font-size:13px;line-height:1.5">&lt;domain&gt;/.chopper/
-├── compiled_manifest.json   <span class="c"># every file's fate</span>
-├── dependency_graph.json    <span class="c"># BFS proc call tree</span>
-├── trim_report.txt / .json  <span class="c"># human + machine summary</span>
-├── diagnostics.json         <span class="c"># every VE/VW/PE/PW/TW</span>
-├── run_result.json          <span class="c"># exit code, durations</span>
-└── inputs/                  <span class="c"># exact base + features</span></pre>
-
-      <h3>Backup-and-rebuild safety</h3>
-      <ul style="margin-top:4px">
-        <li>First trim: <code>&lt;domain&gt;/</code> → <code>&lt;domain&gt;_backup/</code>, rebuild trimmed copy</li>
-        <li>Re-trim rebuilds from backup; backup never touched</li>
-        <li>Failure mid-run: backup intact, next run rebuilds cleanly</li>
-        <li>Cleanup is explicit; <code>--confirm</code> required</li>
-      </ul>
-
-      <div class="callout good" style="margin-top:8px">
-        <strong>MCP read-only surface (0.4.0).</strong> <code>mcp-serve</code> is stdio-only and exposes exactly three tools:
-        <code>chopper.validate</code>, <code>chopper.explain_diagnostic</code>, <code>chopper.read_audit</code>.
-        Destructive tools (<code>trim</code>, <code>cleanup</code>) are never exposed over MCP — protocol errors emit <code>PE-04</code>.
-      </div>
-    </div>
-  </div>
-
-  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 17</span></div>
-</section>
-
-<!-- ============================================================ -->
-<!-- SLIDE 15 — CHOPPER DOMAIN COMPANION AGENT                      -->
-<!-- ============================================================ -->
-<section class="slide" data-title="Domain Companion">
-  <div class="slideHead">
-    <h1><span style="background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent">Chopper Domain Companion</span> &nbsp;<span class="tag good">in-repo agent</span></h1>
-    <span class="pg">15</span>
-  </div>
-
-  <p style="font-size:18px;max-width:1100px;color:var(--ink-dim);margin:6px 0 14px;line-height:1.5">
-    A purpose-built <strong>VS Code Copilot Chat agent</strong> at
-    <code>.github/agents/chopper-domain-companion.agent.md</code> &mdash; the single user-facing agent
-    for anything Chopper-related, from a convoluted Tcl codebase to a validated, trimmed output.
-  </p>
-
-  <div class="cards c2" style="gap:14px">
-    <div class="card f1" style="padding:18px 20px">
-      <h3 style="color:var(--f1);margin:0 0 6px">What it does</h3>
-      <ul style="font-size:16px;margin:4px 0 0 20px;line-height:1.45">
-        <li><strong>Q1&ndash;Q5 discovery protocol</strong> on an unfamiliar codebase</li>
-        <li>Authors <code>base.json</code>, <code>*.feature.json</code>, <code>project.json</code></li>
-        <li>Runs <code>validate</code> + <code>trim --dry-run</code>, explains results</li>
-        <li>Reads <code>.chopper/</code> artifacts and tells you what to fix</li>
-        <li>Explains any diagnostic against the registry</li>
-        <li>Files structured bug reports via <code>scripts/file_bug_report.py</code></li>
-      </ul>
-    </div>
-
-    <div class="card f2" style="padding:18px 20px">
-      <h3 style="color:var(--f2);margin:0 0 6px">Two operating modes</h3>
-      <div class="grid grid-cols-2 gap-2 mt-1">
-        <div class="modeBox">
-          <div class="lbl energy">ANALYZE-ONLY</div>
-          <p style="font-size:15px;margin:2px 0 0;line-height:1.4">JSON authoring &amp; review.<br/><strong>No CLI calls</strong>, no disk writes.</p>
-        </div>
-        <div class="modeBox">
-          <div class="lbl moss">FULL-LOOP</div>
-          <p style="font-size:15px;margin:2px 0 0;line-height:1.4">analyze + validate + dry-run + audit walk.<br/>Live trim only on <strong>explicit direction</strong>.</p>
-        </div>
-      </div>
-
-      <h3 style="color:var(--f2);margin:12px 0 4px">Named playbooks</h3>
-      <ul style="font-size:15px;margin:2px 0 0 20px;line-height:1.4">
-        <li><strong>Bisect</strong> &mdash; find which feature broke trim</li>
-        <li><strong>Compare</strong> &mdash; diff two runs' audit bundles</li>
-        <li><strong>Prove-safe</strong> &mdash; verify no surviving-set delta</li>
-      </ul>
-    </div>
-  </div>
-
-  <h3 style="margin:12px 0 8px">Prompt library &mdash; <code>.github/prompts/</code></h3>
-  <div class="cards c2" style="gap:10px">
-    <div class="card" style="padding:12px 14px">
-      <strong style="color:var(--accent);font-size:16px">bootstrap-domain + validate-my-jsons</strong>
-      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Generate starter JSONs, then run schema and cross-source checks.</p>
-    </div>
-    <div class="card" style="padding:12px 14px">
-      <strong style="color:var(--accent);font-size:16px">explain-last-run + why-was-dropped</strong>
-      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Walk <code>.chopper/</code> outputs and pinpoint why files/procs were removed.</p>
-    </div>
-    <div class="card" style="padding:12px 14px">
-      <strong style="color:var(--accent-2);font-size:16px">bisect-feature-breakage + prove-safe</strong>
-      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Find the breaking feature and verify no unintended surviving-set delta.</p>
-    </div>
-    <div class="card" style="padding:12px 14px;background:linear-gradient(135deg,rgba(139,174,70,.10),rgba(0,199,253,.10));border-color:var(--good)">
-      <strong style="color:var(--good);font-size:16px">report-chopper-bug + package-bug-artifacts</strong>
-      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Draft a complete report and package logs/artifacts for upload.</p>
-    </div>
-  </div>
-
-  <div class="callout" style="margin-top:10px;padding:10px 14px;font-size:15px;line-height:1.45">
-    <strong>Plus &mdash; MCP read-only surface.</strong>
-    <code>chopper mcp-serve</code> exposes three stdio tools:
-    <strong>chopper.validate</strong>, <strong>chopper.explain_diagnostic</strong>, <strong>chopper.read_audit</strong>.
-    Destructive tools (<code>trim</code>, <code>cleanup</code>) are CLI-only.
-  </div>
-
-  <div class="foot"><span>chopper &middot; companion agent</span><span>15 / 17</span></div>
-</section>
-
-<!-- ============================================================ -->
-<!-- SLIDE 16 — BENTO GRID (APPLE KEYNOTE STYLE)                   -->
+<!-- SLIDE 10 — F1/F2/F3 AT A GLANCE                               -->
 <!-- ============================================================ -->
 <section class="slide" data-title="At a glance">
   <div class="slideHead">
@@ -1596,7 +1168,7 @@ R serial</div>
       One pipeline.
       <span style="background:linear-gradient(110deg,var(--intel-energy) 0%,var(--intel-geode) 50%,var(--intel-moss) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900">Everything you need.</span>
     </h1>
-    <span class="pg">16</span>
+    <span class="pg">10</span>
   </div>
 
   <style>
@@ -1943,8 +1515,437 @@ R serial</div>
 
   </div>
 
-  <div class="foot"><span>chopper &middot; at a glance</span><span>16 / 17</span></div>
+  <div class="foot"><span>chopper &middot; at a glance</span><span>10 / 17</span></div>
 </section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11 — F1+F2+F3 COMBINATIONS                               -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Combinations">
+  <div class="slideHead"><h1>F1 &middot; F2 &middot; F3 &mdash; pick any combination</h1><span class="pg">11</span></div>
+
+  <p>Domain owners have <strong>complete freedom</strong>. Each base/feature JSON declares any subset
+    of the three sections; at least one must be present, and they cleanly compose.</p>
+
+  <div class="combo">
+    <div class="c on" data-x="1"><div class="b"><span class="f1">F1</span><span>F2</span><span>F3</span></div><div class="lbl">F1 only</div><div class="desc">File-only domains, configs, hooks</div></div>
+    <div class="c on" data-x="2"><div class="b"><span>F1</span><span class="f2">F2</span><span>F3</span></div><div class="lbl">F2 only</div><div class="desc">Trim a shared <code>*_procs.tcl</code> in place</div></div>
+    <div class="c on" data-x="3"><div class="b"><span>F1</span><span>F2</span><span class="f3">F3</span></div><div class="lbl">F3 only</div><div class="desc">Generate run scripts; nothing else</div></div>
+    <div class="c on" data-x="4"><div class="b"><span class="f1">F1</span><span class="f2">F2</span><span>F3</span></div><div class="lbl">F1 + F2</div><div class="desc">Drop legacy files <em>and</em> prune procs</div></div>
+    <div class="c on" data-x="5"><div class="b"><span class="f1">F1</span><span>F2</span><span class="f3">F3</span></div><div class="lbl">F1 + F3</div><div class="desc">Trim files; emit run scripts</div></div>
+    <div class="c on" data-x="6"><div class="b"><span>F1</span><span class="f2">F2</span><span class="f3">F3</span></div><div class="lbl">F2 + F3</div><div class="desc">Proc-level + run-file gen</div></div>
+    <div class="c on" data-x="7"><div class="b"><span class="f1">F1</span><span class="f2">F2</span><span class="f3">F3</span></div><div class="lbl">All three</div><div class="desc">Full domain trim</div></div>
+  </div>
+
+  <div class="cards c2" style="margin-top:24px">
+    <div class="card f1">
+      <h3>Optional switches that work everywhere</h3>
+      <ul>
+        <li><code>options.cross_validate</code> — F3 step targets must exist in surviving F1/F2 set (warn, not fail)</li>
+        <li><code>options.generate_stack</code> — emit <code>&lt;stage&gt;.stack</code> alongside <code>&lt;stage&gt;.tcl</code></li>
+        <li><code>--dry-run</code> — full trim simulation, zero disk writes</li>
+        <li><code>--strict</code> — exit non-zero on any warning (CI gate)</li>
+      </ul>
+    </div>
+    <div class="card f2">
+      <h3>Feature composition</h3>
+      <ul>
+        <li>Base JSON + 0..N feature JSONs (additive)</li>
+        <li><code>depends_on</code> declares feature ordering for F3</li>
+        <li>Explicit include from <em>any</em> source <strong>always wins</strong></li>
+        <li>A feature's exclude can only prune <em>its own</em> contributions — never base, never another feature</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; combinations</span><span>10 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12 — JSON STRUCTURE                                      -->
+<!-- ============================================================ -->
+<section class="slide" data-title="JSON structure">
+  <div class="slideHead"><h1>The three JSON files</h1><span class="pg">12</span></div>
+
+  <table class="tbl">
+    <tr><th>JSON</th><th>Where it lives</th><th>Required?</th><th>Purpose</th></tr>
+    <tr><td><code>base.json</code></td><td><code>&lt;domain&gt;/jsons/base.json</code></td><td><span class="tag good">YES</span></td><td>Universal files / procs / stages every project in this domain needs</td></tr>
+    <tr><td><code>*.feature.json</code></td><td><code>&lt;domain&gt;/jsons/features/&lt;name&gt;.feature.json</code></td><td><span class="tag warn">optional</span></td><td>Adds files / procs / stage modifications for one optional capability</td></tr>
+    <tr><td><code>project.json</code></td><td>Anywhere — committed recipe</td><td><span class="tag warn">optional</span></td><td>Names one base + ordered list of features → single <code>--project</code> flag</td></tr>
+  </table>
+
+  <div class="cards c3" style="margin-top:14px">
+    <div class="card f1">
+      <h3>base.json (skeleton)</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
+  "<span class="k">vendor</span>": "<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":   "<span class="s">primetime</span>",
+  "<span class="k">files</span>":      { ... },
+  "<span class="k">procedures</span>": { ... },
+  "<span class="k">stages</span>":     [ ... ]
+}</pre>
+    </div>
+    <div class="card f2">
+      <h3>feature.json</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">feature-v1</span>",
+  "<span class="k">name</span>":   "<span class="s">dft</span>",
+  "<span class="k">depends_on</span>":[],
+  "<span class="k">files</span>":         { ... },
+  "<span class="k">procedures</span>":    { ... },
+  "<span class="k">flow_actions</span>":  [
+    { "<span class="k">action</span>":"<span class="s">add_stage_after</span>",
+      "<span class="k">reference</span>":"<span class="s">main</span>", ... }
+  ]
+}</pre>
+    </div>
+    <div class="card f3">
+      <h3>project.json</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">project-v1</span>",
+  "<span class="k">project</span>":"<span class="s">PROJECT_ABC</span>",
+  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
+  "<span class="k">base</span>":   "<span class="s">jsons/base.json</span>",
+  "<span class="k">features</span>":[
+    "<span class="s">jsons/features/dft.feature.json</span>",
+    "<span class="s">jsons/features/power.feature.json</span>"
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>You do not need a project JSON.</strong> Pass <code>--base</code> and <code>--features</code>
+    directly. The project JSON is just a committed, named recipe.
+  </div>
+
+  <div class="foot"><span>chopper &middot; JSON structure</span><span>11 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 13 — REAL EXAMPLES (FEV / TIMING / POWER)                -->
+<!-- ============================================================ -->
+<section class="slide" data-title="FEV / Timing / Power examples">
+  <div class="slideHead"><h1>Real-domain examples &mdash; FEV &middot; Timing &middot; Power</h1><span class="pg">13</span></div>
+
+  <div class="cards c3">
+    <div class="card f1">
+      <h3><span class="vendor"><span class="dotc" style="background:#00C7FD"></span>SNPS · fev_formality</span></h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">fev_formality</span>",
+  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":"<span class="s">formality</span>",
+  "<span class="k">files</span>":{
+    "<span class="k">include</span>":[
+      "<span class="s">setup.tcl</span>",
+      "<span class="s">vars.tcl</span>",
+      "<span class="s">rules/fm_basic.tcl</span>",
+      "<span class="s">procs/fev_procs.tcl</span>"
+    ],
+    "<span class="k">exclude</span>":[
+      "<span class="s">rules/experimental/**</span>"
+    ]
+  },
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/fev_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">setup_fev</span>","<span class="s">match</span>","<span class="s">verify</span>"] }
+    ]
+  },
+  "<span class="k">stages</span>":[
+    { "<span class="k">name</span>":"<span class="s">fev</span>",
+      "<span class="k">load_from</span>":"<span class="s"></span>",
+      "<span class="k">command</span>":"<span class="s">fm_shell -64 -f main.tcl</span>",
+      "<span class="k">exit_codes</span>":[0],
+      "<span class="k">steps</span>":[
+        "<span class="s">source setup.tcl</span>","<span class="s">setup_fev</span>",
+        "<span class="s">match</span>","<span class="s">verify</span>"
+      ]
+    }
+  ]
+}</pre>
+    </div>
+
+    <div class="card f2">
+      <h3><span class="vendor"><span class="dotc" style="background:#8F5DA2"></span>SNPS · sta_pt (Timing)</span></h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
+  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":"<span class="s">primetime</span>",
+  "<span class="k">files</span>":{
+    "<span class="k">include</span>":[
+      "<span class="s">setup.tcl</span>","<span class="s">vars.tcl</span>",
+      "<span class="s">procs/**/*.tcl</span>",
+      "<span class="s">sdc/*.sdc</span>"
+    ]
+  },
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">read_design</span>","<span class="s">apply_constraints</span>",
+                  "<span class="s">update_timing</span>","<span class="s">report_qor</span>"] }
+    ],
+    "<span class="k">exclude</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">debug_paths</span>","<span class="s">old_report</span>"] }
+    ]
+  },
+  "<span class="k">stages</span>":[
+    { "<span class="k">name</span>":"<span class="s">sta</span>",
+      "<span class="k">load_from</span>":"<span class="s"></span>",
+      "<span class="k">command</span>":"<span class="s">pt_shell -64 -f main.tcl</span>",
+      "<span class="k">exit_codes</span>":[0,3],
+      "<span class="k">steps</span>":[
+        "<span class="s">read_design</span>","<span class="s">apply_constraints</span>",
+        "<span class="s">update_timing</span>","<span class="s">report_qor</span>"
+      ]
+    }
+  ]
+}</pre>
+    </div>
+
+    <div class="card f3">
+      <h3><span class="vendor"><span class="dotc" style="background:#8BAE46"></span>SNPS · power</span></h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">power</span>",
+  "<span class="k">vendor</span>":"<span class="s">synopsys</span>",
+  "<span class="k">tool</span>":"<span class="s">primepower</span>",
+  "<span class="k">options</span>":{ "<span class="k">cross_validate</span>":<span class="n">true</span>,
+                "<span class="k">generate_stack</span>":<span class="n">true</span> },
+  "<span class="k">files</span>":{
+    "<span class="k">include</span>":[
+      "<span class="s">setup.tcl</span>","<span class="s">vars.tcl</span>",
+      "<span class="s">procs/power_procs.tcl</span>"
+    ]
+  },
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/power_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">read_vcd</span>","<span class="s">compute_power</span>",
+                  "<span class="s">report_power</span>"] }
+    ]
+  },
+  "<span class="k">stages</span>":[
+    { "<span class="k">name</span>":"<span class="s">power</span>",
+      "<span class="k">load_from</span>":"<span class="s">sta</span>",
+      "<span class="k">command</span>":"<span class="s">pt_shell -64 -ppower -f main.tcl</span>",
+      "<span class="k">exit_codes</span>":[0],
+      "<span class="k">dependencies</span>":["<span class="s">sta</span>"],
+      "<span class="k">steps</span>":[
+        "<span class="s">read_vcd</span>","<span class="s">compute_power</span>","<span class="s">report_power</span>"
+      ]
+    }
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="callout good" style="margin-top:14px">
+    Each example uses <strong>F1 + F2 + F3 together</strong>. Same JSON shape works for
+    Cadence (<code>innovus</code>, <code>tempus</code>, <code>joules</code>),
+    Synopsys, and Mentor. Vendor and tool are just metadata + a command string.
+  </div>
+
+  <div class="foot"><span>chopper &middot; real examples</span><span>12 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 14 — TCL-ONLY PROC TRIM (FOCUSED)                        -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Tcl-only proc trim">
+  <div class="slideHead"><h1>Pure proc-level trim &mdash; Tcl files only</h1><span class="pg">14</span></div>
+
+  <p>If your domain only needs to <strong>shrink shared Tcl libraries</strong> — no file-level
+    chopping, no run-file generation — that is a one-section JSON.</p>
+
+  <div class="cards c2">
+    <div>
+      <h3>Minimal F2-only base.json</h3>
+<pre class="code mono">{
+  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
+  "<span class="k">domain</span>":"<span class="s">sta_pt</span>",
+  "<span class="k">procedures</span>":{
+    "<span class="k">include</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">read_design</span>","<span class="s">update_timing</span>","<span class="s">report_qor</span>"] }
+    ],
+    "<span class="k">exclude</span>":[
+      { "<span class="k">file</span>":"<span class="s">procs/sta_procs.tcl</span>",
+        "<span class="k">procs</span>":["<span class="s">debug_paths</span>","<span class="s">old_report</span>","<span class="s">scratch_xform</span>"] }
+    ]
+  }
+}</pre>
+      <p style="color:var(--ink-dim)">All other files in the domain are untouched. Non-Tcl files
+        (Perl, Python, csh) are file-level only and are not affected by F2.</p>
+    </div>
+
+    <div>
+      <h3>What Chopper does</h3>
+      <ol style="color:var(--ink-dim);margin-left:18px">
+        <li>P2 — parses every <code>.tcl</code> file, extracts proc table</li>
+        <li>P3 — marks <code>procs/sta_procs.tcl</code> as <code>PROC_TRIM</code></li>
+        <li>P4 — traces call graph from <code>read_design / update_timing / report_qor</code></li>
+        <li>P5 — copies the file, deletes the three excluded proc bodies (with their full braces)</li>
+        <li>P6 — re-parses the trimmed file, checks brace balance, dangling refs</li>
+        <li>P7 — writes <code>.chopper/dependency_graph.json</code>, <code>trim_report.json</code>,
+          <code>diagnostics.json</code></li>
+      </ol>
+      <div class="callout warn">
+        <strong>Computed proc names</strong> like <code>proc ${pfx}_helper</code> are skipped with
+        <code>PW-01</code>. Static analysis only — Chopper never executes Tcl.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; Tcl-only proc trim</span><span>13 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 15 — CLI + AUDIT BUNDLE                                  -->
+<!-- ============================================================ -->
+<section class="slide" data-title="CLI &amp; Audit">
+  <div class="slideHead"><h1>CLI workflow &amp; <code>.chopper/</code> audit bundle</h1><span class="pg">15</span></div>
+
+  <div class="cards c2">
+    <div>
+      <h3>Five subcommands</h3>
+<pre class="code mono" style="font-size:13px;line-height:1.5"><span class="c"># validate — read-only; never touches disk</span>
+<span class="p">$</span> chopper validate --project project.json
+
+<span class="c"># trim — backs up &amp; rebuilds &lt;domain&gt;/ (--dry-run to simulate)</span>
+<span class="p">$</span> chopper trim --project project.json
+
+<span class="c"># cleanup — remove &lt;domain&gt;_backup/ when happy</span>
+<span class="p">$</span> chopper cleanup --confirm
+
+<span class="c"># mcp-serve — read-only MCP stdio server (0.4.0+)</span>
+<span class="p">$</span> chopper mcp-serve</pre>
+
+      <h3>Useful flags</h3>
+      <table class="tbl" style="margin-top:4px;font-size:13px">
+        <tr><td><code>--base / --features</code></td><td>bypass <code>project.json</code></td></tr>
+        <tr><td><code>--project</code></td><td>committed recipe (exclusive w/ above)</td></tr>
+        <tr><td><code>--strict</code></td><td>non-zero exit on any warning (CI gate)</td></tr>
+        <tr><td><code>--dry-run</code></td><td>authoring iteration loop</td></tr>
+        <tr><td><code>--tool-commands FILE</code></td><td>vendor builtins → <code>TI-01</code> not <code>TW-02</code></td></tr>
+        <tr><td><code>--no-color</code></td><td>plain-text output for logs</td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h3>Every run writes <code>.chopper/</code></h3>
+<pre class="code mono" style="font-size:13px;line-height:1.5">&lt;domain&gt;/.chopper/
+├── compiled_manifest.json   <span class="c"># every file's fate</span>
+├── dependency_graph.json    <span class="c"># BFS proc call tree</span>
+├── trim_report.txt / .json  <span class="c"># human + machine summary</span>
+├── diagnostics.json         <span class="c"># every VE/VW/PE/PW/TW</span>
+├── run_result.json          <span class="c"># exit code, durations</span>
+└── inputs/                  <span class="c"># exact base + features</span></pre>
+
+      <h3>Backup-and-rebuild safety</h3>
+      <ul style="margin-top:4px">
+        <li>First trim: <code>&lt;domain&gt;/</code> → <code>&lt;domain&gt;_backup/</code>, rebuild trimmed copy</li>
+        <li>Re-trim rebuilds from backup; backup never touched</li>
+        <li>Failure mid-run: backup intact, next run rebuilds cleanly</li>
+        <li>Cleanup is explicit; <code>--confirm</code> required</li>
+      </ul>
+
+      <div class="callout good" style="margin-top:8px">
+        <strong>MCP read-only surface (0.4.0).</strong> <code>mcp-serve</code> is stdio-only and exposes exactly three tools:
+        <code>chopper.validate</code>, <code>chopper.explain_diagnostic</code>, <code>chopper.read_audit</code>.
+        Destructive tools (<code>trim</code>, <code>cleanup</code>) are never exposed over MCP — protocol errors emit <code>PE-04</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 16 — CHOPPER DOMAIN COMPANION AGENT                      -->
+<!-- ============================================================ -->
+<section class="slide" data-title="Domain Companion">
+  <div class="slideHead">
+    <h1><span style="background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent">Chopper Domain Companion</span> &nbsp;<span class="tag good">in-repo agent</span></h1>
+    <span class="pg">16</span>
+  </div>
+
+  <p style="font-size:18px;max-width:1100px;color:var(--ink-dim);margin:6px 0 14px;line-height:1.5">
+    A purpose-built <strong>VS Code Copilot Chat agent</strong> at
+    <code>.github/agents/chopper-domain-companion.agent.md</code> &mdash; the single user-facing agent
+    for anything Chopper-related, from a convoluted Tcl codebase to a validated, trimmed output.
+  </p>
+
+  <div class="cards c2" style="gap:14px">
+    <div class="card f1" style="padding:18px 20px">
+      <h3 style="color:var(--f1);margin:0 0 6px">What it does</h3>
+      <ul style="font-size:16px;margin:4px 0 0 20px;line-height:1.45">
+        <li><strong>Q1&ndash;Q5 discovery protocol</strong> on an unfamiliar codebase</li>
+        <li>Authors <code>base.json</code>, <code>*.feature.json</code>, <code>project.json</code></li>
+        <li>Runs <code>validate</code> + <code>trim --dry-run</code>, explains results</li>
+        <li>Reads <code>.chopper/</code> artifacts and tells you what to fix</li>
+        <li>Explains any diagnostic against the registry</li>
+        <li>Files structured bug reports via <code>scripts/file_bug_report.py</code></li>
+      </ul>
+    </div>
+
+    <div class="card f2" style="padding:18px 20px">
+      <h3 style="color:var(--f2);margin:0 0 6px">Two operating modes</h3>
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <div class="modeBox">
+          <div class="lbl energy">ANALYZE-ONLY</div>
+          <p style="font-size:15px;margin:2px 0 0;line-height:1.4">JSON authoring &amp; review.<br/><strong>No CLI calls</strong>, no disk writes.</p>
+        </div>
+        <div class="modeBox">
+          <div class="lbl moss">FULL-LOOP</div>
+          <p style="font-size:15px;margin:2px 0 0;line-height:1.4">analyze + validate + dry-run + audit walk.<br/>Live trim only on <strong>explicit direction</strong>.</p>
+        </div>
+      </div>
+
+      <h3 style="color:var(--f2);margin:12px 0 4px">Named playbooks</h3>
+      <ul style="font-size:15px;margin:2px 0 0 20px;line-height:1.4">
+        <li><strong>Bisect</strong> &mdash; find which feature broke trim</li>
+        <li><strong>Compare</strong> &mdash; diff two runs' audit bundles</li>
+        <li><strong>Prove-safe</strong> &mdash; verify no surviving-set delta</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin:12px 0 8px">Prompt library &mdash; <code>.github/prompts/</code></h3>
+  <div class="cards c2" style="gap:10px">
+    <div class="card" style="padding:12px 14px">
+      <strong style="color:var(--accent);font-size:16px">bootstrap-domain + validate-my-jsons</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Generate starter JSONs, then run schema and cross-source checks.</p>
+    </div>
+    <div class="card" style="padding:12px 14px">
+      <strong style="color:var(--accent);font-size:16px">explain-last-run + why-was-dropped</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Walk <code>.chopper/</code> outputs and pinpoint why files/procs were removed.</p>
+    </div>
+    <div class="card" style="padding:12px 14px">
+      <strong style="color:var(--accent-2);font-size:16px">bisect-feature-breakage + prove-safe</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Find the breaking feature and verify no unintended surviving-set delta.</p>
+    </div>
+    <div class="card" style="padding:12px 14px;background:linear-gradient(135deg,rgba(139,174,70,.10),rgba(0,199,253,.10));border-color:var(--good)">
+      <strong style="color:var(--good);font-size:16px">report-chopper-bug + package-bug-artifacts</strong>
+      <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Draft a complete report and package logs/artifacts for upload.</p>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:10px;padding:10px 14px;font-size:15px;line-height:1.45">
+    <strong>Plus &mdash; MCP read-only surface.</strong>
+    <code>chopper mcp-serve</code> exposes three stdio tools:
+    <strong>chopper.validate</strong>, <strong>chopper.explain_diagnostic</strong>, <strong>chopper.read_audit</strong>.
+    Destructive tools (<code>trim</code>, <code>cleanup</code>) are CLI-only.
+  </div>
+
+  <div class="foot"><span>chopper &middot; companion agent</span><span>15 / 17</span></div>
+</section>
+
 
 <!-- ============================================================ -->
 <!-- SLIDE 17 — NEXT STEPS (closing)                               -->
