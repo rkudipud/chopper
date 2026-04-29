@@ -6,10 +6,13 @@
 ![Pipeline](https://img.shields.io/badge/pipeline-P0--P7-8a3ffc)
 
 [![Chopper Domain Companion](https://img.shields.io/badge/🤖_Agent-Chopper_Domain_Companion-0f62fe)](.github/agents/chopper-domain-companion.agent.md)
+[![Onboarding Presentation](https://img.shields.io/badge/📊_Onboarding-Presentation-8a3ffc)](https://rkudipud.github.io/chopper/)
 
 **Chopper is a Python CLI that surgically trims VLSI EDA tool-flow domains down to exactly what a project actually needs** — specified by JSON, reproducible on every run, and audited automatically after every trim.
 
 Instead of editing Tcl by hand and hoping you caught every dependency, you write JSON to say which files, which procedures, and which run-script stages survive. Chopper parses your domain, compiles your selections, traces the call graph for visibility, trims the domain on disk, generates run scripts if needed, and writes a full audit bundle for review.
+
+> 📊 **New here?** Start with the [**onboarding presentation**](https://rkudipud.github.io/chopper/) — a 16-slide walk-through of what Chopper is, the F1/F2/F3 capabilities, the P0–P7 pipeline, and the JSON authoring surface. Source: [presentation/chopper_onboarding.html](presentation/chopper_onboarding.html).
 
 
 ---
