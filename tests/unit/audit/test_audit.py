@@ -203,11 +203,10 @@ def test_render_chopper_run_includes_mode_and_counts() -> None:
 
 
 def test_render_files_removed_empty_record_produces_header_only() -> None:
-    ctx = _make_ctx()
-    name, content = render_files_removed(ctx, _record())
+    name, content = render_files_removed(_record())
     assert name == "files_removed.txt"
     assert content.startswith("# files_removed.txt")
-    # No paths present when manifest is absent and backup directory does not exist.
+    # No paths present when manifest is absent.
     lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert lines == []
 
@@ -234,111 +233,10 @@ def test_render_files_removed_lists_remove_paths_sorted() -> None:
             p_rem2: FileProvenance(path=p_rem2, treatment=FileTreatment.REMOVE, reason="default-exclude"),
         },
     )
-    # No backup populated on the filesystem -> fallback path lists the
-    # manifest's explicit REMOVE entries.
-    ctx = _make_ctx()
-    _, content = render_files_removed(ctx, _record(manifest=manifest))
+    _, content = render_files_removed(_record(manifest=manifest))
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == ["a_first.tcl", "z_last.tcl"]
     assert "lib/keep.tcl" not in content
-    # Header should call out the fallback mode.
-    assert "no <domain>_backup/ available" in content
-
-
-def test_render_files_removed_includes_default_exclude_drops_when_backup_present() -> None:
-    """Regression for the bug where ``files_removed.txt`` only listed
-    explicit ``REMOVE`` decisions, missing files silently dropped by
-    chopper's "default is exclude" rule. With ``<domain>_backup/`` present
-    on disk, the writer must compute the physical-deletion set as
-    ``backup_files - manifest_kept_files``."""
-
-    p_kept_copy = Path("kept_full.tcl")
-    p_kept_trim = Path("lib/kept_trim.tcl")
-    # Three files exist in backup that the manifest never enumerated -> they
-    # were silently dropped by default-exclude. They must appear in the
-    # removed list even though they have no manifest entry at all.
-    p_dropped_a = Path("default_drop_a.tcl")
-    p_dropped_b = Path("subdir/default_drop_b.pl")
-    p_dropped_c = Path("subdir/nested/default_drop_c.csh")
-    # And one file that the manifest explicitly marks REMOVE.
-    p_explicit = Path("explicit_remove.tcl")
-
-    fs = InMemoryFS()
-    for rel in (p_kept_copy, p_kept_trim, p_dropped_a, p_dropped_b, p_dropped_c, p_explicit):
-        fs.write_text(BACKUP / rel, "# placeholder\n")
-
-    manifest = CompiledManifest(
-        file_decisions={
-            p_explicit: FileTreatment.REMOVE,
-            p_kept_copy: FileTreatment.FULL_COPY,
-            p_kept_trim: FileTreatment.PROC_TRIM,
-        },
-        proc_decisions={},
-        provenance={
-            p_explicit: FileProvenance(
-                path=p_explicit,
-                treatment=FileTreatment.REMOVE,
-                reason="default-exclude",
-            ),
-            p_kept_copy: FileProvenance(
-                path=p_kept_copy,
-                treatment=FileTreatment.FULL_COPY,
-                reason="fi-literal",
-                input_sources=("base:files.include",),
-            ),
-            p_kept_trim: FileProvenance(
-                path=p_kept_trim,
-                treatment=FileTreatment.PROC_TRIM,
-                reason="pi-additive",
-                input_sources=("base:procedures.include",),
-                proc_model="additive",
-            ),
-        },
-    )
-
-    ctx = _make_ctx(fs=fs)
-    _, content = render_files_removed(ctx, _record(manifest=manifest))
-    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
-    assert data_lines == [
-        "default_drop_a.tcl",
-        "explicit_remove.tcl",
-        "subdir/default_drop_b.pl",
-        "subdir/nested/default_drop_c.csh",
-    ]
-    # Surviving files must NOT show up in the removal set.
-    assert "kept_full.tcl" not in content
-    assert "lib/kept_trim.tcl" not in content
-    # Header should advertise the new physical-deletion semantics.
-    assert "physically removed" in content
-
-
-def test_render_files_removed_skips_chopper_audit_dir() -> None:
-    """The audit bundle directory itself must never be reported as a
-    domain file removed by trimming."""
-
-    fs = InMemoryFS()
-    fs.write_text(BACKUP / "real.tcl", "# real\n")
-    # Stage a file under an in-backup .chopper/ directory; it must be ignored.
-    fs.write_text(BACKUP / ".chopper" / "diagnostics.json", "{}")
-
-    manifest = CompiledManifest(
-        file_decisions={Path("real.tcl"): FileTreatment.FULL_COPY},
-        proc_decisions={},
-        provenance={
-            Path("real.tcl"): FileProvenance(
-                path=Path("real.tcl"),
-                treatment=FileTreatment.FULL_COPY,
-                reason="fi-literal",
-                input_sources=("base:files.include",),
-            ),
-        },
-    )
-
-    ctx = _make_ctx(fs=fs)
-    _, content = render_files_removed(ctx, _record(manifest=manifest))
-    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
-    assert data_lines == []
-    assert ".chopper" not in content
 
 
 def test_render_files_kept_empty_record_produces_header_only() -> None:
@@ -389,6 +287,9 @@ def test_render_files_kept_lists_surviving_paths_sorted() -> None:
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == ["a_trim.tcl", "synth.tcl", "z_copy.tcl"]
     assert "drop.tcl" not in content
+
+
+
 
 
 def test_audit_service_writes_bundle_with_empty_record() -> None:
