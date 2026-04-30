@@ -653,7 +653,7 @@ All examples below assume Chopper is invoked from the domain root. The current w
 - `dependency_graph.json` — full proc trace results including `source`/`iproc_source` and proc call edges
 - `trim_report.json` — what would be trimmed, and why each file/proc survives or is removed
 - `trim_report.txt` — human-readable projection of `trim_report.json`
-- `files_removed.txt` — flat sorted list of domain-relative paths physically removed from the rebuilt domain (one path per line). Computed as `files in <domain>_backup/ - files kept by the manifest`, so it captures both **explicit** `REMOVE` decisions and files **silently dropped by the default-exclude rule** (i.e. files no `files.include` pattern matched). When `<domain>_backup/` is not present (e.g. `validate`-only run) the writer falls back to listing only the manifest's explicit `REMOVE` entries; the file's header line records which mode was used.
+- `files_removed.txt` — flat sorted list of domain-relative paths scheduled for removal (one path per line)
 - `files_kept.txt` — flat sorted list of domain-relative paths that survive trimming (one path per line)
 - log with all diagnostics emitted with severity, code, location, and hint fields
 
@@ -1270,7 +1270,6 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
   - `PROC_TRIM` → read the file from backup, delete the line spans of every proc not in `surviving_procs(F)`, rewrite directly into the rebuilt `domain/` tree.
   - `GENERATED` → run the F3 generator (`flow_actions` is authoritative for ordering here).
   - `REMOVE` → record the omission; do not write.
-- For both `FULL_COPY` and `PROC_TRIM`, after the destination is written its mode bits are mirrored from the source file in `<domain>_backup/` (via `shutil.copymode`). This preserves executable bits and group/other permissions across the rebuild — without this step the destination would inherit the process umask and silently lose `+x` on every script.
 - Write `.chopper/trim_report.json` and `trim_report.txt` describing every file and proc operation and the diagnostics correlated with each.
 - Owner: `trimmer/` + `generators/`.
 - Output: the rebuilt `domain/` tree plus the trim-report artifacts. If P5 fails mid-run, the partially rebuilt `domain/` is left in place and the intact `<domain>_backup/` is the recovery source for the next invocation.

@@ -4,29 +4,6 @@ All notable changes to Chopper are recorded here.
 
 ## [Unreleased]
 
-### Fixed
-
-- **`chopper trim` no longer drops file mode bits** on rebuilt files.
-  Previously every file written into `<domain>/` (FULL_COPY or PROC_TRIM)
-  came out with default-umask permissions because `Path.write_text`
-  ignores the source's `st_mode`. Executable scripts (Tcl/Perl/csh/Python
-  entry points, helper drivers, etc.) lost their `+x` bit on every trim,
-  silently breaking flows that invoked them by execution. The trim
-  writer now mirrors the source mode via `shutil.copymode` after each
-  write.
-
-- **`files_removed.txt` now reports the full physical-deletion set.**
-  Previously the artifact only listed files whose manifest treatment was
-  explicitly `REMOVE`, missing the much larger set of files chopper
-  silently dropped via the documented "default is exclude" rule (i.e.
-  files no `files.include` pattern matched). The audit bundle therefore
-  contained no flat list of what actually disappeared from the rebuilt
-  domain. The writer now computes the deletion set as
-  `walk(<domain>_backup/) − manifest_kept_files`, which captures both
-  explicit `REMOVE` decisions and default-exclude drops. When no backup
-  exists (e.g. `validate`-only runs) the writer falls back to the prior
-  REMOVE-only behaviour and the header line records which mode was used.
-
 ### Added
 
 #### Task A — `files_removed.txt` audit artifact

@@ -8,26 +8,10 @@ bundle at P7 describes the planned result identically.
 The helpers never emit diagnostics themselves — the owning
 :class:`TrimmerService` emits ``VE-23`` / ``VE-24`` / ``VE-25`` /
 ``VE-26`` in the dispatch loop.
-
-File-mode preservation
-----------------------
-After writing each rebuilt file (``FULL_COPY`` or ``PROC_TRIM``) we mirror
-the source file's mode bits from ``<domain>_backup/`` onto the freshly
-written destination via :func:`shutil.copymode`. ``Path.write_text`` (used
-by :class:`~chopper.adapters.fs_local.LocalFS`) creates the destination
-with the process umask, which silently drops the executable bit and
-collapses group/world permissions; without this step every rebuilt
-``.tcl`` / ``.pl`` / ``.csh`` / ``.py`` script that was executable in the
-input domain comes out non-executable in the rebuilt domain. The copy is
-gated on the destination actually existing on the real filesystem so it
-is a no-op for in-memory filesystem adapters used by unit tests, and the
-``OSError`` swallow keeps the trim resilient to unusual filesystems
-(e.g. NFS exports that reject ``chmod``).
 """
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from chopper.core.context import ChopperContext
@@ -45,23 +29,6 @@ def _domain_path(ctx: ChopperContext, rel: Path) -> Path:
     return ctx.config.domain_root / rel
 
 
-def _mirror_mode(src: Path, dst: Path) -> None:
-    """Copy ``src``'s mode bits onto ``dst`` if both are real on-disk paths.
-
-    No-op when either path is absent from the real filesystem (the unit-test
-    in-memory adapter never materializes paths on disk) or when the platform
-    rejects ``chmod`` for any reason. Errors here must never break a trim:
-    the destination content is already correct; only the perms are at risk.
-    """
-
-    try:
-        if src.is_file() and dst.is_file():
-            shutil.copymode(src, dst)
-    except OSError:
-        # Defensive: keep the trim alive on filesystems that reject chmod.
-        pass
-
-
 def full_copy_file(ctx: ChopperContext, rel: Path, *, procs_in_file: tuple[str, ...]) -> FileOutcome:
     """Copy ``rel`` verbatim from backup to the rebuilt domain."""
 
@@ -71,7 +38,6 @@ def full_copy_file(ctx: ChopperContext, rel: Path, *, procs_in_file: tuple[str, 
     bytes_in = len(content.encode("utf-8"))
     if not ctx.config.dry_run:
         ctx.fs.write_text(dst, content)
-        _mirror_mode(src, dst)
     return FileOutcome(
         path=rel,
         treatment=FileTreatment.FULL_COPY,
@@ -108,7 +74,6 @@ def proc_trim_file(
     bytes_out = len(new_content.encode("utf-8"))
     if not ctx.config.dry_run:
         ctx.fs.write_text(dst, new_content)
-        _mirror_mode(src, dst)
 
     return FileOutcome(
         path=rel,
