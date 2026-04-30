@@ -55,7 +55,7 @@ class AuditService:
         renderings.append(render_trim_report_json(ctx, record))
         renderings.append(render_trim_report_txt(ctx, record))
         renderings.append(render_trim_stats(ctx, record))
-        renderings.append(render_files_removed(record))
+        renderings.append(render_files_removed(ctx, record))
         renderings.append(render_files_kept(record))
 
         # Preserve input files as exact byte-for-byte copies.
