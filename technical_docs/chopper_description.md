@@ -653,6 +653,8 @@ All examples below assume Chopper is invoked from the domain root. The current w
 - `dependency_graph.json` — full proc trace results including `source`/`iproc_source` and proc call edges
 - `trim_report.json` — what would be trimmed, and why each file/proc survives or is removed
 - `trim_report.txt` — human-readable projection of `trim_report.json`
+- `files_removed.txt` — flat sorted list of domain-relative paths scheduled for removal (one path per line)
+- `files_kept.txt` — flat sorted list of domain-relative paths that survive trimming (one path per line)
 - log with all diagnostics emitted with severity, code, location, and hint fields
 
 ### 3.8 Valid Capability Combinations

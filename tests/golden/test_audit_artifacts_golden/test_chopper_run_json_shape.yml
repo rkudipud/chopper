@@ -3,6 +3,8 @@ artifacts_present:
 - compiled_manifest.json
 - dependency_graph.json
 - diagnostics.json
+- files_kept.txt
+- files_removed.txt
 - input_base.json
 - run_id
 - trim_report.json
