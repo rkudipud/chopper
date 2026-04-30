@@ -15,6 +15,8 @@ from chopper.audit.writers import (
     render_compiled_manifest,
     render_dependency_graph,
     render_diagnostics,
+    render_files_kept,
+    render_files_removed,
     render_trim_report_json,
     render_trim_report_txt,
     render_trim_stats,
@@ -200,9 +202,94 @@ def test_render_chopper_run_includes_mode_and_counts() -> None:
     assert payload["diagnostics_summary"] == {"errors": 0, "warnings": 0, "info": 0}
 
 
-# ---------------------------------------------------------------------------
-# AuditService end-to-end
-# ---------------------------------------------------------------------------
+def test_render_files_removed_empty_record_produces_header_only() -> None:
+    name, content = render_files_removed(_record())
+    assert name == "files_removed.txt"
+    assert content.startswith("# files_removed.txt")
+    # No paths present when manifest is absent.
+    lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert lines == []
+
+
+def test_render_files_removed_lists_remove_paths_sorted() -> None:
+    p_rem1 = Path("a_first.tcl")
+    p_kept = Path("lib/keep.tcl")
+    p_rem2 = Path("z_last.tcl")
+    manifest = CompiledManifest(
+        file_decisions={
+            p_rem1: FileTreatment.REMOVE,
+            p_kept: FileTreatment.FULL_COPY,
+            p_rem2: FileTreatment.REMOVE,
+        },
+        proc_decisions={},
+        provenance={
+            p_rem1: FileProvenance(path=p_rem1, treatment=FileTreatment.REMOVE, reason="default-exclude"),
+            p_kept: FileProvenance(
+                path=p_kept,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+            p_rem2: FileProvenance(path=p_rem2, treatment=FileTreatment.REMOVE, reason="default-exclude"),
+        },
+    )
+    _, content = render_files_removed(_record(manifest=manifest))
+    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == ["a_first.tcl", "z_last.tcl"]
+    assert "lib/keep.tcl" not in content
+
+
+def test_render_files_kept_empty_record_produces_header_only() -> None:
+    name, content = render_files_kept(_record())
+    assert name == "files_kept.txt"
+    assert content.startswith("# files_kept.txt")
+    lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert lines == []
+
+
+def test_render_files_kept_lists_surviving_paths_sorted() -> None:
+    p_trim = Path("a_trim.tcl")
+    p_rem = Path("drop.tcl")
+    p_gen = Path("synth.tcl")
+    p_copy = Path("z_copy.tcl")
+    manifest = CompiledManifest(
+        file_decisions={
+            p_trim: FileTreatment.PROC_TRIM,
+            p_rem: FileTreatment.REMOVE,
+            p_gen: FileTreatment.GENERATED,
+            p_copy: FileTreatment.FULL_COPY,
+        },
+        proc_decisions={},
+        provenance={
+            p_trim: FileProvenance(
+                path=p_trim,
+                treatment=FileTreatment.PROC_TRIM,
+                reason="pi-additive",
+                input_sources=("base:procedures.include",),
+                proc_model="additive",
+            ),
+            p_rem: FileProvenance(path=p_rem, treatment=FileTreatment.REMOVE, reason="default-exclude"),
+            p_gen: FileProvenance(
+                path=p_gen,
+                treatment=FileTreatment.GENERATED,
+                reason="fi-literal",
+                input_sources=("base:stages",),
+            ),
+            p_copy: FileProvenance(
+                path=p_copy,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+        },
+    )
+    _, content = render_files_kept(_record(manifest=manifest))
+    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == ["a_trim.tcl", "synth.tcl", "z_copy.tcl"]
+    assert "drop.tcl" not in content
+
+
+
 
 
 def test_audit_service_writes_bundle_with_empty_record() -> None:
@@ -214,6 +301,8 @@ def test_audit_service_writes_bundle_with_empty_record() -> None:
     assert "chopper_run.json" in names
     assert "diagnostics.json" in names
     assert "run_id" in names
+    assert "files_removed.txt" in names
+    assert "files_kept.txt" in names
     assert names == sorted(names)
 
     # Each artifact was actually written and hash matches file content.

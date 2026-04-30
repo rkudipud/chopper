@@ -34,6 +34,8 @@ __all__ = [
     "render_compiled_manifest",
     "render_dependency_graph",
     "render_diagnostics",
+    "render_files_kept",
+    "render_files_removed",
     "render_run_id",
     "render_trim_report_json",
     "render_trim_report_txt",
@@ -345,6 +347,52 @@ def render_trim_report_txt(ctx: ChopperContext, record: RunRecord) -> tuple[str,
         lines.append("(no files were modified)")
     lines.append("")
     return "trim_report.txt", "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# files_removed.txt / files_kept.txt
+# ---------------------------------------------------------------------------
+
+
+def render_files_removed(record: RunRecord) -> tuple[str, str]:
+    """Flat sorted list of domain-relative paths that will be removed.
+
+    One POSIX path per line, alphabetically sorted.  The file is empty
+    (header only) when the manifest is absent or no files are marked
+    ``REMOVE``.  Useful during ``--dry-run`` to review the removal set
+    without parsing ``trim_report.json``.
+    """
+
+    manifest = record.manifest
+    lines: list[str] = ["# files_removed.txt — paths scheduled for removal"]
+    if manifest is not None:
+        removed = sorted(
+            p.as_posix() for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE
+        )
+        lines.extend(removed)
+    lines.append("")
+    return "files_removed.txt", "\n".join(lines)
+
+
+def render_files_kept(record: RunRecord) -> tuple[str, str]:
+    """Flat sorted list of domain-relative paths that will be kept.
+
+    One POSIX path per line, alphabetically sorted.  Includes files
+    with ``FULL_COPY``, ``PROC_TRIM``, and ``GENERATED`` treatments.
+    The file is empty (header only) when the manifest is absent.
+    Useful during ``--dry-run`` to verify the survival set at a glance.
+    """
+
+    manifest = record.manifest
+    lines: list[str] = ["# files_kept.txt — paths that survive trimming"]
+    if manifest is not None:
+        _kept_treatments = {FileTreatment.FULL_COPY, FileTreatment.PROC_TRIM, FileTreatment.GENERATED}
+        kept = sorted(
+            p.as_posix() for p, t in manifest.file_decisions.items() if t in _kept_treatments
+        )
+        lines.extend(kept)
+    lines.append("")
+    return "files_kept.txt", "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

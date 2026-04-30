@@ -20,6 +20,8 @@ from chopper.audit.writers import (
     render_compiled_manifest,
     render_dependency_graph,
     render_diagnostics,
+    render_files_kept,
+    render_files_removed,
     render_run_id,
     render_trim_report_json,
     render_trim_report_txt,
@@ -53,6 +55,8 @@ class AuditService:
         renderings.append(render_trim_report_json(ctx, record))
         renderings.append(render_trim_report_txt(ctx, record))
         renderings.append(render_trim_stats(ctx, record))
+        renderings.append(render_files_removed(record))
+        renderings.append(render_files_kept(record))
 
         # Preserve input files as exact byte-for-byte copies.
         input_copies = self._copy_inputs(ctx, record)
