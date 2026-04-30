@@ -965,19 +965,27 @@ class TestParseResult:
     def test_index_missing_proc_rejected(self) -> None:
         proc = _make_proc(file="a.tcl")
         pf = ParsedFile(path=Path("a.tcl"), procs=(proc,), encoding="utf-8")
-        with pytest.raises(ValueError, match="index keys diverge"):
+        with pytest.raises(ValueError, match="missing entries listed in ParseResult.files"):
             ParseResult(files={Path("a.tcl"): pf}, index={})
 
-    def test_index_extra_key_rejected(self) -> None:
+    def test_index_extra_key_accepted(self) -> None:
+        # The relaxed invariant (Option A: full-domain proc index) allows
+        # ``index`` to carry entries whose ``defined_in`` is NOT a key of
+        # ``files`` — those are non-surfaced files harvested so the P4
+        # tracer can resolve cross-file calls and report the actual
+        # defining path.
         proc = _make_proc(file="a.tcl", short="helper", qualified="helper")
         pf = ParsedFile(path=Path("a.tcl"), procs=(proc,), encoding="utf-8")
-        # Fabricate a second ProcEntry that isn't in any ParsedFile.
         stray = _make_proc(file="b.tcl", short="stray", qualified="stray")
-        with pytest.raises(ValueError, match="index keys diverge"):
-            ParseResult(
-                files={Path("a.tcl"): pf},
-                index={proc.canonical_name: proc, stray.canonical_name: stray},
-            )
+        pr = ParseResult(
+            files={Path("a.tcl"): pf},
+            index={proc.canonical_name: proc, stray.canonical_name: stray},
+        )
+        assert pr.index["a.tcl::helper"] is proc
+        assert pr.index["b.tcl::stray"] is stray
+        # Extra-index entry has no corresponding ``files`` row — confirms
+        # the surface-vs-domain split.
+        assert Path("b.tcl") not in pr.files
 
     def test_duplicate_canonical_across_files_rejected(self) -> None:
         p1 = _make_proc(file="a.tcl", short="helper", qualified="helper")

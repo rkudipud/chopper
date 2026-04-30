@@ -268,16 +268,26 @@ class ParseResult:
       parser constructs this as a plain :class:`dict` sorted lex on the
       POSIX form of the path; the mapping is frozen only in the sense
       that the enclosing :class:`ParseResult` is frozen (callers must
-      not mutate).
+      not mutate). ``files`` is scoped to the *surface* set — the union
+      of paths the user named (literal FI, glob-matched FI, proc-ref
+      files). The compiler operates exclusively on this view.
     * ``index`` — maps ``canonical_name`` to :class:`ProcEntry` for O(1)
-      lookup by the compiler and tracer. The same :class:`ProcEntry`
-      instance appears in ``files[path].procs`` and ``index[cn]``.
+      lookup by the compiler and tracer. ``index`` is a **full-domain**
+      proc index: it contains every proc defined in any ``.tcl`` file
+      anywhere under ``domain_root``, including files outside ``files``.
+      This lets the P4 tracer resolve calls into files the user did not
+      surface so ``dependency_graph.json`` reports the actual defining
+      file (the user can then add it to the JSON in a follow-up run).
+      Trace remains reporting-only — a wider index does not change which
+      files or procs survive (see Critical Principle #7).
 
     Invariants checked in ``__post_init__``:
 
     1. Every ``ProcEntry`` in every ``ParsedFile.procs`` appears in
-       ``index`` under its ``canonical_name``, and only those entries
-       appear. This catches divergence between the two views.
+       ``index`` under its ``canonical_name``, referring to the *same*
+       :class:`ProcEntry` instance. ``index`` may also contain entries
+       whose ``defined_in`` path is **not** a key of ``files`` — those
+       are full-domain index entries for non-surfaced files.
     2. ``canonical_name`` keys in ``index`` are lex-sorted (required for
        deterministic dependency-graph output).
     """
@@ -286,17 +296,20 @@ class ParseResult:
     index: dict[str, ProcEntry] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        # 1. Index ↔ files consistency.
+        # 1. Every proc listed in ``files`` must appear in ``index`` as
+        #    the same instance. ``index`` may carry extra entries from
+        #    non-surfaced files (full-domain coverage for trace).
         from_files: dict[str, ProcEntry] = {}
         for parsed in self.files.values():
             for proc in parsed.procs:
                 if proc.canonical_name in from_files:
                     raise ValueError(f"ParseResult: duplicate canonical_name across files: {proc.canonical_name!r}")
                 from_files[proc.canonical_name] = proc
-        if set(from_files) != set(self.index):
-            raise ValueError("ParseResult.index keys diverge from the procs listed in ParseResult.files")
-        for cn, proc in self.index.items():
-            if from_files[cn] is not proc:
+        missing = set(from_files) - set(self.index)
+        if missing:
+            raise ValueError(f"ParseResult.index is missing entries listed in ParseResult.files: {sorted(missing)!r}")
+        for cn, proc in from_files.items():
+            if self.index[cn] is not proc:
                 raise ValueError(
                     f"ParseResult.index[{cn!r}] does not refer to the same ProcEntry instance as files view"
                 )

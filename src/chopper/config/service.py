@@ -22,7 +22,11 @@ Responsibilities:
 
 What ConfigService does **not** do:
 
-* It does not expand globs — that is the compiler's job (P3).
+* It does not perform R1 conflict resolution between sources — that is
+  the compiler's job (P3). P1 *does* expand ``files.include`` glob
+  patterns against the on-disk domain so the P2 parser can find files
+  reachable only via a glob; ``files.exclude`` globs are still resolved
+  in P3 against the parsed universe.
 * It does not check whether files exist on disk — ``VE-06`` is the
   validator's job (``validate_pre``).
 * It does not check domain-name consistency (``VE-17``) or duplicate
@@ -38,7 +42,10 @@ service returns.
 from __future__ import annotations
 
 import json
+import re
+from collections import deque
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -135,7 +142,7 @@ class ConfigService:
         sorted_features = topo_sort_features(features, provenance, ctx.diag.emit)
 
         # --- surface_files: union of literal file refs from all sources ---
-        surface = _collect_surface_files(base_json, sorted_features)
+        surface = _collect_surface_files(base_json, sorted_features, ctx)
         surface_sorted = tuple(sorted(surface, key=lambda p: p.as_posix()))
 
         # --- tool_command_pool: built-in lists + any --tool-commands paths ---
@@ -228,34 +235,154 @@ def _empty_config() -> LoadedConfig:
     )
 
 
-def _collect_surface_files(base: BaseJson, features: list[FeatureJson]) -> set[Path]:
-    """Union of every *literal* file path named across all JSON sources.
+def _is_glob_pattern(s: str) -> bool:
+    """Return True if ``s`` contains glob metacharacters."""
+    return any(ch in s for ch in ("*", "?", "["))
 
-    Glob patterns (strings containing ``*`` or ``?``) are intentionally
-    excluded here — glob expansion against the real filesystem is the
-    compiler's responsibility (P3).  This function collects only the
-    concrete ``file`` entries from ``procedures.include`` /
-    ``procedures.exclude`` and the literal (non-glob) entries from
-    ``files.include`` / ``files.exclude``.
+
+def _glob_to_regex_local(pattern: str) -> re.Pattern[str] | None:
+    """Translate a POSIX-style glob with ``**`` semantics into a compiled regex.
+
+    Mirrors the logic in :func:`chopper.compiler.merge_service._glob_to_regex`
+    so that P1 surface-file collection and P3 conflict resolution use identical
+    glob semantics.  Returns ``None`` for patterns that contain no ``**`` so
+    the caller can fall back to :func:`fnmatch.fnmatchcase`.
+    """
+    if "**" not in pattern:
+        return None
+    out: list[str] = []
+    i = 0
+    n = len(pattern)
+    while i < n:
+        ch = pattern[i]
+        if ch == "*":
+            if i + 1 < n and pattern[i + 1] == "*":
+                if i + 2 < n and pattern[i + 2] == "/":
+                    out.append("(?:.*/)?")
+                    i += 3
+                else:
+                    out.append(".*")
+                    i += 2
+            else:
+                out.append("[^/]*")
+                i += 1
+        elif ch == "?":
+            out.append("[^/]")
+            i += 1
+        elif ch == "[":
+            j = i + 1
+            if j < n and pattern[j] == "!":
+                j += 1
+            if j < n and pattern[j] == "]":
+                j += 1
+            while j < n and pattern[j] != "]":
+                j += 1
+            if j >= n:
+                out.append(re.escape("["))
+                i += 1
+            else:
+                cls = pattern[i + 1 : j]
+                if cls.startswith("!"):
+                    cls = "^" + cls[1:]
+                out.append("[" + cls + "]")
+                i = j + 1
+        else:
+            out.append(re.escape(ch))
+            i += 1
+    return re.compile("".join(out))
+
+
+def _enumerate_domain_files(ctx: ChopperContext) -> list[tuple[Path, str]]:
+    """Walk the domain filesystem once and return all regular files as
+    ``(domain_relative_path, posix_string)`` pairs.
+
+    The ``.chopper/`` audit directory is always excluded.  Returns an empty
+    list if the domain root does not exist (e.g. unit-test in-memory FS).
+    """
+    domain = ctx.config.domain_root
+    if not ctx.fs.exists(domain):
+        return []
+
+    results: list[tuple[Path, str]] = []
+    frontier: deque[Path] = deque([domain])
+    while frontier:
+        current = frontier.popleft()
+        try:
+            children = ctx.fs.list(current)
+        except OSError:
+            continue
+        for child in children:
+            try:
+                rel = child.relative_to(domain)
+            except ValueError:
+                continue
+            rel_posix = rel.as_posix()
+            if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
+                continue
+            try:
+                st = ctx.fs.stat(child)
+            except OSError:
+                continue
+            if st.is_dir:
+                frontier.append(child)
+            else:
+                results.append((rel, rel_posix))
+    return results
+
+
+def _match_glob_against(pattern: str, domain_files: list[tuple[Path, str]]) -> set[Path]:
+    """Filter pre-enumerated domain files by a single glob pattern."""
+    regex = _glob_to_regex_local(pattern)
+    matches: set[Path] = set()
+    if regex is not None:
+        for rel, rel_posix in domain_files:
+            if regex.fullmatch(rel_posix):
+                matches.add(rel)
+    else:
+        for rel, rel_posix in domain_files:
+            if fnmatchcase(rel_posix, pattern):
+                matches.add(rel)
+    return matches
+
+
+def _collect_surface_files(base: BaseJson, features: list[FeatureJson], ctx: ChopperContext) -> set[Path]:
+    """Union of every file path contributed by all JSON sources.
+
+    Literal paths (no glob metacharacters) are added directly.  Glob
+    patterns in ``files.include`` are expanded against the real domain
+    filesystem so that files reachable only via a glob — never named
+    literally — are included in the P2 parse universe.  Glob patterns in
+    ``files.exclude`` are intentionally not expanded here (the compiler
+    applies them against ``parsed_paths`` in P3).
+
+    ``procedures.include`` / ``procedures.exclude`` always use exact file
+    paths, so those are added directly.
+
+    Performance: the domain filesystem is walked at most once, regardless
+    of how many sources or glob patterns are present.  The walk is skipped
+    entirely when no source has a glob pattern in ``files.include``.
     """
     paths: set[Path] = set()
 
     def _add_literal(s: str) -> None:
-        if "*" not in s and "?" not in s and "{" not in s:
+        if not _is_glob_pattern(s):
             paths.add(Path(s))
 
-    def _harvest(obj: BaseJson | FeatureJson) -> None:
-        for pattern in obj.files.include:
-            _add_literal(pattern)
-        for pattern in obj.files.exclude:
-            _add_literal(pattern)
-        for ref in obj.procedures.include:
-            paths.add(ref.file)
-        for ref in obj.procedures.exclude:
-            paths.add(ref.file)
+    sources: tuple[BaseJson | FeatureJson, ...] = (base, *features)
+    has_fi_glob = any(_is_glob_pattern(p) for s in sources for p in s.files.include)
+    domain_files: list[tuple[Path, str]] = _enumerate_domain_files(ctx) if has_fi_glob else []
 
-    _harvest(base)
-    for feat in features:
-        _harvest(feat)
+    for src in sources:
+        for pattern in src.files.include:
+            if _is_glob_pattern(pattern):
+                paths.update(_match_glob_against(pattern, domain_files))
+            else:
+                paths.add(Path(pattern))
+        for pattern in src.files.exclude:
+            _add_literal(pattern)
+        for ref in src.procedures.include:
+            paths.add(ref.file)
+        for ref in src.procedures.exclude:
+            paths.add(ref.file)
 
     return paths

@@ -214,11 +214,19 @@ class ParserService:
         """Parse every file in ``files`` and return the aggregate result.
 
         :param ctx: Run context with ``fs`` and ``diag`` ports bound.
-        :param files: Paths to parse. Each is normalized to the
-            domain-relative POSIX form before being recorded on the
-            resulting :class:`ProcEntry` records.
-        :returns: :class:`ParseResult` with the per-file map and the
-            canonical-name index.
+        :param files: Paths to parse with diagnostics. Each is normalized
+            to the domain-relative POSIX form before being recorded on
+            the resulting :class:`ProcEntry` records. This is the
+            *surface* set: the user-facing slice that produces
+            :class:`ParsedFile` entries in :attr:`ParseResult.files` and
+            emits parser diagnostics into ``ctx.diag``.
+        :returns: :class:`ParseResult` whose ``files`` map covers the
+            surface set and whose ``index`` is a **full-domain** proc
+            index (every ``.tcl`` definition under ``domain_root``) so
+            the P4 tracer can resolve calls into files the user did not
+            surface and report their actual defining path. Trace remains
+            reporting-only \u2014 the wider index never changes which files
+            or procs survive (see Critical Principle #7).
 
         Ordering:
 
@@ -230,24 +238,28 @@ class ParserService:
           lexicographically by canonical-name at construction per
           :class:`ParseResult` invariant 2.
         """
-        # Normalize once, then work with the normalized paths throughout.
-        normalized: list[Path] = [self._normalize(ctx, raw) for raw in files]
-        # Non-Tcl companion files (``.py``, ``.pl``, ``.csh``, ``.cfg``,
-        # …) are dropped here — the Tcl tokenizer must not see them (see
-        # module-level ``_TCL_SUFFIX`` commentary). They still receive
-        # F1 file-level treatment downstream because the compiler's
+        # Normalize the surface set once. Non-Tcl companion files
+        # (``.py``, ``.pl``, ``.csh``, ``.cfg``, \u2026) are dropped here \u2014
+        # the Tcl tokenizer must not see them (see module-level
+        # ``_TCL_SUFFIX`` commentary). They still receive F1 file-level
+        # treatment downstream because the compiler's
         # ``_collect_universe`` adds literal ``files.include`` paths to
         # the manifest universe independently of ``ParseResult.files``.
-        tcl_only: list[Path] = [p for p in normalized if p.suffix.lower() == _TCL_SUFFIX]
+        normalized: list[Path] = [self._normalize(ctx, raw) for raw in files]
+        surface_tcl: list[Path] = [p for p in normalized if p.suffix.lower() == _TCL_SUFFIX]
         # Dedup while preserving order: duplicates could occur from glob
         # overlap in the caller. Using dict.fromkeys keeps the first seen.
-        unique_sorted = sorted(dict.fromkeys(tcl_only), key=lambda p: p.as_posix())
+        surface_sorted = sorted(dict.fromkeys(surface_tcl), key=lambda p: p.as_posix())
+        surface_set: set[Path] = set(surface_sorted)
 
         parsed_files: dict[Path, ParsedFile] = {}
         index: dict[str, ProcEntry] = {}
 
-        for path in unique_sorted:
-            parsed = self._parse_one(ctx, path)
+        # ------------------------------------------------------------
+        # Phase 2a \u2014 surface parse (with diagnostics).
+        # ------------------------------------------------------------
+        for path in surface_sorted:
+            parsed = self._parse_one(ctx, path, emit_diagnostics=True)
             parsed_files[path] = parsed
             for proc in parsed.procs:
                 # The extractor already guarantees unique canonical names
@@ -255,10 +267,73 @@ class ParserService:
                 # are impossible because canonical names embed the path.
                 index[proc.canonical_name] = proc
 
+        # ------------------------------------------------------------
+        # Phase 2b \u2014 full-domain proc-index harvest (silent).
+        # ------------------------------------------------------------
+        # Every ``.tcl`` file under ``domain_root`` that is NOT in the
+        # surface set is parsed here for the sole purpose of populating
+        # ``index``. No :class:`ParsedFile` is recorded in ``files``;
+        # diagnostics are silently dropped because the user did not ask
+        # us to scrutinise these files \u2014 they exist only so the P4
+        # tracer can name a definition's real location when it resolves
+        # a call from a surfaced caller into a non-surfaced callee.
+        for path in self._enumerate_domain_tcl(ctx):
+            if path in surface_set:
+                continue
+            try:
+                parsed = self._parse_one(ctx, path, emit_diagnostics=False)
+            except OSError:
+                # File vanished between enumeration and read; skip silently.
+                continue
+            for proc in parsed.procs:
+                index.setdefault(proc.canonical_name, proc)
+
         # Reconstruct the index in lex order to satisfy ParseResult
         # invariant 2.
         sorted_index = {k: index[k] for k in sorted(index.keys())}
         return ParseResult(files=parsed_files, index=sorted_index)
+
+    def _enumerate_domain_tcl(self, ctx: ChopperContext) -> list[Path]:
+        """Walk the domain via ``ctx.fs`` and return every ``.tcl`` file
+        as a domain-relative :class:`Path`, lex-sorted by POSIX form.
+
+        The ``.chopper/`` audit directory is always excluded \u2014 it is
+        Chopper's own bookkeeping, never user code. Returns an empty
+        list when ``domain_root`` does not exist (covers in-memory
+        unit-test fixtures that synthesise no real domain).
+        """
+        from collections import deque  # noqa: PLC0415
+
+        domain = ctx.config.domain_root
+        if not ctx.fs.exists(domain):
+            return []
+
+        results: list[Path] = []
+        frontier: deque[Path] = deque([domain])
+        while frontier:
+            current = frontier.popleft()
+            try:
+                children = ctx.fs.list(current)
+            except OSError:
+                continue
+            for child in children:
+                try:
+                    rel = child.relative_to(domain)
+                except ValueError:
+                    continue
+                rel_posix = rel.as_posix()
+                if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
+                    continue
+                try:
+                    st = ctx.fs.stat(child)
+                except OSError:
+                    continue
+                if st.is_dir:
+                    frontier.append(child)
+                elif rel.suffix.lower() == _TCL_SUFFIX:
+                    results.append(rel)
+        results.sort(key=lambda p: p.as_posix())
+        return results
 
     @staticmethod
     def _normalize(ctx: ChopperContext, raw: Path) -> Path:
@@ -287,10 +362,21 @@ class ParserService:
         # normalized form on all platforms.
         return Path(*raw.parts)
 
-    def _parse_one(self, ctx: ChopperContext, path: Path) -> ParsedFile:
-        """Read ``path`` through ``ctx.fs``, decode, parse, emit diagnostics."""
-        text, encoding = self._read_with_fallback(ctx, path)
-        procs = parse_file(path, text, on_diagnostic=ctx.diag.emit)
+    def _parse_one(self, ctx: ChopperContext, path: Path, *, emit_diagnostics: bool = True) -> ParsedFile:
+        """Read ``path`` through ``ctx.fs``, decode, parse.
+
+        :param emit_diagnostics: When ``True`` (the surface-parse path),
+            every parser diagnostic is forwarded to ``ctx.diag.emit``.
+            When ``False`` (the full-domain-index harvest path),
+            diagnostics are silently dropped \u2014 the file is not part of
+            the user's selection so emitting ``PE-02`` / ``PW-*`` against
+            it would be misleading. The proc index, however, still
+            captures every successfully-extracted definition so the P4
+            tracer can resolve calls into non-surfaced files.
+        """
+        sink = ctx.diag.emit if emit_diagnostics else _noop_diagnostic
+        text, encoding = self._read_with_fallback(ctx, path, sink)
+        procs = parse_file(path, text, on_diagnostic=sink)
         return ParsedFile(path=path, procs=tuple(procs), encoding=encoding)
 
     @staticmethod
@@ -313,12 +399,20 @@ class ParserService:
             return path
         return ctx.config.domain_root / path
 
-    def _read_with_fallback(self, ctx: ChopperContext, path: Path) -> tuple[str, Literal["utf-8", "latin-1"]]:
+    def _read_with_fallback(
+        self,
+        ctx: ChopperContext,
+        path: Path,
+        sink: DiagnosticCollector,
+    ) -> tuple[str, Literal["utf-8", "latin-1"]]:
         """UTF-8 decode with Latin-1 fallback.
 
         Returns ``(text, encoding)`` where ``encoding`` is the label
         recorded on :class:`ParsedFile` (``"utf-8"`` or ``"latin-1"``).
-        Emits ``PW-02`` exactly once per file on fallback.
+        Emits ``PW-02`` exactly once per file on fallback. ``sink`` is
+        the parser's diagnostic collector \u2014 ``ctx.diag.emit`` for
+        surface files, :func:`_noop_diagnostic` for the silent
+        full-domain-index harvest.
 
         Implementation note: :class:`FileSystemPort.read_text` accepts an
         ``encoding`` kwarg; we call it twice if the first raises
@@ -331,7 +425,7 @@ class ParserService:
             return text, "utf-8"
         except UnicodeDecodeError:
             text = ctx.fs.read_text(read_path, encoding="latin-1")
-            ctx.diag.emit(
+            sink(
                 Diagnostic.build(
                     "PW-02",
                     phase=Phase.P2_PARSE,
@@ -341,3 +435,15 @@ class ParserService:
                 )
             )
             return text, "latin-1"
+
+
+def _noop_diagnostic(_diag: Diagnostic) -> None:
+    """Diagnostic sink that drops every event.
+
+    Used by :class:`ParserService` when parsing files outside the
+    surface set (full-domain proc-index harvest). The user did not name
+    these files; emitting ``PE-02`` or ``PW-*`` against them would be
+    misleading. The procs they define still enter the index so trace
+    can resolve cross-file calls.
+    """
+    return None

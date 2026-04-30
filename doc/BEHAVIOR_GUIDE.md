@@ -152,7 +152,7 @@ Or by including the whole file:
 | Code | Meaning | Recommended action |
 | --- | --- | --- |
 | `TW-01` resolved-ambiguous | Call could match multiple procs (same short name in different files) | Pick one or qualify with namespace |
-| `TW-02` namespace-unresolved | Namespace-qualified call couldn't be resolved inside the domain | Verify namespace path, or accept that callee lives outside the domain |
+| `TW-02` external-or-cross-domain | No in-domain proc with this name exists; the call is external (vendor tool, system command) or lives outside the selected domain. Chopper's full-domain proc index has been searched. | If the proc is needed and you know the file, add it to `procedures.include` or `files.include`. Otherwise accept — it is a tool command or cross-domain reference. |
 | `TW-03` dynamic-call-form | `$cmd`, `eval "..."`, `uplevel` — can't be statically resolved | Add explicitly if needed, or accept the ambiguity |
 | `TW-04` cycle-in-call-graph | Two procs call each other | Review — usually safe, but can mask intent bugs |
 

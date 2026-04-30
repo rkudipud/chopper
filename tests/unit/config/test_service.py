@@ -42,6 +42,37 @@ class _InMemoryFS:
     def copy_tree(self, src: Path, dst: Path) -> None: ...  # pragma: no cover
 
 
+class _GlobFS(_InMemoryFS):
+    """Extended FS double that supports ``list`` and ``stat`` for a synthetic
+    directory tree.  ``tree_files`` is a set of domain-relative POSIX strings
+    representing files that exist on the simulated disk."""
+
+    def __init__(self, json_files: dict[Path, str], domain: Path, tree_files: set[str]) -> None:
+        super().__init__(json_files)
+        self._domain = domain
+        # Build parent-dir registry
+        self._dirs: set[Path] = {domain}
+        self._tree: set[Path] = set()
+        for rel in tree_files:
+            abs_path = domain / rel
+            self._tree.add(abs_path)
+            for parent in abs_path.parents:
+                if parent == domain or str(parent).startswith(str(domain)):
+                    self._dirs.add(parent)
+
+    def exists(self, path: Path) -> bool:
+        return path in self._files or path in self._tree or path in self._dirs
+
+    def list(self, path: Path, *, pattern: str | None = None):
+        if path not in self._dirs:
+            raise NotADirectoryError(path)
+        children = {c for c in self._tree | self._dirs if c.parent == path and c != path}
+        return tuple(sorted(children, key=lambda p: p.as_posix()))
+
+    def stat(self, path: Path) -> FileStat:
+        return FileStat(size=0, mtime=0.0, is_dir=(path in self._dirs))
+
+
 class _CollectingSink:
     def __init__(self) -> None:
         self.emissions: list[Diagnostic] = []
@@ -90,6 +121,35 @@ def _make_ctx(
         feature_paths=feature_paths,
     )
     ctx = ChopperContext(config=cfg, fs=_InMemoryFS(files), diag=sink, progress=_NullProgress())
+    return ctx, sink
+
+
+def _make_glob_ctx(
+    json_files: dict[Path, str],
+    disk_tree: set[str],
+    *,
+    base_path: Path | None = None,
+    feature_paths: tuple[Path, ...] = (),
+    domain_root: Path = _DOMAIN,
+) -> tuple[ChopperContext, _CollectingSink]:
+    """Like ``_make_ctx`` but backed by ``_GlobFS`` so glob expansion works."""
+    sink = _CollectingSink()
+    cfg = RunConfig(
+        domain_root=domain_root,
+        backup_root=_BACKUP,
+        audit_root=domain_root / ".chopper",
+        strict=False,
+        dry_run=False,
+        project_path=None,
+        base_path=base_path,
+        feature_paths=feature_paths,
+    )
+    ctx = ChopperContext(
+        config=cfg,
+        fs=_GlobFS(json_files, domain_root, disk_tree),
+        diag=sink,
+        progress=_NullProgress(),
+    )
     return ctx, sink
 
 
@@ -261,8 +321,12 @@ class TestSurfaceFiles:
         posix_set = {p.as_posix() for p in result.surface_files}
         assert "procs/core.tcl" in posix_set
 
-    def test_glob_pattern_not_in_surface(self) -> None:
-        # Glob patterns must NOT appear in surface_files (no expansion here).
+    def test_glob_pattern_not_literal_in_surface(self) -> None:
+        # The glob pattern string itself must never appear verbatim in
+        # surface_files.  With _InMemoryFS (no real domain dir), glob
+        # expansion yields no hits — only the literal path "setup.tcl"
+        # surfaces.  A real-disk scenario is tested in
+        # TestGlobExpansion.test_fi_glob_expands_via_disk_walk.
         base_path = _DOMAIN / "jsons/base.json"
         base_doc = json.dumps(
             {
@@ -334,6 +398,143 @@ class TestSurfaceFiles:
         posix_set = {p.as_posix() for p in result.surface_files}
         assert "setup.tcl" in posix_set
         assert "extra.tcl" in posix_set
+
+
+# ---------------------------------------------------------------------------
+# Glob expansion in surface_files (regression for issue #12)
+# ---------------------------------------------------------------------------
+
+
+class TestGlobExpansion:
+    """Verify that files.include glob patterns are expanded against the
+    domain filesystem in P1 so that the P2 parser receives every matching
+    file — fixing the silent data-loss bug reported in issue #12."""
+
+    def test_fi_glob_expands_via_disk_walk(self) -> None:
+        """files.include glob populates surface_files with matched files."""
+        base_path = _DOMAIN / "jsons/base.json"
+        base_doc = json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "my_domain",
+                "files": {"include": ["reports/**"]},
+            }
+        )
+        ctx, _ = _make_glob_ctx(
+            {base_path: base_doc},
+            {"reports/summary.tcl", "reports/sub/detail.tcl", "reports/data.py"},
+            base_path=base_path,
+        )
+        result = ConfigService().run(ctx, _default_state())
+        posix_set = {p.as_posix() for p in result.surface_files}
+        assert "reports/summary.tcl" in posix_set
+        assert "reports/sub/detail.tcl" in posix_set
+        assert "reports/data.py" in posix_set
+
+    def test_double_star_glob_expands_subdirectories(self) -> None:
+        """``**`` recurses into nested subdirectories."""
+        base_path = _DOMAIN / "jsons/base.json"
+        base_doc = json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "my_domain",
+                "files": {"include": ["rules/**/*.tcl"]},
+            }
+        )
+        ctx, _ = _make_glob_ctx(
+            {base_path: base_doc},
+            {"rules/r1.tcl", "rules/sub/r2.tcl", "rules/sub/r2.py"},
+            base_path=base_path,
+        )
+        result = ConfigService().run(ctx, _default_state())
+        posix_set = {p.as_posix() for p in result.surface_files}
+        assert "rules/r1.tcl" in posix_set
+        assert "rules/sub/r2.tcl" in posix_set
+        assert "rules/sub/r2.py" not in posix_set  # .py doesn't match *.tcl
+
+    def test_glob_and_literal_combined(self) -> None:
+        """Literal paths and glob expansions are merged into surface_files."""
+        base_path = _DOMAIN / "jsons/base.json"
+        base_doc = json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "my_domain",
+                "files": {"include": ["setup.tcl", "procs/*.tcl"]},
+            }
+        )
+        ctx, _ = _make_glob_ctx(
+            {base_path: base_doc},
+            {"procs/a.tcl", "procs/b.tcl"},
+            base_path=base_path,
+        )
+        result = ConfigService().run(ctx, _default_state())
+        posix_set = {p.as_posix() for p in result.surface_files}
+        assert "setup.tcl" in posix_set
+        assert "procs/a.tcl" in posix_set
+        assert "procs/b.tcl" in posix_set
+
+    def test_chopper_dir_never_surfaces_via_glob(self) -> None:
+        """.chopper/ audit dir is excluded from glob expansion."""
+        base_path = _DOMAIN / "jsons/base.json"
+        base_doc = json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "my_domain",
+                "files": {"include": ["**"]},
+            }
+        )
+        ctx, _ = _make_glob_ctx(
+            {base_path: base_doc},
+            {"setup.tcl", ".chopper/run.json"},
+            base_path=base_path,
+        )
+        result = ConfigService().run(ctx, _default_state())
+        posix_set = {p.as_posix() for p in result.surface_files}
+        assert "setup.tcl" in posix_set
+        assert ".chopper/run.json" not in posix_set
+
+    def test_feature_glob_also_expands(self) -> None:
+        """Glob in a feature's files.include also surfaces matched files."""
+        base_path = _DOMAIN / "jsons/base.json"
+        feat_path = _DOMAIN / "jsons/features/srv.json"
+        base_doc = json.dumps({"$schema": "base-v1", "domain": "my_domain", "files": {"include": ["core.tcl"]}})
+        feat_doc = json.dumps(
+            {
+                "$schema": "feature-v1",
+                "name": "srv",
+                "files": {"include": ["server_reports/**"]},
+            }
+        )
+        ctx, _ = _make_glob_ctx(
+            {base_path: base_doc, feat_path: feat_doc},
+            {"server_reports/activity.tcl", "server_reports/power.tcl"},
+            base_path=base_path,
+            feature_paths=(feat_path,),
+        )
+        result = ConfigService().run(ctx, _default_state())
+        posix_set = {p.as_posix() for p in result.surface_files}
+        assert "server_reports/activity.tcl" in posix_set
+        assert "server_reports/power.tcl" in posix_set
+
+    def test_zero_match_glob_does_not_crash(self) -> None:
+        """A glob that matches nothing leaves surface_files unaffected."""
+        base_path = _DOMAIN / "jsons/base.json"
+        base_doc = json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "my_domain",
+                "files": {"include": ["missing_dir/**", "setup.tcl"]},
+            }
+        )
+        ctx, _ = _make_glob_ctx(
+            {base_path: base_doc},
+            {"setup.tcl"},
+            base_path=base_path,
+        )
+        result = ConfigService().run(ctx, _default_state())
+        posix_set = {p.as_posix() for p in result.surface_files}
+        assert "setup.tcl" in posix_set
+        assert not any("missing_dir" in p for p in posix_set)
 
 
 # ---------------------------------------------------------------------------
@@ -411,12 +612,16 @@ def test_config_service_collects_surface_files_from_all_sections() -> None:
             exclude=(ProcEntryRef(file=Path("extra.tcl"), procs=("bad",)),),
         ),
     )
-    surface = _collect_surface_files(base, [feat])
+    # Build a minimal ctx so _collect_surface_files can attempt disk expansion.
+    # _InMemoryFS.exists() returns False for the domain root, so glob
+    # expansion gracefully returns empty and only literals are surfaced.
+    ctx, _ = _make_ctx({Path("/dom/base.json"): ""}, base_path=Path("/dom/base.json"), domain_root=Path("/dom"))
+    surface = _collect_surface_files(base, [feat], ctx)
     posix = {p.as_posix() for p in surface}
     # Literal include + exclude from both sources captured.
     assert "main.tcl" in posix
     assert "extra.tcl" in posix
     assert "unwanted.tcl" in posix
-    # Glob entries excluded.
+    # Glob entries not present as raw strings (expansion returned empty with InMemoryFS).
     assert "lib/*.tcl" not in posix
     assert "skip/*.tcl" not in posix

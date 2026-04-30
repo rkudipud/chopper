@@ -245,12 +245,19 @@ def _glob_syntax_ok(pattern: str) -> bool:
 def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
     """Return ``True`` iff ``pattern`` matches any file under ``domain_root``.
 
-    The :class:`FileSystemPort` protocol does not expose a recursive
-    glob method, so we BFS the tree via :meth:`list` and match each
-    domain-relative POSIX path against the pattern with
-    :meth:`PurePosixPath.match`. Early-exits on the first hit.
+    The :class:`FileSystemPort` protocol does not expose a recursive glob
+    method, so we BFS the tree via :meth:`list` and test each domain-relative
+    POSIX path using the same ``**``-aware regex translation as the P1/P3
+    glob engines.  :meth:`PurePosixPath.match` is intentionally avoided
+    because its ``**`` support is Python-version-dependent (added in 3.12).
+    Early-exits on the first matching file.
     """
+    import re as _re  # noqa: PLC0415
+    from fnmatch import fnmatchcase as _fnmatchcase  # noqa: PLC0415
 
+    from chopper.config.service import _glob_to_regex_local  # noqa: PLC0415
+
+    regex = _glob_to_regex_local(pattern)
     domain = ctx.config.domain_root
     if not ctx.fs.exists(domain):
         return False
@@ -267,18 +274,21 @@ def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
                 rel = child.relative_to(domain)
             except ValueError:
                 continue
-            if PurePosixPath(rel.as_posix()).match(pattern):
-                return True
-            # Descend into directories. ``list`` returns both files and
-            # dirs; probe via :meth:`exists` + :meth:`list` rather than
-            # requiring a stat port.
-            try:
-                # Treat as directory iff listing succeeds and yields
-                # at least one child (or is a known empty dir).
-                ctx.fs.list(child)
-                frontier.append(child)
-            except (NotADirectoryError, FileNotFoundError, OSError):
+            rel_posix = rel.as_posix()
+            if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
                 continue
+            try:
+                st = ctx.fs.stat(child)
+            except OSError:
+                continue
+            if st.is_dir:
+                frontier.append(child)
+            else:
+                if regex is not None:
+                    if isinstance(regex, _re.Pattern) and regex.fullmatch(rel_posix):
+                        return True
+                elif _fnmatchcase(rel_posix, pattern):
+                    return True
     return False
 
 
@@ -397,9 +407,7 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
                 )
         else:  # source / iproc_source
             callee_path = Path(edge.callee)
-            if callee_path not in surviving_files and not _source_matches_surviving_file(
-                callee_path, surviving_files
-            ):
+            if callee_path not in surviving_files and not _source_matches_surviving_file(callee_path, surviving_files):
                 ctx.diag.emit(
                     Diagnostic.build(
                         "VW-06",

@@ -5,9 +5,8 @@ import sys
 from pathlib import Path
 from zipfile import ZipFile
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / "scripts" / "package_bug_report.py"
+SCRIPT = REPO_ROOT / "schemas" / "scripts" / "package_bug_report.py"
 
 
 def test_package_bug_report_bundles_directory_and_report(tmp_path: Path) -> None:

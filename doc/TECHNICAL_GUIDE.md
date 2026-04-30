@@ -35,7 +35,7 @@ Every live `trim` run executes this sequence:
 | --- | --- | --- |
 | **P0** | Domain state | Detect whether `<domain>/` and `<domain>_backup/` exist; classify first-trim vs re-trim vs recovery |
 | **P1** | Config + pre-validate | Load base + feature JSONs, resolve `depends_on`, schema-validate, check file/proc existence |
-| **P2** | Parse Tcl | Tokenize all `.tcl` files, extract `ProcEntry` records (definitions, calls, namespaces) |
+| **P2** | Parse Tcl | Tokenize each `.tcl` file in `surface_files` and extract `ProcEntry` records (definitions, calls, namespaces). Then silently parse every other `.tcl` under `domain_root` (`.chopper/` excluded) so the proc index is **full-domain** — trace can resolve calls into files the JSON did not name and report the actual defining path. |
 | **P3** | Compile | Apply R1 merge rules across base + features; produce `CompiledManifest` with per-file treatments |
 | **P4** | Trace | BFS from explicit proc includes; emit `dependency_graph.json` and `TW-*` diagnostics. **Reporting only — no auto-copy.** |
 | **P5** | Build output | Execute file-level copies and proc-level rewrites. Emit F3 run scripts (`<stage>.tcl`). |

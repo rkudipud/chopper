@@ -1168,14 +1168,21 @@ chopper trim --dry-run --project configs/project_abc.json
   P0  Detect trim state        first trim vs re-trim (backup detection)
    │
    ▼
-  P1  Read & validate inputs   load base + feature JSONs; Phase 1 schema/structural checks
+  P1  Read & validate inputs   load base + feature JSONs; Phase 1 schema/structural checks;
+   │                           expand `files.include` glob patterns against the on-disk
+   │                           domain to populate `surface_files` (the set of files P2 parses)
    │
    ▼
-  P2  Parse domain Tcl         build proc index from all *.tcl in the domain
+  P2  Parse domain Tcl         build per-file ParsedFile entries for every `.tcl` in
+   │                           `surface_files` (with diagnostics), and harvest a
+   │                           full-domain proc index by silently parsing every
+   │                           other `.tcl` under `domain_root` so P4 can resolve
+   │                           calls into non-surfaced files
    │
    ▼
   P3  Compile selections       merge JSON rules → FI_literal, FI_glob, FE, PI, PE;
-   │                           apply glob expansion; apply R1 conflict resolution;
+   │                           re-evaluate glob patterns against the parsed universe;
+   │                           apply R1 conflict resolution;
    │                           resolve per-file PI/PE interaction; emit VW-09..VW-13;
    │                           produce surviving-files set and surviving-procs set
    │
@@ -1217,19 +1224,21 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 - Resolve the input mode: `--project <path>` (loads a project JSON which names `base` and ordered `features`), or explicit `--base <path> [--feature <path> ...]`.
 - Schema-validate every loaded JSON against `schemas/*.schema.json`.
 - Run Phase 1 structural checks: file existence, glob well-formedness, `feature.domain` matches `base.domain`, `depends_on` prerequisites precede dependents in the project `features` order, etc.
-- Emit `VE-*` on hard failures (non-zero exit); emit `VW-*` / `VI-*` on soft issues.
+- Build `surface_files` — the union of every domain-relative path contributed by any source. Literal `files.include` entries and the file paths in `procedures.include` / `procedures.exclude` are added directly. `files.include` patterns containing `*`, `?`, or `[` are expanded against the on-disk domain via a single deterministic BFS walk (with `.chopper/` excluded), using the same `**`-aware glob semantics as P3 so that any file P1 surfaces will also be matched by P3's conflict resolution. `files.exclude` globs are *not* expanded here — they are resolved in P3 against the parsed universe.
+- Emit `VE-*` on hard failures (non-zero exit); emit `VW-*` / `VI-*` on soft issues. `VW-03 glob-matches-nothing` is emitted by `validate_pre` when a `files.include` glob produces zero matches.
 - Owner: `config/` + `validator/` (Phase 1 validation).
-- Output: a frozen in-memory bundle of `(base_json, [feature_jsons], resolved_domain_path)` — no on-disk artifact.
+- Output: a frozen `LoadedConfig` carrying `(base_json, [feature_jsons], surface_files, ...)` — no on-disk artifact.
 
 #### P2 — Parse domain Tcl
 
-- Walk `sorted(domain_path.rglob('*.tcl'))` so traversal order is lexicographic and deterministic.
-- For each file, read text through the filesystem service and call `parse_file(file_path=path, text=text, on_diagnostic=...)`, which returns `list[ProcEntry]`.
+- Iterate `loaded.surface_files` (lex-sorted POSIX form) and parse only the `.tcl` entries; non-Tcl companion files in `surface_files` are file-level participants (F1) and never enter the tokenizer.
+- After the surface parse, walk the rest of the domain via `ctx.fs` and silently parse every other `.tcl` file under `domain_root` (`.chopper/` excluded) for the sole purpose of populating the canonical-name index. Diagnostics from these non-surfaced files are dropped — the user did not ask Chopper to scrutinise them, so emitting `PE-02` / `PW-*` against them would be misleading. The procs they define still enter the index so P4 can resolve a surfaced caller's call into a non-surfaced callee and report the actual defining file.
+- For each surfaced file, read text through the filesystem service and call `parse_file(file_path=path, text=text, on_diagnostic=...)`, which returns `list[ProcEntry]`.
 - Each `ProcEntry` carries `canonical_name`, `short_name`, `qualified_name`, `namespace_path`, body and DPA/comment spans, and the two handoff fields `calls` (raw call tokens) and `source_refs` (literal `source` / `iproc_source` targets). See [TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) §6 for the full field list.
 - The parser **does not resolve** `calls` — those are textual tokens. Resolution is P4's job.
-- Parser-family diagnostics (`PE-*` / `PW-*` / `PI-*`) flow through the `on_diagnostic` callback.
+- Parser-family diagnostics (`PE-*` / `PW-*` / `PI-*`) flow through the `on_diagnostic` callback only for surfaced files.
 - Owner: `parser/`.
-- Output: the **global proc index** — a dictionary keyed by `canonical_name` that concatenates every file's `ProcEntry` list in lex order. This single flat map is the source of truth for every later phase that needs to resolve a proc name. (See §5.4.1 for why a flat global index is required instead of per-file tables.)
+- Output: `ParseResult(files, index)` where `files` is the surfaced subset (the compiler operates exclusively on this view) and `index` is the **full-domain** canonical-name map. The relaxed model invariant (see `ParseResult.__post_init__`) requires `files.procs ⊆ index` but allows `index` to carry extra entries whose `defined_in` is not in `files`. Trace remains reporting-only — a wider index never changes which files or procs survive (Critical Principle #7).
 
 #### P3 — Compile selections
 
@@ -1528,20 +1537,31 @@ The orchestrator treats any `ERROR`-severity P2 diagnostic as a phase-gate failu
 
 **Canonical-name test vectors.** The authoritative canonical-name derivation table (ten vectors covering file root, single/nested namespaces, absolute-name override, subdirectory files, and the computed-name skip case) lives in [`TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §4.3.1. Implementations and tests reference that table; this architecture doc keeps the format contract (`"<domain-relative-posix-path>::<qualified_name>"`) and the survival rules (this section, above) without duplicating the per-vector list.
 
-**Step 2 — Assemble the global proc index (start of P4).**
-The compiler concatenates every file's `ProcEntry` list into **one flat dictionary keyed by `canonical_name`**:
+**Step 2 — Assemble the global proc index (P2, parser-owned).**
+The parser service concatenates every file's `ProcEntry` list into **one flat dictionary keyed by `canonical_name`** as part of P2. The walk covers the entire domain (`.chopper/` excluded) so the index is **full-domain**, not limited to the surfaced subset:
 
 ```python
+# P2 — ParserService.run
 proc_index: dict[str, ProcEntry] = {}
-for tcl_file in sorted(domain_path.rglob("*.tcl")):
-  text = fs.read_text(tcl_file)
-  for entry in parse_file(file_path=tcl_file, text=text, on_diagnostic=sink):
+# 2a. Surface parse: emit diagnostics, populate ParsedFile entries.
+for tcl_file in sorted(loaded.surface_files):  # only .tcl entries
+    text = fs.read_text(domain_root / tcl_file)
+    for entry in parse_file(file_path=tcl_file, text=text, on_diagnostic=ctx.diag.emit):
         proc_index[entry.canonical_name] = entry
+# 2b. Full-domain harvest: silent index-only parse for non-surfaced files.
+for tcl_file in sorted(domain_walk(fs, domain_root)):  # excludes .chopper/
+    if tcl_file in loaded.surface_files:
+        continue
+    text = fs.read_text(domain_root / tcl_file)
+    for entry in parse_file(file_path=tcl_file, text=text, on_diagnostic=lambda _d: None):
+        proc_index.setdefault(entry.canonical_name, entry)
 ```
 
-Files are walked in lexicographic order so the index is built the same way on every run and every host. This flat map is the single lookup table the tracer consults for the entire run.
+Files are walked in lexicographic order so the index is built the same way on every run and every host. The full-domain coverage lets P4 resolve a call from a surfaced caller into a callee defined in a file the user did not include, and `dependency_graph.json` records the actual defining path. Trace remains reporting-only: the wider index never adds survivors (Critical Principle #7) — it only sharpens the diagnostic so the user can see in the audit bundle which file holds the missing definition and add it to the JSON in the next run.
 
 > **Why a single global index, not per-file tables?** Tcl namespaces cross file boundaries. A proc defined in `a.tcl` inside `namespace eval ::foo { ... }` is callable from `b.tcl` as either `foo::proc_name` or (if the caller is in `::foo`) just `proc_name`. Only a single domain-wide index can resolve that correctly; per-file tables would force a second stitching pass that does the same work.
+>
+> **Why full-domain, not surface-only?** A surface-only index (P2 parses only the user's selection) makes `TW-02 unresolved-proc-call` fire on every call into a non-surfaced helper — the warning says "I don't know where this is" when the truth is "I never looked at the file it lives in". A full-domain index lets the tracer resolve the call and report the callee's actual `defined_in` path. `TW-02` then truly means "no in-domain proc with this name exists" — an external/cross-domain call. The user reads `dependency_graph.json`, sees the resolved edge points at a file not in the JSON, and adds it (whole-file or proc-level) in the next iteration. The full-domain harvest stops at the domain boundary: files outside `domain_root` are never read (consistent with the "DO NOT TOUCH" rule in §2.4) and the `.chopper/` audit subtree is always excluded.
 
 **Step 3 — Resolve calls during the BFS walk (P4, per popped proc).**
 The tracer pops one proc off the frontier, reads its `calls` tokens, and resolves each token under the deterministic lexical namespace contract from §5.4 ("Trace expansion algorithm", step 6):
@@ -3117,6 +3137,7 @@ This log records the conscious design decisions that shaped the current document
 | 2026-04-25 | **0.5.0 — `chopper validate --features` accepts directory entries.** Real regression flows need to validate every feature JSON under `jsons/features/` in one shot. Added **FR-43** and extended bible §5.1: for `chopper validate` only, any entry in the `--features` comma-separated list may be a directory path; it expands in place to the sorted (lexicographic), non-recursive set of its immediate `*.json` children (POSIX-normalized). Files and directories may be mixed freely. `chopper trim` (and `--project` in any subcommand) are intentionally **unchanged** — they still require explicit per-file paths so the ordered feature sequence recorded in audit artifacts stays unambiguous; passing a directory to `trim` fails at config load. Implemented as a validate-only rewrite step (`_expand_feature_dirs`) in `src/chopper/cli/commands.py` before `_make_context`; no changes to compiler, trimmer, or audit surfaces. Cascaded to `CLI_HELP_TEXT_REFERENCE.md`, `doc/USER_MANUAL.md`, `doc/IMPLEMENTATION_GUIDE.md`, and `README.md` (new Mode 2b example). Ships with seven new unit tests in `tests/unit/cli/test_commands.py` covering pass-through, directory expansion + sort order, mixed entries, empty dir, and the validate-expands / trim-does-not-expand contract. |
 
 | 2026-04-25 | **Issue template — EC site/zone field.** Added a required free-text **EC site / zone** field to `.github/ISSUE_TEMPLATE/bug_report.yml` (placed right after the Platform dropdown, before Python version). Rationale: bug reports from grid-run trims need to tell operators which compute cluster to pull logs from. Free-text rather than a pre-canned dropdown so teams don't have to PR the template every time a new site or zone comes online. No code, schema, or runtime changes. |
+| 2026-04-26 | **P2 full-domain proc index (Option A).** §5.4 of this doc has long specified that the proc index is built from `sorted(domain_path.rglob('*.tcl'))` — the entire domain — so P4 BFS resolution is global. The implementation diverged: `ParserService.run` parsed only `loaded.surface_files`, and `ParseResult.__post_init__` enforced `set(files.procs) == set(index)`, so the index was effectively surface-only. The visible symptom on real domains: a surfaced proc that called a helper defined in a non-surfaced file emitted `TW-02 unresolved-proc-call` with no defining file, even though the file existed inside `domain_root`. Re-aligned the implementation with the spec by (1) relaxing the `ParseResult` invariant to require `set(files.procs) ⊆ set(index)` so `index` may carry full-domain entries that are not in the surfaced `files` view; (2) splitting `ParserService.run` into Phase 2a (surface parse — emits `PE-*`/`PW-*`/`PI-*` and populates both `files` and `index`) and Phase 2b (full-domain harvest — silent index-only parse of every other `.tcl` under `domain_root` via `ctx.fs`, with `.chopper/` excluded and the surface-set as the dedupe pivot so surface entries always win on canonical-name collisions); (3) routing Phase 2b diagnostics through a no-op sink because the user did not ask Chopper to scrutinise non-surfaced files — emitting `PE-02 unbalanced-braces` against a file the JSON never named would be misleading. Updated §5.2 pipeline diagram, §5.2.1 P2 narrative, and §5.4.1 Step 2 code block to document the surface/full-domain split, the relaxed model invariant, and the "trace remains reporting-only" reaffirmation (Critical Principle #7 — a wider index sharpens diagnostics but never adds survivors). The harvest stops at the domain boundary; files outside `domain_root` are never read (consistent with the §2.4 "DO NOT TOUCH" rule). Two new integration tests in `tests/integration/test_cli_e2e.py::TestFullDomainProcIndex` lock the contract: a surfaced caller into a non-surfaced callee resolves cleanly with `defined_in` set and no `TW-02`, and the non-surfaced file is never copied to the trimmed output. Updated `tests/unit/core/test_models.py` invariant tests for the relaxed model. Full regression suite: 875 passed (the 7 pre-existing `tests/unit/scripts/` path-related failures are unrelated). No diagnostic-registry, schema, exit-code, or scope-lock changes. |
 
 ---
 

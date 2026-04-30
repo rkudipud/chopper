@@ -240,8 +240,9 @@ What happens:
 
 1. `ParserService` reads each Tcl file through `ctx.fs`.
 2. UTF-8 is attempted first; Latin-1 fallback emits `PW-02`.
-3. `parse_file()` tokenizes content, extracts proc definitions, tracks namespace context, and collects call tokens and `source` references.
-4. Results are assembled into `ParsedFile` and then `ParseResult`.
+3. **Phase 2a (surface parse).** Iterate `loaded.surface_files`; `parse_file()` tokenizes content, extracts proc definitions, tracks namespace context, and collects call tokens and `source` references; `PE-*` / `PW-*` / `PI-*` flow through `ctx.diag`.
+4. **Phase 2b (full-domain harvest).** Walk every other `.tcl` under `domain_root` (with `.chopper/` excluded), parsing silently through a no-op diagnostic sink — these files were not named by the JSON, so emitting parser diagnostics against them would be misleading. Their `ProcEntry` records still enter the index so P4 trace can resolve calls into non-surfaced files.
+5. Results are assembled into `ParsedFile` and then `ParseResult`. The model invariant requires `set(files.procs) ⊆ set(index)` — `files` is the surfaced subset (what the compiler operates on); `index` is the full-domain canonical-name map (what the tracer consults).
 
 Key output model:
 

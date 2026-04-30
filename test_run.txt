@@ -1,0 +1,130 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-8.4.2, pluggy-1.6.0
+benchmark: 4.0.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: C:\personal\projects\chopper
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.152.2, benchmark-4.0.0, cov-5.0.0, datadir-1.8.0, regressions-2.10.0
+collected 882 items
+
+tests\unit\adapters\test_fs_local.py .........                           [  1%]
+tests\unit\adapters\test_fs_memory.py ...........................        [  4%]
+tests\unit\adapters\test_progress_rich.py ....                           [  4%]
+tests\unit\adapters\test_sink_collecting.py ....                         [  4%]
+tests\unit\audit\test_audit.py ........................                  [  7%]
+tests\unit\cli\test_commands.py .............                            [  9%]
+tests\unit\cli\test_main.py .......                                      [  9%]
+tests\unit\compiler\test_aggregate.py ...........                        [ 11%]
+tests\unit\compiler\test_flow_resolver.py ...................            [ 13%]
+tests\unit\compiler\test_merge_service.py .......                        [ 14%]
+tests\unit\compiler\test_per_source.py ..........................        [ 17%]
+tests\unit\compiler\test_service.py .......                              [ 17%]
+tests\unit\compiler\test_tracer.py ................................      [ 21%]
+tests\unit\config\test_loaders.py ................................       [ 25%]
+tests\unit\config\test_schema.py .......................                 [ 27%]
+tests\unit\config\test_service.py .........................              [ 30%]
+tests\unit\core\test_context.py ..........                               [ 31%]
+tests\unit\core\test_diagnostics.py ........................             [ 34%]
+tests\unit\core\test_errors.py .....                                     [ 35%]
+tests\unit\core\test_models.py ......................................... [ 39%]
+........................................................................ [ 47%]
+......                                                                   [ 48%]
+tests\unit\core\test_protocols.py ....                                   [ 48%]
+tests\unit\core\test_serialization.py ........................           [ 51%]
+tests\unit\generators\test_service.py ..........                         [ 52%]
+tests\unit\generators\test_stack_emitter.py ..........                   [ 53%]
+tests\unit\mcp\test_tools.py .................                           [ 55%]
+tests\unit\orchestrator\test_domain_state.py ........                    [ 56%]
+tests\unit\orchestrator\test_runner.py ..........................        [ 59%]
+tests\unit\parser\test_bug_report_regressions.py ...............         [ 61%]
+tests\unit\parser\test_call_extractor.py ............................... [ 64%]
+.................                                                        [ 66%]
+tests\unit\parser\test_edge_case_fixtures.py ..................          [ 68%]
+tests\unit\parser\test_namespace_tracker.py ............................ [ 72%]
+                                                                         [ 72%]
+tests\unit\parser\test_proc_extractor.py ............................... [ 75%]
+...................                                                      [ 77%]
+tests\unit\parser\test_service.py ...................................... [ 82%]
+.......                                                                  [ 82%]
+tests\unit\parser\test_tokenizer.py .................................... [ 86%]
+.........                                                                [ 87%]
+tests\unit\scripts\test_file_bug_report.py .s.s.                         [ 88%]
+tests\unit\scripts\test_package_bug_report.py ..                         [ 88%]
+tests\unit\test_package_smoke.py .                                       [ 88%]
+tests\unit\test_testing_strategy_scenario_count.py .                     [ 89%]
+tests\unit\trimmer\test_proc_dropper.py ..............                   [ 90%]
+tests\unit\trimmer\test_service.py ....................                  [ 92%]
+tests\unit\validator\test_validator.py ..............................    [ 96%]
+tests\integration\test_cli_e2e.py .....................                  [ 98%]
+tests\integration\test_mcp_stdio_e2e.py ...                              [ 98%]
+tests\integration\test_runner_localfs_e2e.py ....                        [ 99%]
+tests\integration\test_smoke.py .                                        [ 99%]
+tests\property\test_determinism.py ...                                   [ 99%]
+tests\property\test_smoke.py .                                           [100%]
+
+---------- coverage: platform win32, python 3.14.4-final-0 -----------
+Name                                         Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------------------------------
+src\chopper\__init__.py                         13      8      0      0    38%   10-20
+src\chopper\adapters\__init__.py                 7      0      0      0   100%
+src\chopper\adapters\fs_local.py                39      0      8      0   100%
+src\chopper\adapters\fs_memory.py              140      4     88      5    96%   106, 121->120, 138-139, 166->168, 186
+src\chopper\adapters\progress_rich.py           18      0      2      0   100%
+src\chopper\adapters\progress_silent.py          4      0      0      0   100%
+src\chopper\adapters\sink_collecting.py         21      0      2      0   100%
+src\chopper\audit\__init__.py                    3      0      0      0   100%
+src\chopper\audit\hashing.py                     5      0      0      0   100%
+src\chopper\audit\service.py                    69      3     16      1    95%   72-76, 126
+src\chopper\audit\sloc.py                       36      1     18      1    96%   58
+src\chopper\audit\writers.py                   231      1     68      1    99%   600
+src\chopper\cli\__init__.py                      3      0      0      0   100%
+src\chopper\cli\commands.py                     87      2     24      2    96%   69-70, 139->142
+src\chopper\cli\main.py                         43      0      6      0   100%
+src\chopper\cli\render.py                       27      0      6      0   100%
+src\chopper\compiler\__init__.py                 4      0      0      0   100%
+src\chopper\compiler\flow_resolver.py          136      3     54      4    96%   207, 276, 332, 337->exit
+src\chopper\compiler\merge_service.py          362     26    166     11    91%   189->188, 216, 420, 435, 480, 630, 843->850, 848-849, 852, 854, 893-894, 896-912
+src\chopper\compiler\tool_commands.py           30      6     14      3    75%   64, 94-97, 99->106, 107-109
+src\chopper\compiler\trace_service.py          163      4     68      4    97%   302, 310, 318, 411
+src\chopper\config\__init__.py                   3      0      0      0   100%
+src\chopper\config\loaders.py                  103      1     46      1    99%   108
+src\chopper\config\schema.py                    49      1      8      1    96%   77
+src\chopper\config\service.py                  178     24     80      4    85%   213, 270-271, 273-288, 312-313, 317-318, 324-325, 343->342
+src\chopper\core\__init__.py                     1      0      0      0   100%
+src\chopper\core\_diagnostic_registry.py        23      0      0      0   100%
+src\chopper\core\context.py                     27      0      0      0   100%
+src\chopper\core\diagnostics.py                 60      0      8      0   100%
+src\chopper\core\errors.py                       4      0      0      0   100%
+src\chopper\core\models.py                     458      0    152      0   100%
+src\chopper\core\protocols.py                   18      0      0      0   100%
+src\chopper\core\serialization.py               30      0     12      0   100%
+src\chopper\data\__init__.py                     0      0      0      0   100%
+src\chopper\data\tool_commands\__init__.py       0      0      0      0   100%
+src\chopper\generators\__init__.py               3      0      0      0   100%
+src\chopper\generators\service.py               30      2      6      0    94%   65-66
+src\chopper\generators\stack_emitter.py         26      0     14      0   100%
+src\chopper\generators\stage_emitter.py         14      0      2      0   100%
+src\chopper\mcp\__init__.py                      4      0      0      0   100%
+src\chopper\mcp\server.py                       52      8     10      3    82%   52, 77, 81, 109-111, 119-122
+src\chopper\mcp\tools.py                       105     26     32      4    74%   151, 165-201, 263-267, 309, 315, 327
+src\chopper\orchestrator\__init__.py             5      0      0      0   100%
+src\chopper\orchestrator\domain_state.py        21      0      6      0   100%
+src\chopper\orchestrator\gates.py                9      0      4      0   100%
+src\chopper\orchestrator\runner.py              98      0     18      0   100%
+src\chopper\parser\__init__.py                   1      0      0      0   100%
+src\chopper\parser\call_extractor.py           211     14    118     17    91%   391, 393, 405-406, 414, 420->425, 422, 424, 544, 588, 600->604, 659->664, 684, 687, 707, 731-732
+src\chopper\parser\namespace_tracker.py        147      0     42      4    98%   141->exit, 227->exit, 309->319, 316->319
+src\chopper\parser\proc_extractor.py           270     23    114     25    88%   203->226, 221->226, 305, 308, 323, 325, 331, 333, 336, 348, 366, 372, 385, 398, 400, 404, 406, 409, 412, 414, 422, 446-453, 619, 671->675, 677
+src\chopper\parser\service.py                  129     14     46      4    90%   131->142, 170, 180, 285-287, 317-318, 322-323, 326, 329-330, 355-359, 449
+src\chopper\parser\tokenizer.py                152      6     50      2    96%   252-254, 285-287
+src\chopper\trimmer\__init__.py                  3      0      0      0   100%
+src\chopper\trimmer\file_writer.py              38      2      4      2    90%   39->41, 75->78, 102-103
+src\chopper\trimmer\proc_dropper.py             55      1     26      1    98%   54
+src\chopper\trimmer\service.py                 110      0     36      0   100%
+src\chopper\validator\__init__.py                3      0      0      0   100%
+src\chopper\validator\functions.py             218     19    112     12    90%   125->122, 235, 238-240, 263, 270-271, 275-276, 279, 282-283, 290->272, 331-336, 396, 450, 507, 548->exit, 576, 578
+----------------------------------------------------------------------------------------
+TOTAL                                         4099    199   1486    112    94%
+
+Required test coverage of 78% reached. Total coverage: 93.89%
+
+======================= 880 passed, 2 skipped in 17.60s =======================

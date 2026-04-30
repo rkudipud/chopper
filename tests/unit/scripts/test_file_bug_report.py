@@ -6,9 +6,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / "scripts" / "file_bug_report.py"
+SCRIPT = REPO_ROOT / "schemas" / "scripts" / "file_bug_report.py"
+
+_WIN_NO_SH = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="fixture uses a #!/bin/sh `gh` stub which Windows cannot execute via subprocess",
+)
 
 
 def _payload(tmp_path: Path, attachments: list[str]) -> Path:
@@ -24,7 +30,7 @@ def _payload(tmp_path: Path, attachments: list[str]) -> Path:
         "reproduce": "1. Run chopper trim --dry-run\n2. Observe the parser error",
         "terminal_output": "ERROR PE-02: parser failure",
         "audit_bundle": "Attached diagnostics.json and chopper_run.json.",
-        "json_files": "base.json: {\"domain\": \"demo\"}",
+        "json_files": 'base.json: {"domain": "demo"}',
         "additional_context": "Triggered by the companion automation test.",
         "attachments": attachments,
     }
@@ -59,6 +65,7 @@ def test_file_bug_report_dry_run_writes_body_and_bundle(tmp_path: Path) -> None:
     assert "Simple fallback behavior active" in result.stdout
 
 
+@_WIN_NO_SH
 def test_file_bug_report_create_uses_gh_issue_create(tmp_path: Path) -> None:
     audit_dir = tmp_path / ".chopper"
     audit_dir.mkdir()
@@ -71,7 +78,7 @@ def test_file_bug_report_create_uses_gh_issue_create(tmp_path: Path) -> None:
     gh_path = bin_dir / "gh"
     gh_path.write_text(
         "#!/bin/sh\n"
-        "printf '%s\\n' \"$@\" > \"$GH_ARGS_FILE\"\n"
+        'printf \'%s\\n\' "$@" > "$GH_ARGS_FILE"\n'
         "printf '%s\\n' 'https://github.com/rkudipud/chopper/issues/999'\n",
         encoding="utf-8",
     )
@@ -120,6 +127,7 @@ def test_file_bug_report_create_falls_back_when_gh_is_missing(tmp_path: Path) ->
     assert (output_dir / "bug_report_issue.md").exists()
 
 
+@_WIN_NO_SH
 def test_file_bug_report_create_falls_back_when_gh_returns_error(tmp_path: Path) -> None:
     audit_dir = tmp_path / ".chopper"
     audit_dir.mkdir()
@@ -130,9 +138,7 @@ def test_file_bug_report_create_falls_back_when_gh_returns_error(tmp_path: Path)
     bin_dir.mkdir()
     gh_path = bin_dir / "gh"
     gh_path.write_text(
-        "#!/bin/sh\n"
-        "printf '%s\\n' 'authentication required' >&2\n"
-        "exit 1\n",
+        "#!/bin/sh\nprintf '%s\\n' 'authentication required' >&2\nexit 1\n",
         encoding="utf-8",
     )
     gh_path.chmod(0o755)

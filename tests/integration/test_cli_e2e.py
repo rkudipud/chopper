@@ -245,3 +245,190 @@ class TestRenderDirect:
         render_cleanup_message("hello cleanup")
         captured = capsys.readouterr()
         assert "hello cleanup" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Regression: issue #12 — files.include glob silent no-op
+# ---------------------------------------------------------------------------
+
+
+class TestGlobFilesIncludeRegression:
+    """End-to-end regression for issue #12: files referenced *only* via a
+    glob pattern in files.include must survive the trim.  Before the fix,
+    the P1 surface-file collection skipped globs, so P2 never parsed the
+    matched files and P3 glob expansion found nothing to match."""
+
+    def _seed_glob_domain(self, domain: Path) -> tuple[Path, Path]:
+        """Plant a domain with a glob-only subdirectory + feature JSON."""
+        domain.mkdir(parents=True, exist_ok=True)
+        (domain / "core.tcl").write_text("proc core_setup {} {}\n", encoding="utf-8")
+
+        reports = domain / "server_reports"
+        reports.mkdir()
+        (reports / "activity.tcl").write_text("proc report_activity {} {}\n", encoding="utf-8")
+        (reports / "power.tcl").write_text("proc report_power {} {}\n", encoding="utf-8")
+
+        jsons = domain / "jsons"
+        jsons.mkdir()
+        base_path = jsons / "base.json"
+        base_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "base-v1",
+                    "domain": domain.name,
+                    "files": {"include": ["core.tcl"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        feat_path = jsons / "srv.feature.json"
+        feat_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "feature-v1",
+                    "name": "srv",
+                    "files": {"include": ["server_reports/**"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return base_path, feat_path
+
+    def test_trim_glob_only_subdir_files_survive(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        domain = tmp_path / "power"
+        base, feat = self._seed_glob_domain(domain)
+
+        rc = main(
+            [
+                "trim",
+                "--domain",
+                str(domain),
+                "--base",
+                str(base),
+                "--features",
+                str(feat),
+                "--dry-run",
+            ]
+        )
+        captured = capsys.readouterr()
+        assert rc == 0, f"trim should exit 0; stderr:\n{captured.err}"
+
+        # Read compiled_manifest.json from the audit bundle
+        import json as _json
+
+        manifest_path = domain / ".chopper" / "compiled_manifest.json"
+        assert manifest_path.exists(), "audit bundle must contain compiled_manifest.json"
+        manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
+        surviving = {d["path"] for d in manifest.get("files", []) if d.get("treatment") != "remove"}
+
+        assert "server_reports/activity.tcl" in surviving, (
+            "server_reports/activity.tcl must survive — referenced only via glob server_reports/**"
+        )
+        assert "server_reports/power.tcl" in surviving, (
+            "server_reports/power.tcl must survive — referenced only via glob server_reports/**"
+        )
+
+    def test_validate_glob_only_subdir_exits_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        domain = tmp_path / "power"
+        base, feat = self._seed_glob_domain(domain)
+
+        rc = main(
+            [
+                "validate",
+                "--domain",
+                str(domain),
+                "--base",
+                str(base),
+                "--features",
+                str(feat),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert rc == 0, f"validate should exit 0; stderr:\n{captured.err}"
+        # VW-03 must NOT fire — glob matches files on disk
+        assert "VW-03" not in captured.err
+
+
+class TestFullDomainProcIndex:
+    """Option A: P2 builds a full-domain proc index so the P4 tracer can
+    resolve a call from a surfaced file into a proc defined in a file
+    the user did not include — and ``dependency_graph.json`` records the
+    actual defining path.  Trace remains reporting-only: the non-surfaced
+    file is **not** copied; it just appears in the graph so the user can
+    add it to the JSON in the next iteration.
+    """
+
+    def _seed_cross_file_call_domain(self, domain: Path) -> Path:
+        """Seed a domain where ``foo.tcl`` (surfaced) calls ``bar`` from
+        ``helper.tcl`` (NOT surfaced)."""
+        domain.mkdir(parents=True, exist_ok=True)
+        (domain / "foo.tcl").write_text("proc foo {} {\n    bar\n}\n", encoding="utf-8")
+        (domain / "helper.tcl").write_text("proc bar {} { return 42 }\n", encoding="utf-8")
+        jsons = domain / "jsons"
+        jsons.mkdir()
+        base_path = jsons / "base.json"
+        base_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "base-v1",
+                    "domain": domain.name,
+                    "files": {"include": ["foo.tcl"]},
+                    "procedures": {"include": [{"file": "foo.tcl", "procs": ["foo"]}]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return base_path
+
+    def test_trace_resolves_callee_in_non_surfaced_file(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        domain = tmp_path / "xref"
+        base = self._seed_cross_file_call_domain(domain)
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base), "--dry-run"])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        # dependency_graph.json must record the resolved edge from foo
+        # with a ``to`` pointing at bar's canonical name (helper.tcl::bar),
+        # not flag it as unresolvable (TW-02).
+        graph_path = domain / ".chopper" / "dependency_graph.json"
+        assert graph_path.exists()
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+
+        edges = graph.get("edges", [])
+        foo_edges = [e for e in edges if e.get("from", "").endswith("::foo")]
+        assert foo_edges, "expected at least one edge from foo in dependency_graph.json"
+        # Exactly one foo → bar edge, status resolved, callee = helper.tcl::bar.
+        resolved = [e for e in foo_edges if e.get("status") == "resolved" and e.get("to") == "helper.tcl::bar"]
+        assert resolved, (
+            "expected a resolved edge from foo to helper.tcl::bar via the full-domain index; "
+            f"got foo edges: {foo_edges!r}"
+        )
+
+        # TW-02 must NOT fire for the resolved call.
+        assert "TW-02" not in captured.err
+
+    def test_non_surfaced_file_is_not_copied(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """Trace is reporting-only: helper.tcl appears in the graph but
+        is NOT copied into the rebuilt domain (Critical Principle #7)."""
+        domain = tmp_path / "xref2"
+        base = self._seed_cross_file_call_domain(domain)
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base)])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        # foo.tcl survived; helper.tcl was NOT copied.
+        assert (domain / "foo.tcl").exists()
+        assert not (domain / "helper.tcl").exists(), (
+            "helper.tcl must NOT be copied — trace is reporting-only and the user did not include it"
+        )
+
+        # compiled_manifest.json: helper.tcl absent (it was never in the
+        # surface set, so the manifest does not name it).
+        manifest = json.loads((domain / ".chopper" / "compiled_manifest.json").read_text(encoding="utf-8"))
+        manifest_paths = {entry["path"] for entry in manifest.get("files", [])}
+        assert "foo.tcl" in manifest_paths
+        assert "helper.tcl" not in manifest_paths
