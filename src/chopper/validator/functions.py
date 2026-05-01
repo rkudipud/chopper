@@ -346,22 +346,76 @@ def _check_brace_balance(ctx: ChopperContext, rewritten: Sequence[Path]) -> None
 
 
 def _brace_delta(text: str) -> int:
-    """Return ``count('{') - count('}')`` ignoring backslash-escaped braces.
+    """Return ``count('{') - count('}')`` with Tcl-syntax awareness.
 
-    This is a minimal-sufficient check for the internal-consistency
-    assertion VE-16. Full Tcl tokenisation (quotes, comments,
-    here-docs) is not required because the parser's P2 pass is the
-    authoritative brace checker; at P6 we only need to detect the
-    trimmer having introduced new imbalance.
+    This is the post-trim brace assertion that backs ``VE-16``. The
+    parser's P2 pass is the authoritative brace checker, so this
+    counter only needs to be a *trim-introduced imbalance* detector
+    — but it must not false-positive on legal Tcl that the trimmer
+    legitimately preserved.
+
+    Three constructs are skipped:
+
+    * ``\\{`` / ``\\}`` (and any other backslash-escape pair).
+    * Braces inside ``"..."`` quoted strings, e.g. ``puts "{"``.
+      Backslash-escaped characters inside the string are honoured so
+      ``"\\""`` does not terminate the string prematurely.
+    * Lines whose first non-whitespace character is ``#`` (full-line
+      Tcl comments).
+
+    Mid-line comments introduced by ``;#`` are not skipped because
+    Tcl-style trailing comments are still parsed as commands by Tcl
+    itself; counting their braces matches the parser's authoritative
+    behaviour. Likewise, braces inside ``{...}`` braced words are
+    counted normally — they participate in the balance.
     """
 
     depth = 0
     i = 0
-    while i < len(text):
+    n = len(text)
+    line_start = True  # Track whether we are at the start of a logical line.
+    while i < n:
         ch = text[i]
-        if ch == "\\" and i + 1 < len(text):
+
+        # Backslash escape — skip the next character regardless of context.
+        if ch == "\\" and i + 1 < n:
             i += 2
             continue
+
+        # Newline resets line-start tracking.
+        if ch == "\n":
+            line_start = True
+            i += 1
+            continue
+
+        # Full-line comment: skip to end of line. Tcl comments only
+        # apply when ``#`` is the first non-whitespace character on a
+        # line (or after a ``;``, but ``;#`` is rare in trimmer output).
+        if line_start and ch == "#":
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+
+        # Quoted string: skip its contents (with backslash escapes).
+        if ch == '"':
+            i += 1
+            while i < n:
+                qc = text[i]
+                if qc == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if qc == '"':
+                    i += 1
+                    break
+                i += 1
+            line_start = False
+            continue
+
+        # Whitespace doesn't break line-start state (so ``   #`` still
+        # counts as a comment), but anything non-whitespace does.
+        if not ch.isspace():
+            line_start = False
+
         if ch == "{":
             depth += 1
         elif ch == "}":

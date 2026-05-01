@@ -49,6 +49,7 @@ __all__ = [
     "FilesSection",
     "FlowAction",
     "GeneratedArtifact",
+    "InternalError",
     "LoadFromAction",
     "LoadedConfig",
     "ParseResult",
@@ -1088,6 +1089,28 @@ class GeneratedArtifact:
 
 
 @dataclass(frozen=True)
+class InternalError:
+    """Programmer-error summary attached to :class:`RunResult` on exit code 3.
+
+    Mirrors the top of ``.chopper/internal-error.log`` so GUIs / CI can
+    surface a programmer error without reading the log file. The full
+    traceback and snapshot stay in the log; only the lightweight
+    ``{kind, message, log_path}`` triple lives in the wire payload.
+
+    See architecture doc §5.5.10 (``internal-error.log`` contract) and
+    ``schemas/run-result-v1.schema.json`` (``internal_error`` property).
+    """
+
+    kind: str
+    message: str
+    log_path: Path | None = None
+
+    def __post_init__(self) -> None:
+        if not self.kind:
+            raise ValueError("InternalError.kind must be non-empty")
+
+
+@dataclass(frozen=True)
 class AuditArtifact:
     """One file written under ``.chopper/`` by :class:`AuditService`.
 
@@ -1143,8 +1166,8 @@ class AuditManifest:
     def __post_init__(self) -> None:
         if not self.run_id:
             raise ValueError("AuditManifest.run_id must be non-empty")
-        if self.exit_code not in (0, 1, 2, 3):
-            raise ValueError(f"AuditManifest.exit_code must be 0/1/2/3, got {self.exit_code}")
+        if self.exit_code not in (0, 1, 2, 3, 4):
+            raise ValueError(f"AuditManifest.exit_code must be 0/1/2/3/4, got {self.exit_code}")
         if self.ended_at < self.started_at:
             raise ValueError("AuditManifest.ended_at must be >= started_at")
         names = [a.name for a in self.artifacts]
@@ -1189,12 +1212,13 @@ class RunRecord:
     graph: DependencyGraph | None = None
     trim_report: TrimReport | None = None
     generated_artifacts: tuple[GeneratedArtifact, ...] = ()
+    internal_error: InternalError | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id:
             raise ValueError("RunRecord.run_id must be non-empty")
-        if self.exit_code not in (0, 1, 2, 3):
-            raise ValueError(f"RunRecord.exit_code must be 0/1/2/3, got {self.exit_code}")
+        if self.exit_code not in (0, 1, 2, 3, 4):
+            raise ValueError(f"RunRecord.exit_code must be 0/1/2/3/4, got {self.exit_code}")
         if self.ended_at < self.started_at:
             raise ValueError("RunRecord.ended_at must be >= started_at")
 
@@ -1216,7 +1240,16 @@ class RunResult:
       was set and at least one ``WARNING`` diagnostic was emitted.
     * ``2`` — CLI / environment error (missing domain, bad flags,
       user-facing ``VE-21`` Case 4, etc.).
-    * ``3`` — internal programmer error (raised :class:`ChopperError`).
+    * ``3`` — internal programmer error (raised :class:`ChopperError`
+      or any uncaught exception escaping a service). When this is
+      returned, :attr:`internal_error` is populated and a
+      ``.chopper/internal-error.log`` has been written. See architecture
+      doc §5.5.10.
+    * ``4`` — ``mcp-protocol-error`` (``PE-04``). Only produced by the
+      ``chopper mcp-serve`` subcommand, which constructs its own exit
+      code outside :class:`ChopperRunner`. ``RunResult.exit_code`` will
+      not normally be 4, but the validator accepts it so the model
+      stays consistent with the diagnostic registry.
     """
 
     exit_code: int
@@ -1228,7 +1261,8 @@ class RunResult:
     graph: DependencyGraph | None = None
     trim_report: TrimReport | None = None
     generated_artifacts: tuple[GeneratedArtifact, ...] = ()
+    internal_error: InternalError | None = None
 
     def __post_init__(self) -> None:
-        if self.exit_code not in (0, 1, 2, 3):
-            raise ValueError(f"RunResult.exit_code must be 0/1/2/3, got {self.exit_code}")
+        if self.exit_code not in (0, 1, 2, 3, 4):
+            raise ValueError(f"RunResult.exit_code must be 0/1/2/3/4, got {self.exit_code}")

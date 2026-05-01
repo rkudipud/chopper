@@ -9,8 +9,11 @@ This module parses and dispatches; subcommand behaviour lives in
 from __future__ import annotations
 
 import argparse
+import sys
+import uuid
 from collections.abc import Sequence
 
+from chopper.audit.internal_error import write_internal_error_log
 from chopper.cli.commands import cmd_cleanup, cmd_mcp_serve, cmd_trim, cmd_validate
 
 __all__ = ["build_parser", "main"]
@@ -111,7 +114,18 @@ def _add_input_args(sub: argparse.ArgumentParser) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entrypoint. Returns a process exit code."""
+    """CLI entrypoint. Returns a process exit code.
+
+    The runner has its own ``try/except`` that maps service-level
+    exceptions to exit 3 + ``.chopper/internal-error.log``. This outer
+    guard catches anything escaping *before* the runner is entered
+    (config parsing, ctx construction, importable misconfiguration,
+    etc.) and returns exit 1 — the failure is outside the runner's
+    contract so it cannot be exit 3, and a synthetic crash log is
+    still written so the user has an artifact to attach to a bug
+    report. ``argparse`` errors raise :class:`SystemExit` and bypass
+    this guard (exit 2, intentional).
+    """
 
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -123,8 +137,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.project and not args.base:
             parser.error("one of --base or --project is required")
 
-    exit_code: int = args.func(args)
-    return exit_code
+    try:
+        exit_code: int = args.func(args)
+        return exit_code
+    except SystemExit:
+        # argparse / explicit sys.exit — propagate without rewriting.
+        raise
+    except Exception as exc:  # noqa: BLE001 — last-resort guard
+        # Pre-runner programmer error. We have no ChopperContext, so
+        # the writer falls back to ``Path.cwd() / '.chopper'`` for the
+        # log location. Exit 1 (per IMPROVEMENTS.md D2) — the failure
+        # is outside the runner's exit-3 contract.
+        run_id = uuid.uuid4().hex
+        internal = write_internal_error_log(None, run_id=run_id, exc=exc)
+        sys.stderr.write(
+            f"[chopper] fatal: {internal.kind}: {internal.message}\n"
+            f"[chopper] crash log: {internal.log_path if internal.log_path else '(could not write)'}\n"
+        )
+        return 1
 
 
 if __name__ == "__main__":  # pragma: no cover

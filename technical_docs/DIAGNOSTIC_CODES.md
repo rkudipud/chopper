@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-30 | 26 | 4 | 30 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-20 | 18 | 2 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate |
+| `VW` Validation Warnings | VW-01–VW-20 | 19 | 1 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate, audit write failures |
 | `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **70** | **40** | **110** | |
+| **Total** | | **71** | **39** | **110** | |
 
 ---
 
@@ -97,7 +97,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-17 | `external-reference` | 6 | validator | 0 | Surviving code references a path outside the domain boundary (not an error; informational for cross-domain awareness) | Verify the external dependency is intentional; no action required if expected |
 | VW-18 | `cross-source-pe-vetoed` | 1 | compiler | 0 | A source lists proc `p` of file `F` in `procedures.exclude`, but `p` survives because another source contributes `F` whole-file or includes `p` explicitly via `procedures.include`. The PE entry from the excluding source is discarded. Features cannot strip procs from content contributed by other sources. | Remove the redundant PE entry, or align with the other source's include intent |
 | VW-19 | `cross-source-fe-vetoed` | 1 | compiler | 0 | File is in one source's `files.exclude` but survives because another source (base or another feature) contributes the file via FI, PI, or PE. The excluding source's FE entry is discarded. Features are purely additive and cannot remove content contributed by other sources. | Remove the redundant `files.exclude` entry, or verify the other source's inclusion is intentional |
-| — | — | — | — | — | **VW-20 reserved** | — |
+| VW-20 | `audit-write-failed` | 7 | audit | 0 | An audit-bundle artifact under `.chopper/` could not be written (filesystem-layer `OSError`: disk full, permission denied, etc.). The run otherwise succeeded; this diagnostic ensures silent partial bundles surface to the user instead of being swallowed. The artifact name is included in the diagnostic context. | Free disk space or fix `.chopper/` permissions and re-run; check `diagnostics.json` for the failed artifact name |
 
 ---
 

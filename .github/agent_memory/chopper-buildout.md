@@ -2,7 +2,44 @@
 
 ## Current Focus
 
-- None active. Last task closed: Option A (P2 full-domain proc index) — landed and documented.
+- 2026-05-01 audit + remediation. **Wave A IMPLEMENTED.** Wave B (O1–O6 optimizations) deferred to next PR.
+
+## Wave A Completed (2026-05-01)
+
+All decisions from `IMPROVEMENTS.md` absorbed and implemented in a single coordinated change. Validation: **857 unit + 38 integration/golden/property tests pass; ruff clean; mypy clean; 4/4 import contracts kept; docs-gate green.**
+
+- **D1 — `internal-error.log` writer** — new module `src/chopper/audit/internal_error.py`. Writes plain-text crash log with run_id, traceback, diagnostic snapshot, RunConfig, version, platform.
+- **D2 — Generic exceptions caught at runner + CLI** — runner's `except ChopperError` extended with a parallel `except Exception` branch (also exit 3 + internal-error.log). New top-level `try/except Exception` in `cli/main.py` for pre-runner failures (exit 1, ctx-less internal-error.log fallback).
+- **D3 — Exit-code 4 widened** — `RunResult`, `RunRecord`, `AuditManifest` validators now allow `{0,1,2,3,4}` to align with PE-04's registry exit-code. Schema enum widened to match.
+- **D4 — Python 3.11+** — spec §5.12 narrative aligned to "≥ 3.11 (3.13 preferred)". pyproject/ruff/mypy untouched (already 3.11).
+- **D5 — PE-04 as Diagnostic** — `mcp/server.py` now constructs `Diagnostic.build("PE-04", ...)` for both per-call and fatal protocol errors via new `_build_pe04()` helper.
+- **D6 — `print()` removed** — replaced with `sys.stderr.write(...)`.
+- **D7 — Tcl-aware brace counter** — `_brace_delta` rewritten to skip backslash-escapes, `"..."` quoted strings, and full-line `#` comments. Eliminates false-positive class `puts "{"` → VE-16 exit 3.
+- **D8 — VW-20 `audit-write-failed`** — registered in DIAGNOSTIC_CODES.md + `_diagnostic_registry.py`; emitted from `audit/service.py` on swallowed OSError. Active code count 70 → 71.
+- **D9 — Bare `except: pass` removed** — runner's `finally` audit block now writes `[chopper] internal: audit bundle failed to write: ...` to stderr instead of swallowing silently.
+- **SLOC** — `audit/sloc.py` extended with `.py`, `.tcsh`, `.zsh`, `.ksh` (was missing Python entirely). Module docstring documents triple-quote behaviour.
+
+## Files Changed (Wave A)
+
+- `src/chopper/core/models.py` — `InternalError`, internal_error field, exit-code widening.
+- `src/chopper/core/_diagnostic_registry.py` — VW-20 entry + header comment.
+- `src/chopper/audit/internal_error.py` — **NEW**.
+- `src/chopper/audit/service.py` — VW-20 emission.
+- `src/chopper/audit/sloc.py` — Python/tcsh/zsh/ksh.
+- `src/chopper/orchestrator/runner.py` — generic except, internal_error wiring, finally fix.
+- `src/chopper/cli/main.py` — top-level guard.
+- `src/chopper/mcp/server.py` — PE-04 Diagnostic + stderr write.
+- `src/chopper/validator/functions.py` — Tcl-aware `_brace_delta`.
+- `schemas/run-result-v1.schema.json` — exit_code enum widened.
+- `technical_docs/DIAGNOSTIC_CODES.md` — VW-20 row + summary counts.
+- `technical_docs/chopper_description.md` §5.12 — Python 3.11+ policy.
+- `tests/unit/core/test_diagnostics.py` — count 70 → 71.
+
+## Wave B (Deferred)
+
+O1 cache domain walk; O2 cache short_to_canonical; O3 sort-once; O4 stream audit artifacts; O5 split `core/models.py` god-module; O6 split `parser/call_extractor.py`. All approved by user but kept out of the safety-critical fix wave.
+
+---
 
 ## Last Completed Work (2026-04-26)
 

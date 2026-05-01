@@ -2137,9 +2137,9 @@ Non-goals and limits:
 
 ### 5.12 Python Coding Standards
 
-Chopper is a Python ≥ 3.13 CLI. The rules below are authoritative for every file under `src/chopper/`. They consolidate what was previously scattered between the instructions file and the architecture plan; the instructions file now carries a brief summary that defers here.
+Chopper is a Python ≥ 3.11 CLI (3.13 preferred). The rules below are authoritative for every file under `src/chopper/`. They consolidate what was previously scattered between the instructions file and the architecture plan; the instructions file now carries a brief summary that defers here.
 
-> **Python version policy.** v1 targets **Python 3.13 or newer only**. Older Pythons (3.9–3.12) are unsupported — supporting them would require backporting type-syntax workarounds (PEP 585 / PEP 604) and duplicating CI matrices for no user benefit, since the deployment environment ships 3.13+. The `pyproject.toml` `requires-python = ">=3.13"` pin and the `mypy`/`ruff` targets enforce this. If a future release needs to widen the matrix it does so explicitly through an FD entry, not by accident.
+> **Python version policy.** v1 supports **Python 3.11, 3.12, and 3.13**. The deployment environment may ship any of these; 3.13 is the recommended target on systems where it is available, but 3.11 is the floor so Chopper installs cleanly on older long-lived workstations. The `pyproject.toml` `requires-python = ">=3.11"` pin and the `mypy`/`ruff` `python_version`/`target-version` targets are all aligned to 3.11. New 3.12+-only syntax (e.g. PEP 695 type-parameter syntax) is therefore not permitted in `src/`. If a future release needs to drop 3.11 or 3.12 it does so explicitly through an FD entry, not by accident.
 
 #### 5.12.1 Module Layout and Boundaries
 

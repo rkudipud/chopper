@@ -7,6 +7,13 @@ the ``chopper mcp-serve`` CLI handler) so that simply importing
 Transport is stdio only: JSON-RPC frames on stdin, responses on stdout,
 logging on stderr. There is no TCP, HTTP, or WebSocket transport and no
 daemon mode. See ``technical_docs/chopper_description.md`` §3.9.
+
+Per-call ``MCPProtocolError`` failures surface to the client as
+``PE-04`` :class:`~chopper.core.diagnostics.Diagnostic` instances
+serialised into the tool-call ``TextContent`` response. A fatal
+``MCPProtocolError`` that escapes :func:`_serve_once` produces the
+same ``PE-04`` diagnostic on stderr and returns exit code ``4`` (the
+``mcp-protocol-error`` exit code per the diagnostic registry).
 """
 
 from __future__ import annotations
@@ -19,6 +26,7 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
+from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.mcp.tools import (
     DESTRUCTIVE_TOOL_NAMES,
     TOOL_NAMES,
@@ -30,6 +38,22 @@ from chopper.mcp.tools import (
 )
 
 __all__ = ["build_server", "run_stdio_server"]
+
+
+def _build_pe04(exc: BaseException) -> Diagnostic:
+    """Construct the canonical ``PE-04 mcp-protocol-error`` diagnostic.
+
+    Centralised here so per-call and fatal paths render the same
+    code/slug/severity/phase triple — the registry says PE-04 is a
+    P0_STATE-phase diagnostic (MCP runs outside the 8-phase pipeline,
+    so P0 is the closest fit; see DIAGNOSTIC_CODES.md).
+    """
+
+    return Diagnostic.build(
+        "PE-04",
+        phase=Phase.P0_STATE,
+        message=str(exc) or type(exc).__name__,
+    )
 
 
 def _assert_no_destructive_tools(tools: list[types.Tool]) -> None:
@@ -83,8 +107,13 @@ def build_server() -> Server:
                 raise MCPProtocolError(f"unknown tool {name!r}")
         except MCPProtocolError as exc:
             # Surface as a tool-error TextContent so the client sees the
-            # message. The server stays alive; only the single call fails.
-            return [types.TextContent(type="text", text=f"PE-04 mcp-protocol-error: {exc}")]
+            # message. The server stays alive; only the single call
+            # fails. The PE-04 Diagnostic is constructed (and validated
+            # against the registry) so the per-call response stays in
+            # lockstep with DIAGNOSTIC_CODES.md — same code, same slug,
+            # same message envelope as a fatal protocol error.
+            diag = _build_pe04(exc)
+            return [types.TextContent(type="text", text=f"{diag.code} {diag.slug}: {diag.message}")]
         return [types.TextContent(type="text", text=payload)]
 
     return server
@@ -107,7 +136,8 @@ async def _serve_once() -> int:
             )
         return 0
     except MCPProtocolError as exc:
-        print(f"PE-04 mcp-protocol-error: {exc}", file=sys.stderr)
+        diag = _build_pe04(exc)
+        sys.stderr.write(f"{diag.code} {diag.slug}: {diag.message}\n")
         return 4
 
 

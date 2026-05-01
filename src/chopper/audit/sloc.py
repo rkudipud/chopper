@@ -6,6 +6,14 @@ Powers the ``sloc_before`` / ``sloc_after`` fields in
 Language detection is extension-based only. Unknown extensions fall
 back to counting every non-blank line.
 
+Supported hash-comment languages (``#`` introduces a full-line
+comment): Tcl (``.tcl``), Perl (``.pl``, ``.pm``), Python (``.py``),
+and Unix shells (``.sh``, ``.bash``, ``.csh``, ``.tcsh``, ``.zsh``,
+``.ksh``). Python triple-quoted module docstrings are *not* skipped —
+they are valid Python expressions and SLOC counters historically
+disagree on whether to elide them, so we count them as code for
+predictability.
+
 Public helpers: :func:`count_sloc` (language-aware) and :func:`count_raw`
 (non-blank line count).
 """
@@ -18,7 +26,21 @@ __all__ = ["count_raw", "count_sloc"]
 
 
 # Language detection table (extension -> comment/blank rules).
-_HASH_COMMENT_EXTENSIONS = frozenset({".tcl", ".sh", ".csh", ".bash", ".pl", ".pm"})
+_HASH_COMMENT_EXTENSIONS = frozenset(
+    {
+        ".tcl",
+        ".sh",
+        ".csh",
+        ".tcsh",
+        ".bash",
+        ".zsh",
+        ".ksh",
+        ".pl",
+        ".pm",
+        ".py",
+    }
+)
+_SHELL_EXTENSIONS = frozenset({".sh", ".csh", ".tcsh", ".bash", ".zsh", ".ksh", ".py", ".pl", ".pm"})
 _NO_COMMENT_EXTENSIONS = frozenset({".json"})
 _CSV_EXTENSIONS = frozenset({".csv"})
 
@@ -37,18 +59,19 @@ def count_raw(text: str) -> int:
 def count_sloc(path: Path, text: str) -> int:
     """Return logical source-line count for ``text``.
 
-    Language is derived from ``path.suffix`` lowercased. For Tcl / Perl /
-    Shell, full-line comments (first non-whitespace char is ``#``, except
-    a ``#!`` shebang on line 1 for shell) and blank lines do not count.
-    For CSV, a line containing only commas/whitespace does not count.
-    JSON has no comment syntax; every non-blank line counts. Unknown
-    extensions use the fallback (same as JSON).
+    Language is derived from ``path.suffix`` lowercased. For Tcl /
+    Perl / Python / Shell, full-line comments (first non-whitespace
+    char is ``#``, except a ``#!`` shebang on line 1 of an executable
+    script) and blank lines do not count. For CSV, a line containing
+    only commas/whitespace does not count. JSON has no comment syntax;
+    every non-blank line counts. Unknown extensions use the fallback
+    (same as JSON).
     """
 
     suffix = path.suffix.lower()
 
     if suffix in _HASH_COMMENT_EXTENSIONS:
-        return _count_hash_comment(text, is_shell=suffix in {".sh", ".csh", ".bash"})
+        return _count_hash_comment(text, is_shell=suffix in _SHELL_EXTENSIONS)
 
     if suffix in _CSV_EXTENSIONS:
         return _count_csv(text)
@@ -62,8 +85,8 @@ def count_sloc(path: Path, text: str) -> int:
 def _count_hash_comment(text: str, *, is_shell: bool) -> int:
     """Count non-blank, non-full-line-comment lines.
 
-    Shell shebang on line 1 (``#!``) counts as SLOC (it is executable);
-    every other ``#``-leading line is a comment.
+    Shell / Python / Perl shebang on line 1 (``#!``) counts as SLOC
+    (it is executable); every other ``#``-leading line is a comment.
     """
 
     count = 0

@@ -58,8 +58,8 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-26, VW-01..VW-19, VI-01..VI-02, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 70 active codes, matching the
+# VE-01..VE-26, VW-01..VW-20 (VW-10 reserved), VI-01..VI-02, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 71 active codes, matching the
 # Code Space Summary table in the registry.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -121,6 +121,7 @@ _REGISTRY: dict[str, _Entry] = {
     "VW-17": _Entry(slug="external-reference", severity=Severity.WARNING, phase=6, source="validator", exit_code=0),
     "VW-18": _Entry(slug="cross-source-pe-vetoed", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0),
     "VW-19": _Entry(slug="cross-source-fe-vetoed", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0),
+    "VW-20": _Entry(slug="audit-write-failed", severity=Severity.WARNING, phase=7, source="audit", exit_code=0),
     "VI-01": _Entry(slug="empty-base-json", severity=Severity.INFO, phase=1, source="validator", exit_code=0),
     "VI-02": _Entry(slug="top-level-tcl-only", severity=Severity.INFO, phase=5, source="trimmer", exit_code=0),
     "TW-01": _Entry(slug="ambiguous-proc-match", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),

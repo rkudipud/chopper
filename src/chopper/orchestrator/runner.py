@@ -7,10 +7,12 @@ routes through :func:`chopper.orchestrator.gates.has_errors`.
 
 from __future__ import annotations
 
+import sys
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
+from chopper.audit.internal_error import write_internal_error_log
 from chopper.audit.service import AuditService
 from chopper.compiler.merge_service import CompilerService
 from chopper.compiler.trace_service import TracerService
@@ -24,6 +26,7 @@ from chopper.core.models import (
     DomainState,
     FileTreatment,
     GeneratedArtifact,
+    InternalError,
     LoadedConfig,
     ParseResult,
     RunRecord,
@@ -65,6 +68,7 @@ class ChopperRunner:
         trim_report: TrimReport | None = None
         artifacts: tuple[GeneratedArtifact, ...] = ()
         exit_code = 0
+        internal_error: InternalError | None = None
 
         try:
             # P0 — Domain state.
@@ -150,11 +154,26 @@ class ChopperRunner:
             if ctx.config.strict and summary.has_warning:
                 exit_code = 1
 
-            return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
-        except ChopperError:
-            # Internal programmer error — exit 3.
+            return self._build(
+                ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
+            )
+        except ChopperError as exc:
+            # Internal programmer error explicitly raised by a service — exit 3.
             exit_code = 3
-            return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+            internal_error = write_internal_error_log(ctx, run_id=run_id, exc=exc)
+            return self._build(
+                ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
+            )
+        except Exception as exc:
+            # Any other unhandled exception escaping a service is also a
+            # programmer error per architecture doc §5.12.5 — exit 3 +
+            # internal-error.log so users have a deterministic recovery
+            # artifact instead of a raw Python traceback.
+            exit_code = 3
+            internal_error = write_internal_error_log(ctx, run_id=run_id, exc=exc)
+            return self._build(
+                ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
+            )
         finally:
             # Audit always runs, even on failure.
             try:
@@ -172,11 +191,16 @@ class ChopperRunner:
                     graph=graph,
                     trim_report=trim_report,
                     generated_artifacts=artifacts,
+                    internal_error=internal_error,
                 )
                 AuditService().run(ctx, record)
-            except Exception:
-                # Never mask the primary failure.
-                pass
+            except Exception as audit_exc:
+                # Audit must never mask the primary failure. Best-effort:
+                # surface the bug to stderr so test harnesses see it
+                # instead of a silent swallow.
+                sys.stderr.write(
+                    f"[chopper] internal: audit bundle failed to write: {type(audit_exc).__name__}: {audit_exc}\n"
+                )
 
     def _build(
         self,
@@ -189,6 +213,7 @@ class ChopperRunner:
         graph: DependencyGraph | None,
         trim_report: TrimReport | None,
         artifacts: tuple[GeneratedArtifact, ...],
+        internal_error: InternalError | None = None,
     ) -> RunResult:
         summary = ctx.diag.finalize()
         return RunResult(
@@ -201,4 +226,5 @@ class ChopperRunner:
             graph=graph,
             trim_report=trim_report,
             generated_artifacts=artifacts,
+            internal_error=internal_error,
         )

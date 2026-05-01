@@ -28,7 +28,7 @@ from chopper.audit.writers import (
     render_trim_stats,
 )
 from chopper.core.context import ChopperContext
-from chopper.core.diagnostics import Severity
+from chopper.core.diagnostics import Diagnostic, Phase, Severity
 from chopper.core.models import AuditArtifact, AuditManifest, RunRecord
 
 __all__ = ["AuditService"]
@@ -73,10 +73,20 @@ class AuditService:
             try:
                 ctx.fs.mkdir(target.parent, parents=True, exist_ok=True)
                 ctx.fs.write_text(target, content)
-            except OSError:
-                # Audit writes are best-effort. The runner's outer
-                # try/except discards any exception here so the primary
-                # failure is never masked.
+            except OSError as exc:
+                # Audit writes are best-effort, but we no longer
+                # swallow silently. Emit VW-20 so the user sees that
+                # an artifact failed to land — partial bundles must
+                # never be invisible (architecture doc NFR-13).
+                ctx.diag.emit(
+                    Diagnostic.build(
+                        "VW-20",
+                        phase=Phase.P7_AUDIT,
+                        message=(f"Failed to write audit artifact {name!r}: {type(exc).__name__}: {exc}"),
+                        path=target,
+                        context={"artifact": name},
+                    )
+                )
                 continue
             data = content.encode("utf-8")
             artifacts.append(

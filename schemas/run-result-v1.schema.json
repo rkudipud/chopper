@@ -30,8 +30,8 @@
     },
     "exit_code": {
       "type": "integer",
-      "enum": [0, 1, 2, 3],
-      "description": "Process exit code per architecture doc §5.9 / CLI_HELP_TEXT_REFERENCE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case)."
+      "enum": [0, 1, 2, 3, 4],
+      "description": "Process exit code per architecture doc §5.9 / CLI_HELP_TEXT_REFERENCE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case), 4=mcp-protocol-error (only produced by the `mcp-serve` subcommand; never appears for validate/trim/cleanup)."
     },
     "started_at": {
       "type": "string",
