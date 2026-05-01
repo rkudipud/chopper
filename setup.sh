@@ -103,21 +103,24 @@ else
 fi
 
 
-# Install dependencies. The uninstall step clears any stale installed or
-# editable `chopper` package from this venv before the fresh editable install.
-# `--force-reinstall --no-deps` on the last line
-# regenerates the chopper console-script shim against THIS venv's python,
-# which fixes the common "copied venv" failure mode. We invoke pip as
-# `python -m pip` throughout: pip's own shim can itself be stale when a
-# venv is copied, and `python -m pip` bypasses that shim entirely.
-echo "[5/6] Reinstalling Chopper and dependencies..."
+# Install dependencies only when the installed chopper version differs from
+# the source version in this checkout (or if chopper is not installed yet).
+echo "[5/6] Syncing Chopper install with repo version..."
 python -m pip install --upgrade pip --quiet
-if python -m pip show chopper >/dev/null 2>&1; then
-    echo "  Existing chopper package found \u2014 uninstalling..."
-    python -m pip uninstall -y chopper --quiet
+repo_version=$(python -c "import pathlib, tomllib; p=pathlib.Path('pyproject.toml'); print(tomllib.loads(p.read_text(encoding='utf-8'))['project']['version'])")
+installed_version=$(python -c "import importlib.metadata as m; print(next((d.version for d in m.distributions() if d.metadata.get('Name', '').lower() == 'chopper'), '__MISSING__'))")
+if [[ "$installed_version" != "$repo_version" ]]; then
+    if [[ "$installed_version" == "__MISSING__" ]]; then
+        echo "  chopper is not installed in this venv. Installing version $repo_version..."
+    else
+        echo "  Installed chopper version $installed_version differs from repo version $repo_version. Reinstalling..."
+        python -m pip uninstall -y chopper --quiet
+    fi
+    python -m pip install -e ".[dev]" --quiet
+    python -m pip install -e . --force-reinstall --no-deps --quiet
+else
+    echo "  Installed chopper version matches repo version ($repo_version). Skipping reinstall."
 fi
-python -m pip install -e ".[dev]" --quiet
-python -m pip install -e . --force-reinstall --no-deps --quiet
 
 echo "[6/6] Validating venv and Chopper launcher..."
 active_prefix=$(python -c "import sys; print(sys.prefix)" 2>&1)

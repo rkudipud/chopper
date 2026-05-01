@@ -134,21 +134,24 @@ if (-not $NoProxy) {
     Write-Host "[4/6] Skipping proxy configuration (-NoProxy)" -ForegroundColor Yellow
 }
 
-# Install dependencies. The uninstall step clears any stale installed or
-# editable `chopper` package from this venv before the fresh editable install.
-# `--force-reinstall --no-deps` on the last line
-# regenerates the chopper.exe console-script shim against THIS venv's
-# python, which fixes the common "copied venv" failure mode where the
-# shim still points at the Python that originally created it.
-Write-Host "[5/6] Reinstalling Chopper and dependencies..." -ForegroundColor Yellow
+# Install dependencies only when the installed chopper version differs from
+# the source version in this checkout (or if chopper is not installed yet).
+Write-Host "[5/6] Syncing Chopper install with repo version..." -ForegroundColor Yellow
 python -m pip install --upgrade pip --quiet
-$_installed = python -m pip show chopper 2>$null
-if (-not [string]::IsNullOrEmpty($_installed)) {
-    Write-Host "  Existing chopper package found — uninstalling..." -ForegroundColor Gray
-    python -m pip uninstall -y chopper --quiet
+$repoVersion = python -c "import pathlib, tomllib; p=pathlib.Path('pyproject.toml'); print(tomllib.loads(p.read_text(encoding='utf-8'))['project']['version'])"
+$installedVersion = python -c "import importlib.metadata as m; print(next((d.version for d in m.distributions() if d.metadata.get('Name', '').lower() == 'chopper'), '__MISSING__'))"
+if ($installedVersion.Trim() -ne $repoVersion.Trim()) {
+    if ($installedVersion.Trim() -eq "__MISSING__") {
+        Write-Host "  chopper is not installed in this venv. Installing version $repoVersion..." -ForegroundColor Gray
+    } else {
+        Write-Host "  Installed chopper version $installedVersion differs from repo version $repoVersion. Reinstalling..." -ForegroundColor Gray
+        python -m pip uninstall -y chopper --quiet
+    }
+    python -m pip install -e ".[dev]" --quiet
+    python -m pip install -e . --force-reinstall --no-deps --quiet
+} else {
+    Write-Host "  Installed chopper version matches repo version ($repoVersion). Skipping reinstall." -ForegroundColor Gray
 }
-python -m pip install -e ".[dev]" --quiet
-python -m pip install -e . --force-reinstall --no-deps --quiet
 
 Write-Host "[6/6] Validating venv and Chopper launcher..." -ForegroundColor Yellow
 $activePrefix = (python -c "import sys; print(sys.prefix)" 2>&1)

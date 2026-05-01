@@ -30,6 +30,7 @@ dev = [
     "pytest-regressions>=0.5",
     "hypothesis>=6.0,<7",
     "mypy>=1.0,<2",
+    "types-jsonschema>=4.0",
     "ruff>=0.4,<1",
     "import-linter>=2.0,<3",
 ]

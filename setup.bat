@@ -100,20 +100,24 @@ if /i not "%CHOPPER_NO_PROXY%"=="1" (
 )
 
 
-REM Install dependencies. The uninstall step clears any stale installed or
-REM editable `chopper` package from this venv before the fresh editable install.
-REM `--force-reinstall --no-deps` on the last line
-REM regenerates the chopper.exe console-script shim against THIS venv's
-REM python, fixing the common "copied venv" failure mode.
-echo [5/6] Reinstalling Chopper and dependencies...
+REM Install dependencies only when installed chopper version differs from
+REM the source version in this checkout (or if chopper is not installed yet).
+echo [5/6] Syncing Chopper install with repo version...
 python -m pip install --upgrade pip --quiet
-python -m pip show chopper >nul 2>&1
-if !ERRORLEVEL! EQU 0 (
-    echo   Existing chopper package found -- uninstalling...
-    python -m pip uninstall -y chopper --quiet
+for /f "usebackq delims=" %%V in (`python -c "import pathlib, tomllib; p=pathlib.Path('pyproject.toml'); print(tomllib.loads(p.read_text(encoding='utf-8'))['project']['version'])" 2^>nul`) do set "repoVersion=%%V"
+for /f "usebackq delims=" %%V in (`python -c "import importlib.metadata as m; print(next((d.version for d in m.distributions() if d.metadata.get('Name', '').lower() == 'chopper'), '__MISSING__'))" 2^>nul`) do set "installedVersion=%%V"
+if /i "!installedVersion!"=="!repoVersion!" (
+    echo   Installed chopper version matches repo version ^(!repoVersion!^). Skipping reinstall.
+) else (
+    if /i "!installedVersion!"=="__MISSING__" (
+        echo   chopper is not installed in this venv. Installing version !repoVersion!...
+    ) else (
+        echo   Installed chopper version !installedVersion! differs from repo version !repoVersion!. Reinstalling...
+        python -m pip uninstall -y chopper --quiet
+    )
+    python -m pip install -e ".[dev]" --quiet
+    python -m pip install -e . --force-reinstall --no-deps --quiet
 )
-python -m pip install -e ".[dev]" --quiet
-python -m pip install -e . --force-reinstall --no-deps --quiet
 
 echo [6/6] Validating venv and Chopper launcher...
 for /f "usebackq delims=" %%P in (`python -c "import sys; print(sys.prefix)" 2^>nul`) do set "activePrefix=%%P"
