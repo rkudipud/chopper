@@ -36,7 +36,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
-from re import Pattern, compile as re_compile, escape as re_escape
+from re import Pattern
 from typing import Literal
 
 from chopper.compiler.flow_resolver import resolve_stages
@@ -856,61 +856,16 @@ def _match_glob(pattern: str, parsed_paths: frozenset[Path]) -> set[Path]:
 
 
 def _glob_to_regex(pattern: str) -> Pattern[str] | None:
-    """Translate a POSIX-style glob with ``**`` semantics into a regex.
+    """Thin re-export of :func:`chopper.core.globs.glob_to_regex`.
 
-    - ``**/`` matches zero or more path components (``a/b/c/``, ``b/c/`` or ``""``).
-    - Trailing ``**`` matches any remainder including empty.
-    - ``*`` matches any run of non-``/`` characters.
-    - ``?`` matches a single non-``/`` character.
-    - ``[...]`` is passed through as a character class (``!`` is converted
-      to ``^`` for negation; literal ``]`` and ``\\`` inside the class
-      are preserved verbatim).
-
-    Returns ``None`` if the pattern does not contain ``**`` so the caller
-    can fall back to :func:`fnmatch.fnmatchcase` (which has identical
-    semantics for the remaining metacharacters).
+    The canonical implementation lives in :mod:`chopper.core.globs` so
+    P1 surface-file collection (:mod:`chopper.config.service`) and P3
+    conflict resolution (this module) and P1 / P3 validation
+    (:mod:`chopper.validator.functions`) all share identical semantics
+    without cross-service imports. Module-level alias kept so existing
+    P3 call sites remain unchanged.
     """
-    if "**" not in pattern:
-        return None
-    out: list[str] = []
-    i = 0
-    n = len(pattern)
-    while i < n:
-        ch = pattern[i]
-        if ch == "*":
-            if i + 1 < n and pattern[i + 1] == "*":
-                # ``**`` recursive segment.
-                if i + 2 < n and pattern[i + 2] == "/":
-                    out.append("(?:.*/)?")  # zero or more directory components
-                    i += 3
-                else:
-                    out.append(".*")  # trailing ``**``
-                    i += 2
-            else:
-                out.append("[^/]*")
-                i += 1
-        elif ch == "?":
-            out.append("[^/]")
-            i += 1
-        elif ch == "[":
-            j = i + 1
-            if j < n and pattern[j] == "!":
-                j += 1
-            if j < n and pattern[j] == "]":
-                j += 1
-            while j < n and pattern[j] != "]":
-                j += 1
-            if j >= n:
-                # Unterminated class — treat as literal ``[``.
-                out.append(re_escape("["))
-                i += 1
-            else:
-                cls = pattern[i + 1 : j]
-                if cls.startswith("!"):
-                    cls = "^" + cls[1:]
-                out.append("[" + cls + "]")
-                i = j + 1
-        else:
-            out.append(re_escape(ch))
-            i += 1
-    return re_compile("".join(out))
+
+    from chopper.core.globs import glob_to_regex  # noqa: PLC0415
+
+    return glob_to_regex(pattern)

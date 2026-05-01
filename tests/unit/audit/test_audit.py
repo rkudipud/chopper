@@ -203,7 +203,7 @@ def test_render_chopper_run_includes_mode_and_counts() -> None:
 
 
 def test_render_files_removed_empty_record_produces_header_only() -> None:
-    name, content = render_files_removed(_record())
+    name, content = render_files_removed(_make_ctx(), _record())
     assert name == "files_removed.txt"
     assert content.startswith("# files_removed.txt")
     # No paths present when manifest is absent.
@@ -233,7 +233,7 @@ def test_render_files_removed_lists_remove_paths_sorted() -> None:
             p_rem2: FileProvenance(path=p_rem2, treatment=FileTreatment.REMOVE, reason="default-exclude"),
         },
     )
-    _, content = render_files_removed(_record(manifest=manifest))
+    _, content = render_files_removed(_make_ctx(), _record(manifest=manifest))
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == [
         "a_first.tcl\tdefault-exclude",
@@ -315,11 +315,187 @@ def test_render_files_removed_reports_vetoed_provenance() -> None:
             ),
         },
     )
-    _, content = render_files_removed(_record(manifest=manifest))
+    _, content = render_files_removed(_make_ctx(), _record(manifest=manifest))
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == [
         "orphan.tcl\tdefault-exclude",
         "vetoed.tcl\tvetoed-by:base:procedures.exclude,feature_a:files.exclude",
+    ]
+
+
+def test_render_files_removed_includes_default_excluded_files_not_in_manifest() -> None:
+    """Regression for issue #15: physical-deletion view, not manifest-only.
+
+    The original bug: ``files_removed.txt`` only listed paths the compiled
+    manifest explicitly marked ``FileTreatment.REMOVE``. Files that the
+    trim physically deleted because they were matched by **no**
+    ``files.include`` pattern (and therefore never entered the manifest
+    universe at all — most ``.pl`` / ``.csh`` / ``.py`` companion files
+    in real EDA domains) were silently absent from the artifact.
+
+    This test stages a backup with three files but a manifest that only
+    keeps one. The other two were never named by any JSON, so they don't
+    appear in ``manifest.file_decisions`` at all — and the audit artifact
+    must still list them with ``default-exclude`` provenance.
+    """
+
+    fs = InMemoryFS()
+    # Stage the original domain in backup_root the way P5 leaves it after
+    # a live trim (case 1).
+    fs.write_text(BACKUP / "kept.tcl", "puts kept\n")
+    fs.write_text(BACKUP / "helper.pl", "#!/usr/bin/env perl\n")
+    fs.write_text(BACKUP / "scripts" / "run.csh", "#!/bin/csh\n")
+
+    p_kept = Path("kept.tcl")
+    manifest = CompiledManifest(
+        file_decisions={p_kept: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={
+            p_kept: FileProvenance(
+                path=p_kept,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+        },
+    )
+    ctx = _make_ctx(fs=fs)
+
+    _, content = render_files_removed(ctx, _record(manifest=manifest))
+    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == [
+        "helper.pl\tdefault-exclude",
+        "scripts/run.csh\tdefault-exclude",
+    ], "files physically in backup but never named by any JSON must be reported"
+    assert "kept.tcl" not in content, "the surviving file must not appear in files_removed.txt"
+
+
+def test_render_files_removed_skips_top_level_chopper_dir() -> None:
+    """The audit bundle itself (``.chopper/``) must never appear as removed."""
+
+    fs = InMemoryFS()
+    fs.write_text(BACKUP / "real.tcl", "puts hi\n")
+    fs.write_text(BACKUP / ".chopper" / "leftover.json", "{}\n")
+
+    p = Path("real.tcl")
+    manifest = CompiledManifest(
+        file_decisions={p: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={
+            p: FileProvenance(
+                path=p,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+        },
+    )
+    ctx = _make_ctx(fs=fs)
+
+    _, content = render_files_removed(ctx, _record(manifest=manifest))
+    assert ".chopper" not in content
+    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == []
+
+
+def test_render_files_removed_dry_run_walks_domain_root_when_no_backup() -> None:
+    """In a first-trim ``--dry-run``, no backup exists yet — walk ``domain_root``."""
+
+    fs = InMemoryFS()
+    # First-trim dry-run: original files still in domain_root, no backup created.
+    fs.write_text(DOMAIN / "kept.tcl", "puts kept\n")
+    fs.write_text(DOMAIN / "stale.pl", "#!/usr/bin/env perl\n")
+
+    p_kept = Path("kept.tcl")
+    manifest = CompiledManifest(
+        file_decisions={p_kept: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={
+            p_kept: FileProvenance(
+                path=p_kept,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+        },
+    )
+    ctx = _make_ctx(dry_run=True, fs=fs)
+
+    _, content = render_files_removed(ctx, _record(manifest=manifest))
+    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == ["stale.pl\tdefault-exclude"]
+
+
+def test_render_files_removed_dry_run_and_live_byte_identical() -> None:
+    """Consistency contract: dry-run and live trim produce identical output.
+
+    For the same input filesystem state and the same JSONs, ``files_removed.txt``
+    must be byte-for-byte identical between ``--dry-run`` and a real trim.
+    Non-interactive regression scripts rely on this so a ``--dry-run`` plan
+    can be diffed against the actual trim output without surprises.
+
+    The two filesystems below stage the *same* original-file set in the
+    *different* roots that each run mode produces at audit time:
+
+    * Dry-run first-trim  → originals live in ``domain_root`` (no backup
+      ever created).
+    * Live trim at P7     → P5 has moved the originals to ``backup_root``
+      and rebuilt ``domain_root`` with only the surviving files; only the
+      pre-existing ``backup_root`` contents matter for the deletion view.
+
+    The render must produce the exact same artifact in both cases.
+    """
+
+    original_files = {
+        Path("kept.tcl"): "puts kept\n",
+        Path("helper.pl"): "#!/usr/bin/env perl\n",
+        Path("scripts/run.csh"): "#!/bin/csh\n",
+        Path("scripts/orphan.py"): "print('hi')\n",
+    }
+    p_kept = Path("kept.tcl")
+    manifest = CompiledManifest(
+        file_decisions={p_kept: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={
+            p_kept: FileProvenance(
+                path=p_kept,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+        },
+    )
+
+    # -- Dry-run: originals still in domain_root, no backup. ---------------
+    fs_dry = InMemoryFS()
+    for rel, content in original_files.items():
+        fs_dry.write_text(DOMAIN / rel, content)
+    _, dry_content = render_files_removed(
+        _make_ctx(dry_run=True, fs=fs_dry),
+        _record(manifest=manifest),
+    )
+
+    # -- Live: originals in backup, domain_root rebuilt with kept only. ----
+    fs_live = InMemoryFS()
+    for rel, content in original_files.items():
+        fs_live.write_text(BACKUP / rel, content)
+    # P5 has rebuilt domain_root with only the surviving file.
+    fs_live.write_text(DOMAIN / p_kept, original_files[p_kept])
+    _, live_content = render_files_removed(
+        _make_ctx(dry_run=False, fs=fs_live),
+        _record(manifest=manifest),
+    )
+
+    assert dry_content == live_content, (
+        "files_removed.txt must be byte-identical between --dry-run and live trim "
+        f"for the same input state.\nDRY:\n{dry_content!r}\nLIVE:\n{live_content!r}"
+    )
+    # Sanity: both reports must contain the three non-kept files.
+    data_lines = [line for line in dry_content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == [
+        "helper.pl\tdefault-exclude",
+        "scripts/orphan.py\tdefault-exclude",
+        "scripts/run.csh\tdefault-exclude",
     ]
 
 

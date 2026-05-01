@@ -255,7 +255,7 @@ def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
     import re as _re  # noqa: PLC0415
     from fnmatch import fnmatchcase as _fnmatchcase  # noqa: PLC0415
 
-    from chopper.config.service import _glob_to_regex_local  # noqa: PLC0415
+    from chopper.core.globs import glob_to_regex as _glob_to_regex_local  # noqa: PLC0415
 
     regex = _glob_to_regex_local(pattern)
     domain = ctx.config.domain_root

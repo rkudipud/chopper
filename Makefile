@@ -28,8 +28,8 @@ imports-check:
 # code" and "agent drifted a service signature" classes of defect at CI time.
 # See technical_docs/FINAL_HANDOFF_REVIEW.md PR-4.
 docs-gate:
-	python scripts/check_diagnostic_registry.py
-	python scripts/check_service_signatures.py
+	python schemas/scripts/check_diagnostic_registry.py
+	python schemas/scripts/check_service_signatures.py
 
 # ────────────────────────────────────────────────────────────
 # Testing

@@ -15,7 +15,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 REGISTRY = ROOT / "technical_docs" / "DIAGNOSTIC_CODES.md"
 SOURCE_ROOT = ROOT / "src" / "chopper"
 

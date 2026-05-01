@@ -555,10 +555,7 @@ def _scan_command_range(
         if tok.kind is TokenKind.WORD:
             base_depth = tok.brace_depth
             cmd_end = _find_command_end(tokens, i + 1, end, base_depth)
-            is_cmd_pos = (
-                tok.at_command_position
-                or (expecting_cmd and base_depth == enclosing_depth)
-            )
+            is_cmd_pos = tok.at_command_position or (expecting_cmd and base_depth == enclosing_depth)
             if is_cmd_pos and i not in skip:
                 _classify_and_handle(tokens, tok.value, i + 1, cmd_end, base_depth, skip)
                 expecting_cmd = False
@@ -707,9 +704,7 @@ def _matching_rbrace(tokens: tuple[Token, ...], lbrace_idx: int, limit: int) -> 
     return None
 
 
-def _last_lbrace_at_depth(
-    tokens: tuple[Token, ...], start: int, end: int, depth: int
-) -> int | None:
+def _last_lbrace_at_depth(tokens: tuple[Token, ...], start: int, end: int, depth: int) -> int | None:
     """Return the index of the LAST LBRACE within [start, end) at ``depth``."""
     last: int | None = None
     j = start

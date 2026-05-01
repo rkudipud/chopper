@@ -25,7 +25,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 ARCH_PLAN = ROOT / "technical_docs" / "ARCHITECTURE_PLAN.md"
 SOURCE_ROOT = ROOT / "src" / "chopper"
 
@@ -51,6 +51,11 @@ def normalise_signature(sig: str) -> str:
     collapsed = re.sub(r"^[A-Za-z_][A-Za-z0-9_]*\s*\(", "(", collapsed)
     collapsed = collapsed.replace("(self, ", "(")
     collapsed = collapsed.replace("(self)", "()")
+    # Normalise default-value spacing: ``ast.unparse`` emits ``=None``
+    # while PEP 8 prose and the architecture-doc table use ``= None``.
+    # Both are valid; collapse to a single canonical form so the gate
+    # doesn't trip on cosmetic whitespace.
+    collapsed = re.sub(r"\s*=\s*", "=", collapsed)
     return collapsed
 
 

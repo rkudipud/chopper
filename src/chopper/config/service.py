@@ -151,7 +151,7 @@ class ConfigService:
         # consults before emitting TW-02. Built-in lists under
         # ``src/chopper/data/tool_commands/`` are always loaded; user
         # paths from ``RunConfig.tool_command_paths`` extend the set.
-        from chopper.compiler.tool_commands import load_pool as _load_pool
+        from chopper.core.tool_commands import load_pool as _load_pool
 
         pool = _load_pool(ctx.config.tool_command_paths)
 
@@ -241,55 +241,19 @@ def _is_glob_pattern(s: str) -> bool:
 
 
 def _glob_to_regex_local(pattern: str) -> re.Pattern[str] | None:
-    """Translate a POSIX-style glob with ``**`` semantics into a compiled regex.
+    """Thin re-export of :func:`chopper.core.globs.glob_to_regex`.
 
-    Mirrors the logic in :func:`chopper.compiler.merge_service._glob_to_regex`
-    so that P1 surface-file collection and P3 conflict resolution use identical
-    glob semantics.  Returns ``None`` for patterns that contain no ``**`` so
-    the caller can fall back to :func:`fnmatch.fnmatchcase`.
+    Kept as a private alias so existing P1 / P3 call sites in this module
+    do not need to change. The single canonical implementation lives in
+    :mod:`chopper.core.globs` so :mod:`chopper.compiler.merge_service`
+    and :mod:`chopper.validator.functions` can share it without any
+    cross-service import (see import-linter contracts in
+    :file:`pyproject.toml`).
     """
-    if "**" not in pattern:
-        return None
-    out: list[str] = []
-    i = 0
-    n = len(pattern)
-    while i < n:
-        ch = pattern[i]
-        if ch == "*":
-            if i + 1 < n and pattern[i + 1] == "*":
-                if i + 2 < n and pattern[i + 2] == "/":
-                    out.append("(?:.*/)?")
-                    i += 3
-                else:
-                    out.append(".*")
-                    i += 2
-            else:
-                out.append("[^/]*")
-                i += 1
-        elif ch == "?":
-            out.append("[^/]")
-            i += 1
-        elif ch == "[":
-            j = i + 1
-            if j < n and pattern[j] == "!":
-                j += 1
-            if j < n and pattern[j] == "]":
-                j += 1
-            while j < n and pattern[j] != "]":
-                j += 1
-            if j >= n:
-                out.append(re.escape("["))
-                i += 1
-            else:
-                cls = pattern[i + 1 : j]
-                if cls.startswith("!"):
-                    cls = "^" + cls[1:]
-                out.append("[" + cls + "]")
-                i = j + 1
-        else:
-            out.append(re.escape(ch))
-            i += 1
-    return re.compile("".join(out))
+
+    from chopper.core.globs import glob_to_regex  # noqa: PLC0415
+
+    return glob_to_regex(pattern)
 
 
 def _enumerate_domain_files(ctx: ChopperContext) -> list[tuple[Path, str]]:

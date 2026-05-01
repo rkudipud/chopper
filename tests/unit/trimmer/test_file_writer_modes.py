@@ -17,13 +17,27 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
+
+import pytest
 
 from chopper.adapters import LocalFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from chopper.core.models import ParsedFile, ProcEntry
 from chopper.trimmer.file_writer import full_copy_file, proc_trim_file
+
+# POSIX mode-bit semantics don't apply on Windows: ``os.chmod`` can only
+# toggle the read-only flag, not the executable / group / world bits the
+# trimmer's mode-preservation contract is about. The bug fixed by
+# :func:`chopper.trimmer.file_writer._mirror_mode` is also a POSIX-only
+# regression (Linux EDA grid nodes), so guarding the suite to POSIX is
+# both correct and aligned with the production target.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX mode bits not honored by Windows os.chmod; bug is Linux-only",
+)
 
 
 class _NullSink:

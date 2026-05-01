@@ -388,20 +388,25 @@ def test_validate_post_vw05_carries_caller_path() -> None:
         },
     )
     edge = Edge(
-        caller=caller, callee=removed, kind="proc_call", status="resolved",
-        token="gone", line=5,
+        caller=caller,
+        callee=removed,
+        kind="proc_call",
+        status="resolved",
+        token="gone",
+        line=5,
     )
     graph = DependencyGraph(
-        pi_seeds=(caller,), nodes=(caller,), pt=(), edges=(edge,),
+        pi_seeds=(caller,),
+        nodes=(caller,),
+        pt=(),
+        edges=(edge,),
         reachable_from_includes=frozenset({caller}),
     )
     ctx = _ctx()
     validate_post(ctx, manifest, graph, rewritten=())
     vw05 = [d for d in ctx.diag.snapshot() if d.code == "VW-05"]
     assert vw05, "expected at least one VW-05 emission"
-    assert vw05[0].path == Path("a.tcl"), (
-        f"VW-05 must carry caller's source file, got {vw05[0].path!r}"
-    )
+    assert vw05[0].path == Path("a.tcl"), f"VW-05 must carry caller's source file, got {vw05[0].path!r}"
 
 
 def test_validate_post_ignores_unresolved_edges() -> None:
@@ -586,9 +591,7 @@ def test_vw06_not_emitted_when_bare_filename_matches_nested_subdir_file() -> Non
     )
     ctx = _ctx()
     validate_post(ctx, manifest, graph, rewritten=())
-    assert "VW-06" not in _codes(ctx), (
-        "VW-06 must not fire when the bare filename matches a nested surviving path"
-    )
+    assert "VW-06" not in _codes(ctx), "VW-06 must not fire when the bare filename matches a nested surviving path"
 
 
 def test_vw06_still_emitted_when_bare_filename_is_genuinely_missing() -> None:

@@ -372,7 +372,7 @@ class TestToolCommandPool:
         set_lib_cell_logic_function must be in the built-in PT/PrimePower
         command pool so TW-02 is not emitted for them.
         """
-        from chopper.compiler.tool_commands import load_pool
+        from chopper.core.tool_commands import load_pool
 
         pool = load_pool()
         assert "set_power_name_mapping_options" in pool, (

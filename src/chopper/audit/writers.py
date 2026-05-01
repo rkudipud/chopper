@@ -357,8 +357,64 @@ def render_trim_report_txt(ctx: ChopperContext, record: RunRecord) -> tuple[str,
 _KEPT_TREATMENTS = frozenset({FileTreatment.FULL_COPY, FileTreatment.PROC_TRIM, FileTreatment.GENERATED})
 
 
-def render_files_removed(record: RunRecord) -> tuple[str, str]:
-    """Sorted list of domain-relative paths that will be removed, with provenance.
+def _physical_source_root(ctx: ChopperContext) -> Path | None:
+    """Return the root that holds the *original* (pre-trim) file set, if any.
+
+    For a live trim, P5 has moved the original domain into ``backup_root``
+    by the time audit runs, so that's the authoritative source.
+
+    For a ``--dry-run`` first-trim no backup is created (the trimmer
+    short-circuits before workspace prep), so the original files are
+    still in ``domain_root``.
+
+    Returns ``None`` when neither root exists — e.g. when audit runs after
+    a P0/P1 abort or under a unit-test stub filesystem with no contents.
+    Callers fall back to a manifest-only view in that case.
+    """
+
+    backup = ctx.config.backup_root
+    domain = ctx.config.domain_root
+    if ctx.fs.exists(backup):
+        return backup
+    if ctx.fs.exists(domain):
+        return domain
+    return None
+
+
+def _walk_relative_files(ctx: ChopperContext, root: Path) -> list[Path]:
+    """Return every regular file under ``root`` as a domain-relative path.
+
+    The walk skips a top-level ``.chopper/`` directory (the audit bundle
+    itself, which must never be reported as a domain artifact) and is
+    deterministic: each directory is listed via :meth:`FileSystemPort.list`,
+    which is contractually sorted by POSIX path.
+    """
+
+    out: list[Path] = []
+
+    def _recurse(current: Path, *, top: bool) -> None:
+        try:
+            children = ctx.fs.list(current)
+        except (FileNotFoundError, NotADirectoryError):
+            return
+        for child in children:
+            if top and child.name == ".chopper":
+                continue
+            try:
+                child_stat = ctx.fs.stat(child)
+            except FileNotFoundError:
+                continue
+            if child_stat.is_dir:
+                _recurse(child, top=False)
+            else:
+                out.append(child.relative_to(root))
+
+    _recurse(root, top=True)
+    return out
+
+
+def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]:
+    """Sorted list of domain-relative paths physically removed by the trim.
 
     One entry per line, alphabetically sorted by path. Each line is
     tab-separated as ``<path>\\t<provenance>`` where ``<provenance>`` is:
@@ -366,33 +422,80 @@ def render_files_removed(record: RunRecord) -> tuple[str, str]:
     * ``vetoed-by:<src1>,<src2>,...`` — at least one authoring intent named
       this file but every contribution was vetoed cross-source (L3); the
       tags come from ``FileProvenance.vetoed_entries``.
-    * ``default-exclude`` — no JSON named the file at all, so it was
-      excluded by default.
+    * ``default-exclude`` — either the file was named by a JSON authoring
+      intent that lost (no surviving contribution and no veto recorded),
+      or no JSON named the file at all (most common case for non-``.tcl``
+      companion files like helper ``.pl`` / ``.csh`` / ``.py`` scripts).
 
-    The file is empty (header only) when the manifest is absent or no
-    files are marked ``REMOVE``. Useful during ``--dry-run`` to review the
-    removal set in regression scripts without parsing ``trim_report.json``.
+    The list is computed as ``set(walk(source_root)) - set(kept_paths)``:
+    everything that exists in the original domain (``backup_root`` after a
+    live trim, ``domain_root`` for first-trim ``--dry-run``) but not in
+    the manifest's surviving file set. This covers files the compiled
+    manifest never reasoned over — files matched by no ``files.include``
+    pattern are still listed, which is the user-facing answer to *what
+    did this trim physically delete?*
+
+    Falls back to a manifest-only view (explicit ``REMOVE`` entries with
+    their ``FileProvenance.vetoed_entries`` tags) when the source root is
+    absent — e.g. during a unit test that stages no filesystem state, or
+    when audit runs after a P0/P1 abort. The fallback keeps the audit
+    bundle valid even when no physical comparison is possible.
+
+    Useful during ``--dry-run`` to review the removal set in regression
+    scripts without parsing ``trim_report.json``.
     """
 
     manifest = record.manifest
     lines: list[str] = [
-        "# files_removed.txt — paths scheduled for removal",
+        "# files_removed.txt — paths physically removed from the rebuilt domain",
         "# Format: <path>\\t<provenance>",
         "# <provenance>: 'vetoed-by:<source_key>:<json_field>,...' when an",
-        "# authoring intent was vetoed cross-source, otherwise 'default-exclude'.",
+        "# authoring intent was vetoed cross-source, otherwise 'default-exclude'",
+        "# (the file was either named by a losing intent or never named at all).",
     ]
+
+    source_root = _physical_source_root(ctx)
+
+    if source_root is None:
+        # No filesystem to walk — fall back to the manifest's explicit
+        # REMOVE decisions so the artifact is still well-formed.
+        if manifest is not None:
+            removed_entries = sorted(
+                (p, manifest.provenance.get(p)) for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE
+            )
+            for path, prov in removed_entries:
+                provenance = _format_removed_provenance(prov)
+                lines.append(f"{path.as_posix()}\t{provenance}")
+        lines.append("")
+        return "files_removed.txt", "\n".join(lines)
+
+    kept_paths: set[Path] = set()
     if manifest is not None:
-        removed_entries = sorted(
-            (p, manifest.provenance.get(p)) for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE
-        )
-        for path, prov in removed_entries:
-            if prov is not None and prov.vetoed_entries:
-                provenance = "vetoed-by:" + ",".join(prov.vetoed_entries)
-            else:
-                provenance = "default-exclude"
-            lines.append(f"{path.as_posix()}\t{provenance}")
+        kept_paths = {p for p, t in manifest.file_decisions.items() if t in _KEPT_TREATMENTS}
+
+    physical_paths = _walk_relative_files(ctx, source_root)
+    removed_paths = sorted(set(physical_paths) - kept_paths, key=lambda p: p.as_posix())
+
+    for path in removed_paths:
+        prov = manifest.provenance.get(path) if manifest is not None else None
+        provenance = _format_removed_provenance(prov)
+        lines.append(f"{path.as_posix()}\t{provenance}")
+
     lines.append("")
     return "files_removed.txt", "\n".join(lines)
+
+
+def _format_removed_provenance(prov) -> str:  # type: ignore[no-untyped-def]
+    """Render a ``FileProvenance`` entry as the per-line provenance column.
+
+    ``vetoed-by:<src1>,<src2>,...`` when ``vetoed_entries`` is populated,
+    ``default-exclude`` otherwise (including the common case of no
+    provenance entry at all, i.e. the file was never named by any JSON).
+    """
+
+    if prov is not None and prov.vetoed_entries:
+        return "vetoed-by:" + ",".join(prov.vetoed_entries)
+    return "default-exclude"
 
 
 def render_files_kept(record: RunRecord) -> tuple[str, str]:

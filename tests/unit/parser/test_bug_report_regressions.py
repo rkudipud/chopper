@@ -59,9 +59,7 @@ class TestQuotedSemicolon:
             ("xpv_path_reduction", "Reduced"),
         ],
     )
-    def test_word_after_semicolon_in_quoted_string_is_not_a_call(
-        self, proc_name: str, forbidden_call: str
-    ) -> None:
+    def test_word_after_semicolon_in_quoted_string_is_not_a_call(self, proc_name: str, forbidden_call: str) -> None:
         calls = _calls_by_proc("quoted_semicolon.tcl")
         assert proc_name in calls, f"fixture missing proc {proc_name!r}"
         assert forbidden_call not in calls[proc_name], (
@@ -95,9 +93,7 @@ class TestRegexLiteralOpacity:
             ("voltage_map_check", {"nom", "v"}),
         ],
     )
-    def test_regex_literal_contents_not_extracted(
-        self, proc_name: str, forbidden_calls: set[str]
-    ) -> None:
+    def test_regex_literal_contents_not_extracted(self, proc_name: str, forbidden_calls: set[str]) -> None:
         calls = _calls_by_proc("regex_literals.tcl")
         assert proc_name in calls, f"fixture missing proc {proc_name!r}"
         leaked = calls[proc_name] & forbidden_calls
@@ -119,15 +115,21 @@ class TestSwitchPatternLabels:
     def test_switch_pattern_words_not_extracted(self) -> None:
         calls = _calls_by_proc("switch_patterns.tcl")
         forbidden = {
-            "child_int_type", "clock_skew", "crpr_value", "derate", "edges",
-            "endpoint", "tag", "single", "double", "triple", "default",
+            "child_int_type",
+            "clock_skew",
+            "crpr_value",
+            "derate",
+            "edges",
+            "endpoint",
+            "tag",
+            "single",
+            "double",
+            "triple",
+            "default",
         }
         for proc, proc_calls in calls.items():
             leaked = proc_calls & forbidden
-            assert not leaked, (
-                f"{proc}: switch pattern labels leaked as proc calls: "
-                f"{sorted(leaked)}."
-            )
+            assert not leaked, f"{proc}: switch pattern labels leaked as proc calls: {sorted(leaked)}."
 
     def test_switch_body_code_still_extracted(self) -> None:
         # ``set`` is a Tcl builtin and is suppressed from calls, but the
@@ -160,8 +162,7 @@ class TestDpaMultilineContinuation:
             "well-formed continued define_proc_attributes block."
         )
         assert "dpa-orphan" not in kinds, (
-            "DPA-orphan was emitted even though the DPA's first arg "
-            "matches the preceding proc."
+            "DPA-orphan was emitted even though the DPA's first arg matches the preceding proc."
         )
 
     def test_dpa_span_attached_to_proc(self) -> None:
