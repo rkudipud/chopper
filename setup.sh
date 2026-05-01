@@ -33,7 +33,7 @@ else
     echo "WARN: python3.13 not found on PATH; falling back to $(python3 --version 2>&1)."
     echo "      Contributors are expected to install Python 3.13 for the dev venv."
 fi
-default_proxy="http://proxy-chain.intel.com:928"
+default_proxy="http://proxy-chain.intel.com:912"
 proxy="${CHOPPER_PROXY:-$default_proxy}"
 
 echo "=== Chopper Dev Environment Setup ==="

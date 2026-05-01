@@ -26,7 +26,7 @@ else
     echo "WARN: python3.13 not found on PATH; falling back to `python3 --version`."
     echo "      Contributors are expected to install Python 3.13 for the dev venv."
 endif
-set default_proxy = "http://proxy-chain.intel.com:928"
+set default_proxy = "http://proxy-chain.intel.com:912"
 if ( $?CHOPPER_PROXY ) then
     set proxy = "$CHOPPER_PROXY"
 else

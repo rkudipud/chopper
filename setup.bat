@@ -15,7 +15,7 @@ REM to bare `python` only if the launcher cannot find 3.13.
 set "pythonCmd=python"
 py -3.13 -c "import sys" >nul 2>&1
 if %ERRORLEVEL% EQU 0 set "pythonCmd=py -3.13"
-set "defaultProxy=http://proxy-chain.intel.com:928"
+set "defaultProxy=http://proxy-chain.intel.com:912"
 set "proxy=%CHOPPER_PROXY%"
 if "%proxy%"=="" set "proxy=%defaultProxy%"
 

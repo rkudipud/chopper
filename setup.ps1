@@ -31,7 +31,7 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
         $pythonCmd = "py -3.13"
     }
 }
-$defaultProxy = "http://proxy-chain.intel.com:928"
+$defaultProxy = "http://proxy-chain.intel.com:912"
 $proxy = $env:CHOPPER_PROXY
 if ([string]::IsNullOrWhiteSpace($proxy)) { $proxy = $defaultProxy }
 
