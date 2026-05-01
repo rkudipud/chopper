@@ -225,3 +225,6 @@ yarn.lock
 pnpm-lock.yaml
 .node_repl_history
 *.tgz
+test_out.txt
+test_run.txt
+dom/
