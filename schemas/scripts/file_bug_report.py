@@ -7,8 +7,8 @@ create`. If the GitHub step fails, it falls back to the already-rendered local
 output instead of requiring a second pass.
 
 Usage examples:
-  python scripts/file_bug_report.py --payload /tmp/bug_payload.json --dry-run
-  python scripts/file_bug_report.py --payload /tmp/bug_payload.json --create
+  python schemas/scripts/file_bug_report.py --payload /tmp/bug_payload.json --dry-run
+  python schemas/scripts/file_bug_report.py --payload /tmp/bug_payload.json --create
 
 Payload shape:
 {
@@ -38,7 +38,6 @@ from pathlib import Path
 from typing import Any
 
 from package_bug_report import create_bundle, validate_inputs
-
 
 REQUIRED_FIELDS = (
     "title",

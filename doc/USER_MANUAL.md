@@ -53,12 +53,13 @@ chopper --help
 
 ---
 
-## ⚡ The Three Subcommands
+## ⚡ The Four Subcommands
 
 ```text
-chopper validate    # Check JSONs are well-formed and targets exist
-chopper trim        # Run the full pipeline and produce trimmed domain/
-chopper cleanup     # Remove domain_backup/ after trim window ends
+chopper validate      # Check JSONs are well-formed and targets exist
+chopper trim          # Run the full pipeline and produce trimmed domain/
+chopper cleanup       # Remove domain_backup/ after trim window ends
+chopper mcp-serve     # Start a stdio-only read-only MCP server (0.4.0+)
 ```
 
 The easiest workflow is to run from the domain directory, but you can also stay elsewhere and pass `--domain PATH`.
@@ -71,6 +72,7 @@ What each one really does:
 | `trim --dry-run` | Same analysis as `validate`, but under the `trim` command surface and with trim-specific reporting | No domain content writes; updates `.chopper/` |
 | `trim` | Full live run: analysis plus filesystem rebuild, stage generation, post-validation, and audit writing | Yes |
 | `cleanup --confirm` | Deletes `<domain>_backup/` permanently | Yes |
+| `mcp-serve` | Starts a stdio-only JSON-RPC Model Context Protocol server. Exposes three read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Destructive subcommands are never exposed over MCP. | No |
 
 > [!IMPORTANT]
 > Global flags `--plain`, `--strict`, `-v`, and `-q` must appear **before** the subcommand — e.g., `chopper --plain --strict trim --project configs/project_abc.json`.
@@ -390,6 +392,22 @@ chopper cleanup [--domain PATH] --confirm
 | `--domain PATH` | Domain root whose sibling backup directory should be removed. Default is the current working directory. |
 | `--confirm` | **Required.** Cleanup refuses to run without it. Deletion is irreversible. |
 
+### `chopper mcp-serve`
+
+```text
+chopper mcp-serve
+```
+
+Starts a **stdio-only** JSON-RPC Model Context Protocol (MCP) server. Point a Claude Desktop, Claude Code, or compatible MCP client at this command. The server exposes three read-only tools and nothing else:
+
+| Tool | What it does |
+| --- | --- |
+| `chopper.validate` | Runs `chopper validate` against a domain and returns typed `RunResult` JSON |
+| `chopper.explain_diagnostic` | Looks up any diagnostic code in the registry and returns its description and recovery hint |
+| `chopper.read_audit` | Returns the contents of a `.chopper/` audit bundle |
+
+Destructive subcommands (`trim`, `cleanup`) are never exposed over MCP. Exit code `4` (`PE-04 mcp-protocol-error`) is returned when the client sends a malformed frame or names an unknown tool. No additional flags are supported.
+
 ---
 
 ## 🔢 Exit Codes
@@ -399,7 +417,8 @@ chopper cleanup [--domain PATH] --confirm
 | `0` | Success. No errors. |
 | `1` | One or more user-visible errors were emitted, or `--strict` escalated warnings to a non-zero exit. |
 | `2` | CLI or environment precondition failure, such as bad flag usage or an unrecoverable domain/backup state. |
-| `3` | Internal programmer error. Capture stderr plus the `.chopper/` bundle and file a bug. |
+| `3` | Internal programmer error. `.chopper/internal-error.log` is written with the full traceback, run ID, version, and diagnostic snapshot. Capture that log plus the rest of the `.chopper/` bundle and file a bug. |
+| `4` | `PE-04 mcp-protocol-error`. Only produced by `chopper mcp-serve` — malformed JSON-RPC frame or unknown tool name. Never returned by `validate`, `trim`, or `cleanup`. |
 
 > [!TIP]
 > Use `--strict` in CI pipelines so any warning causes a non-zero exit.
@@ -416,10 +435,11 @@ Every run writes `.chopper/` inside the current domain. Contents:
 | `chopper_run.json` | CLI args, timing, outcome |
 | `compiled_manifest.json` | Per-file / per-proc decisions (FULL_COPY, PROC_TRIM, GENERATED, REMOVE). Generated stage scripts show up here as `GENERATED` even during `validate` and `--dry-run`. |
 | `dependency_graph.json` | Full proc call graph from the trace phase |
-| `trim_report.json` | Machine-readable summary of what changed |
+| `trim_report.json` | Machine-readable summary of what changed — file counts, proc counts, and SLOC fields (`sloc_before`, `sloc_after`, `sloc_removed`, `trim_ratio_sloc`) |
 | `trim_report.txt` | Human-readable projection of the above |
 | `diagnostics.json` | Every diagnostic emitted (code, severity, location, hint) |
 | `trim_stats.json` | File and SLOC counts before/after |
+| `internal-error.log` | **Only on exit 3.** Plain-text crash log: run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used for the run |
 | `input_features/NN_name.json` | Verbatim copies of selected feature JSONs, prefixed by feature order |
 
@@ -463,7 +483,8 @@ That is enough to start. Run `chopper validate --base jsons/base.json` first, th
 | `TW-04 cycle-in-call-graph` | Two procs call each other. Safe — trace terminates via visited-set. Review reported cycle for intent. |
 | `--dry-run still created .chopper/` | Expected. Dry-run skips domain rebuilds, not audit/report writing. Inspect the reports, then run live `trim` if they look right. |
 | "Hand edits discarded" | You edited `<domain>/` directly between runs. Move edits to source JSONs, or commit before re-running. |
-| Exit code 3 | Internal bug. Save stderr plus `.chopper/chopper_run.json`, `.chopper/diagnostics.json`, and `.chopper/compiled_manifest.json`, then file an issue. |
+| Exit code 3 | Internal bug. `.chopper/internal-error.log` has the full traceback. Save that log plus `.chopper/chopper_run.json` and `.chopper/diagnostics.json`, then use the `report-chopper-bug` Copilot prompt or file an issue manually. |
+| Exit code 4 | Only from `mcp-serve` — malformed or unknown MCP request. Check the client's JSON-RPC frame. |
 
 Full diagnostic registry: [`../technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md).
 

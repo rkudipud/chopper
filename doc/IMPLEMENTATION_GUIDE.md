@@ -26,6 +26,7 @@ Its public command surface is intentionally small:
 - `chopper validate`
 - `chopper trim`
 - `chopper cleanup --confirm`
+- `chopper mcp-serve` (stdio-only read-only MCP server, 0.4.0+)
 
 The implementation is organized around an 8-phase pipeline `P0` through `P7`, sequenced by one orchestrator class: `ChopperRunner` in `src/chopper/orchestrator/runner.py`.
 
@@ -35,7 +36,7 @@ The implementation is organized around an 8-phase pipeline `P0` through `P7`, se
 
 ```mermaid
 flowchart LR
-    CLI["CLI<br/>chopper validate / trim / cleanup"] --> Commands["cli.commands<br/>Build RunConfig + ChopperContext"]
+    CLI["CLI<br/>chopper validate / trim / cleanup / mcp-serve"] --> Commands["cli.commands<br/>Build RunConfig + ChopperContext"]
     Commands --> Runner[orchestrator.ChopperRunner]
 
     Runner --> P0[P0 DomainStateService]
@@ -75,6 +76,7 @@ flowchart LR
 | `src/chopper/generators/` | Stage file generation | Implements P5b |
 | `src/chopper/validator/` | Pre- and post-trim validation functions | Implements P1b and P6 |
 | `src/chopper/audit/` | Audit renderers, hashing, bundle writing | Implements P7 |
+| `src/chopper/mcp/` | Stdio-only read-only MCP server (`chopper mcp-serve`) | User-facing |
 | `src/chopper/adapters/` | Concrete filesystem, progress, and diagnostic adapters | Connects the service layer to real effects |
 
 ### Supporting project areas
@@ -106,8 +108,9 @@ The three handlers are:
 - `cmd_validate(args)`
 - `cmd_trim(args)`
 - `cmd_cleanup(args)`
+- `cmd_mcp_serve(args)`
 
-Only `validate` and `trim` enter the orchestrator. `cleanup` is a direct filesystem operation that removes `<domain>_backup/` when `--confirm` is present.
+Only `validate` and `trim` enter the orchestrator. `cleanup` is a direct filesystem operation that removes `<domain>_backup/` when `--confirm` is present. `mcp-serve` bypasses the orchestrator entirely and runs its own stdio JSON-RPC loop in `src/chopper/mcp/`.
 
 `cmd_validate` performs one extra rewrite before context construction: any directory entry in `--features` is expanded in place to the sorted, non-recursive list of its immediate `*.json` children (helper `_expand_feature_dirs`). This is a validate-only authoring convenience per the architecture doc §5.1; `cmd_trim` and `--project` leave `args.features` untouched so the ordered feature sequence recorded in audit artifacts stays unambiguous.
 
@@ -595,7 +598,7 @@ What the quality gates cover:
 - `mypy` for type checking
 - `pytest` for tests and coverage
 - `import-linter` contracts from `pyproject.toml`
-- repo scripts such as `scripts/check_diagnostic_registry.py`
+- repo scripts such as `schemas/scripts/check_diagnostic_registry.py`
 
 ---
 

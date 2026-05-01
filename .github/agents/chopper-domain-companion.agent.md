@@ -112,12 +112,24 @@ The runtime writes these into `.chopper/` on every run (success or failure). Exa
 - `diagnostics.json` — every diagnostic emitted during the run (keyed by code from [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md))
 - `compiled_manifest.json` — per-file treatment (`FULL_COPY` / `PROC_TRIM` / `GENERATED` / `DROPPED`) and provenance
 - `dependency_graph.json` — proc call graph from the P4 BFS trace
-- `trim_report.json` + `trim_report.txt` — what physically changed on disk (JSON for tools, text for humans)
-- `trim_stats.json` — counts summary (files copied, procs dropped, etc.)
+- `trim_report.json` + `trim_report.txt` — what physically changed on disk (JSON for tools, text for humans). Includes `sloc_before`, `sloc_after`, `sloc_removed`, and `trim_ratio_sloc` — language-aware (Tcl, Perl, Python, Bourne / Korn / C / Z shells) lines-of-code counts before vs after trim.
+- `trim_stats.json` — counts summary (files copied, procs dropped, SLOC delta)
+- `files_kept.txt` / `files_removed.txt` — physical kept/removed paths with JSON-source provenance per line (since 0.5.3)
 - `input_base.json` + `input_features/NN_name.json` — verbatim copies of the JSON inputs
+- `internal-error.log` — **only present on exit 3** (programmer error). Plain-text crash log: run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. Mirrors `RunResult.internal_error = {kind, message, log_path}` so a GUI / CI can surface the failure without parsing the log.
 - Event log in JSON-Lines format
 
-The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md). Never invent codes; look them up there.
+The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) (**71 active codes** as of 0.7.0). Never invent codes; look them up there.
+
+### Exit codes (CLI surface)
+
+| Code | When it happens | What you tell the user |
+|---|---|---|
+| `0` | clean success | proceed |
+| `1` | validation surfaced errors (or `--strict` saw warnings) | read `diagnostics.json` |
+| `2` | CLI / environment error (bad flags, missing domain, `VE-21` Case 4) | fix the invocation |
+| `3` | internal programmer error — any uncaught exception escaping a service | read `.chopper/internal-error.log`, attach to bug report via `report-chopper-bug` |
+| `4` | `PE-04 mcp-protocol-error` — only from `chopper mcp-serve` | malformed JSON-RPC frame or unknown tool name |
 
 ---
 
@@ -131,7 +143,7 @@ You help the user **author JSON** but do not invoke Chopper.
 
 - Read the codebase with search / listDirectory / readFile
 - Propose `base.json`, `*.feature.json`, `project.json`
-- Validate with `scripts/validate_jsons.py` (schema-only, no runtime)
+- Validate with `schemas/scripts/validate_jsons.py` (schema-only, no runtime)
 - Never call `chopper validate` / `chopper trim` / `chopper cleanup`
 
 Use this mode when the user says "help me write the JSON", when there's no working Chopper install, or when they explicitly want authoring-only guidance.
@@ -406,7 +418,7 @@ Common feature patterns:
 
 ### Phase 6: Validate
 
-Use `python scripts/validate_jsons.py <path>` for schema-only validation in `analyze-only` mode. Switch to `chopper validate ...` in `full-loop` mode for full runtime validation.
+Use `python schemas/scripts/validate_jsons.py <path>` for schema-only validation in `analyze-only` mode. Switch to `chopper validate ...` in `full-loop` mode for full runtime validation.
 
 ### Phase 7: Run and inspect
 
@@ -546,7 +558,7 @@ Checklist for project JSON:
 
 ## Schema Error → Fix Mapping
 
-When `scripts/validate_jsons.py` or `chopper validate` surfaces a schema error, apply these fixes:
+When `schemas/scripts/validate_jsons.py` or `chopper validate` surfaces a schema error, apply these fixes:
 
 | Schema error | Fix |
 |-------------|-----|
@@ -576,12 +588,12 @@ Named workflow. When the user asks *"help me get started"* or *"bootstrap my dom
 1. **Q1–Q5 discovery.** Do not skip. Get the domain root, stack files, scripts, configs, and utility dirs confirmed.
 2. **File inventory + classification table.** Present it, let the user correct.
 3. **Cluster procs by file/namespace.** If proc-trimming is in play, build the call-tree log (Phase 4).
-4. **Propose a minimal starter `base.json`.** Files-only at first, no proc-trim yet. Get it passing `scripts/validate_jsons.py`.
+4. **Propose a minimal starter `base.json`.** Files-only at first, no proc-trim yet. Get it passing `schemas/scripts/validate_jsons.py`.
 5. **Propose the first feature JSON** from the optional clusters (if any).
 6. **Offer `chopper trim --dry-run`** as the validation gate (only in `full-loop` mode).
 7. **Iterate** based on what the audit bundle shows.
 
-Anchor every step in the concrete examples under [json_kit/examples/](../../json_kit/examples/) — 11 worked scenarios from `01_base_files_only` through `11_project_base_only`. Copy-and-adapt beats authoring from a blank template.
+Anchor every step in the concrete examples under [examples/](../../examples/) — 11 worked scenarios from `01_base_files_only` through `11_project_base_only`. Copy-and-adapt beats authoring from a blank template.
 
 ---
 
@@ -839,8 +851,8 @@ When a bug is sighted, **do not wait for the user to ask** — immediately begin
    - The user's `base.json` / `project.json` (with sensitive paths noted)
    - Chopper version from `chopper_run.json` if the bundle exists
 3. Ask only for the minimum missing required payload fields (e.g. platform, EC site, Python version) in a single focused question — do not block the filing on optional fields.
-4. Build the JSON payload matching the shape expected by `scripts/file_bug_report.py`.
-5. Run `python scripts/file_bug_report.py --payload <payload> --create`.
+4. Build the JSON payload matching the shape expected by `schemas/scripts/file_bug_report.py`.
+5. Run `python schemas/scripts/file_bug_report.py --payload <payload> --create`.
 6. Report the created issue URL to the user. If `gh` is unavailable or unauthenticated, fall back to the rendered local file path and tell the user exactly where it was written.
 
 Do **not** ask the user for permission to file. Do **not** show a manual "click here" link as the primary path. Auto-file is the default. The browser link (`../../issues/new?template=bug_report.yml`) is a fallback of last resort when the script cannot run.
@@ -854,7 +866,7 @@ When filing a bug report (triggered automatically on bug detection or by explici
 - Never use a filesystem path to an external markdown file as a substitute for the summary or reproduction steps.
 - Never emit empty fenced code blocks, blank sections, or `_No response_`; if evidence is unavailable, write one sentence explaining why.
 - Prefer a compact log excerpt plus an attachment note over pasting megabytes of terminal output.
-- When enough evidence is available, write a JSON payload and run `python scripts/file_bug_report.py --payload <payload> --create` so the GitHub issue is created automatically.
+- When enough evidence is available, write a JSON payload and run `python schemas/scripts/file_bug_report.py --payload <payload> --create` so the GitHub issue is created automatically.
 - Default fallback is the simple local path: if automatic issue creation fails for any reason, keep the generated issue-body file and local bundle, return those paths, and do not require a second pass.
 
 ### VS Code Unix upload helper
@@ -862,9 +874,9 @@ When filing a bug report (triggered automatically on bug detection or by explici
 When the user is in VS Code on a Unix host and has local paths to evidence rather than a pre-zipped attachment:
 
 - Accept absolute Unix paths to `.chopper/`, logs, markdown reports, and screenshots.
-- Package them with `python scripts/package_bug_report.py <paths...>` so the user gets one upload-ready zip.
+- Package them with `python schemas/scripts/package_bug_report.py <paths...>` so the user gets one upload-ready zip.
 - Tell the user exactly where the zip was written and what it contains.
-- If they want to file immediately, use `scripts/file_bug_report.py` to create the GitHub issue body and file the issue automatically when `gh` is available.
+- If they want to file immediately, use `schemas/scripts/file_bug_report.py` to create the GitHub issue body and file the issue automatically when `gh` is available.
 - Never say the attachment was uploaded automatically; GitHub still requires the browser upload step for any raw local zip bundle.
 
 ### What not to do

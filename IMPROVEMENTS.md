@@ -3,7 +3,7 @@
 **Audit date:** 2026-05-01
 **Repository version:** 0.6.0 → 0.7.0 (after fix wave)
 **Auditor:** Chopper Buildout Agent
-**Status:** Wave A (D1–D9 + SLOC) IMPLEMENTED. Wave B (O1–O6) DEFERRED.
+**Status:** Wave A (D1–D9 + SLOC) IMPLEMENTED. Wave B reviewed: O2 DONE, O3/O4 verified no-op, O1/O5/O6 deferred to dedicated PRs.
 
 > User feedback / decisions on each item should be appended inline under the item, prefixed with **`> Decision:`** so the rationale stays with the finding.
 
@@ -243,16 +243,18 @@ All decisions in §1–§3 above were absorbed. Implementation order followed §
 - `python schemas/scripts/check_diagnostic_registry.py` → 64 code references; all registered.
 - `python schemas/scripts/check_service_signatures.py` → 8 service signatures match.
 
-### Wave B — Deferred to next PR
+### Wave B — Verdict (2026-05-01, post-Wave-A review)
 
-| Item | Reason |
-|---|---|
-| O1 — Cache domain walk between P1/P2 | Touches `LoadedConfig` shape and parser `enumerate_domain_tcl` — better isolated from this safety-critical fix wave. |
-| O2 — Cache `short_to_canonical` once per `ParseResult` | Internal compiler refactor; warrants its own benchmark + golden-file diff. |
-| O3 — `_resort_by_posix` once at end of stage registration | Trivial but couples with O2; do together. |
-| O4 — Stream audit artifacts | Optional perf; skipped until profiling shows it matters. |
-| O5 — Split `core/models.py` (1008 LOC) | God-module split = surface-area churn; do as a dedicated PR with re-exports for back-compat. |
-| O6 — Split `parser/call_extractor.py` (632 LOC) | Same rationale as O5. |
+| Item | Verdict | Rationale |
+|---|---|---|
+| **O2 — cache `short_to_canonical`** | **DONE** | New `_build_short_to_canonical(parsed_file)` helper called once per parsed file in `CompilerService.run()`. Map threaded through `_classify_one` and `_aggregate` (PE-canonical preflight). Collapses `2 × S × F` per-source dict rebuilds to `F` builds. Validated: 857 unit + 38 integ/golden/property tests pass; ruff/mypy/lint-imports all green. |
+| **O3 — `_resort_by_posix` once** | **NO-OP (already optimal)** | Re-read of `_register_generated_stage_files` shows `_resort_by_posix` is called exactly twice (once for `file_decisions`, once for `provenance`) and only at the **end** of the function — *not* inside the `for stage in stages:` loop. The original audit description "Calls `_resort_by_posix` repeatedly" was incorrect. No change needed. |
+| **O4 — stream audit artifacts** | **NO-OP (already streaming per artifact)** | [src/chopper/audit/service.py](src/chopper/audit/service.py) writes each artifact independently via `ctx.fs.write_text(target, content)` inside a per-artifact `try/except OSError`. The in-memory render cost per artifact is bounded by the ≤1 GB domain constraint (NFR-1). Streaming the artifact *body* would only matter if a single artifact exceeded available RAM, which is not in scope. Skipped until profiling pressure justifies it. |
+| **O1 — cache domain walk between P1/P2** | **DEFERRED** | P1's walk is JSON-glob-driven (resolves `files.include` patterns against the domain); P2's `_enumerate_domain_tcl` is full-domain BFS for the full-domain proc index. They share no obvious result shape — caching requires either widening `LoadedConfig` to carry a `domain_files: tuple[Path, ...]` field or attaching a snapshot to `ChopperContext`. Either is a real surface change that warrants its own PR with a benchmark. Kept on the roadmap; not part of this wave. |
+| **O5 — split `core/models.py` (1008 LOC)** | **DEFERRED** | God-module split = surface-area churn across every importer in `src/`. Done correctly it preserves the public `chopper.core.models` API via re-exports from `models_{parser,compiler,trimmer,audit}.py`. Done sloppily it breaks every test. Dedicated PR with re-export shim + `__all__` audit. |
+| **O6 — split `parser/call_extractor.py` (632 LOC)** | **DEFERRED** | Same rationale as O5 — every Tcl construct (switch / regex / opaque / dpa / namespace-qualified) is currently in one file with shared helpers. Splitting per construct requires extracting the shared helpers into a private module first. Dedicated PR. |
+
+**Wave B implementation summary:** O2 landed, O3 verified already optimal, O4 verified non-issue. O1, O5, O6 remain deferred with documented rationale — neither blocks a release nor causes correctness issues; each is a refactor warranting its own PR.
 
 
 ## Additional. 

@@ -213,7 +213,7 @@ def call_explain_diagnostic(arguments: dict[str, Any]) -> str:
     ``technical_docs/DIAGNOSTIC_CODES.md`` (the single source of
     truth); slug / severity / source / exit_code come from the in-code
     registry which is kept in sync with the doc by
-    ``scripts/check_diagnostic_registry.py``.
+    ``schemas/scripts/check_diagnostic_registry.py``.
     """
 
     from chopper.core._diagnostic_registry import lookup

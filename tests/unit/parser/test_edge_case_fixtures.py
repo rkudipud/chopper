@@ -14,7 +14,7 @@ What this test guarantees:
   fed to :func:`chopper.parser.service.parse_file`.
 * The parser does not crash (no uncaught exception).
 * Any diagnostics emitted carry registered codes — the registry
-  bidirectional gate in ``scripts/check_diagnostic_registry.py`` already
+  bidirectional gate in ``schemas/scripts/check_diagnostic_registry.py`` already
   guarantees registration at the source-code level, but running the
   parser against real fixtures proves no *emitted* code is a typo.
 

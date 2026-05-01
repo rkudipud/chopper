@@ -119,7 +119,7 @@ body:
         - `trim_report.json` or `trim_report.txt`
 
         If you are filing from VS Code on a Unix host, you can package local evidence first:
-        `python scripts/package_bug_report.py /abs/path/to/.chopper /abs/path/to/report.md`
+        `python schemas/scripts/package_bug_report.py /abs/path/to/.chopper /abs/path/to/report.md`
 
         If uploads are blocked, paste file paths, key excerpts, or a short explanation instead of leaving this empty.
       placeholder: |

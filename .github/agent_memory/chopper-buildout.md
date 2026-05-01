@@ -2,7 +2,14 @@
 
 ## Current Focus
 
-- 2026-05-01 audit + remediation. **Wave A IMPLEMENTED.** Wave B (O1–O6 optimizations) deferred to next PR.
+- 2026-05-01 audit + remediation. **Wave A IMPLEMENTED + Wave B reviewed.** Version bumped 0.6.0 → 0.7.0.
+
+## Wave B Verdict (2026-05-01, post-Wave-A review)
+
+- **O2 — DONE.** `_build_short_to_canonical()` helper added to `compiler/merge_service.py`; per-file dict cached once at top of `CompilerService.run()` and threaded into classify + aggregate passes. Collapses `2*S*F` rebuilds to `F`. 136 compiler+integration+golden tests green.
+- **O3 — NO-OP (already optimal).** Re-read showed `_resort_by_posix` is called twice at the **end** of `_register_generated_stage_files`, not in a loop. Original audit description was wrong. No change.
+- **O4 — NO-OP (already streaming per artifact).** `audit/service.py` writes each artifact independently via `ctx.fs.write_text`. In-memory render cost bounded by ≤1 GB NFR-1. Skipped until profiling pressure justifies.
+- **O1, O5, O6 — DEFERRED.** Each is a real refactor warranting its own PR with benchmark + golden-file diff. Documented in IMPROVEMENTS.md §6 with rationale. Not blocking.
 
 ## Wave A Completed (2026-05-01)
 

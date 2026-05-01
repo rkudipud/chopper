@@ -2,9 +2,9 @@
 """Package local bug-report evidence into a single zip bundle.
 
 Usage examples:
-  python scripts/package_bug_report.py /path/to/.chopper
-  python scripts/package_bug_report.py /path/to/.chopper /path/to/report.md
-  python scripts/package_bug_report.py /path/to/.chopper --output /tmp/chopper_bug_bundle.zip
+  python schemas/scripts/package_bug_report.py /path/to/.chopper
+  python schemas/scripts/package_bug_report.py /path/to/.chopper /path/to/report.md
+  python schemas/scripts/package_bug_report.py /path/to/.chopper --output /tmp/chopper_bug_bundle.zip
 """
 
 from __future__ import annotations

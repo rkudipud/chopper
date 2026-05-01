@@ -16,8 +16,8 @@ Chopper is a single-process, single-threaded Python CLI. It reads JSON inputs an
 
 ```text
                  ┌────────────────────────────────────┐
- JSON inputs ──► │  chopper [validate | trim | cleanup]│
- Tcl sources ──► │                                    │ ──► trimmed domain/
+ JSON inputs ──► │  chopper [validate | trim | cleanup    │
+ Tcl sources ──► │            | mcp-serve]                │ ──► trimmed domain/
                  │  8-phase pipeline (P0 … P7)         │ ──► .chopper/ audit bundle
                  └────────────────────────────────────┘
 ```
@@ -62,7 +62,8 @@ src/chopper/
 ├── audit/           .chopper/ bundle writers, SLOC counter, hashing                  (P7)
 ├── orchestrator/    ChopperRunner, phase-gate logic, domain-state detection          (all)
 ├── adapters/        Concrete port implementations (fs, sinks, progress)              (all)
-└── cli/             argparse wiring, render helpers, three subcommand handlers       (user)
+├── mcp/             Stdio-only read-only MCP server (`chopper mcp-serve`)             (user)
+└── cli/             argparse wiring, render helpers, four subcommand handlers        (user)
 ```
 
 Each service package depends only on `core/` and its own submodules. No cross-service imports.
@@ -100,9 +101,10 @@ class RunResult:
     graph: DependencyGraph | None
     trim_report: TrimReport | None
     generated_artifacts: tuple[GeneratedArtifact, ...]
+    internal_error: InternalError | None  # populated only on exit 3
 ```
 
-The CLI renderer consumes `RunResult` plus the diagnostic snapshot from the sink. Missing later-phase fields stay `None` when a run aborts early.
+The CLI renderer consumes `RunResult` plus the diagnostic snapshot from the sink. Missing later-phase fields stay `None` when a run aborts early. `internal_error` mirrors the top of `.chopper/internal-error.log` so GUIs and CI can surface a programmer error without parsing the log file.
 
 ---
 
@@ -144,7 +146,7 @@ Code families:
 | `PE-`, `PW-`, `PI-` | Parser (P2) | `PW-01 dynamic-proc-name` |
 | `TW-` | Trace (P4) | `TW-04 cycle-in-call-graph` |
 
-Codes are registered exclusively in the registry file; the code constants in `src/chopper/core/_diagnostic_registry.py` mirror it 1:1. A CI check (`scripts/check_diagnostic_registry.py`) enforces the mirror.
+Codes are registered exclusively in the registry file; the code constants in `src/chopper/core/_diagnostic_registry.py` mirror it 1:1. A CI check (`schemas/scripts/check_diagnostic_registry.py`) enforces the mirror.
 
 ### Severity and exit codes
 
@@ -154,6 +156,7 @@ Codes are registered exclusively in the registry file; the code constants in `sr
 | Warning | 0 | Becomes exit 1 |
 | Info | 0 | No change |
 | Internal error (uncaught) | 3 | No change |
+| `PE-04` mcp-protocol-error | 4 | No change (only from `mcp-serve`) |
 
 > [!IMPORTANT]
 > `--strict` is **exit-code policy only** — it never rewrites `Diagnostic.severity`.
@@ -220,7 +223,7 @@ make ci      # full: all quality gates + all test suites
 - Services import only from `core/` and their own submodules
 - `cli/` is the only package allowed to construct adapters
 
-A CI script (`scripts/check_service_signatures.py`) also verifies that service signatures in source match the documented §9.2 contracts.
+A CI script (`schemas/scripts/check_service_signatures.py`) also verifies that service signatures in source match the documented §9.2 contracts.
 
 ---
 
@@ -239,11 +242,12 @@ Performance was deliberately deprioritized in favor of correctness and determini
 
 ## 🛡️ Error Handling Model
 
-Three layers:
+Four layers:
 
 1. **User-visible outcomes** — always a `Diagnostic` emitted via `ctx.diag`. Exit codes 0, 1, 2.
-2. **Programmer errors** — raise a `ChopperError` subclass from `core/errors.py`. Caught by the runner's final `except`, surfaced as exit 3.
-3. **Unexpected exceptions** — same path as (2).
+2. **Programmer errors** — raise a `ChopperError` subclass from `core/errors.py`. Caught by the runner's final `except`, surfaced as exit 3. `.chopper/internal-error.log` is written with run ID, traceback, diagnostic snapshot, and RunConfig. `RunResult.internal_error` is also populated so GUIs/CI can inspect the failure without reading the log file.
+3. **Unexpected exceptions** — same path as (2). The CLI's top-level `try/except Exception` acts as a second safety net for pre-runner failures.
+4. **MCP protocol errors** — malformed JSON-RPC frames or unknown tool names from `mcp-serve` surface as `PE-04 mcp-protocol-error` and exit 4. Only `mcp-serve` produces exit 4.
 
 No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
@@ -263,6 +267,7 @@ Written by `audit/service.py` in P7. Always runs, even on prior phase failure (i
 | `trim_report.txt` | `render_trim_report_txt` | Yes |
 | `trim_stats.json` | `render_trim_stats` | Yes |
 | `diagnostics.json` | `render_diagnostics` | Yes |
+| `internal-error.log` | `write_internal_error_log` | Only on exit 3 |
 | `input_base.json` | `AuditService._copy_inputs` | If config load succeeded |
 | `input_features/NN_name.json` | `AuditService._copy_inputs` | If features were selected |
 

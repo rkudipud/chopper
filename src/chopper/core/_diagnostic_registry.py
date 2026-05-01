@@ -2,7 +2,7 @@
 
 Mirrors the active rows of the diagnostic registry documentation. Every
 addition to the docs registry is accompanied by an addition here; the
-``scripts/check_diagnostic_registry.py`` CI gate enforces the mirror.
+``schemas/scripts/check_diagnostic_registry.py`` CI gate enforces the mirror.
 
 Structured so that no line contains the literal substrings
 ``Diagnostic(`` or ``code=``, keeping it invisible to the per-line

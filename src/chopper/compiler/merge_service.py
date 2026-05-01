@@ -125,15 +125,33 @@ class CompilerService:
         for path in universe:
             all_procs_by_file.setdefault(path, frozenset())
 
+        # O2: per-file short/qualified → canonical_name map. This depends
+        # only on ``parsed`` (not on the source under consideration) so we
+        # build it once here instead of per-source-per-file in classify
+        # and aggregate. With S sources × F files this collapses 2*S*F
+        # dict builds to F.
+        short_to_canonical_by_file: dict[Path, dict[str, str]] = {
+            path: _build_short_to_canonical(pf) for path, pf in parsed.files.items()
+        }
+
         # ---- Pass 1: per-source per-file classification (L2) -----------------
         contribs_by_source: dict[_SourceRef, dict[Path, _Contribution]] = {}
         for src in sources:
             facts = facts_by_source[src]
-            contribs_by_source[src] = _classify_source(ctx, facts, universe, all_procs_by_file, parsed)
+            contribs_by_source[src] = _classify_source(
+                ctx, facts, universe, all_procs_by_file, short_to_canonical_by_file
+            )
 
         # ---- Pass 2: cross-source aggregation (L1 + L3) ----------------------
         file_decisions, proc_decisions, provenance = _aggregate(
-            ctx, sources, contribs_by_source, facts_by_source, universe, all_procs_by_file, parsed
+            ctx,
+            sources,
+            contribs_by_source,
+            facts_by_source,
+            universe,
+            all_procs_by_file,
+            short_to_canonical_by_file,
+            parsed,
         )
 
         # ---- Pass 3: F3 flow-action resolution -----------------------------
@@ -240,6 +258,22 @@ def _resort_by_posix(mapping: dict) -> None:
     mapping.update(sorted_items)
 
 
+def _build_short_to_canonical(parsed_file) -> dict[str, str]:  # type: ignore[no-untyped-def]
+    """Map every short and qualified name in ``parsed_file`` to its canonical name.
+
+    Built once per parsed file at the top of :meth:`CompilerService.run`
+    (O2). Both classify-pass and aggregate-pass consult this map per
+    source, so caching collapses ``2 * S * F`` per-source rebuilds into
+    ``F`` builds.
+    """
+
+    out: dict[str, str] = {}
+    for proc in parsed_file.procs:
+        out[proc.short_name] = proc.canonical_name
+        out[proc.qualified_name] = proc.canonical_name
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Pass 1 — per-source fact extraction
 # ---------------------------------------------------------------------------
@@ -344,11 +378,14 @@ def _classify_source(
     facts: _SourceFacts,
     universe: list[Path],
     all_procs_by_file: dict[Path, frozenset[str]],
-    parsed: ParseResult,
+    short_to_canonical_by_file: dict[Path, dict[str, str]],
 ) -> dict[Path, _Contribution]:
     """Apply same-source R1 rules to every (source, file) in ``universe``.
     Emits ``VW-09``, ``VW-11``, ``VW-12``, ``VW-13``."""
-    return {fp: _classify_one(ctx, facts, fp, all_procs_by_file, parsed) for fp in universe}
+    return {
+        fp: _classify_one(ctx, facts, fp, all_procs_by_file, short_to_canonical_by_file)
+        for fp in universe
+    }
 
 
 def _classify_one(
@@ -356,7 +393,7 @@ def _classify_one(
     facts: _SourceFacts,
     file_path: Path,
     all_procs_by_file: dict[Path, frozenset[str]],
-    parsed: ParseResult,
+    short_to_canonical_by_file: dict[Path, dict[str, str]],
 ) -> _Contribution:
     """Classify one (source, file) pair per the 16-row same-source matrix.
 
@@ -375,13 +412,10 @@ def _classify_one(
 
     all_procs = all_procs_by_file.get(file_path, frozenset())
 
-    # Build short/qualified → canonical_name map for this parsed file.
-    short_to_canonical: dict[str, str] = {}
-    parsed_file = parsed.files.get(file_path)
-    if parsed_file is not None:
-        for proc in parsed_file.procs:
-            short_to_canonical[proc.short_name] = proc.canonical_name
-            short_to_canonical[proc.qualified_name] = proc.canonical_name
+    # Per-file short/qualified → canonical_name map (built once at
+    # ``run()`` start — see O2). Empty dict for files the parser did
+    # not see (literal-FI non-tcl companions).
+    short_to_canonical = short_to_canonical_by_file.get(file_path, {})
 
     pi_canonical = frozenset(short_to_canonical[s] for s in pi_set if s in short_to_canonical)
     pe_canonical = frozenset(short_to_canonical[s] for s in pe_set if s in short_to_canonical)
@@ -505,6 +539,7 @@ def _aggregate(
     facts_by_source: dict[_SourceRef, _SourceFacts],
     universe: list[Path],
     all_procs_by_file: dict[Path, frozenset[str]],
+    short_to_canonical_by_file: dict[Path, dict[str, str]],
     parsed: ParseResult,
 ) -> tuple[dict[Path, FileTreatment], dict[str, ProcDecision], dict[Path, FileProvenance]]:
     file_decisions: dict[Path, FileTreatment] = {}
@@ -514,19 +549,18 @@ def _aggregate(
     # Pre-compute per-source PE canonical-name set per file — only actual
     # ``procedures.exclude`` entries contribute to VW-18 surfacing.
     # A source that simply did not name a proc via PI is not PE-ing it,
-    # so must not trigger VW-18.
+    # so must not trigger VW-18. Uses the cached short_to_canonical map
+    # built once per run (O2).
     pe_canonical_by_source: dict[_SourceRef, dict[Path, frozenset[str]]] = {}
     for src, facts in facts_by_source.items():
         per_file: dict[Path, frozenset[str]] = {}
         for file_path, pe_set in facts.pe_by_file.items():
-            parsed_file = parsed.files.get(file_path)
-            if parsed_file is None:
+            short_to_canonical = short_to_canonical_by_file.get(file_path)
+            if not short_to_canonical:
                 continue
-            short_to_canonical: dict[str, str] = {}
-            for proc in parsed_file.procs:
-                short_to_canonical[proc.short_name] = proc.canonical_name
-                short_to_canonical[proc.qualified_name] = proc.canonical_name
-            per_file[file_path] = frozenset(short_to_canonical[s] for s in pe_set if s in short_to_canonical)
+            per_file[file_path] = frozenset(
+                short_to_canonical[s] for s in pe_set if s in short_to_canonical
+            )
         pe_canonical_by_source[src] = per_file
 
     for file_path in universe:

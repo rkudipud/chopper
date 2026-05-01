@@ -108,14 +108,17 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 |-----------|-----|
 | `LockPort`, `.chopper/.lock` | Rejected in ARCHITECTURE_PLAN.md §16 Q3 |
 | `--preserve-hand-edits` | Rejected in ARCHITECTURE_PLAN.md §16 Q2 |
-| `chopper scan` subcommand | Only validate/trim/cleanup exist |
+| `chopper scan` subcommand | Only `validate`, `trim`, `cleanup`, `mcp-serve` exist |
 | `PluginHost`, `EntryPointPluginHost` | No plugin system in the current design |
-| `mcp_server/`, MCP integration | Deferred outside the current design |
-| `advisor/`, AI advisor | Deferred outside the current design |
+| `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.trim` over MCP | The MCP surface is **read-only** (see project.instructions.md §1.1); destructive tools and diagnostic-sink/progress adapters are still closed |
+| Networked MCP transports (TCP / HTTP / WebSocket / daemon) | `mcp-serve` is **stdio only** |
+| `advisor/`, AI advisor | Closed per ARCHITECTURE_PLAN.md §7, §16 Q1 |
 | `XE-`, `XW-`, `XI-` diagnostic codes | No X* family exists |
 | Thread pool, `--jobs N` | No parallelism inside Chopper |
 
-**If you find yourself implementing any of these:** STOP. You have drifted.
+**Narrowed-but-permitted (since 0.4.0):** `chopper mcp-serve` + `src/chopper/mcp/` (stdio-only, read-only tools `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). See [.github/instructions/project.instructions.md](../instructions/project.instructions.md) §1.1 for the exact permitted surface.
+
+**If you find yourself implementing any forbidden item above:** STOP. You have drifted.
 
 ---
 
@@ -244,12 +247,14 @@ Before marking any task done, verify all four (GitNexus) or use fallbacks if una
 **Architecture Doc reference:** §5.12, §8.1, ARCHITECTURE_PLAN.md §9.1
 
 **Deliverables:**
-- `src/chopper/core/models.py` — Frozen dataclasses: `ProcEntry`, `CallSite`, `SourceRef`, `FileTreatment`, `CompiledManifest`, `Diagnostic`, etc.
+- `src/chopper/core/models.py` — Frozen dataclasses: `ProcEntry`, `CallSite`, `SourceRef`, `FileTreatment`, `CompiledManifest`, `Diagnostic`, `InternalError`, etc.
 - `src/chopper/core/errors.py` — `ChopperError` hierarchy
-- `src/chopper/core/diagnostics.py` — Diagnostic registry with code validation
+- `src/chopper/core/diagnostics.py` + `src/chopper/core/_diagnostic_registry.py` — Diagnostic registry with code validation (mirror of `technical_docs/DIAGNOSTIC_CODES.md`; **71 active codes** as of 0.7.0)
 - `src/chopper/core/protocols.py` — `DiagnosticSink`, `ProgressSink`, `FileSystemPort`
-- `src/chopper/core/context.py` — `RunContext` frozen container
+- `src/chopper/core/context.py` — `ChopperContext` frozen container
 - `src/chopper/core/serialization.py` — `dump_model()`, `load_model()` with determinism
+- `src/chopper/core/tool_commands.py` — Vendor-tool command pool parser (TI-01)
+- `src/chopper/core/globs.py` — Canonical POSIX glob → regex translator (used by config / compiler / validator)
 
 **Quality Gate:**
 ```bash
@@ -375,9 +380,18 @@ pytest tests/unit/validator/ -v
 
 | Command | Purpose | Exit Codes |
 |---------|---------|------------|
-| `validate` | Pre-trim JSON validation | 0/1/2 |
+| `validate` | Pre-trim JSON validation | 0/1/2/3 |
 | `trim` | Execute full pipeline | 0/1/2/3 |
-| `cleanup` | Remove `.chopper/` and `*_backup/` | 0/2 |
+| `cleanup` | Remove `.chopper/` and `*_backup/` | 0/2/3 |
+| `mcp-serve` | Stdio-only read-only MCP server | 0/3/4 |
+
+**Exit-code policy** (architecture doc §5.10, schema [schemas/run-result-v1.schema.json](../../schemas/run-result-v1.schema.json)):
+
+- `0` — clean success.
+- `1` — validation surfaced errors (or `--strict` saw warnings).
+- `2` — CLI / environment error (bad flags, missing domain, `VE-21` Case 4).
+- `3` — internal programmer error (any uncaught exception escaping a service). When this is returned, `RunResult.internal_error` is populated and `.chopper/internal-error.log` has been written. Both the runner and the top-level CLI guard write the log.
+- `4` — `PE-04 mcp-protocol-error`, only from `mcp-serve` (other subcommands never return 4).
 
 **Quality Gate:**
 ```bash

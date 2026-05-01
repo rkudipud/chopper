@@ -2,9 +2,9 @@
 """Validate Chopper JSON files against repository schemas.
 
 Usage examples:
-  python scripts/validate_jsons.py
-  python scripts/validate_jsons.py examples/08_base_plus_one_feature
-  python scripts/validate_jsons.py my_domain/
+  python schemas/scripts/validate_jsons.py
+  python schemas/scripts/validate_jsons.py examples/08_base_plus_one_feature
+  python schemas/scripts/validate_jsons.py my_domain/
 """
 
 from __future__ import annotations

@@ -432,13 +432,18 @@ Yes. Chopper has no EDA-specific dependencies at its core; the parser handles st
 
 ### Where do I file a bug?
 
-Include:
+The fastest path: open VS Code Copilot Chat, pick the **Chopper Domain Companion** agent, and run the `report-chopper-bug` prompt. It will gather the evidence from the `.chopper/` bundle and file a GitHub issue automatically when `gh` is available; if not, it falls back to a local issue body you can paste manually.
+
+Manual path — include:
 
 1. The full command that was run
 2. Your JSON(s) (redact secrets)
 3. `.chopper/chopper_run.json`
 4. `.chopper/diagnostics.json`
 5. `.chopper/compiled_manifest.json` if it exists
+6. `.chopper/internal-error.log` if the run exited with code 3
+
+To package multiple evidence paths into one zip: `python schemas/scripts/package_bug_report.py /abs/path/to/.chopper /abs/path/to/report.md`.
 
 ---
 

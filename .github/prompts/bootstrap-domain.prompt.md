@@ -13,7 +13,7 @@ Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain
 3. Build the file inventory + classification table and pause for my confirmation
 4. If proc-trimming is in scope, build the call-tree trace log and pause again
 5. Propose a minimal starter `base.json` — files-only at first, no proc-trim yet
-6. Validate it with `python scripts/validate_jsons.py <domain_root>/`
+6. Validate it with `python schemas/scripts/validate_jsons.py <domain_root>/`
 7. Iterate until the schema passes cleanly
 
 Deliverables I expect back:
