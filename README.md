@@ -328,10 +328,21 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 0.8.1 — 2026-05-01
+
+- **Performance uplift: O1–O6 optimization wave complete.** This release integrates all six optimizations tracked as O1–O6 across the pipeline and activates the cache-reuse pattern introduced in the architecture doc.
+  - **O1 — domain file cache.** P1 glob-expansion now caches the BFS domain walk in `LoadedConfig.domain_file_cache`. P2's full-domain harvest phase filters that cache for `.tcl` files instead of re-walking the filesystem, eliminating a second full-directory scan on every trim run.
+  - **O2 — `short_to_canonical` cache.** The per-file short-name → canonical-name dict in the compiler merge service is now built once per `ParseResult` (in `_build_short_to_canonical()`) and reused across the classify and aggregate passes, cutting the rebuild count from `2 × S × F` to `S`.
+  - **O3 / O4 — verified no-op.** Both candidates were audited and confirmed to require no code change (see [IMPROVEMENTS.md](IMPROVEMENTS.md)).
+  - **O5 / O6 — structural refactor.** Shipped in 0.8.0 (core model split, call-extractor modularization).
+- **Setup scripts: proxy applied before first network op, uninstall is now conditional.** [setup.ps1](setup.ps1), [setup.sh](setup.sh), [setup.csh](setup.csh), and [setup.bat](setup.bat) now export `HTTP_PROXY` / `HTTPS_PROXY` to the current shell session immediately after resolving `CHOPPER_PROXY`, so the step-[1/6] `git pull` already runs through the proxy. The step-[5/6] uninstall is now conditional: `pip show chopper` is checked first and the uninstall command is skipped when the package is not present, making fresh-venv installs cleaner.
+- **No behavioral, schema, diagnostic-registry, or CLI-surface changes.**
+
 ### 0.8.0 — 2026-05-01
 
 - **Wave B refactor completion (O5/O6).** The core model god-module and parser call-extractor monolith were split into direct, readable modules with no compatibility shims. Frozen dataclasses now live only in phase-owned modules: [src/chopper/core/models_common.py](src/chopper/core/models_common.py), [src/chopper/core/models_parser.py](src/chopper/core/models_parser.py), [src/chopper/core/models_config.py](src/chopper/core/models_config.py), [src/chopper/core/models_compiler.py](src/chopper/core/models_compiler.py), [src/chopper/core/models_trimmer.py](src/chopper/core/models_trimmer.py), and [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py). Code imports from the module that owns the model.
 - **Parser call extraction modularized.** Parser call extraction now uses focused direct modules: [src/chopper/parser/call_extractor_body.py](src/chopper/parser/call_extractor_body.py) owns `extract_body_refs`, [src/chopper/parser/call_extractor_constants.py](src/chopper/parser/call_extractor_constants.py) owns the public suppression sets, and the classification/source/structural helpers live beside them. The high-risk `extract_body_refs` dependency path identified by GitNexus is covered by parser tests after the import rewrite.
+- **Setup scripts refresh proxy, reinstall cleanly, and validate handoff.** [setup.ps1](setup.ps1), [setup.sh](setup.sh), [setup.csh](setup.csh), and [setup.bat](setup.bat) now update proxy settings for the current shell plus pip/Git using `CHOPPER_PROXY` or the default Intel proxy, uninstall any stale `chopper` package from the venv before reinstalling editable dev dependencies, validate both `sys.prefix` and `chopper --help`, and finish by handing control back with the venv active.
 - **Validation.** Focused gates passed after each split: core model tests (186 passed), parser extraction/service tests (143 passed), mypy for affected packages, and all import-linter contracts. Final validation: static/docs/import gates passed, unit coverage stayed well above threshold (91.52% total coverage vs 78% required), and the full functional matrix passed (895 passed, 6 skipped).
 
 ### 0.7.0 — 2026-05-01

@@ -7,15 +7,19 @@ description: "Use when the user asks about GitNexus itself — available tools, 
 
 Quick reference for all GitNexus MCP tools, resources, and the knowledge graph schema.
 
+> Availability protocol: use GitNexus MCP only when the current client exposes GitNexus tools or `gitnexus://...` resources. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file first, then use local search/read/usages tools. CLI availability through `npx gitnexus ...` is useful for setup/status/analyze, but it does not prove MCP tools are exposed in the active session.
+
+Official docs checked 2026-05-01: MCP starts over stdio with `npx -y gitnexus@latest mcp`; `npx gitnexus setup` configures supported editors; `npx gitnexus analyze --skip-agents-md` refreshes this repo's index without overwriting custom AGENTS/CLAUDE guidance.
+
 ## Always Start Here
 
 For any task involving code understanding, debugging, impact analysis, or refactoring:
 
-1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
+1. **Read `gitnexus://repos`**, then **`gitnexus://repo/{name}/context`** — codebase overview + check index freshness
 2. **Match your task to a skill below** and **read that skill file**
 3. **Follow the skill's workflow and checklist**
 
-> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+> If step 1 warns the index is stale, run `npx gitnexus analyze --skip-agents-md` in the terminal first.
 
 ## Skills
 

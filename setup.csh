@@ -26,12 +26,32 @@ else
     echo "WARN: python3.13 not found on PATH; falling back to `python3 --version`."
     echo "      Contributors are expected to install Python 3.13 for the dev venv."
 endif
-set proxy = "http://proxy-chain.intel.com:928"
+set default_proxy = "http://proxy-chain.intel.com:928"
+if ( $?CHOPPER_PROXY ) then
+    set proxy = "$CHOPPER_PROXY"
+else
+    set proxy = "$default_proxy"
+endif
+set use_proxy = 1
+if ( $?CHOPPER_NO_PROXY ) then
+    if ( "$CHOPPER_NO_PROXY" == "1" ) set use_proxy = 0
+endif
 
 echo "=== Chopper Dev Environment Setup ==="
 echo "Platform: Unix/Linux/macOS (PRIMARY: tcsh - bash/zsh NOT available)"
 
-echo "[1/5] Updating repository (git pull)..."
+# Apply proxy to the current shell environment now so that every network
+# operation in this script (git pull, pip install, ...) already sees the proxy
+# without waiting for step [4/6].  Step [4/6] still writes pip config and
+# git global config so the settings persist beyond this shell session.
+if ( $use_proxy == 1 ) then
+    setenv HTTP_PROXY  "$proxy"
+    setenv HTTPS_PROXY "$proxy"
+    setenv http_proxy  "$proxy"
+    setenv https_proxy "$proxy"
+endif
+
+echo "[1/6] Updating repository (git pull)..."
 which git >& /dev/null
 if ( $status == 0 ) then
     git -C "$script_dir" pull
@@ -43,7 +63,7 @@ else
 endif
 
 if ( ! -d "$venv_dir" ) then
-    echo "[2/5] Creating virtual environment..."
+    echo "[2/6] Creating virtual environment..."
     $python_cmd -m venv "$venv_dir"
 else
     # Detect a stale/relocated venv (e.g. copied from another repo): the
@@ -58,48 +78,85 @@ else
         endif
     endif
     if ( $venv_healthy == 1 ) then
-        echo "[2/5] Virtual environment exists and is healthy, reusing."
+        echo "[2/6] Virtual environment exists and is healthy, reusing."
     else
-        echo "[2/5] Existing .venv is stale or relocated — recreating..."
+        echo "[2/6] Existing .venv is stale or relocated — recreating..."
         rm -rf "$venv_dir"
         $python_cmd -m venv "$venv_dir"
     endif
 endif
 
-echo "[3/5] Activating venv..."
+echo "[3/6] Activating venv..."
 source "$venv_dir/bin/activate.csh"
 
-echo "[4/5] Configuring pip and Git proxy..."
-python -m pip config set global.proxy "$proxy" --quiet >& /dev/null
-python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet >& /dev/null
-# Configure Git proxy
+if ( $use_proxy == 1 ) then
+    echo "[4/6] Updating pip and Git proxy..."
+    echo "  Proxy: $proxy"
+    setenv HTTP_PROXY "$proxy"
+    setenv HTTPS_PROXY "$proxy"
+    setenv http_proxy "$proxy"
+    setenv https_proxy "$proxy"
+    python -m pip config set global.proxy "$proxy" --quiet >& /dev/null
+    python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet >& /dev/null
+    which git >& /dev/null
+    if ( $status == 0 ) then
+        git config --global http.proxy "$proxy"
+        git config --global https.proxy "$proxy"
+    endif
+else
+    echo "[4/6] Skipping proxy configuration (CHOPPER_NO_PROXY=1)."
+endif
 
 
-# Install dependencies. `--force-reinstall --no-deps` on the last line
+# Install dependencies. The uninstall step clears any stale installed or
+# editable `chopper` package from this venv before the fresh editable install.
+# `--force-reinstall --no-deps` on the last line
 # regenerates the chopper console-script shim against THIS venv's python,
 # which fixes the common "copied venv" failure mode. We invoke pip as
 # `python -m pip` throughout: pip's own shim can itself be stale when a
 # venv is copied, and `python -m pip` bypasses that shim entirely.
-echo "[5/5] Installing dependencies..."
+echo "[5/6] Reinstalling Chopper and dependencies..."
 python -m pip install --upgrade pip --quiet
+python -m pip show chopper >& /dev/null
+if ( $status == 0 ) then
+    echo "  Existing chopper package found -- uninstalling..."
+    python -m pip uninstall -y chopper --quiet
+endif
 python -m pip install -e ".[dev]" --quiet
 python -m pip install -e . --force-reinstall --no-deps --quiet
+
+echo "[6/6] Validating venv and Chopper launcher..."
+set active_prefix = `python -c "import sys; print(sys.prefix)"`
+if ( "$active_prefix" != "$venv_dir" ) then
+    echo "ERROR: Active Python is not using the expected venv."
+    echo "  Expected: $venv_dir"
+    echo "  Actual  : $active_prefix"
+    return 1
+endif
 
 set chopper_version = `python -c "import chopper; print(chopper.__version__)"`
 chopper --help >& /dev/null
 if ( $status == 0 ) then
     set chopper_line = "$chopper_version (launcher OK)"
 else
-    set chopper_line = "$chopper_version (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')"
+    echo "ERROR: chopper launcher validation failed."
+    echo "  Chopper  : $chopper_version (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')"
+    return 1
 endif
 
 echo ""
 echo "=== Setup complete ==="
 echo "  Platform : Unix/Linux/macOS (PRIMARY: tcsh)"
-echo "  Python   : `python3 --version`"
+echo "  Python   : `python --version`"
 echo "  Chopper  : $chopper_line"
 echo "  Venv     : $venv_dir"
-echo "  Shell    : tcsh/csh (PRIMARY - bash/zsh NOT available)"echo ""
+if ( $use_proxy == 1 ) then
+    echo "  Proxy    : $proxy"
+else
+    echo "  Proxy    : disabled for this run"
+endif
+echo "  Shell    : tcsh/csh (PRIMARY - bash/zsh NOT available)"
+echo ""
 echo "To auto-activate on terminal startup:"
 echo "  echo 'source $script_dir/setup.csh' >> ~/.tcshrc"
 echo ""
@@ -110,4 +167,5 @@ echo "  bash/zsh (if available - fallback only) : source setup.sh"
 echo ""
 echo "Run: chopper --help"
 echo "Test: pytest"
+echo "Venv is active; handing control back to you."
 

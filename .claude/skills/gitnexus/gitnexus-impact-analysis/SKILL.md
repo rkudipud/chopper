@@ -5,6 +5,8 @@ description: "Use when the user wants to know what will break if they change som
 
 # Impact Analysis with GitNexus
 
+> Availability protocol: use this workflow when GitNexus MCP tools or `gitnexus://...` resources are exposed in the current session. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file first, map blast radius with local usages/text search, then verify changed-file scope with local changes plus tests.
+
 ## When to Use
 
 - "Is it safe to change this function?"
@@ -17,22 +19,22 @@ description: "Use when the user wants to know what will break if they change som
 ## Workflow
 
 ```
-1. gitnexus_impact({target: "X", direction: "upstream"})  → What depends on this
+1. GitNexus impact on target "X"                           → What depends on this
 2. READ gitnexus://repo/{name}/processes                   → Check affected execution flows
-3. gitnexus_detect_changes()                               → Map current git changes to affected flows
+3. GitNexus detect_changes                                  → Map current git changes to affected flows
 4. Assess risk and report to user
 ```
 
-> If "Index is stale" → run `npx gitnexus analyze` in terminal.
+> If "Index is stale" -> run `npx gitnexus analyze --skip-agents-md` in terminal.
 
 ## Checklist
 
 ```
-- [ ] gitnexus_impact({target, direction: "upstream"}) to find dependents
+- [ ] GitNexus impact to find dependents, using the tool name exposed by the client
 - [ ] Review d=1 items first (these WILL BREAK)
 - [ ] Check high-confidence (>0.8) dependencies
 - [ ] READ processes to check affected execution flows
-- [ ] gitnexus_detect_changes() for pre-commit check
+- [ ] GitNexus detect_changes for pre-commit check, or local changes fallback
 - [ ] Assess risk level and report to user
 ```
 
@@ -55,10 +57,10 @@ description: "Use when the user wants to know what will break if they change som
 
 ## Tools
 
-**gitnexus_impact** — the primary tool for symbol blast radius:
+**GitNexus impact** — the primary tool for symbol blast radius:
 
 ```
-gitnexus_impact({
+impact({
   target: "validateUser",
   direction: "upstream",
   minConfidence: 0.8,
@@ -73,10 +75,10 @@ gitnexus_impact({
   - authRouter (src/routes/auth.ts:22) [CALLS, 95%]
 ```
 
-**gitnexus_detect_changes** — git-diff based impact analysis:
+**GitNexus detect_changes** — git-diff based impact analysis:
 
 ```
-gitnexus_detect_changes({scope: "staged"})
+detect_changes({scope: "staged"})
 
 → Changed: 5 symbols in 3 files
 → Affected: LoginFlow, TokenRefresh, APIMiddlewarePipeline
@@ -86,7 +88,7 @@ gitnexus_detect_changes({scope: "staged"})
 ## Example: "What breaks if I change validateUser?"
 
 ```
-1. gitnexus_impact({target: "validateUser", direction: "upstream"})
+1. impact({target: "validateUser", direction: "upstream"})
    → d=1: loginHandler, apiMiddleware (WILL BREAK)
    → d=2: authRouter, sessionManager (LIKELY AFFECTED)
 

@@ -506,6 +506,16 @@ Agents in this repository use workspace-local memory files under `.github/agent_
 - Update it after milestones, validations, and important decisions.
 - Do not rely on external memory systems or proprietary memory tooling.
 
+### GitNexus MCP and Memory Fallback
+
+GitNexus is configured for this workspace, but agents must treat it as conditionally available:
+
+- Use GitNexus MCP graph tools/resources (`gitnexus://...`, `query`, `context`, `impact`, `detect_changes`, `rename`, or client-namespaced equivalents) when the current editor session exposes them.
+- If GitNexus MCP is unavailable, read the relevant `.github/agent_memory/*.md` file first, then use local `search/*`, `read/*`, `search/usages`, and `search/changes` tools.
+- CLI availability is not MCP availability. A successful `npx gitnexus status` permits status/index/wiki commands only; it does not mean the active agent can call MCP tools.
+- Official MCP command: `npx -y gitnexus@latest mcp`; the workspace config lives at `.vscode/mcp.json`.
+- When refreshing this repo's index, prefer `npx gitnexus analyze --skip-agents-md` so GitNexus does not overwrite curated `AGENTS.md` / `CLAUDE.md` guidance.
+
 ### No Addendums
 
 Never append a change as an addendum at the end of a document. Make the edit **in place**, in the section where the content belongs. If a document is out of date, update it directly — do not accumulate footnotes or trailing corrections.

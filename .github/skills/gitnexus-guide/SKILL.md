@@ -7,17 +7,19 @@ description: "Use when the user asks about GitNexus itself — CLI/MCP availabil
 
 Quick reference for GitNexus CLI/MCP tooling and the knowledge graph schema.
 
-> Availability guardrail: if the current session does not expose GitNexus MCP tools or `gitnexus://...` resources, use local `search/*`, `read/*`, and `search/changes` fallbacks. The CLI may still be available through `npx gitnexus ...`, but do not assume MCP.
+> Availability protocol: use GitNexus MCP only when the current client exposes GitNexus tools or `gitnexus://...` resources. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file first, then use local `search/*`, `read/*`, `search/usages`, and `search/changes` fallbacks. The CLI may still be available through `npx gitnexus ...`, but CLI availability is not MCP availability.
+
+Official docs checked 2026-05-01: MCP starts over stdio with `npx -y gitnexus@latest mcp`; `npx gitnexus setup` configures supported editors; `npx gitnexus analyze --skip-agents-md` refreshes this repo's index without overwriting custom AGENTS/CLAUDE guidance.
 
 ## Always Start Here
 
 For any task involving code understanding, debugging, impact analysis, or refactoring:
 
-1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
+1. **Read `gitnexus://repos`**, then **`gitnexus://repo/{name}/context`** — codebase overview + check index freshness
 2. **Match your task to a skill below** and **read that skill file**
 3. **Follow the skill's workflow and checklist**
 
-> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+> If step 1 warns the index is stale, run `npx gitnexus analyze --skip-agents-md` in the terminal first.
 
 ## Skills
 
@@ -29,7 +31,7 @@ For any task involving code understanding, debugging, impact analysis, or refact
 | Rename / extract / split / refactor          | `gitnexus-refactoring`       |
 | Tools, resources, schema reference           | `gitnexus-guide` (this file) |
 | Index, status, clean, wiki CLI commands      | `gitnexus-cli`               |
-| Module-specific context (Chopper modules)    | `.github/skills/generated/<module>/SKILL.md` (run `npx gitnexus analyze --skills` to generate) |
+| Module-specific context (Chopper modules)    | `.github/skills/generated/<module>/SKILL.md` if generated (run `npx gitnexus analyze --skills --skip-agents-md` to regenerate) |
 
 ## Tools Reference
 
@@ -54,7 +56,7 @@ For any task involving code understanding, debugging, impact analysis, or refact
 | `context` (group mode) | 360° view across all member repos: `repo: "@groupName"` | — |
 | `impact` (group mode) | Cross-repo blast radius via Contract Bridge: `repo: "@groupName"` | — |
 
-> When only one repo is indexed, the `repo` parameter is optional. With multiple repos, specify which one: `query({query: "auth", repo: "my-app"})`.
+> When only one repo is indexed, the `repo` parameter is optional. With multiple repos, specify which one: `query({query: "auth", repo: "my-app"})`. Use the tool names exposed by the client (`query`, `impact`, `detect_changes`, or namespaced equivalents).
 
 ## MCP Prompts
 
@@ -96,8 +98,8 @@ RETURN caller.name, caller.filePath
 After completing any code task, verify all four:
 
 ```
-1. gitnexus_impact was run for ALL modified symbols
+1. GitNexus `impact` was run for all modified symbols, or local `search/usages` + `search/textSearch` was used when MCP was unavailable
 2. No HIGH/CRITICAL risk warnings were ignored
-3. gitnexus_detect_changes() confirms only expected symbols/flows changed
+3. GitNexus `detect_changes` confirms only expected symbols/flows changed, or local `search/changes` + tests confirmed the scope when MCP was unavailable
 4. All d=1 dependents (WILL BREAK) were updated
 ```

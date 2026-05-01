@@ -42,22 +42,24 @@ You are a highly capable and autonomous agent, and you can definitely solve this
 **1. Read memory file**
 Read `.github/agent_memory/chopper-buildout.md` (or the most relevant agent memory file for the task). If it does not exist, create it from `.github/agent_memory/README.md`. Use it as persistent working context.
 
-**2. Use local code intelligence first**
-GitNexus MCP tools are not assumed to be available. Use `search/codebase`, `search/textSearch`, `search/usages`, and `read/readFile` as the default code intelligence path.
+**2. Use GitNexus when exposed, then memory/local fallback**
+If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, start with `gitnexus://repos` and `gitnexus://repo/chopper/context`; use GitNexus `query`/`context`/`impact`/`detect_changes` when they fit the task. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file and use `search/codebase`, `search/textSearch`, `search/usages`, and `read/readFile`.
 
 **Optional GitNexus CLI:**
 - If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used.
-- Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
+- Official MCP command: `npx -y gitnexus@latest mcp`; workspace config lives in `.vscode/mcp.json`.
+- If the index is stale, run `npx gitnexus analyze --skip-agents-md` so custom AGENTS/CLAUDE guidance is preserved.
+- CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
 - Read the memory file and `technical_docs/chopper_description.md` for accumulated project context.
 
 **3. Task → skill mapping**
 
 | Task | Default path |
 |------|--------------|
-| Architecture exploration | `search/codebase` + `read/readFile` |
-| Blast radius / safety check | `search/usages` + `search/textSearch` |
-| Debug / root cause analysis | `search/textSearch` + `read/readFile` |
-| Rename / extract / refactor | `search/usages` + targeted patches |
+| Architecture exploration | GitNexus `query`/`context` if MCP is exposed; otherwise memory + `search/codebase` + `read/readFile` |
+| Blast radius / safety check | GitNexus `impact` if MCP is exposed; otherwise memory + `search/usages` + `search/textSearch` |
+| Debug / root cause analysis | GitNexus `query`/process trace if MCP is exposed; otherwise memory + `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | GitNexus `rename` dry run if exposed; otherwise memory + `search/usages` + targeted patches |
 | Index / status / analyze | `npx gitnexus ...` only when CLI is available |
 
 **4. Update memory file after milestones**

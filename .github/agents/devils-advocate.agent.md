@@ -36,7 +36,8 @@ At session start, read `.github/agent_memory/principal-software-engineer.md` if 
 
 When challenging a code-level claim, gather evidence first:
 - Use `search/codebase` + `search/textSearch` + `read/readFile` by default to ground challenges in real code rather than assumption.
-- If GitNexus MCP tools are explicitly exposed in the current session, they may supplement local search; CLI availability alone is not enough to assume MCP tools exist.
+- If GitNexus MCP tools or `gitnexus://...` resources are explicitly exposed in the current session, start with `gitnexus://repo/chopper/context` and use GitNexus `query`/`context`/`impact` to supplement local search.
+- If GitNexus MCP is unavailable, fall back to `.github/agent_memory/principal-software-engineer.md` plus local search/read tools; CLI availability alone is not enough to assume MCP tools exist.
 
 Update `.github/agent_memory/principal-software-engineer.md` at the end of a debate with a summary of what was challenged and what survived.
 

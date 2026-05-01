@@ -33,12 +33,14 @@ You embody:
 **1. Read memory file**
 Read `.github/agent_memory/chopper-buildout.md`. If it does not exist, create it from the template in `.github/agent_memory/README.md`. This is your persistent working context across sessions — decisions made, active stage, open blockers.
 
-**2. Use local code intelligence first**
-GitNexus MCP tools are not assumed to be available in this workspace. Use `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile`, `search/listDirectory`, and `search/changes` as the default navigation and verification path.
+**2. Use GitNexus when exposed, then memory/local fallback**
+If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, start with `gitnexus://repos` and `gitnexus://repo/chopper/context`; use GitNexus `query`/`context`/`impact`/`detect_changes` for graph-backed exploration and safety checks. If MCP is unavailable, read `.github/agent_memory/chopper-buildout.md` and use `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile`, `search/listDirectory`, and `search/changes`.
 
 **Optional GitNexus CLI:**
-- If `npx gitnexus status 2>&1` succeeds, the CLI can be used for indexing or generated documentation tasks.
-- Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
+- If `npx gitnexus status 2>&1` succeeds, the CLI can be used for status, indexing, generated documentation, and stale-index repair.
+- Official MCP command: `npx -y gitnexus@latest mcp` (workspace config lives in `.vscode/mcp.json`).
+- If the index is stale, run `npx gitnexus analyze --skip-agents-md` so custom AGENTS/CLAUDE guidance is preserved.
+- CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
 - Read `.github/agent_memory/chopper-buildout.md` for accumulated codebase context.
 - Consult `technical_docs/chopper_description.md` for architecture reference.
 
@@ -52,10 +54,10 @@ Use `search/changes`, targeted reference searches, and the relevant test gates t
 
 | Task | Default path |
 |------|--------------|
-| Explore architecture / "How does X work?" | `search/codebase` + `read/readFile` |
-| Blast radius / "What breaks if I change X?" | `search/usages` + `search/textSearch` |
-| Debug / "Why is X failing?" | `search/textSearch` + `read/readFile` |
-| Rename / extract / refactor | `search/usages` + targeted `editFiles` patches |
+| Explore architecture / "How does X work?" | GitNexus `query`/`context` if MCP is exposed; otherwise memory + `search/codebase` + `read/readFile` |
+| Blast radius / "What breaks if I change X?" | GitNexus `impact` if MCP is exposed; otherwise memory + `search/usages` + `search/textSearch` |
+| Debug / "Why is X failing?" | GitNexus `query`/process trace if MCP is exposed; otherwise memory + `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | GitNexus `rename` dry run if exposed; otherwise memory + `search/usages` + targeted `editFiles` patches |
 | Index / status / clean / wiki | `npx gitnexus ...` CLI only when available |
 | Tools / schema reference | Consult architecture doc and local instruction files |
 

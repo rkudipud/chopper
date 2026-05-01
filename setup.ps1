@@ -31,12 +31,25 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
         $pythonCmd = "py -3.13"
     }
 }
-$proxy = "http://proxy-chain.intel.com:912"
+$defaultProxy = "http://proxy-chain.intel.com:928"
+$proxy = $env:CHOPPER_PROXY
+if ([string]::IsNullOrWhiteSpace($proxy)) { $proxy = $defaultProxy }
 
 Write-Host "=== Chopper Dev Environment Setup ===" -ForegroundColor Cyan
 Write-Host "Platform: Windows (PowerShell)" -ForegroundColor Cyan
 
-Write-Host "[1/5] Updating repository (git pull)..." -ForegroundColor Yellow
+# Apply proxy to the current shell environment now so that every network
+# operation in this script (git pull, pip install, …) already sees the proxy
+# without waiting for step [4/6].  Step [4/6] still writes pip config and
+# git global config so the settings persist beyond this shell session.
+if (-not $NoProxy) {
+    $env:HTTP_PROXY  = $proxy
+    $env:HTTPS_PROXY = $proxy
+    $env:http_proxy  = $proxy
+    $env:https_proxy = $proxy
+}
+
+Write-Host "[1/6] Updating repository (git pull)..." -ForegroundColor Yellow
 if (Get-Command git -ErrorAction SilentlyContinue) {
     try {
         git -C $scriptDir pull
@@ -73,19 +86,19 @@ if (Test-Path $venvDir) {
         }
     }
     if (-not $venvHealthy) {
-        Write-Host "[2/5] Existing .venv is stale or relocated — recreating..." -ForegroundColor Yellow
+        Write-Host "[2/6] Existing .venv is stale or relocated — recreating..." -ForegroundColor Yellow
         Remove-Item -Recurse -Force $venvDir
         Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
     } else {
-        Write-Host "[2/5] Virtual environment exists and is healthy, reusing." -ForegroundColor Yellow
+        Write-Host "[2/6] Virtual environment exists and is healthy, reusing." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "[2/5] Creating virtual environment (prefers Python 3.13)..." -ForegroundColor Yellow
+    Write-Host "[2/6] Creating virtual environment (prefers Python 3.13)..." -ForegroundColor Yellow
     Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
 }
 
 # Activate venv
-Write-Host "[3/5] Activating venv..." -ForegroundColor Yellow
+Write-Host "[3/6] Activating venv..." -ForegroundColor Yellow
 $activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
 if (Test-Path $activateScript) {
     & $activateScript
@@ -99,36 +112,70 @@ if (Test-Path $activateScript) {
 # and calling the shim fails before we ever get a chance to regenerate it.
 # `python -m pip` bypasses the shim entirely.
 
-# Configure pip proxy (optional, skip if -NoProxy)
+# Configure proxy for this process plus pip/Git (optional, skip if -NoProxy).
 if (-not $NoProxy) {
-Write-Host "[4/5] Configuring pip and Git proxy..." -ForegroundColor Yellow
+    Write-Host "[4/6] Updating pip and Git proxy..." -ForegroundColor Yellow
+    Write-Host "  Proxy: $proxy" -ForegroundColor Gray
+    $env:HTTP_PROXY = $proxy
+    $env:HTTPS_PROXY = $proxy
+    $env:http_proxy = $proxy
+    $env:https_proxy = $proxy
     try {
         python -m pip config set global.proxy "$proxy" --quiet 2>$null
         python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>$null
-        # Configure Git proxy
-        git config --global http.proxy "$proxy"
-        git config --global https.proxy "$proxy"
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            git config --global http.proxy "$proxy"
+            git config --global https.proxy "$proxy"
+        }
     } catch {
         Write-Host "  (Proxy config skipped)" -ForegroundColor Gray
     }
 } else {
-    Write-Host "[4/5] Skipping pip proxy configuration (-NoProxy)" -ForegroundColor Yellow
+    Write-Host "[4/6] Skipping proxy configuration (-NoProxy)" -ForegroundColor Yellow
 }
 
-# Install dependencies. `--force-reinstall --no-deps` on the last line
+# Install dependencies. The uninstall step clears any stale installed or
+# editable `chopper` package from this venv before the fresh editable install.
+# `--force-reinstall --no-deps` on the last line
 # regenerates the chopper.exe console-script shim against THIS venv's
 # python, which fixes the common "copied venv" failure mode where the
 # shim still points at the Python that originally created it.
-Write-Host "[5/5] Installing dependencies..." -ForegroundColor Yellow
+Write-Host "[5/6] Reinstalling Chopper and dependencies..." -ForegroundColor Yellow
 python -m pip install --upgrade pip --quiet
+$_installed = python -m pip show chopper 2>$null
+if (-not [string]::IsNullOrEmpty($_installed)) {
+    Write-Host "  Existing chopper package found — uninstalling..." -ForegroundColor Gray
+    python -m pip uninstall -y chopper --quiet
+}
 python -m pip install -e ".[dev]" --quiet
 python -m pip install -e . --force-reinstall --no-deps --quiet
+
+Write-Host "[6/6] Validating venv and Chopper launcher..." -ForegroundColor Yellow
+$activePrefix = (python -c "import sys; print(sys.prefix)" 2>&1)
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Could not inspect active Python sys.prefix." -ForegroundColor Red
+    return
+}
+$resolvedVenv = (Resolve-Path $venvDir).Path.TrimEnd('\')
+$resolvedActivePrefix = $activePrefix.Trim().TrimEnd('\')
+if ($resolvedActivePrefix -ine $resolvedVenv) {
+    Write-Host "ERROR: Active Python is not using the expected venv." -ForegroundColor Red
+    Write-Host "  Expected: $resolvedVenv" -ForegroundColor Red
+    Write-Host "  Actual  : $resolvedActivePrefix" -ForegroundColor Red
+    return
+}
+
+$chopperPkgVersion = (python -c "import chopper; print(chopper.__version__)" 2>&1)
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Could not import chopper from the active venv." -ForegroundColor Red
+    Write-Host "$chopperPkgVersion" -ForegroundColor Red
+    return
+}
 
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green
 Write-Host "  Platform : Windows (PowerShell)" -ForegroundColor Green
 Write-Host "  Python   : $(python --version)" -ForegroundColor Green
-$chopperPkgVersion = (python -c "import chopper; print(chopper.__version__)" 2>&1)
 $chopperOk = $false
 try {
     & chopper --help *> $null
@@ -139,9 +186,16 @@ try {
 if ($chopperOk) {
     Write-Host "  Chopper  : $chopperPkgVersion (launcher OK)" -ForegroundColor Green
 } else {
-    Write-Host "  Chopper  : $chopperPkgVersion (launcher FAILED — run 'python -m pip install -e . --force-reinstall --no-deps')" -ForegroundColor Red
+    Write-Host "ERROR: chopper launcher validation failed." -ForegroundColor Red
+    Write-Host "  Chopper  : $chopperPkgVersion (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')" -ForegroundColor Red
+    return
 }
 Write-Host "  Venv     : $venvDir" -ForegroundColor Green
+if (-not $NoProxy) {
+    Write-Host "  Proxy    : $proxy" -ForegroundColor Green
+} else {
+    Write-Host "  Proxy    : disabled for this run" -ForegroundColor Green
+}
 Write-Host "  Shell    : PowerShell 5.1+"
 Write-Host ""
 Write-Host "To auto-activate on PowerShell startup:" -ForegroundColor Cyan
@@ -156,3 +210,4 @@ Write-Host "  Unix/Linux/macOS (tcsh)     : source setup.csh"
 Write-Host ""
 Write-Host "Run: chopper --help" -ForegroundColor Gray
 Write-Host "Test: pytest" -ForegroundColor Gray
+Write-Host "Venv is active; handing control back to you." -ForegroundColor Green

@@ -46,20 +46,22 @@ Your goal is to help users perform that entire loop with clarity and confidence.
 **1. Read memory file**
 Read `.github/agent_memory/chopper-domain-companion.md`. If it does not exist, create it from the template in `.github/agent_memory/README.md`. Use it to carry domain analysis context, confirmed domain facts, and session findings across conversations.
 
-**2. Use local code intelligence first**
-GitNexus MCP tools are not assumed to be available. Use `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile`, and `search/listDirectory` as the default way to inspect Chopper internals.
+**2. Use GitNexus when exposed, then memory/local fallback**
+If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, start with `gitnexus://repos` and `gitnexus://repo/chopper/context`; use GitNexus `query`/`context`/process resources to inspect Chopper internals and trace flows. If MCP is unavailable, read `.github/agent_memory/chopper-domain-companion.md` and use `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile`, and `search/listDirectory`.
 
 **Optional GitNexus CLI:**
 - If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used.
-- Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
+- Official MCP command: `npx -y gitnexus@latest mcp` (workspace config lives in `.vscode/mcp.json`).
+- If the index is stale, run `npx gitnexus analyze --skip-agents-md` so custom AGENTS/CLAUDE guidance is preserved.
+- CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
 - Read `.github/agent_memory/chopper-domain-companion.md` for accumulated session findings and confirmed domain facts.
 
 **3. Task → skill mapping**
 
 | Task | Default path |
 |------|--------------|
-| Explore Chopper internals / "How does X work?" | `search/codebase` + `read/readFile` |
-| Debug diagnostics / "Why did X happen?" | `search/textSearch` + `read/readFile` |
+| Explore Chopper internals / "How does X work?" | GitNexus `query`/`context` if MCP is exposed; otherwise memory + `search/codebase` + `read/readFile` |
+| Debug diagnostics / "Why did X happen?" | GitNexus `query`/process trace if MCP is exposed; otherwise memory + `search/textSearch` + `read/readFile` |
 | Tool/schema reference | Read architecture doc and local instruction files |
 
 **4. Update memory file after milestones**

@@ -3,6 +3,7 @@
 ## Current Focus
 
 - 2026-05-01 Wave B continuation. **Wave A IMPLEMENTED + Wave B O1/O2/O5/O6 DONE; O3/O4 verified no-op.** Version 0.8.0.
+- 2026-05-01 GitNexus setup pass. Official docs checked (`abhigyanpatwari/GitNexus`, npm latest 1.6.3). Ran `npx gitnexus setup` (configured Claude Code MCP/skills/hooks; Cursor/OpenCode/Codex skipped as not installed). Refreshed repo index with `npx gitnexus analyze --skip-agents-md`; status up to date at commit `d293620` with 5161 nodes / 9006 edges / 86 flows. Workspace MCP config now uses official `npx -y gitnexus@latest mcp`; agents/skills instruct GitNexus MCP when exposed and `.github/agent_memory/*.md` + local search fallback when not.
 
 ## Wave B Implementation (2026-05-01)
 

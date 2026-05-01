@@ -5,7 +5,9 @@ description: "Use when the user needs to run GitNexus CLI commands like analyze/
 
 # GitNexus CLI Commands
 
-> Availability guardrail: this skill covers the `npx gitnexus ...` CLI. CLI availability does not imply GitNexus MCP tools are exposed in the current VS Code session.
+> Availability protocol: this skill covers the `npx gitnexus ...` CLI. CLI availability does not imply GitNexus MCP tools are exposed in the current VS Code session. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file and use local search/read/usages tools for code intelligence.
+
+Official docs checked 2026-05-01: MCP starts over stdio with `npx -y gitnexus@latest mcp`; `npx gitnexus setup` configures supported editors; Chopper's workspace MCP config is `.vscode/mcp.json`.
 
 All commands work via `npx` — no global install required.
 
@@ -17,7 +19,7 @@ All commands work via `npx` — no global install required.
 npx gitnexus analyze
 ```
 
-Run from the project root. This parses all source files, builds the knowledge graph, writes it to `.gitnexus/`, and regenerates `AGENTS.md` / `CLAUDE.md` context files.
+Run from the project root. This parses all source files, builds the knowledge graph, writes it to `.gitnexus/`, and regenerates `AGENTS.md` / `CLAUDE.md` context files unless `--skip-agents-md` is used.
 
 | Flag | Effect |
 | ---- | ------ |
@@ -30,7 +32,7 @@ Run from the project root. This parses all source files, builds the knowledge gr
 | `--skip-git` | Index directories that are not git repositories |
 | `--verbose` | Log skipped files when language parsers are unavailable |
 
-> **Embeddings are preserved by default.** A plain `npx gitnexus analyze` re-inserts existing vectors after rebuild. Pass `--drop-embeddings` only when you intentionally want to wipe them (e.g., after an embedding model change). Check `stats.embeddings` in `.gitnexus/meta.json` to confirm.
+> **For this repo, prefer `npx gitnexus analyze --skip-agents-md`** so GitNexus refreshes the index without overwriting curated Chopper agent guidance. Embeddings are preserved by default. Pass `--drop-embeddings` only when you intentionally want to wipe them.
 
 **When to run:** First time in a project, after major code changes, or when `gitnexus://repo/{name}/context` reports the index is stale.
 
@@ -50,7 +52,7 @@ This creates `.github/skills/generated/<module>/SKILL.md` for each detected func
 npx gitnexus setup
 ```
 
-Auto-detects installed editors (Claude Code, Cursor, Codex, Windsurf, OpenCode) and writes the correct global MCP config. Only needs to run once.
+Auto-detects installed editors (Claude Code, Cursor, Codex, Windsurf, OpenCode) and writes the correct global MCP config. Only needs to run once. Manual/workspace MCP config should use `npx -y gitnexus@latest mcp`.
 
 ### status — Check index freshness
 
@@ -117,5 +119,5 @@ Starts a local HTTP API on port 4747. The web UI at `gitnexus.vercel.app` auto-d
 - **"Not inside a git repository"**: Run from a directory inside a git repo, or use `--skip-git`
 - **Index is stale after re-analyzing**: Restart the MCP server to reload the index
 - **`stats.embeddings` is 0 after analyze**: Re-run `npx gitnexus analyze --embeddings`. If the log shows `Warning: could not load cached embeddings`, the cache was corrupt — rebuild is clean.
-- **MCP lists no repos**: Run `npx gitnexus analyze` in the target repo; verify with `npx gitnexus list`
+- **MCP lists no repos**: Run `npx gitnexus analyze --skip-agents-md` in the target repo; verify with `npx gitnexus list`
 - **LadybugDB lock / "database busy"**: Stop overlapping processes — only one writer at a time

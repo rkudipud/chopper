@@ -3,7 +3,7 @@
         "gitnexus": {
             "type": "stdio",
             "command": "npx",
-            "args": ["gitnexus", "mcp"]
+            "args": ["-y", "gitnexus@latest", "mcp"]
         }
     }
 }

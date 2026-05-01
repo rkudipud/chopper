@@ -7,6 +7,10 @@ description: "Use when the user needs to run GitNexus CLI commands like analyze/
 
 All commands work via `npx` — no global install required.
 
+> Availability protocol: CLI availability does not imply GitNexus MCP tools are exposed in the current editor session. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file and use local search/read/usages tools for code intelligence.
+
+Official docs checked 2026-05-01: MCP starts over stdio with `npx -y gitnexus@latest mcp`; `npx gitnexus setup` configures supported editors; Chopper's workspace MCP config is `.vscode/mcp.json`.
+
 ## Commands
 
 ### analyze — Build or refresh the index
@@ -15,7 +19,7 @@ All commands work via `npx` — no global install required.
 npx gitnexus analyze
 ```
 
-Run from the project root. This parses all source files, builds the knowledge graph, writes it to `.gitnexus/`, and generates CLAUDE.md / AGENTS.md context files.
+Run from the project root. This parses all source files, builds the knowledge graph, writes it to `.gitnexus/`, and generates CLAUDE.md / AGENTS.md context files unless `--skip-agents-md` is used.
 
 | Flag           | Effect                                                           |
 | -------------- | ---------------------------------------------------------------- |
@@ -23,7 +27,7 @@ Run from the project root. This parses all source files, builds the knowledge gr
 | `--embeddings` | Enable embedding generation for semantic search (off by default) |
 | `--drop-embeddings` | Drop existing embeddings on rebuild. By default, an `analyze` without `--embeddings` preserves them. |
 
-**When to run:** First time in a project, after major code changes, or when `gitnexus://repo/{name}/context` reports the index is stale. In Claude Code, a PostToolUse hook runs `analyze` automatically after `git commit` and `git merge`, preserving embeddings if previously generated.
+**When to run:** First time in a project, after major code changes, or when `gitnexus://repo/{name}/context` reports the index is stale. In this repo, prefer `npx gitnexus analyze --skip-agents-md` so curated Chopper guidance stays intact.
 
 ### status — Check index freshness
 
@@ -62,6 +66,14 @@ Generates repository documentation from the knowledge graph using an LLM. Requir
 | `--api-key <key>`   | LLM API key                               |
 | `--concurrency <n>` | Parallel LLM calls (default: 3)           |
 | `--gist`            | Publish wiki as a public GitHub Gist      |
+
+### setup — Configure MCP for supported editors
+
+```bash
+npx gitnexus setup
+```
+
+Auto-detects installed editors and writes the correct global MCP config. Manual/workspace MCP config should use `npx -y gitnexus@latest mcp`.
 
 ### list — Show all indexed repos
 

@@ -54,21 +54,21 @@ You are **SWE** — a senior software engineer with 10+ years of professional ex
 **1. Read memory file**
 Read `.github/agent_memory/chopper-stage-builder.md` (or whichever memory file the orchestrating agent specifies). If none exists, create from `.github/agent_memory/README.md`.
 
-**2. Use local code intelligence first**
-GitNexus MCP tools are not assumed to be available. For GATHER CONTEXT, use `search/codebase` + `read/readFile` + `search/usages`. Before any edit, use `search/usages` + `search/textSearch` to map references manually. Before VERIFY/DELIVER, use `search/changes` and tests to confirm scope.
+**2. Use GitNexus when exposed, then memory/local fallback**
+If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, start with `gitnexus://repos` and `gitnexus://repo/chopper/context`; use GitNexus `query`/`context`/`impact`/`detect_changes` for graph-backed context and verification. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file. For GATHER CONTEXT, use `search/codebase` + `read/readFile` + `search/usages`. Before any edit, use `search/usages` + `search/textSearch` to map references manually. Before VERIFY/DELIVER, use `search/changes` and tests to confirm scope.
 
 **Optional GitNexus CLI:**
-If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used. Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
+If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used. Official MCP command: `npx -y gitnexus@latest mcp`; workspace config lives in `.vscode/mcp.json`. If the index is stale, run `npx gitnexus analyze --skip-agents-md`. CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
 - Pre-commit: use `search/changes` to review all modified files.
 
 **3. Task → skill mapping**
 
 | Task | Read this skill | Fallback |
 |------|-----------------|----------|
-| Explore architecture / trace data flow | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
-| Blast radius / impact check | `.github/skills/gitnexus-impact-analysis/SKILL.md` | `search/usages` + `search/textSearch` |
-| Debug error / trace failure | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
-| Rename / extract / move | `.github/skills/gitnexus-refactoring/SKILL.md` | `search/usages` + manual multi-file edits |
+| Explore architecture / trace data flow | `.github/skills/gitnexus-exploring/SKILL.md` | memory + `search/codebase` + `read/readFile` |
+| Blast radius / impact check | `.github/skills/gitnexus-impact-analysis/SKILL.md` | memory + `search/usages` + `search/textSearch` |
+| Debug error / trace failure | `.github/skills/gitnexus-debugging/SKILL.md` | memory + `search/textSearch` + `read/readFile` |
+| Rename / extract / move | `.github/skills/gitnexus-refactoring/SKILL.md` | memory + `search/usages` + manual multi-file edits |
 
 ---
 
