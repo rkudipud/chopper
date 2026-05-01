@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import ParsedFile, ParseResult, ProcEntry
+from chopper.core.models import LoadedConfig, ParsedFile, ParseResult, ProcEntry
 
 from .proc_extractor import ExtractorDiagnostic, ExtractorDiagnosticKind, extract_procs
 from .tokenizer import TokenizerError, tokenize
@@ -210,7 +210,7 @@ class ParserService:
     ``ParserService()`` keeps the unit simple to substitute in tests.
     """
 
-    def run(self, ctx: ChopperContext, files: Sequence[Path]) -> ParseResult:
+    def run(self, ctx: ChopperContext, files: Sequence[Path], *, loaded: LoadedConfig | None = None) -> ParseResult:
         """Parse every file in ``files`` and return the aggregate result.
 
         :param ctx: Run context with ``fs`` and ``diag`` ports bound.
@@ -220,6 +220,11 @@ class ParserService:
             *surface* set: the user-facing slice that produces
             :class:`ParsedFile` entries in :attr:`ParseResult.files` and
             emits parser diagnostics into ``ctx.diag``.
+        :param loaded: Optional :class:`LoadedConfig` from P1. When provided
+            and ``domain_file_cache`` is non-empty, the parser reuses it
+            for full-domain harvest instead of re-walking the filesystem
+            (O1 optimization). Pass ``None`` in unit tests that bypass
+            the config layer.
         :returns: :class:`ParseResult` whose ``files`` map covers the
             surface set and whose ``index`` is a **full-domain** proc
             index (every ``.tcl`` definition under ``domain_root``) so
@@ -268,16 +273,16 @@ class ParserService:
                 index[proc.canonical_name] = proc
 
         # ------------------------------------------------------------
-        # Phase 2b \u2014 full-domain proc-index harvest (silent).
+        # Phase 2b — full-domain proc-index harvest (silent).
         # ------------------------------------------------------------
         # Every ``.tcl`` file under ``domain_root`` that is NOT in the
         # surface set is parsed here for the sole purpose of populating
         # ``index``. No :class:`ParsedFile` is recorded in ``files``;
         # diagnostics are silently dropped because the user did not ask
-        # us to scrutinise these files \u2014 they exist only so the P4
+        # us to scrutinise these files — they exist only so the P4
         # tracer can name a definition's real location when it resolves
         # a call from a surfaced caller into a non-surfaced callee.
-        for path in self._enumerate_domain_tcl(ctx):
+        for path in self._enumerate_domain_tcl(ctx, loaded):
             if path in surface_set:
                 continue
             try:
@@ -293,15 +298,26 @@ class ParserService:
         sorted_index = {k: index[k] for k in sorted(index.keys())}
         return ParseResult(files=parsed_files, index=sorted_index)
 
-    def _enumerate_domain_tcl(self, ctx: ChopperContext) -> list[Path]:
-        """Walk the domain via ``ctx.fs`` and return every ``.tcl`` file
-        as a domain-relative :class:`Path`, lex-sorted by POSIX form.
+    def _enumerate_domain_tcl(self, ctx: ChopperContext, loaded: LoadedConfig | None = None) -> list[Path]:
+        """Return every ``.tcl`` file under ``domain_root``, lex-sorted.
 
-        The ``.chopper/`` audit directory is always excluded \u2014 it is
+        O1 optimization: when ``loaded.domain_file_cache`` is non-empty,
+        filters the cached list for ``.tcl`` files instead of re-walking
+        the filesystem. This reuses the domain walk that P1 performed
+        during glob expansion in :func:`_collect_surface_files`.
+
+        The ``.chopper/`` audit directory is always excluded — it is
         Chopper's own bookkeeping, never user code. Returns an empty
         list when ``domain_root`` does not exist (covers in-memory
         unit-test fixtures that synthesise no real domain).
         """
+        # O1 fast path: reuse P1's domain walk if available.
+        if loaded is not None and loaded.domain_file_cache:
+            tcl_files = [rel for rel, _ in loaded.domain_file_cache if rel.suffix.lower() == _TCL_SUFFIX]
+            tcl_files.sort(key=lambda p: p.as_posix())
+            return tcl_files
+
+        # Fallback: full BFS walk (P1 had no globs so no cache).
         from collections import deque  # noqa: PLC0415
 
         domain = ctx.config.domain_root

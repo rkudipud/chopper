@@ -142,7 +142,8 @@ class ConfigService:
         sorted_features = topo_sort_features(features, provenance, ctx.diag.emit)
 
         # --- surface_files: union of literal file refs from all sources ---
-        surface = _collect_surface_files(base_json, sorted_features, ctx)
+        # Also capture domain_file_cache for O1 optimization (P2 reuse).
+        surface, domain_file_cache = _collect_surface_files(base_json, sorted_features, ctx)
         surface_sorted = tuple(sorted(surface, key=lambda p: p.as_posix()))
 
         # --- tool_command_pool: built-in lists + any --tool-commands paths ---
@@ -161,6 +162,7 @@ class ConfigService:
             project=project_json,
             surface_files=surface_sorted,
             tool_command_pool=pool,
+            domain_file_cache=tuple(domain_file_cache),
         )
 
     # ------------------------------------------------------------------
@@ -309,7 +311,9 @@ def _match_glob_against(pattern: str, domain_files: list[tuple[Path, str]]) -> s
     return matches
 
 
-def _collect_surface_files(base: BaseJson, features: list[FeatureJson], ctx: ChopperContext) -> set[Path]:
+def _collect_surface_files(
+    base: BaseJson, features: list[FeatureJson], ctx: ChopperContext
+) -> tuple[set[Path], list[tuple[Path, str]]]:
     """Union of every file path contributed by all JSON sources.
 
     Literal paths (no glob metacharacters) are added directly.  Glob
@@ -325,6 +329,14 @@ def _collect_surface_files(base: BaseJson, features: list[FeatureJson], ctx: Cho
     Performance: the domain filesystem is walked at most once, regardless
     of how many sources or glob patterns are present.  The walk is skipped
     entirely when no source has a glob pattern in ``files.include``.
+
+    Returns:
+        A tuple of ``(surface_files, domain_file_cache)`` where:
+
+        * ``surface_files`` — set of domain-relative paths from all sources.
+        * ``domain_file_cache`` — list of ``(rel_path, posix_string)`` pairs
+          from the domain walk. Empty if no glob patterns triggered a walk.
+          This cache can be reused by P2 for full-domain harvest (O1 opt).
     """
     paths: set[Path] = set()
 
@@ -349,4 +361,4 @@ def _collect_surface_files(base: BaseJson, features: list[FeatureJson], ctx: Cho
         for ref in src.procedures.exclude:
             paths.add(ref.file)
 
-    return paths
+    return paths, domain_files

@@ -616,7 +616,7 @@ def test_config_service_collects_surface_files_from_all_sections() -> None:
     # _InMemoryFS.exists() returns False for the domain root, so glob
     # expansion gracefully returns empty and only literals are surfaced.
     ctx, _ = _make_ctx({Path("/dom/base.json"): ""}, base_path=Path("/dom/base.json"), domain_root=Path("/dom"))
-    surface = _collect_surface_files(base, [feat], ctx)
+    surface, _domain_cache = _collect_surface_files(base, [feat], ctx)
     posix = {p.as_posix() for p in surface}
     # Literal include + exclude from both sources captured.
     assert "main.tcl" in posix

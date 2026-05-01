@@ -2,14 +2,25 @@
 
 ## Current Focus
 
-- 2026-05-01 audit + remediation. **Wave A IMPLEMENTED + Wave B reviewed.** Version bumped 0.6.0 → 0.7.0.
+- 2026-05-01 Wave B continuation. **Wave A IMPLEMENTED + Wave B O1/O2 DONE.** Version 0.7.0.
 
-## Wave B Verdict (2026-05-01, post-Wave-A review)
+## Wave B Implementation (2026-05-01)
 
+- **O1 — DONE.** New `domain_file_cache: tuple[tuple[Path, str], ...]` field added to `LoadedConfig`. P1's `_collect_surface_files()` now returns the domain walk cache when glob expansion occurs. P2's `_enumerate_domain_tcl()` accepts optional `loaded` param and reuses the cache to filter for `.tcl` files instead of re-walking. Eliminates redundant filesystem walks when P1 already walked for glob patterns. Runner updated to pass `loaded` to `ParserService.run()`. Config test updated to unpack tuple return. All 895 tests pass.
 - **O2 — DONE.** `_build_short_to_canonical()` helper added to `compiler/merge_service.py`; per-file dict cached once at top of `CompilerService.run()` and threaded into classify + aggregate passes. Collapses `2*S*F` rebuilds to `F`. 136 compiler+integration+golden tests green.
 - **O3 — NO-OP (already optimal).** Re-read showed `_resort_by_posix` is called twice at the **end** of `_register_generated_stage_files`, not in a loop. Original audit description was wrong. No change.
 - **O4 — NO-OP (already streaming per artifact).** `audit/service.py` writes each artifact independently via `ctx.fs.write_text`. In-memory render cost bounded by ≤1 GB NFR-1. Skipped until profiling pressure justifies.
-- **O1, O5, O6 — DEFERRED.** Each is a real refactor warranting its own PR with benchmark + golden-file diff. Documented in IMPROVEMENTS.md §6 with rationale. Not blocking.
+- **O5, O6 — DEFERRED.** Both are god-module splits (36+ classes in models.py / 632 LOC in call_extractor.py) with significant surface-area churn. Require dedicated PRs with re-export shims and `__all__` audits.
+
+## Files Changed (Wave B O1)
+
+- `src/chopper/core/models.py` — `domain_file_cache` field added to `LoadedConfig` with docstring.
+- `src/chopper/config/service.py` — `_collect_surface_files()` returns `tuple[set[Path], list[tuple[Path, str]]]`; `ConfigService.run()` passes cache to `LoadedConfig`.
+- `src/chopper/parser/service.py` — `ParserService.run()` accepts optional `loaded` param; `_enumerate_domain_tcl()` uses cache if available.
+- `src/chopper/orchestrator/runner.py` — passes `loaded=loaded` to `ParserService().run()`.
+- `tests/unit/config/test_service.py` — test updated to unpack tuple return from `_collect_surface_files()`.
+- `IMPROVEMENTS.md` — O1 status updated to DONE with implementation details.
+- `technical_docs/chopper_description.md` — P1/P2 sections updated with O1 optimization documentation.
 
 ## Wave A Completed (2026-05-01)
 

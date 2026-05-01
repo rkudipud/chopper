@@ -625,6 +625,12 @@ class LoadedConfig:
       the CLI flag ``--tool-commands``. The pool is a single flat set of
       bare names; matching happens on raw token OR namespace-stripped
       leaf. Empty in unit tests that bypass the CLI layer.
+    * ``domain_file_cache`` — tuple of ``(domain_relative_path, posix_string)``
+      pairs captured during P1 glob expansion. When non-empty, P2 can
+      reuse this cache for full-domain harvest instead of re-walking the
+      filesystem. Empty when P1 had no glob patterns in ``files.include``
+      (the walk was skipped). This is an O1 optimization that eliminates
+      redundant filesystem walks between P1 and P2.
     """
 
     base: BaseJson
@@ -632,6 +638,7 @@ class LoadedConfig:
     project: ProjectJson | None = None
     surface_files: tuple[Path, ...] = ()
     tool_command_pool: frozenset[str] = frozenset()
+    domain_file_cache: tuple[tuple[Path, str], ...] = ()
 
     def __post_init__(self) -> None:
         # Feature names are unique (VE-14 is the loader's job; this is a

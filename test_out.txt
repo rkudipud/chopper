@@ -1,41 +1,14 @@
-............................F........................................... [  8%]
-........................................................................ [ 17%]
-........................................................................ [ 26%]
-........................................................................ [ 35%]
-........................................................................ [ 43%]
-........................................................................ [ 52%]
-........................................................................ [ 61%]
-........................................................................ [ 70%]
-........................................................................ [ 78%]
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
 ........................................................................ [ 87%]
-........................................................................ [ 96%]
-.............................                                            [100%]
-================================== FAILURES ===================================
-______ test_runner_localfs_live_trim_stages_domain_stack_files_in_audit _______
-
-tmp_path = WindowsPath('C:/Users/rkudipud/AppData/Local/Temp/pytest-of-rkudipud/pytest-97/test_runner_localfs_live_trim_1')
-
-    def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: Path) -> None:
-        """Generated ``.stack`` files appear in the audit bundle's compiled_manifest."""
-    
-        domain = tmp_path / "stages_domain"
-        shutil.copytree(FIXTURE_STAGES, domain)
-    
-        ctx, sink = _make_ctx(domain, dry_run=False)
-        result = ChopperRunner().run(ctx, command="trim")
-    
-        assert result.exit_code == 0
-        # compiled_manifest.json must record all GENERATED entries.
-        manifest_path = domain / ".chopper" / "compiled_manifest.json"
-        assert manifest_path.exists(), "compiled_manifest.json not written"
-        data = json.loads(manifest_path.read_text())
-        file_decisions = data.get("file_decisions", {})
-        for stage_name in ("setup", "run_flow", "promote"):
->           assert f"{stage_name}.tcl" in file_decisions, f"{stage_name}.tcl missing from manifest"
-E           AssertionError: setup.tcl missing from manifest
-E           assert 'setup.tcl' in {}
-
-tests\integration\test_runner_localfs_e2e.py:194: AssertionError
-=========================== short test summary info ===========================
-FAILED tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_live_trim_stages_domain_stack_files_in_audit
-1 failed, 820 passed in 13.59s
+.................................s.s.....ssss........................... [ 95%]
+.....................................                                    [100%]
+895 passed, 6 skipped in 30.11s
