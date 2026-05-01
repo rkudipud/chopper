@@ -2,60 +2,31 @@
 
 All notable changes to Chopper are recorded here.
 
-## [Unreleased]
-
-### Fixed
-
-- **`chopper trim` no longer drops file mode bits** on rebuilt files.
-  Previously every file written into `<domain>/` (FULL_COPY or PROC_TRIM)
-  came out with default-umask permissions because `Path.write_text`
-  ignores the source's `st_mode`. Executable scripts (Tcl/Perl/csh/Python
-  entry points, helper drivers, etc.) lost their `+x` bit on every trim,
-  silently breaking flows that invoked them by execution. The trim
-  writer now mirrors the source mode via `shutil.copymode` after each
-  write.
-
-- **`files_removed.txt` now reports the full physical-deletion set.**
-  Previously the artifact only listed files whose manifest treatment was
-  explicitly `REMOVE`, missing the much larger set of files chopper
-  silently dropped via the documented "default is exclude" rule (i.e.
-  files no `files.include` pattern matched). The audit bundle therefore
-  contained no flat list of what actually disappeared from the rebuilt
-  domain. The writer now computes the deletion set as
-  `walk(<domain>_backup/) − manifest_kept_files`, which captures both
-  explicit `REMOVE` decisions and default-exclude drops. When no backup
-  exists (e.g. `validate`-only runs) the writer falls back to the prior
-  REMOVE-only behaviour and the header line records which mode was used.
+## [0.5.3] — 2026-05-01
 
 ### Added
 
-#### Task A — `files_removed.txt` audit artifact
+- **`files_kept.txt` and `files_removed.txt` now record JSON provenance per
+  file.** Both audit artifacts have always listed the surviving / removed
+  domain-relative paths, but earlier releases only emitted a flat sorted
+  path list — useful for `wc -l`, useless for answering "*which* JSON
+  pulled this file in?". Each line is now tab-separated as
+  `<path>\t<provenance>`:
+  - In `files_kept.txt`, `<provenance>` is a comma-separated list of
+    `<source_key>:<json_field>` tags (from
+    `CompiledManifest.provenance[<path>].input_sources`) identifying every
+    authoring intent that kept the file. Files with no provenance entry
+    fall back to `-`.
+  - In `files_removed.txt`, `<provenance>` is `vetoed-by:<src1>,<src2>,...`
+    when the file was named by an authoring intent that was vetoed
+    cross-source (`FileProvenance.vetoed_entries`), or `default-exclude`
+    when no JSON named the file at all.
 
-Every `chopper trim` and `chopper trim --dry-run` run now writes a
-`files_removed.txt` file into the `.chopper/` audit bundle alongside the
-existing `trim_report.json`.
+  The header comment in each file documents the format. Output remains
+  alphabetically sorted by path so existing `diff`/`grep` regression
+  scripts that operate on path columns (`cut -f1`) continue to work.
 
-The file contains a flat, alphabetically sorted list of every domain-relative
-path that is scheduled for removal (i.e. all files whose `CompiledManifest`
-treatment is `REMOVE`), one path per line.  A header comment identifies the
-file.  When no files are scheduled for removal the file contains only the
-header.
+### Documentation
 
-This gives operators an immediate, machine-readable answer to *"which files
-will disappear?"* without having to parse the full `trim_report.json`.
-
-#### Task B — `files_kept.txt` audit artifact
-
-Every `chopper trim` and `chopper trim --dry-run` run now writes a
-`files_kept.txt` file into the `.chopper/` audit bundle.
-
-The file contains a flat, alphabetically sorted list of every domain-relative
-path that survives trimming (treatments `FULL_COPY`, `PROC_TRIM`, and
-`GENERATED`), one path per line.  A header comment identifies the file.
-
-This gives operators an immediate, machine-readable answer to *"which files
-will remain?"* without having to parse the compiled manifest.
-
-Both artifacts appear in the `artifacts_present` array of
-`chopper_run.json` so downstream tooling can detect their presence
-reliably.
+- Architecture Doc §3.7 (dry-run output list) updated to specify the new
+  per-line format for both artifacts.
