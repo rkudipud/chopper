@@ -32,7 +32,8 @@ from dataclasses import replace
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.errors import ChopperError
-from chopper.core.models import (
+from chopper.core.models_compiler import StageSpec
+from chopper.core.models_config import (
     AddStageAction,
     AddStepAction,
     FeatureJson,
@@ -43,7 +44,6 @@ from chopper.core.models import (
     ReplaceStageAction,
     ReplaceStepAction,
     StageDefinition,
-    StageSpec,
 )
 
 __all__ = ["resolve_stages"]

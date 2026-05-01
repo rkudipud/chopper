@@ -35,35 +35,30 @@ You are a highly capable and autonomous agent, and you can definitely solve this
 
 ---
 
-## GitNexus Code Intelligence & Memory
+## Code Intelligence & Memory
 
 ### Initialization (before Phase 1)
 
 **1. Read memory file**
 Read `.github/agent_memory/chopper-buildout.md` (or the most relevant agent memory file for the task). If it does not exist, create it from `.github/agent_memory/README.md`. Use it as persistent working context.
 
-**2. Check GitNexus availability**
-Run `npx gitnexus status 2>&1`.
+**2. Use local code intelligence first**
+GitNexus MCP tools are not assumed to be available. Use `search/codebase`, `search/textSearch`, `search/usages`, and `read/readFile` as the default code intelligence path.
 
-**If available:**
-- Read `gitnexus://repo/chopper/context` — codebase overview and staleness. Run `npx gitnexus analyze` if stale.
-- Integrate GitNexus into all codebase exploration phases below.
-- **Before any code modification**: run `gitnexus_impact` for blast radius. HIGH/CRITICAL requires user confirmation.
-- **Before completing**: run `gitnexus_detect_changes()` to verify scope.
-
-**If NOT available:**
-- Use `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile` as fallback intelligence.
+**Optional GitNexus CLI:**
+- If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used.
+- Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
 - Read the memory file and `technical_docs/chopper_description.md` for accumulated project context.
 
 **3. Task → skill mapping**
 
-| Task | Read this skill | Fallback |
-|------|-----------------|----------|
-| Architecture exploration | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
-| Blast radius / safety check | `.github/skills/gitnexus-impact-analysis/SKILL.md` | `search/usages` + `search/textSearch` |
-| Debug / root cause analysis | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
-| Rename / extract / refactor | `.github/skills/gitnexus-refactoring/SKILL.md` | `search/usages` + manual multi-file edits |
-| Index / status / analyze | `.github/skills/gitnexus-cli/SKILL.md` | Skip — GitNexus required |
+| Task | Default path |
+|------|--------------|
+| Architecture exploration | `search/codebase` + `read/readFile` |
+| Blast radius / safety check | `search/usages` + `search/textSearch` |
+| Debug / root cause analysis | `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | `search/usages` + targeted patches |
+| Index / status / analyze | `npx gitnexus ...` only when CLI is available |
 
 **4. Update memory file after milestones**
 Update the relevant `.github/agent_memory/` file with completed work, decisions, and next actions.

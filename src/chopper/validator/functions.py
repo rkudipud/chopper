@@ -35,14 +35,8 @@ from pathlib import Path, PurePosixPath
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import (
-    CompiledManifest,
-    DependencyGraph,
-    FeatureJson,
-    FilesSection,
-    LoadedConfig,
-    StageSpec,
-)
+from chopper.core.models_compiler import CompiledManifest, DependencyGraph, StageSpec
+from chopper.core.models_config import FeatureJson, FilesSection, LoadedConfig
 
 __all__ = ["validate_post", "validate_pre"]
 

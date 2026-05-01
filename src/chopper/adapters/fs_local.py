@@ -16,7 +16,7 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from chopper.core.models import FileStat
+from chopper.core.models_common import FileStat
 
 __all__ = ["LocalFS"]
 

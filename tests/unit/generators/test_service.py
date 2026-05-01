@@ -7,12 +7,8 @@ from pathlib import Path
 from chopper.adapters import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import (
-    CompiledManifest,
-    FileProvenance,
-    FileTreatment,
-    StageSpec,
-)
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest, FileProvenance, StageSpec
 from chopper.generators import GeneratorService
 from chopper.generators.stage_emitter import emit_stage_tcl, stage_output_path
 

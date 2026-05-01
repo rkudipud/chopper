@@ -103,7 +103,7 @@ Scope of this document:
 
 **Rationale.** §5.3 step 3d says "recurse into control-structure body"; the spec endorses iterative / stack-based implementations explicitly ("Implementations should use an iterative or stack-based approach to avoid Python stack overflow on deeply nested control structures"). The flat walk *is* the iterative form — and it has the additional benefit of eliminating the depth-matching bug class that led here. The uniform bracket scan on all WORD tokens handles §5.3 step 4 (bracket sub-calls) and §5.5 Level 3 exception (real `[call]` inside a log-proc string argument) with a single rule.
 
-**Outcome.** Rewritten `extract_body_refs` at [src/chopper/parser/call_extractor.py](../src/chopper/parser/call_extractor.py). §5.3 algorithm block in [technical_docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) rewritten to match (with an explicit note that control-flow recursion is not needed). Tested in `TestControlFlowBodies` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
+**Outcome.** Rewritten `extract_body_refs` at [src/chopper/parser/call_extractor_body.py](../src/chopper/parser/call_extractor_body.py). §5.3 algorithm block in [technical_docs/TCL_PARSER_SPEC.md](TCL_PARSER_SPEC.md) rewritten to match (with an explicit note that control-flow recursion is not needed). Tested in `TestControlFlowBodies` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
 
 ### D-1e-02: Suppression check is identifier-only; structural suppression leans on `TCL_BUILTINS` and `at_command_position`
 
@@ -120,7 +120,7 @@ Scope of this document:
 
 **Rationale.** Duplicating the structural check adds code that needs unit tests for every §5.5 level and creates two sources of truth. Leaning on the tokenizer's `at_command_position` flag plus `TCL_BUILTINS` membership is simpler and satisfies every spec-required suppression.
 
-**Outcome.** `_should_suppress_first_word` at [src/chopper/parser/call_extractor.py](../src/chopper/parser/call_extractor.py) now ~5 lines. Suppression matrix is tested in `TestSuppression` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py); every §5.5 level has at least one test case.
+**Outcome.** `should_suppress_first_word` at [src/chopper/parser/call_extractor_classify.py](../src/chopper/parser/call_extractor_classify.py) is identifier-only. Suppression matrix is tested in `TestSuppression` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py); every §5.5 level has at least one test case.
 
 ### D-1e-03: `source` / `iproc_source` consume their argument indices to prevent double-count
 
@@ -130,6 +130,6 @@ Scope of this document:
 
 **Rationale.** `source` is explicitly a file dependency, not a proc call (§5.4). Its argument tokens must not leak into `calls` under any shape — neither as literal text nor via embedded bracket expansion.
 
-**Outcome.** `_extract_source_path_with_indices` + `consumed` set in `extract_body_refs` at [src/chopper/parser/call_extractor.py](../src/chopper/parser/call_extractor.py). Tested in `TestSourceRefs::test_source_not_a_call_edge` and `test_source_dynamic_path_dropped` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
+**Outcome.** `extract_source_path_with_indices` at [src/chopper/parser/call_extractor_sources.py](../src/chopper/parser/call_extractor_sources.py) plus the `consumed` set in [src/chopper/parser/call_extractor_body.py](../src/chopper/parser/call_extractor_body.py). Tested in `TestSourceRefs::test_source_not_a_call_edge` and `test_source_dynamic_path_dropped` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
 
 ---

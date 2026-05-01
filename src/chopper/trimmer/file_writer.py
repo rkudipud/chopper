@@ -31,7 +31,9 @@ import shutil
 from pathlib import Path
 
 from chopper.core.context import ChopperContext
-from chopper.core.models import FileOutcome, FileTreatment, ParsedFile, ProcEntry
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_parser import ParsedFile, ProcEntry
+from chopper.core.models_trimmer import FileOutcome
 from chopper.trimmer.proc_dropper import drop_procs
 
 __all__ = ["full_copy_file", "proc_trim_file", "remove_file"]

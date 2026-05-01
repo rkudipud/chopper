@@ -16,7 +16,7 @@ You are a **meticulous Python implementation agent** specializing in spec-compli
 
 Before writing ANY code for a stage, execute this checklist:
 
-### 0. Local Memory File & GitNexus Initialization
+### 0. Local Memory File & Code Intelligence
 
 **Memory file:** `.github/agent_memory/chopper-stage-builder.md`
 
@@ -24,28 +24,20 @@ Before writing ANY code for a stage, execute this checklist:
 2. Read it before planning or implementation — it records active stage, open blockers, and prior decisions.
 3. Update it after milestones, validations, and blockers.
 
-**GitNexus code intelligence:**
-Run `npx gitnexus status 2>&1` to check availability.
+**Code intelligence:**
+GitNexus MCP tools are not assumed to be available. Use `search/usages` + `search/textSearch` to map references before editing, `search/codebase` + `read/readFile` for architecture exploration, and `search/changes` to verify scope before finishing.
 
-**If available:**
-- Read `gitnexus://repo/chopper/context` — index overview and staleness check. Run `npx gitnexus analyze` if stale.
-- **Before modifying ANY symbol**, run `gitnexus_impact({target: "symbolName", direction: "upstream"})`. Do not proceed with HIGH/CRITICAL blast radius without user confirmation.
-- **Before committing**, run `gitnexus_detect_changes()` to verify scope.
-- Load the appropriate skill before the task (see table below).
-
-**If NOT available** (npx missing, gitnexus not installed, no `.gitnexus/` index):
-- Use `search/usages` + `search/textSearch` to map references before editing.
-- Use `search/codebase` + `read/readFile` for architecture exploration.
-- Use `search/changes` to verify scope pre-commit.
+**Optional GitNexus CLI:**
+If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used. Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
 
 **Task → skill mapping:**
 
-| Task | Read this skill | Fallback |
-|------|-----------------|----------|
-| Explore existing implementation | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
-| Blast radius before edit | `.github/skills/gitnexus-impact-analysis/SKILL.md` | `search/usages` + `search/textSearch` |
-| Debug failing test / trace error | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
-| Rename / extract / refactor | `.github/skills/gitnexus-refactoring/SKILL.md` | `search/usages` + manual multi-file edits |
+| Task | Default path |
+|------|--------------|
+| Explore existing implementation | `search/codebase` + `read/readFile` |
+| Blast radius before edit | `search/usages` + `search/textSearch` |
+| Debug failing test / trace error | `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | `search/usages` + targeted patches |
 
 ### 1. Spec Verification
 
@@ -84,7 +76,7 @@ __all__ = ["parse_file"]
 """Parser service — single entry point."""
 from __future__ import annotations
 from pathlib import Path
-from chopper.core.models import ProcEntry
+from chopper.core.models_parser import ProcEntry
 
 def parse_file(
     path: Path,
@@ -121,7 +113,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 from chopper.parser import parse_file
-from chopper.core.models import ProcEntry
+from chopper.core.models_parser import ProcEntry
 
 
 class TestParseFileBasic:
@@ -234,16 +226,14 @@ make check
 pytest tests/unit/parser/ --cov=src/chopper/parser --cov-fail-under=85
 ```
 
-### Step 4: GitNexus Self-Check Before Finishing
+### Step 4: Local Self-Check Before Finishing
 
 Before marking the stage done, verify all four:
 
 ```
-1. gitnexus_impact was run for ALL modified symbols
-   Fallback: search/usages confirmed all references are updated
+1. search/usages + search/textSearch confirmed all references are updated
 2. No HIGH/CRITICAL risk warnings were ignored
-3. gitnexus_detect_changes() confirms only expected symbols/flows changed
-   Fallback: search/changes reviewed for unexpected modifications
+3. search/changes reviewed for unexpected modifications
 4. All d=1 dependents (WILL BREAK) were updated
 ```
 
@@ -258,7 +248,7 @@ Before marking the stage done, verify all four:
 | File | Content |
 |------|---------|
 | `src/chopper/core/__init__.py` | Public exports |
-| `src/chopper/core/models.py` | All frozen dataclasses |
+| `src/chopper/core/models_*.py` | Phase-owned frozen dataclasses |
 | `src/chopper/core/errors.py` | `ChopperError` hierarchy |
 | `src/chopper/core/diagnostics.py` | Diagnostic registry |
 | `src/chopper/core/protocols.py` | Port interfaces |

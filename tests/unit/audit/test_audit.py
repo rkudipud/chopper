@@ -23,24 +23,19 @@ from chopper.audit.writers import (
 )
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase, Severity
-from chopper.core.models import (
-    BaseJson,
+from chopper.core.models_audit import RunRecord
+from chopper.core.models_common import DomainState, FileTreatment
+from chopper.core.models_compiler import (
     CompiledManifest,
     DependencyGraph,
-    DomainState,
     Edge,
-    FileOutcome,
     FileProvenance,
-    FileTreatment,
-    LoadedConfig,
-    ParsedFile,
-    ParseResult,
     ProcDecision,
-    ProcEntry,
-    RunRecord,
     StageSpec,
-    TrimReport,
 )
+from chopper.core.models_config import BaseJson, LoadedConfig
+from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
+from chopper.core.models_trimmer import FileOutcome, TrimReport
 
 DOMAIN = Path("/work/my_domain")
 BACKUP = Path("/work/my_domain_backup")

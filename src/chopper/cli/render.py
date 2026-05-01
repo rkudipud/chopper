@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from typing import TextIO
 
 from chopper.core.diagnostics import Diagnostic, Severity
-from chopper.core.models import RunResult
+from chopper.core.models_audit import RunResult
 
 __all__ = ["render_cleanup_message", "render_diagnostics", "render_result"]
 

@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.core.models` — the Stage 0 shared dataclasses."""
+"""Unit tests for the Stage 0 phase-owned core model dataclasses."""
 
 from __future__ import annotations
 
@@ -9,31 +9,19 @@ from pathlib import Path
 import pytest
 
 from chopper.core.diagnostics import DiagnosticSummary
-from chopper.core.models import (
-    AddStepAction,
-    AuditArtifact,
-    AuditManifest,
+from chopper.core.models_audit import AuditArtifact, AuditManifest, RunRecord, RunResult
+from chopper.core.models_common import DomainState, FileStat, FileTreatment
+from chopper.core.models_compiler import (
     CompiledManifest,
     DependencyGraph,
-    DomainState,
     Edge,
-    FileOutcome,
     FileProvenance,
-    FileStat,
-    FileTreatment,
-    GeneratedArtifact,
-    LoadedConfig,
-    ParsedFile,
-    ParseResult,
     ProcDecision,
-    ProcEntry,
-    ProcEntryRef,
-    RunRecord,
-    RunResult,
-    StageDefinition,
     StageSpec,
-    TrimReport,
 )
+from chopper.core.models_config import AddStepAction, LoadedConfig, ProcEntryRef, StageDefinition
+from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
+from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, TrimReport
 
 
 class TestFileTreatment:
@@ -234,14 +222,14 @@ class TestStageSpec:
 
 class TestLoadedConfig:
     def test_surface_files_unsorted_rejected(self) -> None:
-        from chopper.core.models import BaseJson
+        from chopper.core.models_config import BaseJson
 
         base = BaseJson(source_path=Path("base.json"), domain="d")
         with pytest.raises(ValueError, match="surface_files must be sorted"):
             LoadedConfig(base=base, surface_files=(Path("b.tcl"), Path("a.tcl")))
 
     def test_duplicate_feature_names_rejected(self) -> None:
-        from chopper.core.models import BaseJson, FeatureJson
+        from chopper.core.models_config import BaseJson, FeatureJson
 
         base = BaseJson(source_path=Path("base.json"), domain="d")
         f1 = FeatureJson(source_path=Path("f1.json"), name="dupe")

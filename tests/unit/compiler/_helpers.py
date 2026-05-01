@@ -11,19 +11,16 @@ from pathlib import Path
 
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import (
+from chopper.core.models_common import DomainState, FileStat
+from chopper.core.models_config import (
     BaseJson,
-    DomainState,
     FeatureJson,
     FilesSection,
-    FileStat,
     LoadedConfig,
-    ParsedFile,
-    ParseResult,
     ProceduresSection,
-    ProcEntry,
     ProcEntryRef,
 )
+from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 
 
 class CollectingSink:

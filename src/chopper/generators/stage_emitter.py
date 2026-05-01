@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chopper.core.models import GeneratedArtifact, StageSpec
+from chopper.core.models_compiler import StageSpec
+from chopper.core.models_trimmer import GeneratedArtifact
 
 __all__ = ["emit_stage_tcl", "stage_output_path"]
 

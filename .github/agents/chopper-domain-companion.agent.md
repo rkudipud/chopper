@@ -39,32 +39,28 @@ Your goal is to help users perform that entire loop with clarity and confidence.
 
 ---
 
-## GitNexus Code Intelligence & Memory
+## Code Intelligence & Memory
 
 ### On Every Invocation
 
 **1. Read memory file**
 Read `.github/agent_memory/chopper-domain-companion.md`. If it does not exist, create it from the template in `.github/agent_memory/README.md`. Use it to carry domain analysis context, confirmed domain facts, and session findings across conversations.
 
-**2. Check GitNexus availability**
-Run `npx gitnexus status 2>&1` to check availability.
+**2. Use local code intelligence first**
+GitNexus MCP tools are not assumed to be available. Use `search/codebase`, `search/textSearch`, `search/usages`, `read/readFile`, and `search/listDirectory` as the default way to inspect Chopper internals.
 
-**If available:**
-- Read `gitnexus://repo/chopper/context` — Chopper codebase overview and index staleness check.
-- If stale, run `npx gitnexus analyze` first.
-- Use `gitnexus_query` and `gitnexus_context` to explore Chopper execution flows when users ask how the runtime works or why something happened.
-
-**If NOT available** (npx missing, gitnexus not installed, no `.gitnexus/` index):
-- Use `search/codebase`, `search/textSearch`, `read/readFile`, `search/listDirectory`.
+**Optional GitNexus CLI:**
+- If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used.
+- Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
 - Read `.github/agent_memory/chopper-domain-companion.md` for accumulated session findings and confirmed domain facts.
 
 **3. Task → skill mapping**
 
-| Task | Read this skill | Fallback |
-|------|-----------------|----------|
-| Explore Chopper internals / "How does X work?" | `.github/skills/gitnexus-exploring/SKILL.md` | `search/codebase` + `read/readFile` |
-| Debug diagnostics / "Why did X happen?" | `.github/skills/gitnexus-debugging/SKILL.md` | `search/textSearch` + `read/readFile` |
-| GitNexus tools / schema reference | `.github/skills/gitnexus-guide/SKILL.md` | Read architecture doc instead |
+| Task | Default path |
+|------|--------------|
+| Explore Chopper internals / "How does X work?" | `search/codebase` + `read/readFile` |
+| Debug diagnostics / "Why did X happen?" | `search/textSearch` + `read/readFile` |
+| Tool/schema reference | Read architecture doc and local instruction files |
 
 **4. Update memory file after milestones**
 After significant domain analysis or JSON authoring cycles, update `.github/agent_memory/chopper-domain-companion.md` with confirmed domain facts, unresolved questions, and next steps.
@@ -119,7 +115,7 @@ The runtime writes these into `.chopper/` on every run (success or failure). Exa
 - `internal-error.log` — **only present on exit 3** (programmer error). Plain-text crash log: run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. Mirrors `RunResult.internal_error = {kind, message, log_path}` so a GUI / CI can surface the failure without parsing the log.
 - Event log in JSON-Lines format
 
-The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) (**71 active codes** as of 0.7.0). Never invent codes; look them up there.
+The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) (**71 active codes** as of 0.8.0). Never invent codes; look them up there.
 
 ### Exit codes (CLI surface)
 

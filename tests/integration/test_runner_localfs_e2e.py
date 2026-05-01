@@ -24,7 +24,7 @@ from pathlib import Path
 
 from chopper.adapters import CollectingSink, LocalFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
-from chopper.core.models import FileTreatment
+from chopper.core.models_common import FileTreatment
 from chopper.orchestrator import ChopperRunner
 
 FIXTURE_MINI = Path(__file__).resolve().parents[1] / "fixtures" / "mini_domain"

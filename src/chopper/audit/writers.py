@@ -20,13 +20,9 @@ from chopper import __version__
 from chopper.audit.sloc import count_raw, count_sloc
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
-from chopper.core.models import (
-    CompiledManifest,
-    Edge,
-    FileTreatment,
-    ProcDecision,
-    RunRecord,
-)
+from chopper.core.models_audit import RunRecord
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest, Edge, ProcDecision
 from chopper.core.serialization import dump_model
 
 __all__ = [

@@ -2,7 +2,7 @@
 
 This package provides :class:`~chopper.config.service.ConfigService`, which
 reads, validates, and hydrates the base / feature / project JSON files into
-the typed :class:`~chopper.core.models.LoadedConfig` aggregate consumed by
+the typed :class:`~chopper.core.models_config.LoadedConfig` aggregate consumed by
 the compiler and tracer.
 
 Sub-modules (internal; import only :class:`ConfigService` from the service):

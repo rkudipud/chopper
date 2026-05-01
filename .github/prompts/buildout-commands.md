@@ -107,7 +107,7 @@ Review Stage [N] implementation for Chopper.
 
 ### Stage Dependencies
 
-- Stage 1 depends on Stage 0 (uses `core/models.py`)
+- Stage 1 depends on Stage 0 (uses the phase-owned `core/models_*.py` definitions)
 - Stage 2 depends on Stage 0, Stage 1 (uses models + parser output)
 - Stage 3 depends on Stage 0, Stage 2 (uses models + compiled manifest)
 - Stage 4 depends on Stage 0, Stage 1, Stage 3 (uses models + parser + trimmer)

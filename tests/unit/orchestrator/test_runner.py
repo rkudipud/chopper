@@ -11,7 +11,7 @@ from chopper.adapters import CollectingSink, InMemoryFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, Phase, Severity
 from chopper.core.errors import ChopperError
-from chopper.core.models import FileTreatment
+from chopper.core.models_common import FileTreatment
 from chopper.orchestrator import ChopperRunner, has_errors
 
 DOMAIN = Path("dom")
@@ -287,7 +287,7 @@ class TestP3CompileGate:
             # Return something that will be ignored by the gate abort
             # but must not raise to hit the P3 error-gate branch (not
             # the except ChopperError branch).
-            from chopper.core.models import CompiledManifest
+            from chopper.core.models_compiler import CompiledManifest
 
             return CompiledManifest(file_decisions={}, proc_decisions={}, provenance={})
 
@@ -312,7 +312,7 @@ class TestP5TrimGate:
 
         def _shim(self, ctx, manifest, parsed, state):  # noqa: ANN001, ARG001
             ctx.diag.emit(Diagnostic.build("VE-23", phase=Phase.P5_TRIM, message="synthetic trim fail"))
-            from chopper.core.models import TrimReport
+            from chopper.core.models_trimmer import TrimReport
 
             return TrimReport(
                 outcomes=(),

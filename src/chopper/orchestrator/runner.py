@@ -20,19 +20,12 @@ from chopper.config.service import ConfigService
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Phase
 from chopper.core.errors import ChopperError
-from chopper.core.models import (
-    CompiledManifest,
-    DependencyGraph,
-    DomainState,
-    FileTreatment,
-    GeneratedArtifact,
-    InternalError,
-    LoadedConfig,
-    ParseResult,
-    RunRecord,
-    RunResult,
-    TrimReport,
-)
+from chopper.core.models_audit import InternalError, RunRecord, RunResult
+from chopper.core.models_common import DomainState, FileTreatment
+from chopper.core.models_compiler import CompiledManifest, DependencyGraph
+from chopper.core.models_config import LoadedConfig
+from chopper.core.models_parser import ParseResult
+from chopper.core.models_trimmer import GeneratedArtifact, TrimReport
 from chopper.generators.service import GeneratorService
 from chopper.orchestrator.domain_state import DomainStateService
 from chopper.orchestrator.gates import has_errors

@@ -12,16 +12,9 @@ from pathlib import Path
 import pytest
 
 from chopper.adapters import InMemoryFS
-from chopper.core.models import (
-    CompiledManifest,
-    DomainState,
-    FileProvenance,
-    FileTreatment,
-    ParsedFile,
-    ParseResult,
-    ProcDecision,
-    ProcEntry,
-)
+from chopper.core.models_common import DomainState, FileTreatment
+from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
+from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 from chopper.trimmer import TrimmerService
 from tests.unit.trimmer._helpers import BACKUP, DOMAIN, make_ctx
 

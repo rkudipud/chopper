@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from chopper.compiler import CompilerService
-from chopper.core.models import FileTreatment
+from chopper.core.models_common import FileTreatment
 from tests.unit.compiler._helpers import (
     files_section,
     make_base,

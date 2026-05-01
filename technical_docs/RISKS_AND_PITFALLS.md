@@ -411,7 +411,7 @@ regexp {(?:Warning|Error|Fatal):\s+.*?\s+([0-9]+)\s+.*} $line match count
 
 **Correct Behavior — Tcl Endekas Rule 6 (Braces):** the contents of a `{...}` brace-quoted word are LITERAL; the caller does not parse them as Tcl code. For the specific commands `regexp`, `regsub`, `exec`, `glob`, and `string match`, the brace-quoted arguments are also semantically opaque to Chopper's call extractor — they hold regular expressions, glob patterns, or external command lines.
 
-**Implementation Requirement (`call_extractor`):** A pre-pass walks the proc body's token stream and, when it sees one of `regexp` / `regsub` / `exec` / `glob` / `string match` at command position OR inside a `[...]` bracket substitution, marks the entire `LBRACE…RBRACE` token range of every brace argument as `skip`. The main extraction walk skips any token whose index is in that set, both for command-position classification AND for the inner bracket-call regex.
+**Implementation Requirement (`call_extractor_structural`):** A pre-pass walks the proc body's token stream and, when it sees one of `regexp` / `regsub` / `exec` / `glob` / `string match` at command position OR inside a `[...]` bracket substitution, marks the entire `LBRACE…RBRACE` token range of every brace argument as `skip`. The main extraction walk skips any token whose index is in that set, both for command-position classification AND for the inner bracket-call regex.
 
 **Implementation also requires recursive descent into Tcl-script-containing braces** (`if`, `while`, `for`, `foreach`, `foreach_in_collection`, `catch`, `try`, `eval`, `uplevel`, `namespace`, `expr`). Without recursion, an opaque command nested inside `if {[catch {exec grep -P {...}} ]}` is never reached because nothing inside the `if` body is at command position from the outer pre-pass's point of view. The pre-pass therefore treats the first WORD after each code-block LBRACE as cmd-position and recurses.
 
@@ -444,7 +444,7 @@ proc ::psgen::get_path_data {attr_name} {
 
 **Correct Behavior — Tcl `switch(n)` man page:** `switch ?-options? string {pattern body ?pattern body ...?}`. Pattern words are LITERAL strings to compare against the expr. A body of `-` means "use the next pattern's body" (fall-through marker). Pattern words are NOT command invocations.
 
-**Implementation Requirement (`call_extractor` pre-pass):** When the pre-pass identifies a `switch` invocation, it locates the body brace (the LAST `{...}` argument at the command's depth) and marks every WORD token at the body's inner depth as `skip`. Bodies (the `{...}` that follow each pattern) live at depth+2 and are walked normally — code inside them is real Tcl.
+**Implementation Requirement (`call_extractor_structural` pre-pass):** When the pre-pass identifies a `switch` invocation, it locates the body brace (the LAST `{...}` argument at the command's depth) and marks every WORD token at the body's inner depth as `skip`. Bodies (the `{...}` that follow each pattern) live at depth+2 and are walked normally — code inside them is real Tcl.
 
 **Tests:**
 - `tests/fixtures/bug_reports/switch_patterns.tcl` — verbatim 32-label switch plus `switch -exact --` form with `-`-fallthrough.

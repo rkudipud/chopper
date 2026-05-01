@@ -29,7 +29,7 @@ from chopper.audit.writers import (
 )
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase, Severity
-from chopper.core.models import AuditArtifact, AuditManifest, RunRecord
+from chopper.core.models_audit import AuditArtifact, AuditManifest, RunRecord
 
 __all__ = ["AuditService"]
 

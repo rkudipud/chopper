@@ -514,7 +514,7 @@ All unresolvable patterns produce structured diagnostics with reason codes.
 ### 5.3 Call Extraction Algorithm
 
 **Input contract — hybrid token-stream + regex filter (do NOT regex raw text).**
-Call extraction (`call_extractor.py`) consumes the **already-tokenized command-position token stream** produced by `tokenizer.py`, filtered to tokens whose context-stack top is `PROC_BODY`. Comments, quoted strings, and brace-escaped bodies are already suppressed by tokenizer state flags — the call extractor never re-scans the raw file text for calls.
+Call extraction (`call_extractor_body.py`) consumes the **already-tokenized command-position token stream** produced by `tokenizer.py`, filtered to tokens whose context-stack top is `PROC_BODY`. Comments, quoted strings, and brace-escaped bodies are already suppressed by tokenizer state flags — the call extractor never re-scans the raw file text for calls.
 
 Within each command-position token, regex is permitted (and encouraged) for the *downstream* classification work: identifying the shape of the first word (bare vs `::`-qualified vs dynamic), applying the SNORT-derived 4-level suppression cascade in §5.5, and extracting DPA proc-name arguments. SNORT's `_IsProcFoundInLine()` has been proven on Intel EDA codebases for 15+ years and its regex patterns are reused verbatim inside this layer. The invariant is only this: **regex operates on token values, never on raw file lines.** Using raw-line regex re-introduces the false-positive classes that the tokenizer already eliminated (quoted strings, comments, nested bodies).
 
@@ -553,7 +553,7 @@ Control-structure bodies (`if`, `foreach`, `foreach_in_collection`, `while`, `sw
 
 #### 5.3.0.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)
 
-Before the main walk above runs, `call_extractor` performs a structural pre-pass that builds a `skip_indices: set[int]` of tokens to be excluded from BOTH command-position classification AND embedded-bracket regex scanning. This pre-pass enforces three Tcl semantics that the tokenizer cannot determine on its own (because the tokenizer does not know what command name a brace-quoted argument belongs to):
+Before the main walk above runs, `call_extractor_structural` performs a structural pre-pass that builds a `skip_indices: set[int]` of tokens to be excluded from BOTH command-position classification AND embedded-bracket regex scanning. This pre-pass enforces three Tcl semantics that the tokenizer cannot determine on its own (because the tokenizer does not know what command name a brace-quoted argument belongs to):
 
 **(a) Opaque-brace commands** — `regexp`, `regsub`, `exec`, `glob`, `string match`. When any of these names appears at command position (either at `at_command_position == True` from the tokenizer OR as the first WORD after an `LBRACE` token at the range's enclosing depth — see §5.3.0.2 below), every `LBRACE…RBRACE` token range that constitutes a *value argument* to that command is marked entirely as `skip`. This prevents regex character classes (`{[A-Za-z_]+}`), regex alternations (`{Warning|Error|Fatal}`), `exec grep -P {…}` patterns, and glob patterns from being mis-extracted as proc calls. Reference: `RISKS_AND_PITFALLS.md` Pitfall P-38; fixture `tests/fixtures/bug_reports/regex_literals.tcl`.
 
@@ -561,7 +561,7 @@ Before the main walk above runs, `call_extractor` performs a structural pre-pass
 
 **(c) Code-block recursion** — for `if`, `elseif`, `else`, `while`, `for`, `foreach`, `foreach_in_collection`, `catch`, `try`, `eval`, `uplevel`, `namespace eval`, `expr`, the pre-pass recurses into each `{…}` body argument and re-runs (a)/(b) at the inner depth. Without this, an opaque command nested inside `if {[catch {exec grep -P {…}}]}` would be reached only by the main walk (which does not apply rule (a)) and produce false positives. The recursion descends with the heuristic that the first WORD inside any code-block LBRACE is at command position, with subsequent command positions reset on NEWLINE / SEMICOLON at that depth.
 
-**Implementation:** `call_extractor._compute_skip_indices(tokens)` returns the union skip set; `_classify_and_handle` consults it before classifying any WORD as a call, and `_INNER_CMD_RE` substitutions inside skipped ranges are themselves skipped. The pre-pass also walks `[…]` bracket substitutions so that, e.g., `[regexp {…} $s]` inside a regular command argument is also opaque.
+**Implementation:** `call_extractor_structural.compute_skip_indices(tokens)` returns the union skip set; `call_extractor_body.extract_body_refs` consults it before classifying any WORD as a call, and bracket substitutions inside skipped ranges are themselves skipped. Public suppression sets live in `call_extractor_constants.py`. The pre-pass also walks `[…]` bracket substitutions so that, e.g., `[regexp {…} $s]` inside a regular command argument is also opaque.
 
 #### 5.3.0.2 Why First-WORD-After-LBRACE Heuristic Is Needed
 

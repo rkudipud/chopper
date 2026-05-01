@@ -5,6 +5,8 @@ description: "Use when the user asks how code works, wants to understand archite
 
 # Exploring Codebases with GitNexus
 
+> Availability guardrail: use this workflow only when GitNexus MCP tools or `gitnexus://...` resources are exposed in the current session. If MCP is unavailable, explore with `search/codebase`, `search/textSearch`, `search/fileSearch`, and `read/readFile`.
+
 ## When to Use
 
 - "How does authentication work?"

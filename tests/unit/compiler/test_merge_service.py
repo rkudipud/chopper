@@ -20,13 +20,8 @@ import pytest
 
 from chopper.compiler import CompilerService
 from chopper.core.errors import ChopperError
-from chopper.core.models import (
-    AddStageAction,
-    BaseJson,
-    FeatureJson,
-    FileTreatment,
-    StageDefinition,
-)
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_config import AddStageAction, BaseJson, FeatureJson, StageDefinition
 from tests.unit.compiler._helpers import (
     files_section,
     make_base,

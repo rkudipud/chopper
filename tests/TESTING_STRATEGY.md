@@ -5,7 +5,7 @@
 Stage boundaries used throughout this document:
 
 | Stage | Module(s) | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | **Stage 0** | `core/` | Shared models, errors, diagnostics, protocols, serialization |
 | **Stage 1** | `parser/` | Tcl tokenization, proc indexing |
 | **Stage 2** | `config/`, `compiler/` | JSON schema loading, merge, BFS trace |
@@ -20,7 +20,7 @@ A scenario tagged with a stage must pass before that module is declared complete
 ## 1. Coverage Targets (by module / branch coverage)
 
 | Module | Target | CI gate |
-|---|---|---|
+| --- | --- | --- |
 | `parser/` | ≥ 85% branch | ✅ enforced via `--cov-fail-under` |
 | `compiler/` | ≥ 80% branch | ✅ |
 | `trimmer/` | ≥ 80% branch | ✅ |
@@ -186,7 +186,7 @@ class ChopperSubprocess:
 
 
 # Domain-state assertion helper
-from chopper.core.models import DomainState  # type: ignore[attr-defined]
+from chopper.core.models_common import DomainState
 
 
 def assert_domain_state(domain_path: Path, expected: DomainState) -> None:
@@ -225,7 +225,7 @@ def test_scenario_XX_description(virgin_domain: Path) -> None:
 Scenario numbering is stable within this document; each scenario below names the sprint it originates from.
 
 | # | Name | Stage | Key Assertions |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | Full trim from virgin | Stage 3 | State=TRIMMED; proc count reduced; `.chopper/` created |
 | 2 | Re-trim with same selection | Stage 3 | State=TRIMMED; output byte-identical to first trim |
 | 3 | Re-trim with different features | Stage 3 | State=TRIMMED; new manifest differs from first |
@@ -260,6 +260,7 @@ Scenario numbering is stable within this document; each scenario below names the
 ## 6. Property-Based Tests (Hypothesis)
 
 Configure in `pyproject.toml`:
+
 ```toml
 [tool.hypothesis]
 max_examples = 500

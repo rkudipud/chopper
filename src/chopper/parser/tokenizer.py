@@ -6,7 +6,7 @@ brace depth, command-position flag, and 1-indexed line number.
 
 The tokenizer does **not** execute Tcl, track namespaces, or recognise
 ``proc`` definitions — those layer on top (``namespace_tracker``,
-``proc_extractor``, ``call_extractor``).
+``proc_extractor``, ``call_extractor_body``).
 
 Structural errors (negative depth, unclosed braces) land in
 :attr:`TokenizerResult.errors` as :class:`TokenizerError` records; the

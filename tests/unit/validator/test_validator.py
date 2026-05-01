@@ -7,21 +7,16 @@ from pathlib import Path
 from chopper.adapters.fs_memory import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase, Severity
-from chopper.core.models import (
-    BaseJson,
-    BaseOptions,
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import (
     CompiledManifest,
     DependencyGraph,
     Edge,
-    FeatureJson,
     FileProvenance,
-    FilesSection,
-    FileTreatment,
-    LoadedConfig,
     ProcDecision,
-    ProjectJson,
     StageSpec,
 )
+from chopper.core.models_config import BaseJson, BaseOptions, FeatureJson, FilesSection, LoadedConfig, ProjectJson
 from chopper.validator import validate_post, validate_pre
 
 DOMAIN = Path("/work/my_domain")

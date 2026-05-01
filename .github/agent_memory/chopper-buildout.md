@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-- 2026-05-01 Wave B continuation. **Wave A IMPLEMENTED + Wave B O1/O2 DONE.** Version 0.7.0.
+- 2026-05-01 Wave B continuation. **Wave A IMPLEMENTED + Wave B O1/O2/O5/O6 DONE; O3/O4 verified no-op.** Version 0.8.0.
 
 ## Wave B Implementation (2026-05-01)
 
@@ -10,11 +10,13 @@
 - **O2 — DONE.** `_build_short_to_canonical()` helper added to `compiler/merge_service.py`; per-file dict cached once at top of `CompilerService.run()` and threaded into classify + aggregate passes. Collapses `2*S*F` rebuilds to `F`. 136 compiler+integration+golden tests green.
 - **O3 — NO-OP (already optimal).** Re-read showed `_resort_by_posix` is called twice at the **end** of `_register_generated_stage_files`, not in a loop. Original audit description was wrong. No change.
 - **O4 — NO-OP (already streaming per artifact).** `audit/service.py` writes each artifact independently via `ctx.fs.write_text`. In-memory render cost bounded by ≤1 GB NFR-1. Skipped until profiling pressure justifies.
-- **O5, O6 — DEFERRED.** Both are god-module splits (36+ classes in models.py / 632 LOC in call_extractor.py) with significant surface-area churn. Require dedicated PRs with re-export shims and `__all__` audits.
+- **O5 — DONE.** The former `core/models.py` god-module is split into phase-owned model modules and the aggregate shim has been removed. Direct import targets: `models_common.py`, `models_parser.py`, `models_config.py`, `models_compiler.py`, `models_trimmer.py`, `models_audit.py`.
+- **O6 — DONE.** The former `parser/call_extractor.py` monolith/facade is split into focused modules and the facade has been removed. Direct import targets: `call_extractor_body.py` for `extract_body_refs`, `call_extractor_constants.py` for public suppression sets, plus classify/source/structural helper modules.
+- **Final validation — DONE.** Static/docs/import gates passed; unit tests passed with 91.52% total coverage (78% required); full functional matrix passed (895 passed, 6 skipped).
 
 ## Files Changed (Wave B O1)
 
-- `src/chopper/core/models.py` — `domain_file_cache` field added to `LoadedConfig` with docstring.
+- `src/chopper/core/models_config.py` — `domain_file_cache` field added to `LoadedConfig` with docstring.
 - `src/chopper/config/service.py` — `_collect_surface_files()` returns `tuple[set[Path], list[tuple[Path, str]]]`; `ConfigService.run()` passes cache to `LoadedConfig`.
 - `src/chopper/parser/service.py` — `ParserService.run()` accepts optional `loaded` param; `_enumerate_domain_tcl()` uses cache if available.
 - `src/chopper/orchestrator/runner.py` — passes `loaded=loaded` to `ParserService().run()`.
@@ -39,7 +41,7 @@ All decisions from `IMPROVEMENTS.md` absorbed and implemented in a single coordi
 
 ## Files Changed (Wave A)
 
-- `src/chopper/core/models.py` — `InternalError`, internal_error field, exit-code widening.
+- `src/chopper/core/models_audit.py` — `InternalError`, internal_error field, exit-code widening.
 - `src/chopper/core/_diagnostic_registry.py` — VW-20 entry + header comment.
 - `src/chopper/audit/internal_error.py` — **NEW**.
 - `src/chopper/audit/service.py` — VW-20 emission.
@@ -53,9 +55,9 @@ All decisions from `IMPROVEMENTS.md` absorbed and implemented in a single coordi
 - `technical_docs/chopper_description.md` §5.12 — Python 3.11+ policy.
 - `tests/unit/core/test_diagnostics.py` — count 70 → 71.
 
-## Wave B (Deferred)
+## Wave B Status
 
-O1 cache domain walk; O2 cache short_to_canonical; O3 sort-once; O4 stream audit artifacts; O5 split `core/models.py` god-module; O6 split `parser/call_extractor.py`. All approved by user but kept out of the safety-critical fix wave.
+O1 cache domain walk and O2 cache short_to_canonical are implemented. O3 sort-once and O4 stream audit artifacts were verified already optimal/no-op. O5 and O6 are implemented as direct module splits with the former compatibility shims removed.
 
 ---
 
@@ -63,7 +65,7 @@ O1 cache domain walk; O2 cache short_to_canonical; O3 sort-once; O4 stream audit
 
 **P2 full-domain proc index (Option A):**
 
-- **Model.** `src/chopper/core/models.py::ParseResult.__post_init__` relaxed from `set(files.procs) == set(index)` to `set(files.procs) ⊆ set(index)`. The `files` view stays the surfaced subset (what the compiler operates on); `index` is now the full-domain canonical-name map (what P4 trace consults). Same-instance check uses `from_files.items()` so identity equality still holds for entries present in both.
+- **Model.** `src/chopper/core/models_parser.py::ParseResult.__post_init__` relaxed from `set(files.procs) == set(index)` to `set(files.procs) ⊆ set(index)`. The `files` view stays the surfaced subset (what the compiler operates on); `index` is now the full-domain canonical-name map (what P4 trace consults). Same-instance check uses `from_files.items()` so identity equality still holds for entries present in both.
 - **Parser.** `src/chopper/parser/service.py::ParserService.run` split into:
   - **Phase 2a — surface parse.** Iterates `loaded.surface_files`, emits `PE-*` / `PW-*` / `PI-*` via `ctx.diag`, populates both `parsed_files` and `index`.
   - **Phase 2b — full-domain harvest.** New `_enumerate_domain_tcl(ctx)` BFS via `ctx.fs.list/stat/exists` (excludes `.chopper/`, returns sorted `.tcl` rel paths). Non-surfaced files parsed silently through `_noop_diagnostic` and merged via `index.setdefault(...)` so surface entries always win on canonical-name collisions.

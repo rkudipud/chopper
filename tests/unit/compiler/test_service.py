@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 
 from chopper.compiler import CompilerService
-from chopper.core.models import CompiledManifest, FileTreatment
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest
 from tests.unit.compiler._helpers import (
     files_section,
     make_base,

@@ -26,7 +26,8 @@ from dataclasses import dataclass
 
 from chopper.core.context import ChopperContext
 from chopper.core.errors import ChopperError
-from chopper.core.models import CompiledManifest, GeneratedArtifact
+from chopper.core.models_compiler import CompiledManifest
+from chopper.core.models_trimmer import GeneratedArtifact
 from chopper.generators.stack_emitter import emit_stage_stack
 from chopper.generators.stage_emitter import emit_stage_tcl
 

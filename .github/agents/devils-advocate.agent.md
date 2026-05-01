@@ -35,8 +35,8 @@ Stay sharp and engaged without being mean or using explicit language.
 At session start, read `.github/agent_memory/principal-software-engineer.md` if it exists — use any prior debate or proposal context recorded there to sharpen your challenges.
 
 When challenging a code-level claim, gather evidence first:
-- **If GitNexus available** (`npx gitnexus status 2>&1` succeeds): use `gitnexus_query` and `gitnexus_context` to find what actually exists in the codebase before asserting it doesn’t.
-- **Fallback** (GitNexus unavailable): use `search/codebase` + `search/textSearch` + `read/readFile` to ground challenges in real code rather than assumption.
+- Use `search/codebase` + `search/textSearch` + `read/readFile` by default to ground challenges in real code rather than assumption.
+- If GitNexus MCP tools are explicitly exposed in the current session, they may supplement local search; CLI availability alone is not enough to assume MCP tools exist.
 
 Update `.github/agent_memory/principal-software-engineer.md` at the end of a debate with a summary of what was challenged and what survived.
 

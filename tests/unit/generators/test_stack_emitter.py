@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chopper.core.models import StageSpec
+from chopper.core.models_compiler import StageSpec
 from chopper.generators.stack_emitter import emit_stage_stack, stack_output_path
 
 

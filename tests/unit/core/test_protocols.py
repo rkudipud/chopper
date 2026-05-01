@@ -20,7 +20,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import FileStat
+from chopper.core.models_common import FileStat
 from chopper.core.protocols import DiagnosticSink, FileSystemPort, ProgressSink
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,8 @@ description: "Use when the user needs to run GitNexus CLI commands like analyze/
 
 # GitNexus CLI Commands
 
+> Availability guardrail: this skill covers the `npx gitnexus ...` CLI. CLI availability does not imply GitNexus MCP tools are exposed in the current VS Code session.
+
 All commands work via `npx` — no global install required.
 
 ## Commands

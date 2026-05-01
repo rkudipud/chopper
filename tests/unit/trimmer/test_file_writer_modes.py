@@ -25,7 +25,7 @@ import pytest
 from chopper.adapters import LocalFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import ParsedFile, ProcEntry
+from chopper.core.models_parser import ParsedFile, ProcEntry
 from chopper.trimmer.file_writer import full_copy_file, proc_trim_file
 
 # POSIX mode-bit semantics don't apply on Windows: ``os.chmod`` can only

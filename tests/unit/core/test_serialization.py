@@ -11,10 +11,7 @@ from pathlib import Path
 import pytest
 
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import (
-    DomainState,
-    FileTreatment,
-)
+from chopper.core.models_common import DomainState, FileTreatment
 from chopper.core.serialization import dump_model, loads
 
 

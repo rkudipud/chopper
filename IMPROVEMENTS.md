@@ -1,9 +1,9 @@
 # Chopper — Improvements & Audit Findings
 
 **Audit date:** 2026-05-01
-**Repository version:** 0.6.0 → 0.7.0 (after fix wave)
+**Repository version:** 0.6.0 → 0.8.0 (after fix + refactor waves)
 **Auditor:** Chopper Buildout Agent
-**Status:** Wave A (D1–D9 + SLOC) IMPLEMENTED. Wave B: O1 DONE, O2 DONE, O3/O4 verified no-op, O5/O6 deferred to dedicated PRs.
+**Status:** Wave A (D1–D9 + SLOC) IMPLEMENTED. Wave B: O1 DONE, O2 DONE, O3/O4 verified no-op, O5/O6 DONE.
 
 > User feedback / decisions on each item should be appended inline under the item, prefixed with **`> Decision:`** so the rationale stays with the finding.
 
@@ -28,7 +28,7 @@
 
 - Spec §5.5.10 / §5.12.5: on programmer error (exit 3), runner must write `.chopper/internal-error.log` containing run_id, traceback, diagnostic snapshot, RunConfig, version, platform.
 - [schemas/run-result-v1.schema.json](schemas/run-result-v1.schema.json#L211) declares `RunResult.internal_error: Path | null`.
-- Reality: zero grep hits for `internal-error|internal_error` in `src/`. [src/chopper/core/models.py](src/chopper/core/models.py#L1203) `RunResult` has no such field. [src/chopper/audit/service.py](src/chopper/audit/service.py) does not emit the file.
+- Reality: zero grep hits for `internal-error|internal_error` in `src/`. [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py) `RunResult` had no such field. [src/chopper/audit/service.py](src/chopper/audit/service.py) did not emit the file.
 - Downstream: the bug-report packager ([schemas/scripts/package_bug_report.py](schemas/scripts/package_bug_report.py)) expects the artifact and won't find it.
 
 > Decision: figure who does it better, actual code or the spec. If the implemented code does it berter update the spec. If the spec is better, add the field to the model and implement the writer in the runner's programmer-error handler. but make sure whatever's been discarded is completely removed either fom the spec or the code, to avoid confusion (all traces).
@@ -48,7 +48,7 @@
 ### D3 — `RunResult.exit_code=4` rejected by model invariant — **IMPORTANT**
 
 - [src/chopper/core/_diagnostic_registry.py](src/chopper/core/_diagnostic_registry.py#L134): `PE-04 mcp-protocol-error → exit_code=4`.
-- [src/chopper/core/models.py](src/chopper/core/models.py) `RunResult.__post_init__` (and `RunRecord.__post_init__`) only allow `{0,1,2,3}`.
+- [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py) `RunResult.__post_init__` (and `RunRecord.__post_init__`) only allowed `{0,1,2,3}`.
 - MCP server bypasses the runner so no runtime bite today — but registry and model contradict each other.
 
 > Decision: Either the model or the registry is wrong. If PE-04 is a valid protocol-level failure, then the model should allow exit code 4. If exit code 4 is not actually used, then it should be removed from the registry. The fix should be to align the model with the registry if PE-04 is intended to be used, or remove PE-04 if it's not intended to be used.
@@ -125,16 +125,16 @@
 | O2 | [src/chopper/compiler/merge_service.py](src/chopper/compiler/merge_service.py) | Rebuilds `short_to_canonical` map per file in classify *and* aggregate passes | Cache once per `ParseResult` |
 | O3 | `_register_generated_stage_files` in merge_service | Calls `_resort_by_posix` repeatedly | Sort once at end |
 | O4 | [src/chopper/audit/writers.py](src/chopper/audit/writers.py) (656 LOC) | Renders all artifacts in memory before writing | Stream artifacts (minor on ≤1 GB domains) |
-| O5 | [src/chopper/core/models.py](src/chopper/core/models.py) (1008 LOC) | God-module | Split to `models_{parser,compiler,trimmer,audit}.py`, re-export from `models.py` |
-| O6 | [src/chopper/parser/call_extractor.py](src/chopper/parser/call_extractor.py) (632 LOC) | Every Tcl edge case in one file | Split per construct (switch / regex / opaque / dpa) |
+| O5 | Former `src/chopper/core/models.py` (1008 LOC) | God-module | Split to phase-owned `models_*.py` modules and remove the aggregate shim |
+| O6 | Former `src/chopper/parser/call_extractor.py` (632 LOC) | Every Tcl call/source edge case in one file | Split into constants / classify / sources / structural / body modules and remove the facade |
 
 > Decisions:
 > - **O1:** Cache the domain walk results in `LoadedConfig` or `ChopperContext` so that P1 can populate the cache during its initial walk, and P2 can reuse it for the full-domain harvest without needing to walk again. This would reduce redundant filesystem operations and improve performance, especially on larger domains.
 > - **O2:** Cache the `short_to_canonical` mapping once per `ParseResult` during the classify pass, and then reuse it during the aggregate pass. This avoids rebuilding the map for each file and can significantly reduce the overhead in the merge service, especially for larger codebases with many files.
 > - **O3:** Instead of calling `_resort_by_posix` multiple times in `_register_generated_stage_files`, accumulate all the files that need to be sorted and call `_resort_by_posix` once at the end. This reduces the number of sorting operations and can improve performance, especially when there are many generated stage files.
 > - **O4:** Stream artifacts in `audit/writers.py` instead of rendering all in memory. This reduces memory usage and can improve performance on large domains.
-> - **O5:** Split `models.py` into `models_{parser,compiler,trimmer,audit}.py` and re-export from `models.py`. This improves maintainability and reduces the cognitive load when working with the models.
-> - **O6:** Split `call_extractor.py` per construct (switch / regex / opaque / dpa). This modularization improves readability and maintainability.
+> - **O5:** Split the model god-module into phase-owned `models_*.py` modules and removed the aggregate shim. This improves maintainability and reduces the cognitive load when working with the models.
+> - **O6:** Split call extraction per construct (switch / regex / opaque / dpa) and removed the facade. This modularization improves readability and maintainability.
 
 ---
 
@@ -205,7 +205,7 @@ All decisions in §1–§3 above were absorbed. Implementation order followed §
 - [tests/unit/core/test_diagnostics.py](tests/unit/core/test_diagnostics.py): `test_count_matches_spec` updated 70→71.
 
 ### D1 + D2 + D3 — Programmer-error contract — **DONE**
-- [src/chopper/core/models.py](src/chopper/core/models.py): new `InternalError` frozen dataclass `{kind, message, log_path}`; exported in `__all__`. `RunResult`, `RunRecord`, `AuditManifest` `exit_code` validators widened from `{0,1,2,3}` → `{0,1,2,3,4}` (PE-04 alignment, per D3). New `internal_error: InternalError | None = None` field on `RunResult` and `RunRecord`. RunResult docstring expanded with new exit-code 3/4 semantics.
+- [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py): new `InternalError` frozen dataclass `{kind, message, log_path}`. `RunResult`, `RunRecord`, `AuditManifest` `exit_code` validators widened from `{0,1,2,3}` → `{0,1,2,3,4}` (PE-04 alignment, per D3). New `internal_error: InternalError | None = None` field on `RunResult` and `RunRecord`. RunResult docstring expanded with new exit-code 3/4 semantics.
 - [schemas/run-result-v1.schema.json](schemas/run-result-v1.schema.json): `exit_code` enum widened to `[0,1,2,3,4]` with note "4 only from `mcp-serve`".
 - [src/chopper/audit/internal_error.py](src/chopper/audit/internal_error.py) — **NEW MODULE** — `write_internal_error_log(ctx, run_id, exc, audit_root)` returns `InternalError` and writes a plain-text `.chopper/internal-error.log` containing run_id, timestamp, chopper_version, python_version, platform, full traceback, diagnostic snapshot from `ctx.diag.snapshot()`, and active RunConfig. Tolerates `ctx=None` (CLI guard fallback).
 - [src/chopper/orchestrator/runner.py](src/chopper/orchestrator/runner.py):
@@ -251,10 +251,10 @@ All decisions in §1–§3 above were absorbed. Implementation order followed §
 | **O3 — `_resort_by_posix` once** | **NO-OP (already optimal)** | Re-read of `_register_generated_stage_files` shows `_resort_by_posix` is called exactly twice (once for `file_decisions`, once for `provenance`) and only at the **end** of the function — *not* inside the `for stage in stages:` loop. The original audit description "Calls `_resort_by_posix` repeatedly" was incorrect. No change needed. |
 | **O4 — stream audit artifacts** | **NO-OP (already streaming per artifact)** | [src/chopper/audit/service.py](src/chopper/audit/service.py) writes each artifact independently via `ctx.fs.write_text(target, content)` inside a per-artifact `try/except OSError`. The in-memory render cost per artifact is bounded by the ≤1 GB domain constraint (NFR-1). Streaming the artifact *body* would only matter if a single artifact exceeded available RAM, which is not in scope. Skipped until profiling pressure justifies it. |
 | **O1 — cache domain walk between P1/P2** | **DONE** | New `domain_file_cache: tuple[tuple[Path, str], ...]` field added to `LoadedConfig`. P1's `_collect_surface_files()` now returns the domain walk cache when glob expansion occurs. P2's `_enumerate_domain_tcl()` accepts optional `loaded` param and reuses the cache to filter for `.tcl` files instead of re-walking. Eliminates redundant filesystem walks when P1 already walked for glob patterns. Runner updated to pass `loaded` to `ParserService.run()`. All 895 tests pass. |
-| **O5 — split `core/models.py` (1008 LOC)** | **DEFERRED** | God-module split = surface-area churn across every importer in `src/`. Done correctly it preserves the public `chopper.core.models` API via re-exports from `models_{parser,compiler,trimmer,audit}.py`. Done sloppily it breaks every test. Dedicated PR with re-export shim + `__all__` audit. |
-| **O6 — split `parser/call_extractor.py` (632 LOC)** | **DEFERRED** | Same rationale as O5 — every Tcl construct (switch / regex / opaque / dpa / namespace-qualified) is currently in one file with shared helpers. Splitting per construct requires extracting the shared helpers into a private module first. Dedicated PR. |
+| **O5 — split model god-module (1008 LOC)** | **DONE** | Concrete frozen dataclasses live in phase-owned modules: `models_common.py`, `models_parser.py`, `models_config.py`, `models_compiler.py`, `models_trimmer.py`, and `models_audit.py`. The aggregate `core/models.py` shim was removed; imports now point directly at the owning model module. |
+| **O6 — split call extractor (632 LOC)** | **DONE** | `extract_body_refs` lives in `call_extractor_body.py`; public suppression sets live in `call_extractor_constants.py`; classification, source-path, and structural-skip logic live in their own modules. The `parser/call_extractor.py` facade was removed after call sites were rewired and parser tests passed. |
 
-**Wave B implementation summary:** O1 and O2 landed (domain walk cache and short_to_canonical cache). O3 verified already optimal, O4 verified non-issue. O5 and O6 remain deferred — both are god-module splits (36+ classes / 632 LOC respectively) with significant surface-area churn requiring dedicated PRs with re-export shims and `__all__` audits.
+**Wave B implementation summary:** O1 and O2 landed (domain walk cache and short_to_canonical cache). O3 verified already optimal, O4 verified non-issue. O5 and O6 landed as direct module splits with focused validation after each step.
 
 
 ## Additional. 

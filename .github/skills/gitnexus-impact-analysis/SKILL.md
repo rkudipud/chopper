@@ -5,6 +5,8 @@ description: "Use when the user wants to know what will break if they change som
 
 # Impact Analysis with GitNexus
 
+> Availability guardrail: use this workflow only when GitNexus MCP tools are exposed in the current session. If MCP is unavailable, map blast radius with `search/usages` + `search/textSearch`, then verify changed-file scope with `search/changes` plus tests.
+
 ## When to Use
 
 - "Is it safe to change this function?"

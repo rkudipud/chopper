@@ -164,13 +164,13 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 
 | Module | Responsibility | Key Files | Phase |
 |--------|-----------------|-----------|-------|
-| `parser/` | Tcl static analysis; tokenize, extract proc defs, track namespaces | `service.py`, `tokenizer.py`, `proc_extractor.py`, `namespace_tracker.py`, `call_extractor.py` | P2 |
+| `parser/` | Tcl static analysis; tokenize, extract proc defs, track namespaces | `service.py`, `tokenizer.py`, `proc_extractor.py`, `namespace_tracker.py`, `call_extractor_body.py`, `call_extractor_*.py` | P2 |
 | `compiler/` | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions | `merge_service.py`, `trace_service.py`, `per_source.py`, `aggregate.py`, `flow_actions.py` | P3–P4 |
 | `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place | `service.py`, `file_writer.py`, `proc_dropper.py` | P5 |
 | `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `functions.py` (validate_pre, validate_post) | P1, P6 |
 | `config/` | JSON/TOML schema loading, path resolution, depends_on topo-sort | `service.py`, `loaders.py`, `schemas.py`, `resolver.py`, `depends_on.py` | P1 |
 | `cli/` | Command-line interface layer (three subcommands: validate, trim, cleanup) | `main.py`, `commands.py`, `render.py` | User layer |
-| `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization | `models.py`, `errors.py`, `diagnostics.py`, `protocols.py`, `context.py`, `serialization.py` | All |
+| `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization | `models_*.py`, `errors.py`, `diagnostics.py`, `protocols.py`, `context.py`, `serialization.py` | All |
 | `audit/` | Write `.chopper/` bundle on every run (success and failure) | `service.py`, `writers.py`, `hashing.py` | P7 |
 | `generators/` | F3 run-file (`<stage>.tcl`) and optional stack-file emission | `service.py`, `stage_emitter.py`, `stack_emitter.py` | P5 |
 | `orchestrator/` | Phase loop, domain-state detection, phase-gate logic | `runner.py`, `domain_state.py`, `gates.py` | All |
@@ -190,10 +190,12 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 
 ### 1. Shared Models (Single Source of Truth)
 
-All data models must live in `src/chopper/core/models.py` as frozen `dataclass`es. **Never create local copies.** Every module imports from core:
+All data models must live under `src/chopper/core/` as frozen `dataclass`es. Phase-owned definitions live in `models_common.py`, `models_parser.py`, `models_config.py`, `models_compiler.py`, `models_trimmer.py`, and `models_audit.py`; import from the phase-owned module that defines the class. **Never create local copies.** Every service imports shared contracts directly from core model modules:
 
 ```python
-from chopper.core.models import ProcEntry, CompiledManifest, FileTreatment
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest
+from chopper.core.models_parser import ProcEntry
 ```
 
 Example frozen dataclass:
@@ -416,7 +418,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 1. Read specification from [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for your phase and R1 merge rules
 2. Check [technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md) for your module's risks and pitfalls
 3. Write tests first in `tests/unit/<module>/` or `tests/integration/`
-4. Reference shared models from `src/chopper/core/models.py` only
+4. Reference shared models from the phase-owned `src/chopper/core/models_*.py` modules only
 5. Register diagnostics in [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) before use
 6. Run `make check` before commit
 

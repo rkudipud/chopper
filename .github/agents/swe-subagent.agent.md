@@ -54,18 +54,11 @@ You are **SWE** — a senior software engineer with 10+ years of professional ex
 **1. Read memory file**
 Read `.github/agent_memory/chopper-stage-builder.md` (or whichever memory file the orchestrating agent specifies). If none exists, create from `.github/agent_memory/README.md`.
 
-**2. Check GitNexus availability**
-Run `npx gitnexus status 2>&1` to check availability.
+**2. Use local code intelligence first**
+GitNexus MCP tools are not assumed to be available. For GATHER CONTEXT, use `search/codebase` + `read/readFile` + `search/usages`. Before any edit, use `search/usages` + `search/textSearch` to map references manually. Before VERIFY/DELIVER, use `search/changes` and tests to confirm scope.
 
-**If available:**
-- Read `gitnexus://repo/chopper/context` — codebase overview and staleness. Run `npx gitnexus analyze` if stale.
-- **GATHER CONTEXT** step: use `gitnexus_query` + `gitnexus_context` instead of manual file tracing.
-- **Before any edit**: run `gitnexus_impact({target: "symbolName", direction: "upstream"})` — identify blast radius and check for HIGH/CRITICAL risk before proceeding.
-- **Before VERIFY/DELIVER**: run `gitnexus_detect_changes()` to confirm only expected symbols changed.
-
-**If NOT available** (npx missing, gitnexus not installed, no index):
-- GATHER CONTEXT: use `search/codebase` + `read/readFile` + `search/usages`.
-- Pre-edit: use `search/usages` + `search/textSearch` to map references manually.
+**Optional GitNexus CLI:**
+If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used. Do not rely on `gitnexus://...` resources or `gitnexus_*` MCP tools unless the current session explicitly exposes them.
 - Pre-commit: use `search/changes` to review all modified files.
 
 **3. Task → skill mapping**
@@ -100,10 +93,8 @@ Run `npx gitnexus status 2>&1` to check availability.
 Before marking any task done:
 
 ```
-1. gitnexus_impact was run for ALL modified symbols
-   Fallback: search/usages confirmed all references are updated
+1. search/usages + search/textSearch confirmed all references are updated
 2. No HIGH/CRITICAL risk warnings were ignored
-3. gitnexus_detect_changes() confirms only expected symbols/flows changed
-   Fallback: search/changes reviewed for unexpected modifications
+3. search/changes reviewed for unexpected modifications
 4. All d=1 dependents (WILL BREAK) were updated
 ```

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import DomainState
+from chopper.core.models_common import DomainState
 
 __all__ = ["DomainStateService"]
 

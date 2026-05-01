@@ -3,10 +3,10 @@
 This module provides three public ``load_*`` functions that, after a
 document has been declared valid by :func:`~chopper.config.schema.validate_json`,
 turn its raw ``dict`` into the typed frozen dataclasses declared in
-:mod:`chopper.core.models`.
+:mod:`chopper.core.models_config`.
 
 It also provides :func:`topo_sort_features`, which orders a list of
-:class:`~chopper.core.models.FeatureJson` records by their ``depends_on``
+:class:`~chopper.core.models_config.FeatureJson` records by their ``depends_on``
 graph (Kahn's algorithm — O(V+E), deterministic, stable sort within each
 rank level).  A cycle emits ``VE-22`` and returns the original input order.
 
@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import (
+from chopper.core.models_config import (
     AddStageAction,
     AddStepAction,
     BaseJson,

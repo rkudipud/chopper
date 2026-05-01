@@ -26,7 +26,7 @@ import fnmatch
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 
-from chopper.core.models import FileStat
+from chopper.core.models_common import FileStat
 
 __all__ = ["InMemoryFS"]
 

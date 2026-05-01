@@ -19,7 +19,7 @@ Handled:
   ``PW-11``, ``PI-04``.
 
 Call and source-ref extraction is delegated to
-:mod:`chopper.parser.call_extractor`; the returned ``calls`` /
+:mod:`chopper.parser.call_extractor_body`; the returned ``calls`` /
 ``source_refs`` tuples on :class:`ProcEntry` are populated by that module.
 
 Pure module: no I/O, no :class:`ChopperContext` knowledge. The service
@@ -34,9 +34,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from chopper.core.models import ProcEntry
+from chopper.core.models_parser import ProcEntry
 
-from .call_extractor import extract_body_refs
+from .call_extractor_body import extract_body_refs
 from .namespace_tracker import NamespaceTracker
 from .tokenizer import Token, TokenizerResult, TokenKind, tokenize
 
@@ -78,7 +78,7 @@ class ExtractorResult:
     The service layer (Stage 1f) owns: reading the file, mapping
     :class:`ExtractorDiagnostic` into registered
     :class:`~chopper.core.diagnostics.Diagnostic` codes, and assembling
-    :class:`~chopper.core.models.ParsedFile` + :class:`~chopper.core.models.ParseResult`.
+    :class:`~chopper.core.models_parser.ParsedFile` + :class:`~chopper.core.models_parser.ParseResult`.
     """
 
     procs: tuple[ProcEntry, ...]
@@ -131,7 +131,7 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
     """Extract proc definitions from Tcl source text.
 
     :param source_file: Domain-relative POSIX path recorded verbatim on each
-        :class:`~chopper.core.models.ProcEntry` (also feeds canonical-name
+        :class:`~chopper.core.models_parser.ProcEntry` (also feeds canonical-name
         construction).
     :param text: UTF-8 decoded source text with ``\\n`` line endings
         (normalization is the service layer's responsibility — §Line endings).

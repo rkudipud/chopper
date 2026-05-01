@@ -43,16 +43,10 @@ from chopper.compiler.flow_resolver import resolve_stages
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.errors import ChopperError
-from chopper.core.models import (
-    BaseJson,
-    CompiledManifest,
-    FeatureJson,
-    FileProvenance,
-    FileTreatment,
-    LoadedConfig,
-    ParseResult,
-    ProcDecision,
-)
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
+from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
+from chopper.core.models_parser import ParseResult
 
 __all__ = ["CompilerService"]
 
@@ -105,7 +99,7 @@ class CompilerService:
     """Phase 3 merge service.
 
     Stateless: every call to :meth:`run` is independent. The returned
-    :class:`~chopper.core.models.CompiledManifest` is frozen and ready
+    :class:`~chopper.core.models_compiler.CompiledManifest` is frozen and ready
     for consumption by :class:`~chopper.compiler.TracerService` (P4).
     """
 
@@ -382,10 +376,7 @@ def _classify_source(
 ) -> dict[Path, _Contribution]:
     """Apply same-source R1 rules to every (source, file) in ``universe``.
     Emits ``VW-09``, ``VW-11``, ``VW-12``, ``VW-13``."""
-    return {
-        fp: _classify_one(ctx, facts, fp, all_procs_by_file, short_to_canonical_by_file)
-        for fp in universe
-    }
+    return {fp: _classify_one(ctx, facts, fp, all_procs_by_file, short_to_canonical_by_file) for fp in universe}
 
 
 def _classify_one(
@@ -558,9 +549,7 @@ def _aggregate(
             short_to_canonical = short_to_canonical_by_file.get(file_path)
             if not short_to_canonical:
                 continue
-            per_file[file_path] = frozenset(
-                short_to_canonical[s] for s in pe_set if s in short_to_canonical
-            )
+            per_file[file_path] = frozenset(short_to_canonical[s] for s in pe_set if s in short_to_canonical)
         pe_canonical_by_source[src] = per_file
 
     for file_path in universe:

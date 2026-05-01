@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from chopper import __version__ as _chopper_version
-from chopper.core.models import InternalError
+from chopper.core.models_audit import InternalError
 
 if TYPE_CHECKING:
     from chopper.core.context import ChopperContext

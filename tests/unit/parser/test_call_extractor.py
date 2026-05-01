@@ -1,8 +1,8 @@
-"""Unit tests for :mod:`chopper.parser.call_extractor`.
+"""Unit tests for :mod:`chopper.parser.call_extractor_body`.
 
 These tests drive the extractor end-to-end through :func:`extract_procs`
 (Stage 1d + Stage 1e) because call extraction's contract is defined on
-:class:`~chopper.core.models.ProcEntry` fields. Direct unit tests of
+:class:`~chopper.core.models_parser.ProcEntry` fields. Direct unit tests of
 ``extract_body_refs`` remain useful for suppression edge cases where
 constructing a full proc around each pattern would be noisy.
 """
@@ -13,12 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from chopper.parser.call_extractor import (
-    EDA_FLOW_COMMANDS,
-    LOG_PROC_NAMES,
-    TCL_BUILTINS,
-    extract_body_refs,
-)
+from chopper.parser.call_extractor_body import extract_body_refs
+from chopper.parser.call_extractor_constants import EDA_FLOW_COMMANDS, LOG_PROC_NAMES, TCL_BUILTINS
 from chopper.parser.proc_extractor import extract_procs
 from chopper.parser.tokenizer import tokenize
 

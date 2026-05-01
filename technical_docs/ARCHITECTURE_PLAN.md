@@ -73,7 +73,12 @@ This is the target layout under `src/chopper/`. Stage 0 creates the skeleton; la
 src/chopper/
 ├── __init__.py
 ├── core/                        # Stage 0 — no deps on sibling modules
-│   ├── models.py                # Frozen dataclasses: ProcEntry, CompiledManifest, ...
+│   ├── models_common.py         # Shared primitives: FileTreatment, DomainState, FileStat
+│   ├── models_parser.py         # P2 parser records: ProcEntry, ParsedFile, ParseResult
+│   ├── models_config.py         # P1 JSON/config records: BaseJson, FeatureJson, LoadedConfig
+│   ├── models_compiler.py       # P3/P4 records: CompiledManifest, DependencyGraph, ...
+│   ├── models_trimmer.py        # P5 trimmer/generator records: TrimReport, GeneratedArtifact
+│   ├── models_audit.py          # P7/run records: RunRecord, RunResult, AuditManifest
 │   ├── diagnostics.py           # Severity, Phase, Diagnostic, code registry guard
 │   ├── errors.py                # Exception types (programmer errors only)
 │   ├── protocols.py             # Ports: FileSystemPort, DiagnosticSink, ...
@@ -481,7 +486,9 @@ The CLI is the **only** layer that formats for humans. Libraries stay silent.
 
 Diagnostics are the user-facing spine. This section pins down how services hand **data** to each other. The rule is unambiguous: **services never call services; they return typed results and the orchestrator wires them.**
 
-### 9.1 Shapes (frozen dataclasses, all in `core/models.py`)
+### 9.1 Shapes (frozen dataclasses, phase-owned imports)
+
+Concrete dataclass definitions live in phase-owned `core/models_*.py` modules. Callers import each model from the module that owns its phase; for example, parser records from `chopper.core.models_parser`, compiler records from `chopper.core.models_compiler`, and audit/run records from `chopper.core.models_audit`.
 
 ```python
 @dataclass(frozen=True)
@@ -634,7 +641,7 @@ class AuditManifest:
 
 ### 9.3 Communication rules
 
-1. **No inter-service imports.** `compiler/` never imports from `parser/`; both import only from `core/models.py`. Enforced at CI by `import-linter`.
+1. **No inter-service imports.** `compiler/` never imports from `parser/`; services import shared contracts through the phase-owned `core/models_*.py` modules. Enforced at CI by `import-linter`.
 2. **All I/O through ports.** A service that reads a file calls `ctx.fs.read_text(path)`, never `path.read_text()`. Makes every service unit-testable with `InMemoryFS`.
 3. **Failure propagation.** A service either completes and returns its result (possibly with emitted diagnostics) or raises. Exceptions are the programmer-error channel. User-facing failures are diagnostics plus a phase gate.
 4. **Phase boundaries.** After each service returns, the orchestrator calls `_has_errors(ctx, phase)` (§6.2) against `ctx.diag.snapshot()`. If any `ERROR`-severity diagnostic with the matching `phase` is present and the phase is gating (P1, P3, P6), the orchestrator stops, jumps to P7 audit, and returns a non-zero `RunResult`. Severity is never rewritten; `--strict` is a separate CLI-only policy (§8.2 rule 4). See architecture doc §5.2.

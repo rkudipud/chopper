@@ -5,6 +5,8 @@ description: "Use when the user is debugging a bug, tracing an error, or asking 
 
 # Debugging with GitNexus
 
+> Availability guardrail: use this workflow only when GitNexus MCP tools are exposed in the current session. If MCP is unavailable, debug with `search/textSearch`, `search/codebase`, `read/readFile`, and focused tests.
+
 ## When to Use
 
 - "Why is this function failing?"

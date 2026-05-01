@@ -13,7 +13,7 @@ from chopper.config.loaders import (
     topo_sort_features,
 )
 from chopper.core.diagnostics import Diagnostic
-from chopper.core.models import (
+from chopper.core.models_config import (
     AddStageAction,
     AddStepAction,
     BaseJson,

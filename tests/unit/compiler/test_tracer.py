@@ -13,18 +13,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from chopper.compiler import TracerService
-from chopper.core.models import (
-    BaseJson,
-    CompiledManifest,
-    DependencyGraph,
-    Edge,
-    FileProvenance,
-    FileTreatment,
-    LoadedConfig,
-    ParsedFile,
-    ParseResult,
-    ProcDecision,
-)
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest, DependencyGraph, Edge, FileProvenance, ProcDecision
+from chopper.core.models_config import BaseJson, LoadedConfig
+from chopper.core.models_parser import ParsedFile, ParseResult
 from tests.unit.compiler._helpers import make_ctx, make_proc
 
 _DOMAIN = "my_domain"

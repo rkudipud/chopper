@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from chopper.compiler import CompilerService
-from chopper.core.models import FileTreatment
+from chopper.core.models_common import FileTreatment
 from tests.unit.compiler._helpers import (
     default_state,
     files_section,
@@ -450,7 +450,7 @@ class TestQualifiedNameResolution:
         ctx, _ = make_ctx()
         parsed = make_parsed({"a.tcl": []})  # replaced below
         # Rebuild with a namespaced proc directly.
-        from chopper.core.models import ParsedFile, ParseResult
+        from chopper.core.models_parser import ParsedFile, ParseResult
         from tests.unit.compiler._helpers import make_proc
 
         proc = make_proc("a.tcl", "helper", qualified="util::helper", namespace="util")
@@ -466,7 +466,7 @@ class TestQualifiedNameResolution:
 
     def test_namespaced_proc_matched_by_qualified_name(self) -> None:
         ctx, _ = make_ctx()
-        from chopper.core.models import ParsedFile, ParseResult
+        from chopper.core.models_parser import ParsedFile, ParseResult
         from tests.unit.compiler._helpers import make_proc
 
         proc = make_proc("a.tcl", "helper", qualified="util::helper", namespace="util")

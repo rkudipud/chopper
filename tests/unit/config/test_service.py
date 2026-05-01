@@ -10,7 +10,7 @@ import pytest
 from chopper.config.service import ConfigService
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import DomainState, FileStat
+from chopper.core.models_common import DomainState, FileStat
 
 # ---------------------------------------------------------------------------
 # Test doubles
@@ -586,13 +586,7 @@ def test_config_service_collects_surface_files_from_all_sections() -> None:
     section (files.include, files.exclude, procedures.include,
     procedures.exclude) populated on at least one source."""
     from chopper.config.service import _collect_surface_files
-    from chopper.core.models import (
-        BaseJson,
-        FeatureJson,
-        FilesSection,
-        ProceduresSection,
-        ProcEntryRef,
-    )
+    from chopper.core.models_config import BaseJson, FeatureJson, FilesSection, ProceduresSection, ProcEntryRef
 
     base = BaseJson(
         source_path=Path("/dom/base.json"),

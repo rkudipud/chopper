@@ -8,9 +8,7 @@ import pytest
 
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import (
-    FileStat,
-)
+from chopper.core.models_common import FileStat
 from chopper.parser.service import ParserService, parse_file
 
 # ---------------------------------------------------------------------------

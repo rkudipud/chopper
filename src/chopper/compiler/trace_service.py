@@ -38,14 +38,9 @@ from typing import TYPE_CHECKING
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import (
-    CompiledManifest,
-    DependencyGraph,
-    Edge,
-    LoadedConfig,
-    ParseResult,
-    ProcEntry,
-)
+from chopper.core.models_compiler import CompiledManifest, DependencyGraph, Edge
+from chopper.core.models_config import LoadedConfig
+from chopper.core.models_parser import ParseResult, ProcEntry
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

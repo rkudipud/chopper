@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from chopper.core.models import ProcEntry
+from chopper.core.models_parser import ProcEntry
 
 __all__ = ["ProcDropError", "drop_procs"]
 

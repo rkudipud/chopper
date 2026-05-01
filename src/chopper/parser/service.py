@@ -32,7 +32,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import LoadedConfig, ParsedFile, ParseResult, ProcEntry
+from chopper.core.models_config import LoadedConfig
+from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 
 from .proc_extractor import ExtractorDiagnostic, ExtractorDiagnosticKind, extract_procs
 from .tokenizer import TokenizerError, tokenize
@@ -104,7 +105,7 @@ def parse_file(
     """Parse a Tcl file and extract proc definitions (pure utility).
 
     :param file_path: Domain-relative :class:`~pathlib.Path` recorded on
-        every returned :class:`~chopper.core.models.ProcEntry`. The caller
+        every returned :class:`~chopper.core.models_parser.ProcEntry`. The caller
         (:class:`ParserService`) is responsible for normalizing this to
         the domain-relative POSIX form before invocation.
     :param text: Already-decoded file content. The service layer owns the
@@ -203,8 +204,8 @@ class ParserService:
        we assume inputs are already within the domain.
     4. Forward every diagnostic emitted by :func:`parse_file` into
        ``ctx.diag.emit``.
-    5. Build :class:`~chopper.core.models.ParsedFile` per file and
-       :class:`~chopper.core.models.ParseResult` for the domain.
+     5. Build :class:`~chopper.core.models_parser.ParsedFile` per file and
+         :class:`~chopper.core.models_parser.ParseResult` for the domain.
 
     The service is a frozen dataclass with no fields. Instantiating via
     ``ParserService()`` keeps the unit simple to substitute in tests.

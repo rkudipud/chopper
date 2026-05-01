@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.models import FileStat
+from chopper.core.models_common import FileStat
 
 __all__ = [
     "DiagnosticSink",

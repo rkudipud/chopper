@@ -14,7 +14,7 @@ import pytest
 
 from chopper.compiler.flow_resolver import resolve_stages
 from chopper.core.errors import ChopperError
-from chopper.core.models import (
+from chopper.core.models_config import (
     AddStageAction,
     AddStepAction,
     FeatureJson,

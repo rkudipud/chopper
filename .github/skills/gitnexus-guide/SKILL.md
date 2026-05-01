@@ -1,11 +1,13 @@
 ---
 name: gitnexus-guide
-description: "Use when the user asks about GitNexus itself — available tools, how to query the knowledge graph, MCP resources, graph schema, or workflow reference. Examples: \"What GitNexus tools are available?\", \"How do I use GitNexus?\""
+description: "Use when the user asks about GitNexus itself — CLI/MCP availability, available tools, how to query the knowledge graph, graph schema, or workflow reference. Examples: \"What GitNexus tools are available?\", \"How do I use GitNexus?\""
 ---
 
 # GitNexus Guide
 
-Quick reference for all GitNexus MCP tools, resources, prompts, and the knowledge graph schema.
+Quick reference for GitNexus CLI/MCP tooling and the knowledge graph schema.
+
+> Availability guardrail: if the current session does not expose GitNexus MCP tools or `gitnexus://...` resources, use local `search/*`, `read/*`, and `search/changes` fallbacks. The CLI may still be available through `npx gitnexus ...`, but do not assume MCP.
 
 ## Always Start Here
 

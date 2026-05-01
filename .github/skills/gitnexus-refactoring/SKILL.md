@@ -5,6 +5,8 @@ description: "Use when the user wants to rename, extract, split, move, or restru
 
 # Refactoring with GitNexus
 
+> Availability guardrail: use this workflow only when GitNexus MCP tools are exposed in the current session. If MCP is unavailable, map references with `search/usages` + `search/textSearch`, apply targeted patches, and verify scope with `search/changes` plus tests.
+
 ## When to Use
 
 - "Rename this function safely"

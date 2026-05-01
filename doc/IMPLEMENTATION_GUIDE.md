@@ -191,7 +191,7 @@ sequenceDiagram
 Primary code:
 
 - `src/chopper/orchestrator/domain_state.py`
-- `src/chopper/core/models.py` (`DomainState`)
+- `src/chopper/core/models_common.py` (`DomainState`)
 
 Purpose:
 
@@ -237,7 +237,8 @@ Primary code:
 - `src/chopper/parser/tokenizer.py`
 - `src/chopper/parser/proc_extractor.py`
 - `src/chopper/parser/namespace_tracker.py`
-- `src/chopper/parser/call_extractor.py`
+- `src/chopper/parser/call_extractor_body.py` (`extract_body_refs` body walk)
+- `src/chopper/parser/call_extractor_*.py` (constants, classification, source-reference, and structural-skip helpers)
 
 What happens:
 
@@ -397,7 +398,7 @@ This design is what makes the test strategy practical: unit tests can inject `In
 
 ### 6.2 Data passed between phases
 
-The implementation uses frozen dataclasses in `src/chopper/core/models.py` as cross-phase contracts.
+The implementation uses frozen dataclasses in `src/chopper/core/models_*.py` as cross-phase contracts. Code imports each record from the phase-owned module that defines it, such as `models_parser.py`, `models_compiler.py`, or `models_audit.py`.
 
 The most important records to understand are:
 
@@ -613,15 +614,17 @@ If you want to understand the implementation efficiently, read in this order:
 2. `src/chopper/cli/commands.py`
 3. `src/chopper/orchestrator/runner.py`
 4. `src/chopper/core/context.py`
-5. `src/chopper/core/models.py`
-6. `src/chopper/config/service.py`
-7. `src/chopper/parser/service.py`
-8. `src/chopper/compiler/merge_service.py`
-9. `src/chopper/compiler/trace_service.py`
-10. `src/chopper/trimmer/service.py`
-11. `src/chopper/generators/service.py`
-12. `src/chopper/validator/functions.py`
-13. `src/chopper/audit/service.py`
+5. `src/chopper/core/models_*.py`
+7. `src/chopper/config/service.py`
+8. `src/chopper/parser/service.py`
+9. `src/chopper/parser/call_extractor_body.py`
+10. `src/chopper/parser/call_extractor_*.py`
+11. `src/chopper/compiler/merge_service.py`
+12. `src/chopper/compiler/trace_service.py`
+13. `src/chopper/trimmer/service.py`
+14. `src/chopper/generators/service.py`
+15. `src/chopper/validator/functions.py`
+16. `src/chopper/audit/service.py`
 
 That order follows the same control flow the program itself uses.
 
@@ -635,7 +638,7 @@ One class owns phase order. This keeps the runtime easy to reason about and make
 
 ### Frozen shared models
 
-The service boundaries use frozen dataclasses from `core/models.py`, so the codebase does not drift into each package inventing its own copies of the same shape.
+The service boundaries use frozen dataclasses from phase-owned `core/models_*.py` modules, so the codebase does not drift into each package inventing its own copies of the same shape.
 
 ### Narrow port surface
 

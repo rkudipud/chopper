@@ -24,14 +24,10 @@ from pathlib import Path
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import (
-    CompiledManifest,
-    DomainState,
-    FileOutcome,
-    FileTreatment,
-    ParseResult,
-    TrimReport,
-)
+from chopper.core.models_common import DomainState, FileTreatment
+from chopper.core.models_compiler import CompiledManifest
+from chopper.core.models_parser import ParseResult
+from chopper.core.models_trimmer import FileOutcome, TrimReport
 from chopper.trimmer.file_writer import full_copy_file, proc_trim_file, remove_file
 from chopper.trimmer.proc_dropper import ProcDropError
 

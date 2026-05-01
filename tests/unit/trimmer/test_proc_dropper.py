@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from chopper.core.models import ProcEntry
+from chopper.core.models_parser import ProcEntry
 from chopper.trimmer.proc_dropper import ProcDropError, drop_procs
 
 

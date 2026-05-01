@@ -2,7 +2,7 @@
 
 :class:`ConfigService` is the orchestrator-facing entry point for loading,
 validating, and aggregating the base / feature / project JSONs into the
-:class:`~chopper.core.models.LoadedConfig` consumed by :class:`ParserService`
+:class:`~chopper.core.models_config.LoadedConfig` consumed by :class:`ParserService`
 and :class:`CompilerService`.
 
 Responsibilities:
@@ -51,12 +51,8 @@ from typing import Any
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.models import (
-    BaseJson,
-    DomainState,
-    FeatureJson,
-    LoadedConfig,
-)
+from chopper.core.models_common import DomainState
+from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
 
 from .loaders import load_base, load_feature, load_project, topo_sort_features
 from .schema import validate_json
@@ -230,7 +226,7 @@ def _empty_config() -> LoadedConfig:
     The orchestrator's phase gate will abort before this value is used for
     anything meaningful.
     """
-    from chopper.core.models import BaseJson as _BaseJson  # local to avoid circular
+    from chopper.core.models_config import BaseJson as _BaseJson
 
     return LoadedConfig(
         base=_BaseJson(source_path=Path("<error>"), domain="<error>"),
