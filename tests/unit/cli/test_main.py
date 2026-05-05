@@ -63,3 +63,19 @@ def test_trim_requires_base_or_project() -> None:
 
     with pytest.raises(SystemExit):
         main(["trim"])
+
+
+def test_version_flag_prints_version_and_exits(capsys: pytest.CaptureFixture[str]) -> None:
+    from chopper import __version__
+
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args(["--version"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert f"chopper {__version__}" in captured.out
+
+
+def test_version_flag_does_not_require_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args(["--version"])
+    assert exc_info.value.code == 0

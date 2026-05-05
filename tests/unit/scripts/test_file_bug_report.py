@@ -26,6 +26,7 @@ def _payload(tmp_path: Path, attachments: list[str]) -> Path:
         "platform": "Linux",
         "ec_site": "local",
         "python_version": "Python 3.11.9",
+        "chopper_version": "0.8.0",
         "what_happened": "Expected a clean dry run. Got a parser error instead.",
         "reproduce": "1. Run chopper trim --dry-run\n2. Observe the parser error",
         "terminal_output": "ERROR PE-02: parser failure",

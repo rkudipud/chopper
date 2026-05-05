@@ -9,7 +9,7 @@
 ## Top-Level
 
 ```text
-usage: chopper [-h] [-v] [-q] [--plain] [--strict]
+usage: chopper [-h] [--version] [-v] [-q] [--plain] [--strict]
                {validate,trim,cleanup} ...
 
 Chopper — EDA TFM domain trimming tool.
@@ -26,13 +26,14 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --version             Show program version and exit
   -v, --verbose         Increase verbosity (-v=INFO, -vv=DEBUG)
   -q, --quiet           Suppress progress output (CI / grid)
   --plain               Disable Rich rendering and ANSI colors; use plain text output
   --strict              Exit non-zero if any warning is present (does not rewrite severity)
 ```
 
-> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output).
+> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output). `--version` prints `chopper <version>` and exits 0; it is a top-level global flag and does not require a subcommand.
 
 ---
 

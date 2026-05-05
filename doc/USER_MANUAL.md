@@ -75,7 +75,7 @@ What each one really does:
 | `mcp-serve` | Starts a stdio-only JSON-RPC Model Context Protocol server. Exposes three read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Destructive subcommands are never exposed over MCP. | No |
 
 > [!IMPORTANT]
-> Global flags `--plain`, `--strict`, `-v`, and `-q` must appear **before** the subcommand — e.g., `chopper --plain --strict trim --project configs/project_abc.json`.
+> Global flags `--version`, `--plain`, `--strict`, `-v`, and `-q` must appear **before** the subcommand — e.g., `chopper --plain --strict trim --project configs/project_abc.json`. `--version` prints the installed version and exits immediately (no subcommand required).
 
 ---
 

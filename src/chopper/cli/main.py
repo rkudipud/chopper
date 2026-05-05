@@ -13,6 +13,7 @@ import sys
 import uuid
 from collections.abc import Sequence
 
+from chopper import __version__
 from chopper.audit.internal_error import write_internal_error_log
 from chopper.cli.commands import cmd_cleanup, cmd_mcp_serve, cmd_trim, cmd_validate
 
@@ -36,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=_DESCRIPTION,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--version", action="version", version=f"chopper {__version__}")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity (-v=INFO, -vv=DEBUG)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress progress output (CI / grid)")
     parser.add_argument(

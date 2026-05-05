@@ -62,6 +62,18 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: chopper_version
+    attributes:
+      label: Chopper version
+      description: |
+        Version of Chopper used when the bug occurred.
+        Run `chopper --version` or find it in `.chopper/chopper_run.json` under `chopper_version`.
+        If the run failed before producing an audit bundle, check the command output or your installation.
+      placeholder: "e.g. 0.8.0 or 0+unknown"
+    validations:
+      required: true
+
   - type: textarea
     id: what_happened
     attributes:

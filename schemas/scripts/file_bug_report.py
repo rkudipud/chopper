@@ -18,6 +18,7 @@ Payload shape:
   "platform": "Linux",
   "ec_site": "local",
   "python_version": "Python 3.11.9",
+  "chopper_version": "0.8.0",
   "what_happened": "Expected vs actual.",
   "reproduce": "1. ...\n2. ...",
   "terminal_output": "[P0_STATE] started\n...",
@@ -45,6 +46,7 @@ REQUIRED_FIELDS = (
     "platform",
     "ec_site",
     "python_version",
+    "chopper_version",
     "what_happened",
     "reproduce",
     "terminal_output",
@@ -164,6 +166,10 @@ def render_issue_body(payload: dict[str, Any], bundle_path: Path | None) -> str:
 ### Python version
 
 {require_text(payload, "python_version")}
+
+### Chopper version
+
+{require_text(payload, "chopper_version")}
 
 ### What happened?
 
