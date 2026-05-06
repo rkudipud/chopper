@@ -16,10 +16,12 @@ and returns ``None``.
 * ``VI-01`` — base JSON has empty ``files`` / ``procedures`` /
   ``stages`` (likely a feature-driven flow).
 
-``validate_post(ctx, manifest, graph, rewritten)`` — runs after P5.
+``validate_post(ctx, manifest, graph, rewritten, trim_report=None)`` — runs after P5.
 Emits:
 
 * ``VE-16`` — post-trim brace imbalance in a rewritten file.
+* ``VW-10`` — live trim output missing, byte-count mismatch, or
+    rewritten-proc-set mismatch.
 * ``VW-05`` — surviving proc calls a proc not in the manifest.
 * ``VW-06`` — surviving proc sources / iproc_sources a file not in
   the manifest.
@@ -35,8 +37,11 @@ from pathlib import Path, PurePosixPath
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph, StageSpec
 from chopper.core.models_config import FeatureJson, FilesSection, LoadedConfig
+from chopper.core.models_trimmer import TrimReport
+from chopper.parser.service import parse_file
 
 __all__ = ["validate_post", "validate_pre"]
 
@@ -296,19 +301,250 @@ def validate_post(
     manifest: CompiledManifest,
     graph: DependencyGraph,
     rewritten: Sequence[Path],
+    *,
+    trim_report: TrimReport | None = None,
 ) -> None:
     """Run Phase 2 correctness checks on the rebuilt domain.
 
-    ``rewritten`` is the tuple of paths the trimmer actually wrote
+    ``rewritten`` is the tuple of paths the trimmer actually rewrote
     during P5 (verbatim copies are excluded — they were validated at
-    P2). In dry-run, ``rewritten`` is empty and filesystem-reading
-    checks (``VE-16``) are skipped; manifest-derivable checks still
+    P2). When ``trim_report`` is provided on the live path, P6 also
+    checks that every non-removed P5 output still exists under the
+    rebuilt domain and matches the trimmer's recorded ``bytes_out``.
+    In dry-run, ``rewritten`` is empty and filesystem-dependent checks
+    (``VE-16``, ``VW-10``) are skipped; manifest-derivable checks still
     run.
     """
 
     _check_brace_balance(ctx, rewritten)
+    _check_manifest_vs_trim(ctx, manifest, trim_report)
+    _check_trim_outputs(ctx, trim_report)
+    _check_trimmed_proc_sets(ctx, trim_report)
     _check_dangling_refs(ctx, manifest, graph)
     _check_stage_steps(ctx, manifest)
+
+
+def _check_manifest_vs_trim(
+    ctx: ChopperContext,
+    manifest: CompiledManifest,
+    trim_report: TrimReport | None,
+) -> None:
+    """Warn when live TrimReport deviates from manifest expectations."""
+
+    if trim_report is None:
+        return
+
+    expected_treatments = {
+        path: treatment
+        for path, treatment in manifest.file_decisions.items()
+        if treatment is not FileTreatment.GENERATED
+    }
+    outcomes_by_path = {outcome.path: outcome for outcome in trim_report.outcomes}
+    expected_keep_by_file = _expected_keep_by_file(manifest)
+
+    for path, expected_treatment in expected_treatments.items():
+        outcome = outcomes_by_path.get(path)
+        if outcome is None:
+            _emit_trim_output_mismatch(
+                ctx,
+                path=path,
+                message=(f"Manifest expected a trim outcome for {path.as_posix()!r}, but TrimReport omitted it"),
+                reason="outcome-missing",
+                expected_bytes=0,
+            )
+            continue
+
+        if outcome.treatment is not expected_treatment:
+            _emit_trim_output_mismatch(
+                ctx,
+                path=path,
+                message=(
+                    f"Manifest expected treatment {expected_treatment!s} for {path.as_posix()!r}, "
+                    f"but TrimReport recorded {outcome.treatment!s}"
+                ),
+                reason="treatment-mismatch",
+                expected_bytes=outcome.bytes_out,
+            )
+
+        expected_kept = expected_keep_by_file.get(path, frozenset())
+        actual_kept = frozenset(outcome.procs_kept)
+        if actual_kept != expected_kept:
+            missing = tuple(sorted(expected_kept - actual_kept))
+            unexpected = tuple(sorted(actual_kept - expected_kept))
+            _emit_trim_output_mismatch(
+                ctx,
+                path=path,
+                message=(
+                    "Manifest/TrimReport proc-set mismatch for "
+                    f"{path.as_posix()!r}; missing={list(missing)!r}; "
+                    f"unexpected={list(unexpected)!r}"
+                ),
+                reason="manifest-procs-mismatch",
+                expected_bytes=outcome.bytes_out,
+            )
+
+    for path in sorted(set(outcomes_by_path) - set(expected_treatments), key=lambda p: p.as_posix()):
+        outcome = outcomes_by_path[path]
+        _emit_trim_output_mismatch(
+            ctx,
+            path=path,
+            message=(
+                f"TrimReport recorded unexpected outcome {path.as_posix()!r} with treatment "
+                f"{outcome.treatment!s} that is absent from the manifest"
+            ),
+            reason="unexpected-outcome",
+            expected_bytes=outcome.bytes_out,
+        )
+
+
+def _expected_keep_by_file(manifest: CompiledManifest) -> dict[Path, frozenset[str]]:
+    """Build expected surviving canonical proc sets per source file from manifest."""
+
+    out: dict[Path, set[str]] = {}
+    for canonical_name, decision in manifest.proc_decisions.items():
+        out.setdefault(decision.source_file, set()).add(canonical_name)
+    return {path: frozenset(sorted(names)) for path, names in out.items()}
+
+
+def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> None:
+    """Warn when live P5 results disagree with the rebuilt domain state."""
+
+    if trim_report is None:
+        return
+
+    for outcome in trim_report.outcomes:
+        target = ctx.config.domain_root / outcome.path
+
+        if outcome.treatment is FileTreatment.REMOVE:
+            if ctx.fs.exists(target):
+                _emit_trim_output_mismatch(
+                    ctx,
+                    path=outcome.path,
+                    message=(
+                        "Trim report expected removed output "
+                        f"{outcome.path.as_posix()!r}, but it still exists in the rebuilt domain"
+                    ),
+                    reason="remove-still-present",
+                    expected_bytes=0,
+                )
+            continue
+
+        if not ctx.fs.exists(target):
+            _emit_trim_output_mismatch(
+                ctx,
+                path=outcome.path,
+                message=(
+                    "Trim report expected surviving output "
+                    f"{outcome.path.as_posix()!r}, but the rebuilt domain is missing it"
+                ),
+                reason="missing",
+                expected_bytes=outcome.bytes_out,
+            )
+            continue
+
+        try:
+            st = ctx.fs.stat(target)
+        except OSError:
+            _emit_trim_output_mismatch(
+                ctx,
+                path=outcome.path,
+                message=(
+                    "Trim report expected surviving output "
+                    f"{outcome.path.as_posix()!r}, but its metadata could not be read"
+                ),
+                reason="stat-failed",
+                expected_bytes=outcome.bytes_out,
+            )
+            continue
+
+        if st.is_dir:
+            _emit_trim_output_mismatch(
+                ctx,
+                path=outcome.path,
+                message=(
+                    "Trim report expected file output "
+                    f"{outcome.path.as_posix()!r}, but the rebuilt domain contains a directory"
+                ),
+                reason="is-dir",
+                expected_bytes=outcome.bytes_out,
+                actual_bytes=st.size,
+            )
+            continue
+
+        if st.size != outcome.bytes_out:
+            _emit_trim_output_mismatch(
+                ctx,
+                path=outcome.path,
+                message=(
+                    f"Trim report recorded {outcome.bytes_out} bytes for "
+                    f"{outcome.path.as_posix()!r}, but the rebuilt domain has {st.size}"
+                ),
+                reason="size-mismatch",
+                expected_bytes=outcome.bytes_out,
+                actual_bytes=st.size,
+            )
+
+
+def _emit_trim_output_mismatch(
+    ctx: ChopperContext,
+    *,
+    path: Path,
+    message: str,
+    reason: str,
+    expected_bytes: int,
+    actual_bytes: int | None = None,
+) -> None:
+    context: dict[str, object] = {"reason": reason, "expected_bytes_out": expected_bytes}
+    if actual_bytes is not None:
+        context["actual_bytes_out"] = actual_bytes
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VW-10",
+            phase=Phase.P6_POSTVALIDATE,
+            message=message,
+            path=path,
+            context=context,
+        )
+    )
+
+
+def _check_trimmed_proc_sets(ctx: ChopperContext, trim_report: TrimReport | None) -> None:
+    """Warn when a rewritten PROC_TRIM file no longer exposes the expected procs."""
+
+    if trim_report is None:
+        return
+
+    for outcome in trim_report.outcomes:
+        if outcome.treatment is not FileTreatment.PROC_TRIM:
+            continue
+
+        target = ctx.config.domain_root / outcome.path
+        try:
+            text = ctx.fs.read_text(target)
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        actual = frozenset(proc.canonical_name for proc in parse_file(outcome.path, text))
+        expected = frozenset(outcome.procs_kept)
+        if actual != expected:
+            missing = tuple(sorted(expected - actual))
+            unexpected = tuple(sorted(actual - expected))
+            _emit_trim_output_mismatch(
+                ctx,
+                path=outcome.path,
+                message=_proc_mismatch_message(outcome.path, missing=missing, unexpected=unexpected),
+                reason="proc-set-mismatch",
+                expected_bytes=outcome.bytes_out,
+            )
+
+
+def _proc_mismatch_message(path: Path, *, missing: tuple[str, ...], unexpected: tuple[str, ...]) -> str:
+    parts = [f"Trim report proc-set mismatch for {path.as_posix()!r}"]
+    if missing:
+        parts.append(f"missing={list(missing)!r}")
+    if unexpected:
+        parts.append(f"unexpected={list(unexpected)!r}")
+    return "; ".join(parts)
 
 
 def _check_brace_balance(ctx: ChopperContext, rewritten: Sequence[Path]) -> None:

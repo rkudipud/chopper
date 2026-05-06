@@ -129,7 +129,7 @@ class ChopperRunner:
                     if outcome.treatment is FileTreatment.PROC_TRIM
                 )
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
-                validate_post(ctx, manifest, graph, rewritten)
+                validate_post(ctx, manifest, graph, rewritten, trim_report=trim_report)
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
                     exit_code = 1
@@ -137,7 +137,7 @@ class ChopperRunner:
             else:
                 # Dry-run P6: manifest-derivable checks only.
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
-                validate_post(ctx, manifest, graph, rewritten=())
+                validate_post(ctx, manifest, graph, rewritten=(), trim_report=None)
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
                     exit_code = 1

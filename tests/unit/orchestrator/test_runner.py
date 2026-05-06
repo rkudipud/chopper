@@ -341,7 +341,7 @@ class TestP6PostValidateGates:
         _seed_good_domain(fs)
         ctx, sink = _make_ctx(fs, dry_run=False)
 
-        def _shim(ctx, manifest, graph, rewritten):  # noqa: ANN001, ARG001
+        def _shim(ctx, manifest, graph, rewritten, *, trim_report=None):  # noqa: ANN001, ARG001
             ctx.diag.emit(Diagnostic.build("VE-16", phase=Phase.P6_POSTVALIDATE, message="synthetic post fail"))
 
         monkeypatch.setattr(
@@ -359,7 +359,7 @@ class TestP6PostValidateGates:
         _seed_good_domain(fs)
         ctx, sink = _make_ctx(fs, dry_run=True)
 
-        def _shim(ctx, manifest, graph, rewritten):  # noqa: ANN001, ARG001
+        def _shim(ctx, manifest, graph, rewritten, *, trim_report=None):  # noqa: ANN001, ARG001
             ctx.diag.emit(Diagnostic.build("VE-16", phase=Phase.P6_POSTVALIDATE, message="synthetic dry-run post fail"))
 
         monkeypatch.setattr(

@@ -17,6 +17,7 @@ from chopper.core.models_compiler import (
     StageSpec,
 )
 from chopper.core.models_config import BaseJson, BaseOptions, FeatureJson, FilesSection, LoadedConfig, ProjectJson
+from chopper.core.models_trimmer import FileOutcome, TrimReport
 from chopper.validator import validate_post, validate_pre
 
 DOMAIN = Path("/work/my_domain")
@@ -266,6 +267,18 @@ def _empty_graph() -> DependencyGraph:
     return DependencyGraph(pi_seeds=(), nodes=(), pt=(), edges=(), reachable_from_includes=frozenset())
 
 
+def _make_trim_report(*outcomes: FileOutcome) -> TrimReport:
+    ordered = tuple(sorted(outcomes, key=lambda outcome: outcome.path.as_posix()))
+    return TrimReport(
+        outcomes=ordered,
+        files_copied=sum(1 for outcome in ordered if outcome.treatment is FileTreatment.FULL_COPY),
+        files_trimmed=sum(1 for outcome in ordered if outcome.treatment is FileTreatment.PROC_TRIM),
+        files_removed=sum(1 for outcome in ordered if outcome.treatment is FileTreatment.REMOVE),
+        procs_kept_total=sum(len(outcome.procs_kept) for outcome in ordered),
+        procs_removed_total=sum(len(outcome.procs_removed) for outcome in ordered),
+    )
+
+
 def test_validate_post_emits_ve16_on_brace_imbalance() -> None:
     fs = InMemoryFS()
     bad = DOMAIN / "bad.tcl"
@@ -291,6 +304,136 @@ def test_validate_post_ignores_escaped_braces() -> None:
     ctx = _ctx(fs=fs)
     validate_post(ctx, _make_manifest(), _empty_graph(), rewritten=(good,))
     assert "VE-16" not in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_live_output_missing() -> None:
+    manifest = _make_manifest(files={Path("copied.tcl"): FileTreatment.FULL_COPY})
+    outcome = FileOutcome(
+        path=Path("copied.tcl"),
+        treatment=FileTreatment.FULL_COPY,
+        bytes_in=12,
+        bytes_out=12,
+        procs_kept=(),
+        procs_removed=(),
+    )
+    ctx = _ctx()
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_live_output_size_mismatches() -> None:
+    fs = InMemoryFS()
+    rel = Path("trimmed.tcl")
+    fs.write_text(DOMAIN / rel, "short\n")
+    keep = "trimmed.tcl::keep_me"
+    manifest = _make_manifest(
+        files={rel: FileTreatment.PROC_TRIM},
+        procs={keep: ProcDecision(canonical_name=keep, source_file=rel, selection_source="base:procedures.include")},
+    )
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.PROC_TRIM,
+        bytes_in=20,
+        bytes_out=99,
+        procs_kept=(keep,),
+        procs_removed=("trimmed.tcl::drop_me",),
+    )
+    ctx = _ctx(fs=fs)
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(DOMAIN / rel,), trim_report=_make_trim_report(outcome))
+    assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_rewritten_proc_set_mismatches() -> None:
+    fs = InMemoryFS()
+    rel = Path("trimmed.tcl")
+    fs.write_text(
+        DOMAIN / rel,
+        "proc keep_me {} { return ok }\nproc stray {} { return nope }\n",
+    )
+    keep = "trimmed.tcl::keep_me"
+    manifest = _make_manifest(
+        files={rel: FileTreatment.PROC_TRIM},
+        procs={keep: ProcDecision(canonical_name=keep, source_file=rel, selection_source="base:procedures.include")},
+    )
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.PROC_TRIM,
+        bytes_in=64,
+        bytes_out=len("proc keep_me {} { return ok }\nproc stray {} { return nope }\n".encode("utf-8")),
+        procs_kept=(keep,),
+        procs_removed=("trimmed.tcl::drop_me",),
+    )
+    ctx = _ctx(fs=fs)
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(DOMAIN / rel,), trim_report=_make_trim_report(outcome))
+    assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_skips_vw10_when_rewritten_proc_set_matches() -> None:
+    fs = InMemoryFS()
+    rel = Path("trimmed_ok.tcl")
+    text = "proc keep_me {} { return ok }\n"
+    fs.write_text(DOMAIN / rel, text)
+    keep = "trimmed_ok.tcl::keep_me"
+    manifest = _make_manifest(
+        files={rel: FileTreatment.PROC_TRIM},
+        procs={keep: ProcDecision(canonical_name=keep, source_file=rel, selection_source="base:procedures.include")},
+    )
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.PROC_TRIM,
+        bytes_in=len(text.encode("utf-8")),
+        bytes_out=len(text.encode("utf-8")),
+        procs_kept=(keep,),
+        procs_removed=("trimmed_ok.tcl::drop_me",),
+    )
+    ctx = _ctx(fs=fs)
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(DOMAIN / rel,), trim_report=_make_trim_report(outcome))
+    assert "VW-10" not in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_manifest_outcome_missing() -> None:
+    manifest = _make_manifest(files={Path("must_exist.tcl"): FileTreatment.FULL_COPY})
+    ctx = _ctx()
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report())
+    assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_manifest_treatment_mismatches_trim_report() -> None:
+    fs = InMemoryFS()
+    rel = Path("mismatch.tcl")
+    fs.write_text(DOMAIN / rel, "proc p {} { return 1 }\n")
+    manifest = _make_manifest(files={rel: FileTreatment.REMOVE})
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.FULL_COPY,
+        bytes_in=24,
+        bytes_out=24,
+        procs_kept=(),
+        procs_removed=(),
+    )
+    ctx = _ctx(fs=fs)
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_manifest_proc_set_mismatches_trim_report() -> None:
+    rel = Path("proc_mismatch.tcl")
+    keep = "proc_mismatch.tcl::keep_me"
+    manifest = _make_manifest(
+        files={rel: FileTreatment.PROC_TRIM},
+        procs={keep: ProcDecision(canonical_name=keep, source_file=rel, selection_source="base:procedures.include")},
+    )
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.PROC_TRIM,
+        bytes_in=10,
+        bytes_out=10,
+        procs_kept=(),
+        procs_removed=(),
+    )
+    ctx = _ctx()
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    assert "VW-10" in _codes(ctx)
 
 
 # ---------------------------------------------------------------------------

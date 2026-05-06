@@ -334,12 +334,12 @@ def run(ctx: ChopperContext) -> RunResult:
             if _has_errors(ctx, Phase.P5_TRIM): return _abort(ctx, state, manif, graph)
             GeneratorService().run(ctx, manif)                          # P5b — writes directly via ctx.fs;
                                                                         # returns artifact records for audit only
-            validate_post(ctx, manif, graph, rewritten)                 # P6 — re-tokenizes only rewritten files
+            validate_post(ctx, manif, graph, rewritten, trim_report=trim_report)  # P6 — re-tokenizes PROC_TRIM files; also checks live output integrity
             if _has_errors(ctx, Phase.P6_POSTVALIDATE): return _abort(ctx, state, manif, graph)
         else:
             # Dry-run P6: manifest-derivable checks only (VW-05, VW-06, VW-14..VW-17);
-            # filesystem re-read checks (VE-16, VE-23) are skipped because nothing was rewritten.
-            validate_post(ctx, manif, graph, rewritten=())
+            # filesystem re-read / output-integrity checks (VE-16, VW-10) are skipped because nothing was rewritten.
+            validate_post(ctx, manif, graph, rewritten=(), trim_report=None)
         return _build_result(ctx, manif, graph, exit_code=0)
     finally:
         # P7 audit always runs — even on exceptions, even on early return.

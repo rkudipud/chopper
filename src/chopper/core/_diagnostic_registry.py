@@ -58,8 +58,8 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-26, VW-01..VW-20 (VW-10 reserved), VI-01..VI-02, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 71 active codes, matching the
+# VE-01..VE-26, VW-01..VW-20, VI-01..VI-02, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 72 active codes, matching the
 # Code Space Summary table in the registry.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -109,7 +109,7 @@ _REGISTRY: dict[str, _Entry] = {
     "VW-07": _Entry(slug="run-file-step-trimmed", severity=Severity.WARNING, phase=6, source="validator", exit_code=0),
     "VW-08": _Entry(slug="file-empty-after-trim", severity=Severity.WARNING, phase=5, source="trimmer", exit_code=0),
     "VW-09": _Entry(slug="fi-pi-overlap", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0),
-    # VW-10 is a reserved slot in the registry — not populated.
+    "VW-10": _Entry(slug="trim-output-mismatch", severity=Severity.WARNING, phase=6, source="validator", exit_code=0),
     "VW-11": _Entry(
         slug="fe-pe-same-source-conflict", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0
     ),

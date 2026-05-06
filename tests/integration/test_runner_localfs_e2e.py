@@ -26,6 +26,7 @@ from chopper.adapters import CollectingSink, LocalFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.models_common import FileTreatment
 from chopper.orchestrator import ChopperRunner
+from chopper.parser.service import parse_file
 
 FIXTURE_MINI = Path(__file__).resolve().parents[1] / "fixtures" / "mini_domain"
 FIXTURE_STAGES = Path(__file__).resolve().parents[1] / "fixtures" / "stages_domain"
@@ -71,6 +72,54 @@ def test_runner_localfs_dry_run_mini_domain(tmp_path: Path) -> None:
     assert result.trim_report is None
     # Audit bundle written to the real domain.
     assert (domain / ".chopper" / "chopper_run.json").exists()
+
+
+def test_runner_localfs_dry_run_manifest_matches_live_trim_outputs_1_to_1(tmp_path: Path) -> None:
+    """Dry-run manifest expectations must match live trim outputs 1:1.
+
+    The same fixture is first run in dry-run mode (to get the expected
+    manifest), then run in live mode. The rebuilt domain files and proc
+    sets must match the dry-run manifest exactly.
+    """
+
+    domain = tmp_path / "mini_domain"
+    shutil.copytree(FIXTURE_MINI, domain)
+
+    dry_ctx, dry_sink = _make_ctx(domain, dry_run=True)
+    dry_result = ChopperRunner().run(dry_ctx, command="validate")
+    dry_codes = [d.code for d in dry_sink.snapshot()]
+    assert dry_result.exit_code == 0, f"dry-run failed; diagnostics: {dry_codes}"
+    assert dry_result.manifest is not None
+
+    expected_manifest = dry_result.manifest
+    expected_keep_by_file: dict[Path, set[str]] = {}
+    for canonical_name, decision in expected_manifest.proc_decisions.items():
+        expected_keep_by_file.setdefault(decision.source_file, set()).add(canonical_name)
+
+    live_ctx, live_sink = _make_ctx(domain, dry_run=False)
+    live_result = ChopperRunner().run(live_ctx, command="trim")
+    live_codes = [d.code for d in live_sink.snapshot()]
+    assert live_result.exit_code == 0, f"live trim failed; diagnostics: {live_codes}"
+
+    for rel_path, treatment in expected_manifest.file_decisions.items():
+        if treatment is FileTreatment.GENERATED:
+            continue
+
+        target = domain / rel_path
+        if treatment is FileTreatment.REMOVE:
+            assert not target.exists(), f"expected removed file still present: {target}"
+            continue
+
+        assert target.exists(), f"expected surviving file missing: {target}"
+        assert target.is_file(), f"expected file, found directory: {target}"
+
+        text = target.read_text(encoding="utf-8")
+        actual_proc_set = {proc.canonical_name for proc in parse_file(rel_path, text)}
+        expected_proc_set = expected_keep_by_file.get(rel_path, set())
+        assert actual_proc_set == expected_proc_set, (
+            f"proc-set mismatch for {rel_path.as_posix()!r}: "
+            f"expected={sorted(expected_proc_set)!r}, actual={sorted(actual_proc_set)!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
