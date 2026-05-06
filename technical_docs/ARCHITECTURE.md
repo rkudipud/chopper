@@ -1891,6 +1891,8 @@ The `input_base.json`, `input_features/`, and `input_project.json` files are **e
 | `diagnostics.json` | ✓ | ✓ | ✓ | — |
 | `trim_report.json` | ✓ | ✓ | — | — |
 | `trim_report.txt` | ✓ | ✓ | — | — |
+| `files_removed.txt` | ✓ | ✓ | — | — |
+| `files_kept.txt` | ✓ | ✓ | — | — |
 | `trim_stats.json` | ✓ | ✓ | — | — |
 | `internal-error.log` | ✓ (exit 3 only) | ✓ (exit 3 only) | ✓ (exit 3 only) | ✓ (exit 3 only) |
 
