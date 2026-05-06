@@ -1830,7 +1830,7 @@ This is a plain-text projection of `trim_report.json` designed for terminal disp
 
 #### 5.5.7 `diagnostics.json` — full diagnostic log
 
-All diagnostics emitted across all phases, with full context. This is the machine-readable equivalent of the diagnostics section in `trim_report.json`, but includes additional fields for tooling integration.
+All diagnostics emitted across all phases, with full context. This is the machine-readable equivalent of the diagnostics section in `trim_report.json`, but includes additional fields for tooling integration. The on-disk shape is fixed by `schemas/diagnostic-v1.schema.json`.
 
 | Field | Type | Description |
 |---|---|---|
@@ -2039,7 +2039,7 @@ Chopper is CLI-only. However, the architecture **must** enable a future GUI with
 The following rules are **non-negotiable** even though no GUI ships:
 
 1. **Typed pipeline results.** The runner returns a frozen `RunResult`; individual phases exchange frozen dataclasses such as `ParseResult`, `CompiledManifest`, `DependencyGraph`, and `TrimReport`. No phase returns pre-rendered strings.
-2. **Structured progress events.** Progress flows through `ProgressSink` with explicit phase and step notifications. The CLI renders them today; a GUI can render the same events later.
+2. **Structured progress events.** Progress flows through `ProgressSink` with explicit phase and step notifications. The on-disk event shape is fixed by `schemas/progress-event-v1.schema.json`. The CLI renders them today; a GUI can render the same events later.
 3. **Structured diagnostics.** Every diagnostic is a `Diagnostic` record with severity, code, message, location, and hint. No ad-hoc `print()` or unstructured error messages in library code.
 4. **Deterministic serialization.** Core models are serializable through `dump_model()` in `src/chopper/core/serialization.py`, which is already the source for audit artifacts. A future GUI can consume the same shapes without changing the engine.
 5. **No presentation in core logic.** The compiler, parser, trimmer, validator, and audit writer never import terminal-rendering libraries or format user-facing output.
