@@ -72,7 +72,7 @@ class RunConfig:
       command list files (from the repeatable CLI flag
       ``--tool-commands``). These extend the always-loaded built-in
       pool under ``src/chopper/data/tool_commands/`` (see
-      ``technical_docs/chopper_description.md`` §3.10). The order does
+      ``technical_docs/ARCHITECTURE.md`` §3.10). The order does
       not affect behaviour — the pool is a set — but is preserved for
       audit reproducibility.
     """

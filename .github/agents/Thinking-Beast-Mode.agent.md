@@ -50,7 +50,7 @@ If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, 
 - Official MCP command: `npx -y gitnexus@latest mcp`; workspace config lives in `.vscode/mcp.json`.
 - If the index is stale, run `npx gitnexus analyze --skip-agents-md` so custom AGENTS/CLAUDE guidance is preserved.
 - CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
-- Read the memory file and `technical_docs/chopper_description.md` for accumulated project context.
+- Read the memory file and `technical_docs/ARCHITECTURE.md` for accumulated project context.
 
 **3. Task → skill mapping**
 

@@ -45,7 +45,7 @@ If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used
 ## Stage [N] Spec Verification
 
 ### Architecture Doc Section
-- Primary: technical_docs/chopper_description.md §[X.X]
+- Primary: technical_docs/ARCHITECTURE.md §[X.X]
 - Quote: "[exact text from architecture doc]"
 
 ### Subordinate Docs

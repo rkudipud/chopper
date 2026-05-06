@@ -278,7 +278,7 @@ Once connected, ask the client to validate a domain or explain a diagnostic — 
 
 Protocol-level failures (malformed frames, unknown tool name, bad parameter shape) surface as `PE-04 mcp-protocol-error` with exit code `4`. Diagnostics returned inside a tool response use the same codes the underlying CLI path would have produced — the MCP surface does not invent or rewrite codes.
 
-The authoritative specification for the MCP surface is [technical_docs/chopper_description.md](technical_docs/chopper_description.md) §3.9.
+The authoritative specification for the MCP surface is [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) §3.9.
 
 ---
 
@@ -291,7 +291,7 @@ The authoritative specification for the MCP surface is [technical_docs/chopper_d
 | Integrator or contributor | [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) — pipeline, modules, ports, error model |
 | Engineer reading the code | [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md) — code-level walkthrough |
 | JSON schemas and examples | [schemas/](schemas/) and [examples/](examples/) — authoritative schemas and 11 worked examples; see [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) |
-| Authoritative specification | [technical_docs/chopper_description.md](technical_docs/chopper_description.md) |
+| Authoritative specification | [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) — workflow, quality gates, scope rules |
 
 ---
@@ -342,7 +342,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 0.8.3 — 2026-05-06
 
 - **P5 opaque-file copy contract tightened (bug fix: GitHub #21 / Pitfall P-44).** The `FULL_COPY` path in `trimmer/file_writer.py` was incorrectly round-tripping every surviving file through UTF-8 text I/O (`read_text` → `write_text`). This crashed with a `UnicodeDecodeError` whenever a domain included non-UTF-8 or binary artifacts via F1 `files.include` (e.g., `.sn.gz` compressed sidecars, vendor binary payloads). The fix introduces a dedicated `copy_file(src, dst)` operation on `FileSystemPort` — implemented with `shutil.copy2` in `LocalFS` (preserves mode bits) and an in-memory clone in `InMemoryFS` — and rewires `full_copy_file()` to use it. The `remove_file()` byte-accounting is likewise fixed to use `stat().size` rather than reading file contents. `PROC_TRIM` remains the only P5 path that reads file text, and only for `.tcl` files selected for F2 proc trimming. Architecture doc §3.4 (F1), §3.5 (F2), and §5.2.1 (P5 walkthrough) updated in place with the write-semantics contract. Pitfall **P-44** added to `technical_docs/IMPLEMENTATION.md` (pitfalls).
-- **Technical docs tightened.** F1, F2, P5, and `FileSystemPort` sections of `technical_docs/chopper_description.md` now state the write contract at the first mention; the "FULL_COPY = opaque copy" decision is no longer implied by absence of explicit description.
+- **Technical docs tightened.** F1, F2, P5, and `FileSystemPort` sections of `technical_docs/ARCHITECTURE.md` now state the write contract at the first mention; the "FULL_COPY = opaque copy" decision is no longer implied by absence of explicit description.
 - **No schema, diagnostic-registry, CLI surface, or exit-code changes.**
 
 ### 0.8.2 — 2026-05-06

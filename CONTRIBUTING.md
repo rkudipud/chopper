@@ -12,7 +12,7 @@ Read the documents that define the behavior you are changing:
 | Path | Purpose |
 | --- | --- |
 | [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) | High-level system design for integrators and contributors |
-| [technical_docs/chopper_description.md](technical_docs/chopper_description.md) | Authoritative product behavior and pipeline contract |
+| [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) | Authoritative product behavior and pipeline contract |
 | [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) | Diagnostic registry |
 | [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md) | Architecture details and implementation boundaries |
 
@@ -55,7 +55,7 @@ These are the constraints that matter most during day-to-day implementation:
 6. Update user-facing and engineering docs together when behavior changes.
 
 > [!WARNING]
-> For the full scope lock and rejected decisions, see [technical_docs/chopper_description.md](technical_docs/chopper_description.md) and [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md). Adding features, stubs, or reserved seams outside the spec is a violation.
+> For the full scope lock and rejected decisions, see [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) and [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md). Adding features, stubs, or reserved seams outside the spec is a violation.
 
 ## 🔄 Typical Workflow
 

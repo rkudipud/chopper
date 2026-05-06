@@ -1,7 +1,7 @@
 """Property tests for determinism (NFR-03).
 
 Closes T-02 from the 2026-04-23 spec-conformance audit. NFR-03
-(chopper_description.md §11) is *"byte-identical output on every run"*.
+(ARCHITECTURE.md §11) is *"byte-identical output on every run"*.
 Before these tests existed, determinism was asserted only by
 example-based unit tests. Hypothesis explores a much wider input space
 and catches accidental dependencies on dict insertion order, set

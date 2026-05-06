@@ -34,7 +34,7 @@ If you find a file that violates any row above, the correct action is **remove t
 
 #### 1.1 Narrowed from prior closures
 
-**Read-only MCP (narrowed in 0.4.0):** The MCP row above was **narrowed** (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/chopper_description.md` §3.8:
+**Read-only MCP (narrowed in 0.4.0):** The MCP row above was **narrowed** (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §3.8:
 
 - `chopper mcp-serve` subcommand.
 - `src/chopper/mcp/` package containing a **stdio-only** JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon).
@@ -44,11 +44,11 @@ If you find a file that violates any row above, the correct action is **remove t
 
 Everything else in the MCP row stays closed: no destructive tools over MCP, no progress/diagnostic sinks mounted to MCP, no adapters that bridge Chopper internals to MCP, no networked transports, no MCP client code.
 
-**Validator imports parser for post-trim validation (permitted in 0.4.0+):** The validator module is permitted to import `parse_file` from the parser service (`src/chopper/validator/functions` → `src/chopper/parser/service.parse_file`) for the **sole purpose** of post-trim proc-set reconciliation (VW-10 check). This is specified in the architecture doc at `technical_docs/chopper_description.md` §5.12.9. This is the only permitted cross-phase import in the codebase; all other phase-boundary imports remain forbidden. The rationale: re-parsing is the cleanest and most reliable way to verify that the trimmer correctly preserved exactly the proc set promised in the `CompiledManifest` and `TrimReport`. The parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
+**Validator imports parser for post-trim validation (permitted in 0.4.0+):** The validator module is permitted to import `parse_file` from the parser service (`src/chopper/validator/functions` → `src/chopper/parser/service.parse_file`) for the **sole purpose** of post-trim proc-set reconciliation (VW-10 check). This is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §5.12.9. This is the only permitted cross-phase import in the codebase; all other phase-boundary imports remain forbidden. The rationale: re-parsing is the cleanest and most reliable way to verify that the trimmer correctly preserved exactly the proc set promised in the `CompiledManifest` and `TrimReport`. The parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
 ### 2. Single Authority: The Architecture Doc
 
-[`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) is the **architecture doc**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
+[`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) is the **architecture doc**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
 
 - [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
 - [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
@@ -60,7 +60,7 @@ Everything else in the MCP row stays closed: no destructive tools over MCP, no p
 **Adding a new capability** — any new flag, subcommand, diagnostic family, port, pipeline phase, generated artifact, or runtime behavior — requires, **in this order**:
 
 1. **User approval.** Not inferred, not assumed. Explicit.
-2. **Architecture Doc edit first.** The feature is specified in [`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) before any subordinate doc or code moves.
+2. **Architecture Doc edit first.** The feature is specified in [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) before any subordinate doc or code moves.
 3. **Cascade.** Subordinate docs update only after the architecture doc is updated.
 4. **Then code.** Implementation follows the cascade, never precedes it.
 
@@ -95,7 +95,7 @@ Every hit outside a negative assertion (a sentence like "there is no `LockPort`"
 ### 5. Decision Tree When Adding Anything
 
 ```text
-Is this in technical_docs/chopper_description.md?
+Is this in technical_docs/ARCHITECTURE.md?
 ├── YES → Implement per the architecture doc. Cascade to subordinate docs if needed.
 └── NO  → Is it in §1 "Closed Decisions" above?
          ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
@@ -246,7 +246,7 @@ This ensures reproducible output across runs.
 
 ### 6. Explicit Include Wins
 
-The merge algorithm's core rule: Explicit include **always** overrides exclude. Later features override earlier ones. See [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §4 (Rule R1) for the rationale.
+The merge algorithm's core rule: Explicit include **always** overrides exclude. Later features override earlier ones. See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §4 (Rule R1) for the rationale.
 
 ### 7. Trace Is Reporting-Only (Never Copies)
 
@@ -256,7 +256,7 @@ P4 BFS trace expansion (PI → PI+) produces `dependency_graph.json`, `TW-*` dia
 - To keep `bar`, add it explicitly to `procedures.include`.
 - Cycles emit `TW-04` and terminate safely via the BFS visited-set.
 
-See [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.4 for the authoritative contract and worked example.
+See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.4 for the authoritative contract and worked example.
 
 ---
 
@@ -264,7 +264,7 @@ See [technical_docs/chopper_description.md](../../technical_docs/chopper_descrip
 
 All authoritative documentation lives under [technical_docs/](../../technical_docs/). Before implementing, consult these in order:
 
-1. **[technical_docs/chopper_description.md](../../technical_docs/chopper_description.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
+1. **[technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
 2. **[technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
 3. **[technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
 4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
@@ -272,7 +272,7 @@ All authoritative documentation lives under [technical_docs/](../../technical_do
 
 Other key docs:
 
-- [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
+- [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
 - [technical_docs/IMPLEMENTATION.md Appendix B](../../technical_docs/IMPLEMENTATION.md) — Roadmap items explicitly out of v1 scope.
 - [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
 - [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
@@ -290,7 +290,7 @@ Other key docs:
 
 ## Code Style
 
-The authoritative Python coding standards live in [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.12. Summary:
+The authoritative Python coding standards live in [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.12. Summary:
 
 - Ruff for lint + format; line length 120; 4-space indent; `snake_case` / `CamelCase` / `UPPER_CASE`.
 - Full type hints on every public function; `@dataclass(frozen=True)` for records; `typing.Protocol` for ports.
@@ -322,7 +322,7 @@ Merge algorithm + breadth-first dependency tracing.
 
 - Key constraint: Explicit include always wins
 - Key constraint: Traces must be deterministically sorted
-- See [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §4 (R1) for merge semantics
+- See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §4 (R1) for merge semantics
 - Test fixtures: `tests/fixtures/tracing_domain/` (cyclic procs, transitive closures)
 
 ### Trimmer — `src/chopper/trimmer/`
@@ -417,7 +417,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 
 **New Implementation Task:**
 
-1. Read specification from [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for your phase and R1 merge rules
+1. Read specification from [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) for your phase and R1 merge rules
 2. Check [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) for your module's risks and pitfalls
 3. Write tests first in `tests/unit/<module>/` or `tests/integration/`
 4. Reference shared models from the phase-owned `src/chopper/core/models_*.py` modules only
@@ -428,7 +428,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 
 - Check [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) for your module
 - Review test fixtures in `tests/fixtures/` — they exemplify expected behavior
-- Consult [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for the phase contract and R1 rules
+- Consult [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) for the phase contract and R1 rules
 - Search test files for similar patterns
 
 ---

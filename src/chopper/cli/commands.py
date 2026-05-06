@@ -50,7 +50,7 @@ def _expand_feature_dirs(features: str | None) -> str | None:
     """Expand directory entries in a ``--features`` comma-separated list.
 
     Validate-only authoring convenience per
-    ``technical_docs/chopper_description.md`` §5.1: any entry that resolves
+    ``technical_docs/ARCHITECTURE.md`` §5.1: any entry that resolves
     to a directory is replaced in place by the sorted (lexicographic),
     non-recursive list of its immediate ``*.json`` children. File entries
     pass through unchanged. Empty segments are preserved so that the
@@ -184,7 +184,7 @@ def cmd_mcp_serve(args: argparse.Namespace) -> int:
     Lazy-imports :mod:`chopper.mcp` so importing :mod:`chopper.cli.commands`
     does not pull in the `mcp` SDK during `chopper validate` / `trim` /
     `cleanup` runs. Blocks until the client disconnects (stdin EOF) or
-    SIGINT. See ``technical_docs/chopper_description.md`` §3.9.
+    SIGINT. See ``technical_docs/ARCHITECTURE.md`` §3.9.
     """
 
     del args  # MCP server takes no subcommand arguments; globals are ignored.

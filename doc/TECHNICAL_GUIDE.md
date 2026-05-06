@@ -6,7 +6,7 @@
 Architecture overview for developers integrating, extending, or debugging Chopper. This is the short architectural map.
 
 > [!NOTE]
-> For the code-level walkthrough with diagrams, see [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md). For the full specification, see [../technical_docs/chopper_description.md](../technical_docs/chopper_description.md).
+> For the code-level walkthrough with diagrams, see [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md). For the full specification, see [../technical_docs/ARCHITECTURE.md](../technical_docs/ARCHITECTURE.md).
 
 ---
 
@@ -310,7 +310,7 @@ Tracked in [`../technical_docs/IMPLEMENTATION.md Appendix B`](../technical_docs/
 | --- | --- |
 | [USER_MANUAL.md](USER_MANUAL.md) | Day-to-day operator reference |
 | [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md) | JSON authoring patterns and FAQ |
-| [../technical_docs/chopper_description.md](../technical_docs/chopper_description.md) | Full specification |
+| [../technical_docs/ARCHITECTURE.md](../technical_docs/ARCHITECTURE.md) | Full specification |
 | [../technical_docs/ENGINEERING.md](../technical_docs/ENGINEERING.md) | Architecture plan |
 | [../technical_docs/IMPLEMENTATION.md (parser section)](../technical_docs/IMPLEMENTATION.md) | Parser spec |
 | [../technical_docs/IMPLEMENTATION.md (pitfalls)](../technical_docs/IMPLEMENTATION.md) | Risks and pitfalls |

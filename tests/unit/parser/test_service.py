@@ -310,7 +310,7 @@ class TestPathNormalization:
 # ---------------------------------------------------------------------------
 # Non-Tcl companion files — regression guards for GitHub issue #2.
 #
-# The architecture doc (OOS-01 in ``technical_docs/chopper_description.md`` §1.3)
+# The architecture doc (OOS-01 in ``technical_docs/ARCHITECTURE.md`` §1.3)
 # states that non-Tcl files (``.py`` / ``.pl`` / ``.csh`` / config)
 # participate in F1 file-level treatment only and must never enter the
 # Tcl tokenizer. Before the fix, a ``.py`` file containing a stray

@@ -25,7 +25,7 @@
 - `src/chopper/orchestrator/runner.py` — passes `loaded=loaded` to `ParserService().run()`.
 - `tests/unit/config/test_service.py` — test updated to unpack tuple return from `_collect_surface_files()`.
 - `IMPROVEMENTS.md` — O1 status updated to DONE with implementation details.
-- `technical_docs/chopper_description.md` — P1/P2 sections updated with O1 optimization documentation.
+- `technical_docs/ARCHITECTURE.md` — P1/P2 sections updated with O1 optimization documentation.
 
 ## Wave A Completed (2026-05-01)
 
@@ -55,7 +55,7 @@ All decisions from `IMPROVEMENTS.md` absorbed and implemented in a single coordi
 - `src/chopper/validator/functions.py` — Tcl-aware `_brace_delta`.
 - `schemas/run-result-v1.schema.json` — exit_code enum widened.
 - `technical_docs/DIAGNOSTIC_CODES.md` — VW-20 row + summary counts.
-- `technical_docs/chopper_description.md` §5.12 — Python 3.11+ policy.
+- `technical_docs/ARCHITECTURE.md` §5.12 — Python 3.11+ policy.
 - `tests/unit/core/test_diagnostics.py` — count 70 → 71.
 
 ## Wave B Status
@@ -76,7 +76,7 @@ O1 cache domain walk and O2 cache short_to_canonical are implemented. O3 sort-on
 - **Tests.**
   - `tests/unit/core/test_models.py`: invariant tests updated for the relaxed model (extra `index` keys now positively allowed).
   - `tests/integration/test_cli_e2e.py::TestFullDomainProcIndex`: two new integration tests pin the contract — `test_trace_resolves_callee_in_non_surfaced_file` (dry-run; asserts resolved edge into `helper.tcl::bar` and absence of `TW-02`) and `test_non_surfaced_file_is_not_copied` (live trim; asserts `helper.tcl` is not in trimmed output).
-- **Docs.** `technical_docs/chopper_description.md` §5.2 pipeline diagram, §5.2.1 P2 narrative, and §5.4.1 Step 2 code block updated. Revision-history row added (2026-04-26).
+- **Docs.** `technical_docs/ARCHITECTURE.md` §5.2 pipeline diagram, §5.2.1 P2 narrative, and §5.4.1 Step 2 code block updated. Revision-history row added (2026-04-26).
 - **Validation.** Full regression: **880 passed, 2 skipped, 0 failed** (17.60s). The two skips are the `gh issue create` `tests/unit/scripts/` cases that require a `#!/bin/sh` stub and skip on Windows; they pass on Linux/macOS CI.
 
 ## Key Architectural Invariants (verified this pass)

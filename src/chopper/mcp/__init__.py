@@ -1,7 +1,7 @@
 """MCP (Model Context Protocol) stdio server for Chopper.
 
 This package implements the narrow, read-only MCP surface introduced in
-release 0.4.0 and specified in ``technical_docs/chopper_description.md``
+release 0.4.0 and specified in ``technical_docs/ARCHITECTURE.md``
 §3.9.
 
 Transport is **stdio only** (JSON-RPC frames on stdin/stdout, logging on

@@ -1,6 +1,6 @@
 # Chopper — Implementation Reference
 
-> **Scope.** Per-module engineering specifications, implementation pitfalls, and the recorded design decisions that shaped both. This document is the working reference for engineers writing or modifying any of Chopper's services. The architecture doc ([chopper_description.md](chopper_description.md)) defines the system contract; this doc describes how each module honors that contract in code.
+> **Scope.** Per-module engineering specifications, implementation pitfalls, and the recorded design decisions that shaped both. This document is the working reference for engineers writing or modifying any of Chopper's services. The architecture doc ([ARCHITECTURE.md](ARCHITECTURE.md)) defines the system contract; this doc describes how each module honors that contract in code.
 
 > **What changed in this consolidation.** This file replaces four previous docs that drifted apart over time:
 >
@@ -35,7 +35,7 @@
 
 The parser is the foundation of F2 (proc-level trimming) and transitive tracing. Every rule in this section is derived from the Tcl 8.6 Dodekalogue (the twelve rules that define Tcl syntax and semantics) and adapted for Chopper's static analysis context.
 
-The architecture doc [chopper_description.md](chopper_description.md) §5.4 fixes the parser's role in the pipeline (P2). This section is the engineering specification: tokenization rules, proc-detection algorithm, call-extraction rules, the `ProcEntry` output shape, edge cases, the test-fixture catalog, and the design decisions taken during implementation.
+The architecture doc [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 fixes the parser's role in the pipeline (P2). This section is the engineering specification: tokenization rules, proc-detection algorithm, call-extraction rules, the `ProcEntry` output shape, edge cases, the test-fixture catalog, and the design decisions taken during implementation.
 
 **Risk statements covered by this section.**
 
@@ -88,7 +88,7 @@ def parse_file(
     Returns:
         List of ProcEntry records. May be empty (not an error).
         Return contract on PE-* diagnostics is specified in
-        technical_docs/chopper_description.md §5.4.1.
+        technical_docs/ARCHITECTURE.md §5.4.1.
     """
 ```
 
@@ -96,7 +96,7 @@ def parse_file(
 
 #### 1.2.2 Return-Value Contract on Diagnostics
 
-The architecture doc [`chopper_description.md`](chopper_description.md) §5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
+The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
 
 | Condition in file | `parse_file()` returns | Diagnostic emitted |
 |---|---|---|
@@ -370,7 +370,7 @@ Result: only `bar` is indexed (as `ns::bar`). `foo` is skipped with a debug-leve
 
 ##### 1.4.3.1 Canonical-Name Test Vectors
 
-The architecture doc [`chopper_description.md`](chopper_description.md) §5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
+The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
 
 | `file_path` | `namespace_stack` | `proc_short_name` | `canonical_name` | Notes |
 |---|---|---|---|---|
@@ -1275,7 +1275,7 @@ The compiler builds two in-memory structures from `list[ProcEntry]`:
 proc_index: dict[str, ProcEntry] = {e.canonical_name: e for e in all_entries}
 ```
 
-**Call graph edges** — directed edges for BFS trace expansion (see [chopper_description.md](chopper_description.md) §5.4, P4 trace phase). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
+**Call graph edges** — directed edges for BFS trace expansion (see [ARCHITECTURE.md](ARCHITECTURE.md) §5.4, P4 trace phase). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
 
 ```python
 # Edge: caller canonical_name → unresolved call token
@@ -1297,7 +1297,7 @@ source_edges: list[tuple[str, str]] = [
 ]
 ```
 
-Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism ([chopper_description.md](chopper_description.md) §5.4 and NFR-03), and collects all reachable `ProcEntry` records as additional keeps.
+Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism ([ARCHITECTURE.md](ARCHITECTURE.md) §5.4 and NFR-03), and collects all reachable `ProcEntry` records as additional keeps.
 
 ##### 1.8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)
 
@@ -1350,8 +1350,8 @@ Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) 
 | [Tcl proc manual](https://www.tcl-lang.org/man/tcl8.6/TclCmd/proc.htm) | `proc name args body` syntax |
 | [Tcl namespace manual](https://www.tcl-lang.org/man/tcl8.6/TclCmd/namespace.htm) | `namespace eval` semantics |
 | [BNF for Tcl](https://wiki.tcl-lang.org/page/BNF+for+Tcl) | Why Tcl has no formal BNF (context-sensitive language) |
-| [chopper_description.md](chopper_description.md) §5.4 | Proc index contract and trace expansion algorithm |
-| [chopper_description.md](chopper_description.md) §9 and this doc (TC-01, TC-02) | Technical challenges for proc boundary detection |
+| [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 | Proc index contract and trace expansion algorithm |
+| [ARCHITECTURE.md](ARCHITECTURE.md) §9 and this doc (TC-01, TC-02) | Technical challenges for proc boundary detection |
 
 ---
 
@@ -1407,7 +1407,7 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 - `files.exclude` applies only to files matched by wildcard `files.include` patterns
 - Explicit `procedures.include` entries are authoritative and always survive
 - `procedures.exclude` prunes procs inside `PROC_TRIM` files (same-source authoring rule L2); it cannot remove another source's explicit `procedures.include` (`VW-18`) and cannot remove a whole-file include (`VW-19`)
-- PI+ (transitive trace set) is **reporting-only**: see [chopper_description.md](chopper_description.md) §5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
+- PI+ (transitive trace set) is **reporting-only**: see [ARCHITECTURE.md](ARCHITECTURE.md) §5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
 
 **Why It Matters:** This keeps owner-requested content safe. Excludes remain useful for broad globs and for authoring conveniences inside a single source, but never for second-guessing another author's explicit include.
 
@@ -1938,7 +1938,7 @@ iproc_source -file setup.tcl -use_hooks
 - There is no `HOOK_AUTO` keep reason. Hook files use the normal `explicit-file` reason if included.
 - Warn in scan output that discovered hook files require explicit inclusion
 
-**Why It Matters:** The old hook-auto behavior was removed by design (see [chopper_description.md](chopper_description.md) Q12). Restoring it silently would re-bloat trimmed domains.
+**Why It Matters:** The old hook-auto behavior was removed by design (see [ARCHITECTURE.md](ARCHITECTURE.md) Q12). Restoring it silently would re-bloat trimmed domains.
 
 **Test:**
 - Scenario: Domain has `setup.tcl` + `pre_setup.tcl` + `post_setup.tcl`. Base JSON includes only `setup.tcl` in `files.include`. After trim: `pre_setup.tcl` and `post_setup.tcl` must NOT appear in the trimmed domain.
@@ -2135,7 +2135,7 @@ The following Tcl namespace features are out of scope and are never guessed. The
 - Runtime aliasing / `interp alias`
 - Runtime redefinition order across sourced files
 
-**Source:** this doc §6.3, `technical_docs/chopper_description.md` §4.6
+**Source:** this doc §6.3, `technical_docs/ARCHITECTURE.md` §4.6
 
 ---
 
@@ -2145,7 +2145,7 @@ The following Tcl namespace features are out of scope and are never guessed. The
 
 v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-02` (unresolved) but never traced. A future version could optionally accept a multi-domain manifest for read-only cross-domain call validation (not trimming).
 
-**Source:** `technical_docs/chopper_description.md` §2.2, Q1
+**Source:** `technical_docs/ARCHITECTURE.md` §2.2, Q1
 
 ---
 
@@ -2155,11 +2155,11 @@ v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-0
 
 Provide a terminal-based interactive UI for browsing available features, previewing their effects, and composing a project JSON.
 
-**Deferred because:** CLI-first approach is correct today. The service-layer and renderer-adapter architecture (`technical_docs/chopper_description.md` §5.11) enables this without engine changes.
+**Deferred because:** CLI-first approach is correct today. The service-layer and renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` §5.11) enables this without engine changes.
 
 ### FD-04: GUI Client
 
-A machine-readable stdio wire protocol for a future GUI client is documented in `technical_docs/chopper_description.md` §5.11.3 and in [`FD-10`](#fd-10-machine-readable-cli-output). The wire-level JSON payload is conventionally called a "TrimRequest" envelope; on the Python side it deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. There is no Python class named `TrimRequest` — the engine boundary is `ChopperContext` in, `RunResult` out (see [`technical_docs/ENGINEERING.md`](ENGINEERING.md) §6). Progress events will be emitted as JSON lines on stderr. Not implemented here but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
+A machine-readable stdio wire protocol for a future GUI client is documented in `technical_docs/ARCHITECTURE.md` §5.11.3 and in [`FD-10`](#fd-10-machine-readable-cli-output). The wire-level JSON payload is conventionally called a "TrimRequest" envelope; on the Python side it deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. There is no Python class named `TrimRequest` — the engine boundary is `ChopperContext` in, `RunResult` out (see [`technical_docs/ENGINEERING.md`](ENGINEERING.md) §6). Progress events will be emitted as JSON lines on stderr. Not implemented here but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
 
 GUI-relevant data surfaces (file selection, proc selection, dependency graph, trim stats, JSON viewing, diagnostics) are enumerated in §1.5.11.5. No additional data models or artifacts are needed — the current pipeline already produces everything a GUI would consume.
 
@@ -2184,19 +2184,19 @@ If future users require truly end-to-end companion filing, this FD would define:
 
 Add a quick-start section to the architecture doc with a minimal end-to-end walkthrough.
 
-**Source:** `technical_docs/chopper_description.md` §13.4, DF-01
+**Source:** `technical_docs/ARCHITECTURE.md` §13.4, DF-01
 
 ### FD-06: Example Diagnostic Messages
 
 Add concrete example error/warning messages to the architecture doc for every diagnostic code.
 
-**Source:** `technical_docs/chopper_description.md` §13.4, DF-02
+**Source:** `technical_docs/ARCHITECTURE.md` §13.4, DF-02
 
 ### FD-07: Terminology Glossary
 
 Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON" (a JSON file that extends the base).
 
-**Source:** `technical_docs/chopper_description.md` §13.4, DF-03
+**Source:** `technical_docs/ARCHITECTURE.md` §13.4, DF-03
 
 ---
 

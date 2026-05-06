@@ -156,8 +156,10 @@ def rewrite_text(text: str) -> tuple[str, int]:
     #    Apply ONLY to lines that mention the parser doc in the original text;
     #    otherwise §X.Y references in architecture-doc context get clobbered.
     parser_keywords = (
-        "TCL_PARSER_SPEC", "IMPLEMENTATION.md (parser",
-        "parser section", "parser decisions",
+        "TCL_PARSER_SPEC",
+        "IMPLEMENTATION.md (parser",
+        "parser section",
+        "parser decisions",
     )
     new_lines: list[str] = []
     for line in text.splitlines(keepends=True):
@@ -180,7 +182,19 @@ def main() -> None:
         if is_skipped(rel):
             continue
         # Only process text-y extensions
-        if path.suffix.lower() not in {".md", ".py", ".tcl", ".json", ".yaml", ".yml", ".txt", ".html", ".cfg", ".ini", ".toml"}:
+        if path.suffix.lower() not in {
+            ".md",
+            ".py",
+            ".tcl",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".txt",
+            ".html",
+            ".cfg",
+            ".ini",
+            ".toml",
+        }:
             continue
         try:
             original = path.read_text(encoding="utf-8")
@@ -188,10 +202,15 @@ def main() -> None:
             skipped.append(str(rel))
             continue
         # Quick filter: only touch files that actually mention any of the four names
-        if not any(name in original for name in (
-            "TCL_PARSER_SPEC", "RISKS_AND_PITFALLS",
-            "IMPLEMENTATION_DECISION_LOG", "FUTURE_PLANNED_DEVELOPMENTS",
-        )):
+        if not any(
+            name in original
+            for name in (
+                "TCL_PARSER_SPEC",
+                "RISKS_AND_PITFALLS",
+                "IMPLEMENTATION_DECISION_LOG",
+                "FUTURE_PLANNED_DEVELOPMENTS",
+            )
+        ):
             continue
         new_text, _ = rewrite_text(original)
         if new_text != original:

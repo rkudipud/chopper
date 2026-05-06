@@ -5,7 +5,7 @@ register a destructive tool (``chopper.trim``, ``chopper.cleanup``) is a
 programmer error and is asserted against in
 ``tests/integration/test_mcp_stdio_e2e.py``.
 
-See ``technical_docs/chopper_description.md`` §3.9 for the authoritative
+See ``technical_docs/ARCHITECTURE.md`` §3.9 for the authoritative
 contract and the JSON parameter schemas.
 """
 

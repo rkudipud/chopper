@@ -125,7 +125,7 @@ Never registers chopper.trim or chopper.cleanup. Reads JSON-RPC frames on
 stdin, writes responses on stdout, logs to stderr. Exits 0 on clean shutdown
 (stdin EOF / SIGINT), 3 on programmer error, 4 on MCP protocol error.
 
-No options specific to this subcommand. See `technical_docs/chopper_description.md`
+No options specific to this subcommand. See `technical_docs/ARCHITECTURE.md`
 §3.9 for the authoritative contract and tool parameter schemas.
 ```
 

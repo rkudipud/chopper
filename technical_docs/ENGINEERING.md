@@ -1,6 +1,6 @@
 # Chopper — Engineering Plan
 
-**Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`technical_docs/chopper_description.md`](chopper_description.md) ("the architecture doc"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the architecture doc, the architecture doc wins and this plan is edited in place.
+**Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) ("the architecture doc"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the architecture doc, the architecture doc wins and this plan is edited in place.
 
 **What this plan is for.** Chopper is a **local, single-process Python CLI** — not a web app, not a cloud service, not a daemon, not a plugin host. It runs on a VLSI engineer's workstation (or a grid node), reads ≤1 GB of Tcl / JSON from disk, writes a trimmed domain back to disk, and exits. The plan below describes how to decompose this CLI into **independently developable services** (in-process, ports-and-adapters) so individual features can be added, rewritten, or replaced in isolation. Chopper is **not** extensible through plugins, AI advisors, or MCP adapters — those are not on the roadmap, not deferred, not planned. See §16 for the scope-lock rationale.
 
@@ -385,7 +385,7 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 
 ### 7.1 Narrowed MCP surface (0.4.0+)
 
-One narrow exception exists as of 0.4.0: a **read-only, stdio-only** MCP server at `src/chopper/mcp/`, invoked via `chopper mcp-serve`. It is not an extension seam in the extensible-by-third-parties sense — it is a first-party, fixed, read-only tool surface specified in the architecture doc (`technical_docs/chopper_description.md` §3.9) and enforced by the destructive-tool guard. The closed identifiers in the scope-lock (`.github/instructions/project.instructions.md` §1) stay closed: no `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no HTTP/TCP/WebSocket transport, no MCP tool exposing `chopper.trim` or `chopper.cleanup`.
+One narrow exception exists as of 0.4.0: a **read-only, stdio-only** MCP server at `src/chopper/mcp/`, invoked via `chopper mcp-serve`. It is not an extension seam in the extensible-by-third-parties sense — it is a first-party, fixed, read-only tool surface specified in the architecture doc (`technical_docs/ARCHITECTURE.md` §3.9) and enforced by the destructive-tool guard. The closed identifiers in the scope-lock (`.github/instructions/project.instructions.md` §1) stay closed: no `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no HTTP/TCP/WebSocket transport, no MCP tool exposing `chopper.trim` or `chopper.cleanup`.
 
 **Why this is stated explicitly.** Previous drafts reserved MCP/plugin seams "for future use." Experience showed that reservations drift into implementations: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a feature the project never approved ships anyway. Scope-lock requires the absence of reservations, not a list of them.
 
@@ -397,7 +397,7 @@ One narrow exception exists as of 0.4.0: a **read-only, stdio-only** MCP server 
 - No "post-v1" or "stage 6" roadmap row carries plugin or MCP content (§15).
 - Any PR that adds any of the above is rejected at review without further discussion.
 
-If a future release genuinely needs a plugin mechanism, it starts a fresh design doc and updates [`technical_docs/chopper_description.md`](chopper_description.md) first. It does not resurrect stubs from this plan.
+If a future release genuinely needs a plugin mechanism, it starts a fresh design doc and updates [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) first. It does not resurrect stubs from this plan.
 
 ---
 
@@ -670,7 +670,7 @@ To make every feature "individually and isolatedly developable/enhanceable" (you
 4. **Diagnostic codes are the API contract for user-visible behavior.** Adding a code requires a registry edit in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before use.
 5. **Stage discipline is hard.** Stage N may not import from Stage N+1. Enforced by `import-linter` contracts in CI.
 
-   **Permitted exception:** P6 validator imports P2 parser for post-trim validation accuracy. The validator's `validate_post` function calls `parse_file()` from the parser to re-parse trimmed `.tcl` outputs and verify that the proc set matches the `TrimReport` promise (VW-10 check). This is the **only** permitted cross-stage import; all other stage boundaries remain sealed. See [`technical_docs/chopper_description.md`](chopper_description.md) §5.12.9 and [`.github/instructions/project.instructions.md`](.../.github/instructions/project.instructions.md) §1.1 for the full rationale: re-parsing is the cleanest way to catch real bugs (incorrect proc drops), and the parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
+   **Permitted exception:** P6 validator imports P2 parser for post-trim validation accuracy. The validator's `validate_post` function calls `parse_file()` from the parser to re-parse trimmed `.tcl` outputs and verify that the proc set matches the `TrimReport` promise (VW-10 check). This is the **only** permitted cross-stage import; all other stage boundaries remain sealed. See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §5.12.9 and [`.github/instructions/project.instructions.md`](.../.github/instructions/project.instructions.md) §1.1 for the full rationale: re-parsing is the cleanest way to catch real bugs (incorrect proc drops), and the parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
 6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `CollectingSink`, `SilentProgress` — they never touch the real filesystem. Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`; there is no ClockPort.
 7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (§6.2) — no plugin registry, no dynamic phase insertion. Adding a new phase means editing `runner.py`. That is deliberate: v1 has seven phases, period.
@@ -799,7 +799,7 @@ Questions raised during planning. All are resolved for v1.
 
 **Closed permanently — destructive MCP surface.** No `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no MCP client code inside Chopper, no HTTP/TCP/WebSocket MCP transports, no MCP tool exposing `chopper.trim` or `chopper.cleanup`, no MCP-driven filesystem mutation.
 
-**Narrowed (permitted) — read-only stdio MCP.** The `chopper mcp-serve` subcommand and the `src/chopper/mcp/` package are permitted: a stdio-only JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon) exposing read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Specified in the architecture doc at [`technical_docs/chopper_description.md`](chopper_description.md) §3.8; the canonical scope-lock list lives in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) §1.1.
+**Narrowed (permitted) — read-only stdio MCP.** The `chopper mcp-serve` subcommand and the `src/chopper/mcp/` package are permitted: a stdio-only JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon) exposing read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Specified in the architecture doc at [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §3.8; the canonical scope-lock list lives in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) §1.1.
 
 **Rationale.** Reserving open-ended extension points (plugins, advisors, destructive MCP) invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The narrowed read-only MCP, by contrast, is a concrete, bounded surface with a fixed tool list and a single transport — the open-ended scope was the problem, not MCP itself.
 
@@ -827,4 +827,4 @@ Policy: read each file as UTF-8. On `UnicodeDecodeError`, retry as Latin-1 and e
 
 ---
 
-*This plan is additive to, and subordinate to, [`technical_docs/chopper_description.md`](chopper_description.md). When this plan and the architecture doc disagree, the architecture doc wins and this plan is updated in place (no addendums — per [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Documentation Conventions).*
+*This plan is additive to, and subordinate to, [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md). When this plan and the architecture doc disagree, the architecture doc wins and this plan is updated in place (no addendums — per [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Documentation Conventions).*

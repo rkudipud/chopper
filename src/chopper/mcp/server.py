@@ -6,7 +6,7 @@ the ``chopper mcp-serve`` CLI handler) so that simply importing
 
 Transport is stdio only: JSON-RPC frames on stdin, responses on stdout,
 logging on stderr. There is no TCP, HTTP, or WebSocket transport and no
-daemon mode. See ``technical_docs/chopper_description.md`` §3.9.
+daemon mode. See ``technical_docs/ARCHITECTURE.md`` §3.9.
 
 Per-call ``MCPProtocolError`` failures surface to the client as
 ``PE-04`` :class:`~chopper.core.diagnostics.Diagnostic` instances
@@ -70,7 +70,7 @@ def _assert_no_destructive_tools(tools: list[types.Tool]) -> None:
         overlap = sorted(names & set(DESTRUCTIVE_TOOL_NAMES))
         raise RuntimeError(
             f"programmer error: destructive tools registered over MCP: {overlap}. "
-            "See technical_docs/chopper_description.md §3.9."
+            "See technical_docs/ARCHITECTURE.md §3.9."
         )
     if set(names) != set(TOOL_NAMES):
         raise RuntimeError(

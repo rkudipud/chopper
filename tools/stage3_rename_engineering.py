@@ -31,7 +31,7 @@ FILES_TO_REWRITE = [
     "schemas/scripts/check_service_signatures.py",
     "technical_docs/DIAGNOSTIC_CODES.md",
     "technical_docs/IMPLEMENTATION.md",
-    "technical_docs/chopper_description.md",
+    "technical_docs/ARCHITECTURE.md",
 ]
 
 
@@ -49,8 +49,7 @@ def rename_file() -> None:
         return
     if not OLD_PATH.exists():
         raise SystemExit(f"[error] {OLD} not found")
-    run("git", "-C", str(ROOT), "mv",
-        f"technical_docs/{OLD}", f"technical_docs/{NEW}")
+    run("git", "-C", str(ROOT), "mv", f"technical_docs/{OLD}", f"technical_docs/{NEW}")
     print(f"[git mv] {OLD} -> {NEW}")
 
 
@@ -76,14 +75,14 @@ def rewrite_engineering_doc() -> None:
         "\n"
         "**Chopper has no plugin system, no MCP driver, no AI advisor, and no reserved extension seams.** "
         "There is no `PluginHost`, no `X*` diagnostic family, no `plugins/`, `mcp_server/`, or `advisor/` module, "
-        "and no \"stage 6\" on the roadmap for any of these. Previous drafts reserved these concepts "
-        "\"for future use\"; that reservation is now withdrawn.\n"
+        'and no "stage 6" on the roadmap for any of these. Previous drafts reserved these concepts '
+        '"for future use"; that reservation is now withdrawn.\n'
         "\n"
         "**Rationale.** Reserving extension points that nobody is committed to building invites drift: "
-        "an agent reading \"reserved\" treats it as \"TODO\", a contributor fills in the TODO, and a "
+        'an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a '
         "surface the project never approved ships. The cost of *not* reserving is near zero — if a future "
         "release ever genuinely needs a plugin mechanism, it will start with a fresh design doc "
-        "(updating [`technical_docs/chopper_description.md`](chopper_description.md) first) rather than "
+        "(updating [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) first) rather than "
         "resurrecting stubs from this plan. PRs that add plugin / MCP / advisor scaffolding are rejected at review.\n"
     )
     new_q1 = (
@@ -91,8 +90,8 @@ def rewrite_engineering_doc() -> None:
         "\n"
         "**Closed permanently.** Chopper has no plugin system, no AI advisor, and no reserved "
         "extension seams. There is no `PluginHost`, no `X*` diagnostic family, no `plugins/` or "
-        "`advisor/` module, and no \"stage 6\" on the roadmap for any of these. Previous drafts "
-        "reserved these concepts \"for future use\"; that reservation is withdrawn. PRs that add "
+        '`advisor/` module, and no "stage 6" on the roadmap for any of these. Previous drafts '
+        'reserved these concepts "for future use"; that reservation is withdrawn. PRs that add '
         "plugin or advisor scaffolding are rejected at review.\n"
         "\n"
         "**Closed permanently — destructive MCP surface.** No `MCPDiagnosticSink`, no "
@@ -104,12 +103,12 @@ def rewrite_engineering_doc() -> None:
         "the `src/chopper/mcp/` package are permitted: a stdio-only JSON-RPC server (no TCP, no "
         "HTTP, no WebSocket, no daemon) exposing read-only tools "
         "(`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Specified in the "
-        "architecture doc at [`technical_docs/chopper_description.md`](chopper_description.md) §3.8; "
+        "architecture doc at [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §3.8; "
         "the canonical scope-lock list lives in "
         "[`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) §1.1.\n"
         "\n"
         "**Rationale.** Reserving open-ended extension points (plugins, advisors, destructive MCP) "
-        "invites drift: an agent reading \"reserved\" treats it as \"TODO\", a contributor fills in "
+        'invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in '
         "the TODO, and a surface the project never approved ships. The narrowed read-only MCP, by "
         "contrast, is a concrete, bounded surface with a fixed tool list and a single transport — "
         "the open-ended scope was the problem, not MCP itself.\n"

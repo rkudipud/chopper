@@ -24,7 +24,7 @@ This document provides activation prompts for the Chopper buildout agents.
 Begin Chopper Stage 0 implementation.
 
 1. Read `.github/agent_memory/chopper-buildout.md` if present; otherwise create it from `.github/agent_memory/README.md`
-2. Read technical_docs/chopper_description.md §5.12 and §8.1
+2. Read technical_docs/ARCHITECTURE.md §5.12 and §8.1
 3. Create todo list for Stage 0 (core/ module)
 4. Implement frozen dataclasses per ENGINEERING.md §9.1
 5. Run `make check` after each file
@@ -56,7 +56,7 @@ Resume Chopper buildout.
 
 Implement Stage [N]: [module name]
 
-Architecture Doc reference: technical_docs/chopper_description.md §[X.X]
+Architecture Doc reference: technical_docs/ARCHITECTURE.md §[X.X]
 
 Pre-implementation:
 1. Ensure `.github/agent_memory/chopper-stage-builder.md` exists; if missing, create it from `.github/agent_memory/README.md`
@@ -154,7 +154,7 @@ git diff tests/golden/  # Must show NO changes
 
 | Document | Purpose | Check For |
 | --- | --- | --- |
-| `technical_docs/chopper_description.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, §x.x |
+| `technical_docs/ARCHITECTURE.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, §x.x |
 | `technical_docs/ENGINEERING.md` | How to build | Module structure, §9.x models |
 | `technical_docs/IMPLEMENTATION.md` (parser section) | Parser rules | State machine, §1.3.0 |
 | `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |

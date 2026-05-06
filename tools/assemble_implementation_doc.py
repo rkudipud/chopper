@@ -69,9 +69,7 @@ risks_cli = slice_between(RISKS, "## CLI & PRESENTATION", "## HOOK FILES")
 risks_hooks = slice_between(RISKS, "## HOOK FILES", "## PROJECT JSON")
 risks_project = slice_between(RISKS, "## PROJECT JSON", "## TESTING STRATEGY")
 risks_testing = slice_between(RISKS, "## TESTING STRATEGY", "## Quick Reference: Common Mistakes by Module")
-risks_quickref = slice_between(
-    RISKS, "## Quick Reference: Common Mistakes by Module", "## STANDALONE RISK ITEMS"
-)
+risks_quickref = slice_between(RISKS, "## Quick Reference: Common Mistakes by Module", "## STANDALONE RISK ITEMS")
 risks_standalone = slice_between(RISKS, "## STANDALONE RISK ITEMS", "## PROCESS ANALYSIS")
 
 # Decision log entries (parser only — all D-xx are stage 1b/1c/1d/1e)
@@ -94,6 +92,7 @@ fd_summary = slice_between(FUTURE, "## Summary", None)
 # ---------------------------------------------------------------------------
 # Helper: rewrite intra-doc cross-references to point at the new layout
 # ---------------------------------------------------------------------------
+
 
 def rewrite_internal_links(text: str) -> str:
     """Strip references to TCL_PARSER_SPEC, RISKS_AND_PITFALLS, IMPLEMENTATION_DECISION_LOG.
@@ -120,7 +119,7 @@ def rewrite_internal_links(text: str) -> str:
     ]
     for pat, sub in repls:
         text = re.sub(pat, sub, text)
-    # chopper_description.md is renamed in stage 4; for now keep links pointing at it
+    # ARCHITECTURE.md is renamed in stage 4; for now keep links pointing at it
     return text
 
 
@@ -130,7 +129,7 @@ def rewrite_internal_links(text: str) -> str:
 
 HEADER = """# Chopper — Implementation Reference
 
-> **Scope.** Per-module engineering specifications, implementation pitfalls, and the recorded design decisions that shaped both. This document is the working reference for engineers writing or modifying any of Chopper's services. The architecture doc ([chopper_description.md](chopper_description.md)) defines the system contract; this doc describes how each module honors that contract in code.
+> **Scope.** Per-module engineering specifications, implementation pitfalls, and the recorded design decisions that shaped both. This document is the working reference for engineers writing or modifying any of Chopper's services. The architecture doc ([ARCHITECTURE.md](ARCHITECTURE.md)) defines the system contract; this doc describes how each module honors that contract in code.
 
 > **What changed in this consolidation.** This file replaces four previous docs that drifted apart over time:
 >
@@ -170,7 +169,7 @@ PARSER_INTRO = """## 1. Parser Module
 
 The parser is the foundation of F2 (proc-level trimming) and transitive tracing. Every rule in this section is derived from the Tcl 8.6 Dodekalogue (the twelve rules that define Tcl syntax and semantics) and adapted for Chopper's static analysis context.
 
-The architecture doc [chopper_description.md](chopper_description.md) §5.4 fixes the parser's role in the pipeline (P2). This section is the engineering specification: tokenization rules, proc-detection algorithm, call-extraction rules, the `ProcEntry` output shape, edge cases, the test-fixture catalog, and the design decisions taken during implementation.
+The architecture doc [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 fixes the parser's role in the pipeline (P2). This section is the engineering specification: tokenization rules, proc-detection algorithm, call-extraction rules, the `ProcEntry` output shape, edge cases, the test-fixture catalog, and the design decisions taken during implementation.
 
 **Risk statements covered by this section.**
 
@@ -181,6 +180,7 @@ The architecture doc [chopper_description.md](chopper_description.md) §5.4 fixe
 ---
 
 """
+
 
 # Renumber parser sub-sections to use 1.X
 def renumber_parser(text: str) -> str:
@@ -193,11 +193,23 @@ def renumber_parser(text: str) -> str:
         ("### 3.0 State-Machine Summary (D2)", "#### 1.3.0 State-Machine Summary"),
         ("### 3.1 Brace Matching (Tcl Rule 6)", "#### 1.3.1 Brace Matching (Tcl Rule 6)"),
         ("### 3.2 Backslash Continuation (Tcl Rule 9)", "#### 1.3.2 Backslash Continuation (Tcl Rule 9)"),
-        ("### 3.3 Double Quotes (Tcl Endekas/Dodekalogue Rule 5)", "#### 1.3.3 Double Quotes (Tcl Endekas/Dodekalogue Rule 5)"),
-        ("#### 3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)", "##### 1.3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)"),
-        ("#### 3.3.2 In-Body Rule (Inside Brace-Delimited Blocks)", "##### 1.3.3.2 In-Body Rule (Inside Brace-Delimited Blocks)"),
+        (
+            "### 3.3 Double Quotes (Tcl Endekas/Dodekalogue Rule 5)",
+            "#### 1.3.3 Double Quotes (Tcl Endekas/Dodekalogue Rule 5)",
+        ),
+        (
+            "#### 3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)",
+            "##### 1.3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)",
+        ),
+        (
+            "#### 3.3.2 In-Body Rule (Inside Brace-Delimited Blocks)",
+            "##### 1.3.3.2 In-Body Rule (Inside Brace-Delimited Blocks)",
+        ),
         ("### 3.4 Comments (Tcl Rule 10)", "#### 1.3.4 Comments (Tcl Rule 10)"),
-        ("### 3.5 Command Substitution (`[...]`) (Tcl Rule 7)", "#### 1.3.5 Command Substitution (`[...]`) (Tcl Rule 7)"),
+        (
+            "### 3.5 Command Substitution (`[...]`) (Tcl Rule 7)",
+            "#### 1.3.5 Command Substitution (`[...]`) (Tcl Rule 7)",
+        ),
         ("## 4. Proc Detection", "### 1.4 Proc Detection"),
         ("### 4.1 Proc Definition Pattern", "#### 1.4.1 Proc Definition Pattern"),
         ("### 4.2 Detection Algorithm", "#### 1.4.2 Detection Algorithm"),
@@ -206,23 +218,44 @@ def renumber_parser(text: str) -> str:
         ("#### 4.3.2 Source / `iproc_source` Edges (E2)", "##### 1.4.3.2 Source / `iproc_source` Edges"),
         ("### 4.4 Where Procs Are Recognized", "#### 1.4.4 Where Procs Are Recognized"),
         ("### 4.5 Namespace Eval Detection", "#### 1.4.5 Namespace Eval Detection"),
-        ("#### 4.5.1 Namespace Stack Pop Timing — Worked Example", "##### 1.4.5.1 Namespace Stack Pop Timing — Worked Example"),
+        (
+            "#### 4.5.1 Namespace Stack Pop Timing — Worked Example",
+            "##### 1.4.5.1 Namespace Stack Pop Timing — Worked Example",
+        ),
         ("### 4.6 define_proc_attributes (DPA) Detection", "#### 1.4.6 define_proc_attributes (DPA) Detection"),
         ("### 4.7 Structured Doc-Comment Block Detection", "#### 1.4.7 Structured Doc-Comment Block Detection"),
         ("## 5. Call Extraction (For Tracing)", "### 1.5 Call Extraction (For Tracing)"),
         ("### 5.1 What Chopper Extracts", "#### 1.5.1 What Chopper Extracts"),
         ("### 5.2 What Chopper Does NOT Extract", "#### 1.5.2 What Chopper Does NOT Extract"),
         ("### 5.3 Call Extraction Algorithm", "#### 1.5.3 Call Extraction Algorithm"),
-        ("#### 5.3.0.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)", "##### 1.5.3.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)"),
-        ("#### 5.3.0.2 Why First-WORD-After-LBRACE Heuristic Is Needed", "##### 1.5.3.2 Why First-WORD-After-LBRACE Heuristic Is Needed"),
-        ("### 5.3.1 Deterministic Proc Name Resolution Contract", "#### 1.5.4 Deterministic Proc Name Resolution Contract"),
+        (
+            "#### 5.3.0.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)",
+            "##### 1.5.3.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)",
+        ),
+        (
+            "#### 5.3.0.2 Why First-WORD-After-LBRACE Heuristic Is Needed",
+            "##### 1.5.3.2 Why First-WORD-After-LBRACE Heuristic Is Needed",
+        ),
+        (
+            "### 5.3.1 Deterministic Proc Name Resolution Contract",
+            "#### 1.5.4 Deterministic Proc Name Resolution Contract",
+        ),
         ("### 5.4 Source/iproc_source Extraction", "#### 1.5.5 Source/iproc_source Extraction"),
-        ("### 5.4.1 Trace Diagnostic and Call-Tree Alignment Contract", "#### 1.5.6 Trace Diagnostic and Call-Tree Alignment Contract"),
+        (
+            "### 5.4.1 Trace Diagnostic and Call-Tree Alignment Contract",
+            "#### 1.5.6 Trace Diagnostic and Call-Tree Alignment Contract",
+        ),
         ("### 5.5 Call Detection False-Positive Filter", "#### 1.5.7 Call Detection False-Positive Filter"),
         ("## 6. Output: Proc Index Entry", "### 1.6 Output: ProcEntry"),
         ("### 6.1 Invariants", "#### 1.6.1 Invariants"),
-        ("### 6.2 Boundary Definitions for `body_start_line` / `body_end_line`", "#### 1.6.2 Boundary Definitions for `body_start_line` / `body_end_line`"),
-        ("### 6.3 Duplicate Proc Validation Timing and Emission", "#### 1.6.3 Duplicate Proc Validation Timing and Emission"),
+        (
+            "### 6.2 Boundary Definitions for `body_start_line` / `body_end_line`",
+            "#### 1.6.2 Boundary Definitions for `body_start_line` / `body_end_line`",
+        ),
+        (
+            "### 6.3 Duplicate Proc Validation Timing and Emission",
+            "#### 1.6.3 Duplicate Proc Validation Timing and Emission",
+        ),
         ("## 7. Edge Cases and Adversarial Inputs", "### 1.7 Edge Cases and Adversarial Inputs"),
         ("## 8. Parser Architecture", "### 1.8 Parser Architecture"),
         ("### 8.1 Two-Phase Design", "#### 1.8.1 Two-Phase Design"),
@@ -231,14 +264,23 @@ def renumber_parser(text: str) -> str:
         ("### 8.4 Diagnostic Emission Contract", "#### 1.8.4 Diagnostic Emission Contract"),
         ("### 8.5 Parser-to-Pipeline Integration", "#### 1.8.5 Parser-to-Pipeline Integration"),
         ("#### 8.5.1 Fields Used by the Trimmer (Phase 5)", "##### 1.8.5.1 Fields Used by the Trimmer (Phase 5)"),
-        ("#### 8.5.2 Fields Used by the Compiler / Tracer (Phases 3–4)", "##### 1.8.5.2 Fields Used by the Compiler / Tracer (Phases 3–4)"),
-        ("#### 8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)", "##### 1.8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)"),
+        (
+            "#### 8.5.2 Fields Used by the Compiler / Tracer (Phases 3–4)",
+            "##### 1.8.5.2 Fields Used by the Compiler / Tracer (Phases 3–4)",
+        ),
+        (
+            "#### 8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)",
+            "##### 1.8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)",
+        ),
         ("## 9. Test Strategy", "### 1.9 Test Strategy"),
         ("### 9.1 Fixture Categories", "#### 1.9.1 Fixture Categories"),
         ("### 9.2 Property-Based Invariants", "#### 1.9.2 Property-Based Invariants"),
         ("## 10. References", "### 1.10 References"),
         # Edge-case sub-sections inside §7 (now §1.7) — keep their numbering inline
-        ("### 7.1 Brace in Quoted Text Inside a Braced Proc Body", "#### 1.7.1 Brace in Quoted Text Inside a Braced Proc Body"),
+        (
+            "### 7.1 Brace in Quoted Text Inside a Braced Proc Body",
+            "#### 1.7.1 Brace in Quoted Text Inside a Braced Proc Body",
+        ),
         ("### 7.2 Backslash Line Continuation", "#### 1.7.2 Backslash Line Continuation"),
         ("### 7.3 Empty File", "#### 1.7.3 Empty File"),
         ("### 7.4 Proc with No Body Braces (Theoretical)", "#### 1.7.4 Proc with No Body Braces (Theoretical)"),
@@ -248,10 +290,19 @@ def renumber_parser(text: str) -> str:
         ("### 7.8 Proc Inside If Block", "#### 1.7.8 Proc Inside If Block"),
         ("### 7.9 Computed Proc Name", "#### 1.7.9 Computed Proc Name"),
         ("### 7.10 Duplicate Proc Definition", "#### 1.7.10 Duplicate Proc Definition"),
-        ("### 7.11 Proc Args with Default Values Containing Nested Braces", "#### 1.7.11 Proc Args with Default Values Containing Nested Braces"),
-        ("### 7.12 define_proc_attributes Immediately After Proc Closing Brace", "#### 1.7.12 define_proc_attributes Immediately After Proc Closing Brace"),
+        (
+            "### 7.11 Proc Args with Default Values Containing Nested Braces",
+            "#### 1.7.11 Proc Args with Default Values Containing Nested Braces",
+        ),
+        (
+            "### 7.12 define_proc_attributes Immediately After Proc Closing Brace",
+            "#### 1.7.12 define_proc_attributes Immediately After Proc Closing Brace",
+        ),
         ("### 7.13 Structured Comment Banner Before Proc", "#### 1.7.13 Structured Comment Banner Before Proc"),
-        ("### 7.14 foreach_in_collection (Synopsys EDA Iterator)", "#### 1.7.14 foreach_in_collection (Synopsys EDA Iterator)"),
+        (
+            "### 7.14 foreach_in_collection (Synopsys EDA Iterator)",
+            "#### 1.7.14 foreach_in_collection (Synopsys EDA Iterator)",
+        ),
     ]
     for old, new in repls:
         text = text.replace(old, new)
@@ -302,6 +353,7 @@ parser_section = (
 # Risks-derived sections (compiler/trimmer/validator/audit/backup/config/cli/hooks/project/testing)
 # Renumber from "## PARSER MODULE" style to "## 2. Compiler ..." style.
 
+
 def render_risks_section(num: int, title: str, body: str) -> str:
     """Wrap a per-module risks block under a new H2 number; strip its old MODULE banner."""
     # Strip the original "## XYZ MODULE — Risk: ..." line
@@ -322,30 +374,36 @@ project_section = render_risks_section(10, "Project JSON", risks_project)
 testing_section = render_risks_section(11, "Testing Strategy", risks_testing)
 
 # Quick-reference table
-quickref_section = "## 12. Quick Reference: Common Mistakes by Module\n\n" + \
-    re.sub(r"^## Quick Reference: Common Mistakes by Module\n+", "", risks_quickref).strip() + "\n\n"
+quickref_section = (
+    "## 12. Quick Reference: Common Mistakes by Module\n\n"
+    + re.sub(r"^## Quick Reference: Common Mistakes by Module\n+", "", risks_quickref).strip()
+    + "\n\n"
+)
 
 # Standalone TC items
-standalone_section = "## 13. Standalone Risk Items\n\n" + \
-    re.sub(r"^## STANDALONE RISK ITEMS\n+", "", risks_standalone).strip() + "\n\n"
+standalone_section = (
+    "## 13. Standalone Risk Items\n\n" + re.sub(r"^## STANDALONE RISK ITEMS\n+", "", risks_standalone).strip() + "\n\n"
+)
 
 # Appendices A and B
-appendix_a = "## Appendix A: Permanently Out of Scope\n\n" + \
-    re.sub(r"^## Permanently Out of Scope\n+", "", oos_block).strip() + "\n\n"
+appendix_a = (
+    "## Appendix A: Permanently Out of Scope\n\n"
+    + re.sub(r"^## Permanently Out of Scope\n+", "", oos_block).strip()
+    + "\n\n"
+)
 
 appendix_b = (
     "## Appendix B: Deferred Work Items\n\n"
     "These items have been considered and **deferred** from the v1 release. They are recorded so future authors know what was thought about and why it was not built. An FD-xx entry is **not a TODO** — many will stay deferred indefinitely. Adding any of these requires re-entering the architecture-doc-first cascade specified in `.github/instructions/project.instructions.md`.\n\n"
-    "### B.1 Parser Enhancements\n\n"
-    + re.sub(r"^## Parser Enhancements\n+", "", fd_parser).strip() + "\n\n"
+    "### B.1 Parser Enhancements\n\n" + re.sub(r"^## Parser Enhancements\n+", "", fd_parser).strip() + "\n\n"
     "### B.2 Compiler / Pipeline Enhancements\n\n"
-    + re.sub(r"^## Compiler / Pipeline Enhancements\n+", "", fd_compiler).strip() + "\n\n"
-    "### B.3 CLI / UX Enhancements\n\n"
-    + re.sub(r"^## CLI / UX Enhancements\n+", "", fd_cliux).strip() + "\n\n"
+    + re.sub(r"^## Compiler / Pipeline Enhancements\n+", "", fd_compiler).strip()
+    + "\n\n"
+    "### B.3 CLI / UX Enhancements\n\n" + re.sub(r"^## CLI / UX Enhancements\n+", "", fd_cliux).strip() + "\n\n"
     "### B.4 Documentation Enhancements\n\n"
-    + re.sub(r"^## Documentation Enhancements\n+", "", fd_docs).strip() + "\n\n"
-    "### B.5 Summary Table\n\n"
-    + re.sub(r"^## Summary\n+", "", fd_summary).strip() + "\n"
+    + re.sub(r"^## Documentation Enhancements\n+", "", fd_docs).strip()
+    + "\n\n"
+    "### B.5 Summary Table\n\n" + re.sub(r"^## Summary\n+", "", fd_summary).strip() + "\n"
 )
 
 
@@ -424,15 +482,17 @@ parser_xref_map = {
     "§8.5": "§1.8.5",
     "§9": "§1.9",
 }
+
+
 # Apply only in passages that came from the parser doc. The §X.Y syntax also appears
 # in the architecture doc cross-refs and we must not rewrite those — apply with a guard.
-# Crude but effective: rewrite only when "§4.6" etc. appear with no preceding "doc"/"architecture doc"/"chopper_description" in the same line.
+# Crude but effective: rewrite only when "§4.6" etc. appear with no preceding "doc"/"architecture doc"/"ARCHITECTURE" in the same line.
 def rewrite_parser_anchors(text: str) -> str:
     lines = text.splitlines(keepends=True)
     out = []
     for line in lines:
         lower = line.lower()
-        if "chopper_description" in lower or "architecture doc" in lower:
+        if "ARCHITECTURE" in lower or "architecture doc" in lower:
             out.append(line)
             continue
         new_line = line

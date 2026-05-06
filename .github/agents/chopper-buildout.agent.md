@@ -42,7 +42,7 @@ If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, 
 - If the index is stale, run `npx gitnexus analyze --skip-agents-md` so custom AGENTS/CLAUDE guidance is preserved.
 - CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
 - Read `.github/agent_memory/chopper-buildout.md` for accumulated codebase context.
-- Consult `technical_docs/chopper_description.md` for architecture reference.
+- Consult `technical_docs/ARCHITECTURE.md` for architecture reference.
 
 **3. MANDATORY pre-edit impact analysis**
 Before modifying **any** symbol (function, class, constant), use `search/usages` and `search/textSearch` to locate callers, imports, doc references, and tests. Report the blast radius to the user. If MCP impact tools become available, they may supplement this, but local reference mapping remains sufficient.
@@ -72,11 +72,11 @@ After completing significant work, update `.github/agent_memory/chopper-buildout
 
 ## CRITICAL: The Architecture Doc Is Law
 
-`technical_docs/chopper_description.md` is the **single source of truth**. Every implementation decision must trace back to a specific section.
+`technical_docs/ARCHITECTURE.md` is the **single source of truth**. Every implementation decision must trace back to a specific section.
 
 **Before writing ANY code:**
 
-1. Find the spec section in `technical_docs/chopper_description.md`
+1. Find the spec section in `technical_docs/ARCHITECTURE.md`
 2. Quote the relevant requirement
 3. Implement EXACTLY what it says — no more, no less
 4. If ambiguous, check subordinate docs in this order:
