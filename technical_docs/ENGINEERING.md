@@ -1,4 +1,4 @@
-# Chopper — Modular Service Architecture Plan
+# Chopper — Engineering Plan
 
 **Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`technical_docs/chopper_description.md`](chopper_description.md) ("the architecture doc"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the architecture doc, the architecture doc wins and this plan is edited in place.
 
@@ -793,11 +793,15 @@ def make_test_context(
 
 Questions raised during planning. All are resolved for v1.
 
-### Q1 — Plugin host / MCP / AI advisor (CLOSED — permanently out of scope)
+### Q1 — Plugin host / AI advisor / destructive MCP (CLOSED) — read-only stdio MCP (NARROWED)
 
-**Chopper has no plugin system, no MCP driver, no AI advisor, and no reserved extension seams.** There is no `PluginHost`, no `X*` diagnostic family, no `plugins/`, `mcp_server/`, or `advisor/` module, and no "stage 6" on the roadmap for any of these. Previous drafts reserved these concepts "for future use"; that reservation is now withdrawn.
+**Closed permanently.** Chopper has no plugin system, no AI advisor, and no reserved extension seams. There is no `PluginHost`, no `X*` diagnostic family, no `plugins/` or `advisor/` module, and no "stage 6" on the roadmap for any of these. Previous drafts reserved these concepts "for future use"; that reservation is withdrawn. PRs that add plugin or advisor scaffolding are rejected at review.
 
-**Rationale.** Reserving extension points that nobody is committed to building invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The cost of *not* reserving is near zero — if a future release ever genuinely needs a plugin mechanism, it will start with a fresh design doc (updating [`technical_docs/chopper_description.md`](chopper_description.md) first) rather than resurrecting stubs from this plan. PRs that add plugin / MCP / advisor scaffolding are rejected at review.
+**Closed permanently — destructive MCP surface.** No `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no MCP client code inside Chopper, no HTTP/TCP/WebSocket MCP transports, no MCP tool exposing `chopper.trim` or `chopper.cleanup`, no MCP-driven filesystem mutation.
+
+**Narrowed (permitted) — read-only stdio MCP.** The `chopper mcp-serve` subcommand and the `src/chopper/mcp/` package are permitted: a stdio-only JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon) exposing read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Specified in the architecture doc at [`technical_docs/chopper_description.md`](chopper_description.md) §3.8; the canonical scope-lock list lives in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) §1.1.
+
+**Rationale.** Reserving open-ended extension points (plugins, advisors, destructive MCP) invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The narrowed read-only MCP, by contrast, is a concrete, bounded surface with a fixed tool list and a single transport — the open-ended scope was the problem, not MCP itself.
 
 ### Q2 — Hand-edit preservation (CLOSED — not supported)
 

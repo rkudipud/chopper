@@ -49,7 +49,7 @@ If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used
 - Quote: "[exact text from architecture doc]"
 
 ### Subordinate Docs
-- [ ] ARCHITECTURE_PLAN.md §[X] — [relevant section]
+- [ ] ENGINEERING.md §[X] — [relevant section]
 - [ ] IMPLEMENTATION.md (parser section) §[X] — [if parser-related]
 - [ ] DIAGNOSTIC_CODES.md — [codes needed: XX-XX, XX-XX]
 - [ ] IMPLEMENTATION.md (pitfalls) — [pitfalls: P-XX, P-XX]

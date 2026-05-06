@@ -111,7 +111,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VI-02 | `top-level-tcl-only` | 5 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
 | — | — | — | — | — | **VI-03 through VI-05 reserved** | — |
 
-> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* This replaces a previously-proposed `VI-03 domain-hand-edited` code. See [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 closed decisions.
+> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* This replaces a previously-proposed `VI-03 domain-hand-edited` code. See [`ENGINEERING.md`](ENGINEERING.md) §16 closed decisions.
 
 ---
 
@@ -194,9 +194,9 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 - **Exit 0** — Does not fail the run. Reported in output unless suppressed. `--strict` does **not** rewrite severity; it only forces the CLI to exit 1 if any nominal `WARNING` is present. `VI-*` advisories never flip the exit code.
 - **Exit 1** — Validation or parse failure; output generation is blocked.
 - **Exit 2** — CLI / pre-pipeline fatal: `VE-11` conflicting options, `VE-13` unresolvable `--project` paths, `VE-21` missing domain + backup.
-- **Exit 3** — Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §6.2; the audit writer still emits `.chopper/internal-error.log`. `VE-16` also exits 3 as an internal-consistency assertion.
+- **Exit 3** — Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ENGINEERING.md`](ENGINEERING.md) §6.2; the audit writer still emits `.chopper/internal-error.log`. `VE-16` also exits 3 as an internal-consistency assertion.
 - **No retired codes.** The registry is compact. If a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
-- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope (see [`ARCHITECTURE_PLAN.md`](ARCHITECTURE_PLAN.md) §16 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
+- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope (see [`ENGINEERING.md`](ENGINEERING.md) §16 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
 - Every code constant must be defined in `src/chopper/core/diagnostics.py` before use in implementation.
 - Every code carries a kebab-case **`slug`** for human-facing display. The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.
 - When adding a new code: pick the lowest available reserved slot in the correct `<FAMILY><SEV>` band, assign a slug, update the registry table and the summary above, then implement the constant.

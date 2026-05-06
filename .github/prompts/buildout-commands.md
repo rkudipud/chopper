@@ -26,7 +26,7 @@ Begin Chopper Stage 0 implementation.
 1. Read `.github/agent_memory/chopper-buildout.md` if present; otherwise create it from `.github/agent_memory/README.md`
 2. Read technical_docs/chopper_description.md §5.12 and §8.1
 3. Create todo list for Stage 0 (core/ module)
-4. Implement frozen dataclasses per ARCHITECTURE_PLAN.md §9.1
+4. Implement frozen dataclasses per ENGINEERING.md §9.1
 5. Run `make check` after each file
 6. Update `.github/agent_memory/chopper-buildout.md`
 
@@ -155,7 +155,7 @@ git diff tests/golden/  # Must show NO changes
 | Document | Purpose | Check For |
 | --- | --- | --- |
 | `technical_docs/chopper_description.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, §x.x |
-| `technical_docs/ARCHITECTURE_PLAN.md` | How to build | Module structure, §9.x models |
+| `technical_docs/ENGINEERING.md` | How to build | Module structure, §9.x models |
 | `technical_docs/IMPLEMENTATION.md` (parser section) | Parser rules | State machine, §1.3.0 |
 | `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
 | `technical_docs/IMPLEMENTATION.md` (pitfalls) | Gotchas | P-xx pitfalls, TC-xx risks |
@@ -199,7 +199,7 @@ Run this after EVERY implementation:
 1. STOP coding
 2. Re-read the architecture doc section
 3. Check IMPLEMENTATION.md (pitfalls) for relevant pitfall
-4. Check ARCHITECTURE_PLAN.md for structural guidance
+4. Check ENGINEERING.md for structural guidance
 5. If still stuck: ask user for clarification
 ```
 

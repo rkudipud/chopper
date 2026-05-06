@@ -73,7 +73,7 @@
     "dedupe_bucket": {
       "type": "string",
       "default": "",
-      "description": "Optional namespace for multi-context emission. Empty string = default bucket, collapses duplicates globally. Services set distinct bucket values when they want multiple entries for the same (code, path, line_no, message). See ARCHITECTURE_PLAN.md §8.1."
+      "description": "Optional namespace for multi-context emission. Empty string = default bucket, collapses duplicates globally. Services set distinct bucket values when they want multiple entries for the same (code, path, line_no, message). See ENGINEERING.md §8.1."
     },
     "exit_code": {
       "type": ["integer", "null"],

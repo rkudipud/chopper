@@ -18,17 +18,17 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 
 | Forbidden concept | Exact identifiers that must not appear | Authoritative rejection |
 |---|---|---|
-| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §16 Q3 |
-| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §16 Q2 |
+| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q3 |
+| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q2 |
 | `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
-| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §8.2 rule 4; `--strict` is exit-code policy only |
-| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
-| MCP — destructive surface (closed) | `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code inside Chopper, HTTP/TCP/WebSocket MCP transports, MCP tool exposing `chopper.trim` or `chopper.cleanup`, MCP-driven filesystem mutation | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
-| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
+| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §8.2 rule 4; `--strict` is exit-code policy only |
+| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
+| MCP — destructive surface (closed) | `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code inside Chopper, HTTP/TCP/WebSocket MCP transports, MCP tool exposing `chopper.trim` or `chopper.cleanup`, MCP-driven filesystem mutation | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
+| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
 | `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
-| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §15 |
-| Networked services | HTTP server, IPC, message bus, daemon mode | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §2 |
-| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
+| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §15 |
+| Networked services | HTTP server, IPC, message bus, daemon mode | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §2 |
+| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
 
 If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
 
@@ -50,7 +50,7 @@ Everything else in the MCP row stays closed: no destructive tools over MCP, no p
 
 [`technical_docs/chopper_description.md`](../../technical_docs/chopper_description.md) is the **architecture doc**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
 
-- [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
+- [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
 - [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
 - [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/IMPLEMENTATION.md` (pitfalls)](../../technical_docs/IMPLEMENTATION.md), [`technical_docs/IMPLEMENTATION.md` (parser section)](../../technical_docs/IMPLEMENTATION.md) — all subordinate.
 - [`technical_docs/IMPLEMENTATION.md` Appendix B](../../technical_docs/IMPLEMENTATION.md) — records what was considered and *not* shipped; never a green light to build.

@@ -80,7 +80,7 @@ After completing significant work, update `.github/agent_memory/chopper-buildout
 2. Quote the relevant requirement
 3. Implement EXACTLY what it says — no more, no less
 4. If ambiguous, check subordinate docs in this order:
-   - `technical_docs/ARCHITECTURE_PLAN.md`
+   - `technical_docs/ENGINEERING.md`
    - `technical_docs/IMPLEMENTATION.md` (parser section)
    - `technical_docs/DIAGNOSTIC_CODES.md`
    - `technical_docs/IMPLEMENTATION.md` (pitfalls)
@@ -95,13 +95,13 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 
 | Forbidden | Why |
 |-----------|-----|
-| `LockPort`, `.chopper/.lock` | Rejected in ARCHITECTURE_PLAN.md §16 Q3 |
-| `--preserve-hand-edits` | Rejected in ARCHITECTURE_PLAN.md §16 Q2 |
+| `LockPort`, `.chopper/.lock` | Rejected in ENGINEERING.md §16 Q3 |
+| `--preserve-hand-edits` | Rejected in ENGINEERING.md §16 Q2 |
 | `chopper scan` subcommand | Only `validate`, `trim`, `cleanup`, `mcp-serve` exist |
 | `PluginHost`, `EntryPointPluginHost` | No plugin system in the current design |
 | `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.trim` over MCP | The MCP surface is **read-only** (see project.instructions.md §1.1); destructive tools and diagnostic-sink/progress adapters are still closed |
 | Networked MCP transports (TCP / HTTP / WebSocket / daemon) | `mcp-serve` is **stdio only** |
-| `advisor/`, AI advisor | Closed per ARCHITECTURE_PLAN.md §7, §16 Q1 |
+| `advisor/`, AI advisor | Closed per ENGINEERING.md §7, §16 Q1 |
 | `XE-`, `XW-`, `XI-` diagnostic codes | No X* family exists |
 | Thread pool, `--jobs N` | No parallelism inside Chopper |
 
@@ -231,7 +231,7 @@ Before marking any task done, verify all four:
 
 ### Stage 0: Foundation (`core/`)
 
-**Architecture Doc reference:** §5.12, §8.1, ARCHITECTURE_PLAN.md §9.1
+**Architecture Doc reference:** §5.12, §8.1, ENGINEERING.md §9.1
 
 **Deliverables:**
 - `src/chopper/core/models_common.py`, `models_parser.py`, `models_config.py`, `models_compiler.py`, `models_trimmer.py`, `models_audit.py` — Phase-owned frozen dataclasses: `ProcEntry`, `FileTreatment`, `CompiledManifest`, `InternalError`, etc.
@@ -395,7 +395,7 @@ make ci  # All 25 active scenarios must pass
 
 1. **Cite the architecture doc:** `# Per architecture doc §5.3, R1 L1 says...`
 2. **Check subordinate docs:**
-   - Architecture: `technical_docs/ARCHITECTURE_PLAN.md`
+   - Architecture: `technical_docs/ENGINEERING.md`
    - Parser: `technical_docs/IMPLEMENTATION.md` (parser section)
    - Diagnostics: `technical_docs/DIAGNOSTIC_CODES.md`
    - Risks: `technical_docs/IMPLEMENTATION.md` (pitfalls)

@@ -311,6 +311,6 @@ Tracked in [`../technical_docs/IMPLEMENTATION.md Appendix B`](../technical_docs/
 | [USER_MANUAL.md](USER_MANUAL.md) | Day-to-day operator reference |
 | [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md) | JSON authoring patterns and FAQ |
 | [../technical_docs/chopper_description.md](../technical_docs/chopper_description.md) | Full specification |
-| [../technical_docs/ARCHITECTURE_PLAN.md](../technical_docs/ARCHITECTURE_PLAN.md) | Architecture plan |
+| [../technical_docs/ENGINEERING.md](../technical_docs/ENGINEERING.md) | Architecture plan |
 | [../technical_docs/IMPLEMENTATION.md (parser section)](../technical_docs/IMPLEMENTATION.md) | Parser spec |
 | [../technical_docs/IMPLEMENTATION.md (pitfalls)](../technical_docs/IMPLEMENTATION.md) | Risks and pitfalls |
