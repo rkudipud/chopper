@@ -52,8 +52,8 @@ Everything else in the MCP row stays closed: no destructive tools over MCP, no p
 
 - [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
 - [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
-- [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/RISKS_AND_PITFALLS.md`](../../technical_docs/RISKS_AND_PITFALLS.md), [`technical_docs/TCL_PARSER_SPEC.md`](../../technical_docs/TCL_PARSER_SPEC.md) — all subordinate.
-- [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — records what was considered and *not* shipped; never a green light to build.
+- [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/IMPLEMENTATION.md` (pitfalls)](../../technical_docs/IMPLEMENTATION.md), [`technical_docs/IMPLEMENTATION.md` (parser section)](../../technical_docs/IMPLEMENTATION.md) — all subordinate.
+- [`technical_docs/IMPLEMENTATION.md` Appendix B](../../technical_docs/IMPLEMENTATION.md) — records what was considered and *not* shipped; never a green light to build.
 
 **When docs disagree, the architecture doc wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
 
@@ -70,7 +70,7 @@ No agent may invert this order. If you catch yourself writing code for a feature
 
 When you (or a reviewer, or a user comment) identify something Chopper "should maybe do", the correct action is **not** to implement it. It is not to stub it. It is not to reserve a seam for it. The correct action is:
 
-1. Open [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md).
+1. Open [`technical_docs/IMPLEMENTATION.md` Appendix B](../../technical_docs/IMPLEMENTATION.md).
 2. Add a new `FD-xx` entry at the next unused number in the appropriate category section.
 3. State: what the idea is, why it was considered, why it is not in the current design, and what would change in the architecture doc if it were adopted.
 4. Do **not** implement it. Do **not** stub it. Do **not** reserve a diagnostic code, port, or namespace for it.
@@ -99,7 +99,7 @@ Is this in technical_docs/chopper_description.md?
 ├── YES → Implement per the architecture doc. Cascade to subordinate docs if needed.
 └── NO  → Is it in §1 "Closed Decisions" above?
          ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
-         └── NO  → File an FD-xx stub in FUTURE_PLANNED_DEVELOPMENTS.md. Flag the user. Stop.
+         └── NO  → File an FD-xx stub in IMPLEMENTATION.md Appendix B. Flag the user. Stop.
 ```
 
 There is no fourth branch.
@@ -265,15 +265,15 @@ See [technical_docs/chopper_description.md](../../technical_docs/chopper_descrip
 All authoritative documentation lives under [technical_docs/](../../technical_docs/). Before implementing, consult these in order:
 
 1. **[technical_docs/chopper_description.md](../../technical_docs/chopper_description.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
-2. **[technical_docs/TCL_PARSER_SPEC.md](../../technical_docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
-3. **[technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
+2. **[technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
+3. **[technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
 4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
 5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples.
 
 Other key docs:
 
 - [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
-- [technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — Roadmap items explicitly out of v1 scope.
+- [technical_docs/IMPLEMENTATION.md Appendix B](../../technical_docs/IMPLEMENTATION.md) — Roadmap items explicitly out of v1 scope.
 - [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
 - [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
 
@@ -307,7 +307,7 @@ When this summary and the architecture doc disagree, the architecture doc (§5.1
 
 ### Parser — `src/chopper/parser/`
 
-High-risk area. See [technical_docs/TCL_PARSER_SPEC.md](../../technical_docs/TCL_PARSER_SPEC.md) and pitfalls P-01, P-02, P-03.
+High-risk area. See [technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md) and pitfalls P-01, P-02, P-03.
 
 - **P-01:** Quote context inside braced Tcl bodies → Only track quotes in non-braced words
 - **P-02:** Backslash line continuation → Count lines separately, don't physically join
@@ -418,7 +418,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 **New Implementation Task:**
 
 1. Read specification from [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for your phase and R1 merge rules
-2. Check [technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md) for your module's risks and pitfalls
+2. Check [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) for your module's risks and pitfalls
 3. Write tests first in `tests/unit/<module>/` or `tests/integration/`
 4. Reference shared models from the phase-owned `src/chopper/core/models_*.py` modules only
 5. Register diagnostics in [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) before use
@@ -426,7 +426,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 
 **When Stuck:**
 
-- Check [technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md) for your module
+- Check [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) for your module
 - Review test fixtures in `tests/fixtures/` — they exemplify expected behavior
 - Consult [technical_docs/chopper_description.md](../../technical_docs/chopper_description.md) for the phase contract and R1 rules
 - Search test files for similar patterns

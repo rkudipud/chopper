@@ -50,9 +50,9 @@ If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used
 
 ### Subordinate Docs
 - [ ] ARCHITECTURE_PLAN.md §[X] — [relevant section]
-- [ ] TCL_PARSER_SPEC.md §[X] — [if parser-related]
+- [ ] IMPLEMENTATION.md (parser section) §[X] — [if parser-related]
 - [ ] DIAGNOSTIC_CODES.md — [codes needed: XX-XX, XX-XX]
-- [ ] RISKS_AND_PITFALLS.md — [pitfalls: P-XX, P-XX]
+- [ ] IMPLEMENTATION.md (pitfalls) — [pitfalls: P-XX, P-XX]
 
 ### Scope Check
 - [ ] No forbidden concepts from Scope Lock
@@ -106,7 +106,7 @@ def parse_file(
 
 """Unit tests for parse_file service.
 
-Per architecture doc §5.2 and TCL_PARSER_SPEC.md §3.0.
+Per architecture doc §1.5.2 and IMPLEMENTATION.md (parser section) §1.3.0.
 Coverage target: 85% branch.
 """
 from __future__ import annotations
@@ -137,7 +137,7 @@ class TestParseFileBasic:
 
 
 class TestParseFileEdgeCases:
-    """Edge cases per TCL_PARSER_SPEC.md §3.3."""
+    """Edge cases per IMPLEMENTATION.md (parser section) §1.3.3."""
     
     @pytest.mark.parametrize("fixture", [
         "brace_in_string.tcl",
@@ -164,7 +164,7 @@ class TestParseFileEdgeCases:
 # src/chopper/parser/tokenizer.py
 """Tcl tokenizer state machine.
 
-Per TCL_PARSER_SPEC.md §3.0: State transitions for brace/quote tracking.
+Per IMPLEMENTATION.md (parser section) §1.3.0: State transitions for brace/quote tracking.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -173,7 +173,7 @@ from typing import Iterator
 
 
 class TokenState(Enum):
-    """Tokenizer state per TCL_PARSER_SPEC.md §3.0."""
+    """Tokenizer state per IMPLEMENTATION.md (parser section) §1.3.0."""
     NORMAL = auto()
     IN_BRACE = auto()
     IN_QUOTE = auto()
@@ -192,7 +192,7 @@ class Token:
 def tokenize(source: str) -> Iterator[Token]:
     """Tokenize Tcl source.
     
-    Per TCL_PARSER_SPEC.md §3.0:
+    Per IMPLEMENTATION.md (parser section) §1.3.0:
     - Track brace depth for block delimiting
     - DO NOT track quotes inside braces (P-01)
     - Handle backslash continuation (P-02)
@@ -317,7 +317,7 @@ def _is_valid_code(code: str) -> bool:
 **State Machine Implementation:**
 
 ```python
-# Per TCL_PARSER_SPEC.md §3.0
+# Per IMPLEMENTATION.md (parser section) §1.3.0
 
 class ParserState:
     """Parser state machine."""
@@ -535,7 +535,7 @@ After each stage milestone:
 
 1. **Read the failure message carefully**
 2. **Check if it's a spec misunderstanding** — re-read architecture doc section
-3. **Check if it's an edge case** — look in RISKS_AND_PITFALLS.md
+3. **Check if it's an edge case** — look in IMPLEMENTATION.md (pitfalls)
 4. **Fix the root cause**, not the symptom
 5. **Re-run full test suite** after fix
 

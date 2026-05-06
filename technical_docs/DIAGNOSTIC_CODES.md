@@ -142,7 +142,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 ## 5. Parse Errors — `PE-01` through `PE-10`
 
-> Parse errors (exit 1 when gated) block the file from being fully indexed. Per-file return-value contract: see [`TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1.
+> Parse errors (exit 1 when gated) block the file from being fully indexed. Per-file return-value contract: see [`technical_docs/IMPLEMENTATION.md` (parser section)](IMPLEMENTATION.md) §1.2.1.
 
 | Code | Slug | Source | Exit | Description | Recovery Hint | Parser spec § |
 | --- | --- | --- | --- | --- | --- | --- |

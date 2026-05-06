@@ -292,11 +292,11 @@ All JSON written with deterministic key order, UTF-8, and a trailing newline.
 ### Adding a capability
 
 > [!WARNING]
-> **Not allowed without a spec edit.** See `.github/instructions/project.instructions.md` §1 (“Closed Decisions”) and §2 (“Single Authority: The Architecture Doc”) for the scope-lock policy. Proposals go to [../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md](../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) as `FD-xx` entries.
+> **Not allowed without a spec edit.** See `.github/instructions/project.instructions.md` §1 (“Closed Decisions”) and §2 (“Single Authority: The Architecture Doc”) for the scope-lock policy. Proposals go to [../technical_docs/IMPLEMENTATION.md Appendix B](../technical_docs/IMPLEMENTATION.md) as `FD-xx` entries.
 
 ### Hot spots for future work
 
-Tracked in [`../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md):
+Tracked in [`../technical_docs/IMPLEMENTATION.md Appendix B`](../technical_docs/IMPLEMENTATION.md):
 
 - `FD-09` — optional parallelism (post-correctness)
 - `FD-10` — machine-readable CLI output (for GUI client)
@@ -312,5 +312,5 @@ Tracked in [`../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../technical_doc
 | [BEHAVIOR_GUIDE.md](BEHAVIOR_GUIDE.md) | JSON authoring patterns and FAQ |
 | [../technical_docs/chopper_description.md](../technical_docs/chopper_description.md) | Full specification |
 | [../technical_docs/ARCHITECTURE_PLAN.md](../technical_docs/ARCHITECTURE_PLAN.md) | Architecture plan |
-| [../technical_docs/TCL_PARSER_SPEC.md](../technical_docs/TCL_PARSER_SPEC.md) | Parser spec |
-| [../technical_docs/RISKS_AND_PITFALLS.md](../technical_docs/RISKS_AND_PITFALLS.md) | Risks and pitfalls |
+| [../technical_docs/IMPLEMENTATION.md (parser section)](../technical_docs/IMPLEMENTATION.md) | Parser spec |
+| [../technical_docs/IMPLEMENTATION.md (pitfalls)](../technical_docs/IMPLEMENTATION.md) | Risks and pitfalls |

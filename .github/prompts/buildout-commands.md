@@ -62,7 +62,7 @@ Pre-implementation:
 1. Ensure `.github/agent_memory/chopper-stage-builder.md` exists; if missing, create it from `.github/agent_memory/README.md`
 2. Read architecture doc section and quote requirements
 3. Check DIAGNOSTIC_CODES.md for needed codes
-4. Check RISKS_AND_PITFALLS.md for pitfalls P-XX
+4. Check IMPLEMENTATION.md (pitfalls) for pitfalls P-XX
 
 Implementation:
 1. Write test skeleton FIRST
@@ -156,9 +156,9 @@ git diff tests/golden/  # Must show NO changes
 | --- | --- | --- |
 | `technical_docs/chopper_description.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, §x.x |
 | `technical_docs/ARCHITECTURE_PLAN.md` | How to build | Module structure, §9.x models |
-| `technical_docs/TCL_PARSER_SPEC.md` | Parser rules | State machine, §3.0 |
+| `technical_docs/IMPLEMENTATION.md` (parser section) | Parser rules | State machine, §1.3.0 |
 | `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
-| `technical_docs/RISKS_AND_PITFALLS.md` | Gotchas | P-xx pitfalls, TC-xx risks |
+| `technical_docs/IMPLEMENTATION.md` (pitfalls) | Gotchas | P-xx pitfalls, TC-xx risks |
 | `technical_docs/IMPLEMENTATION_ROADMAP.md` | Build order | M1-M6 milestones |
 | `technical_docs/FINAL_HANDOFF_REVIEW.md` | Sign-off status | Critical findings, fixes |
 
@@ -185,7 +185,7 @@ Run this after EVERY implementation:
 
 ### Test Alignment
 - [ ] Tests verify spec behavior, not implementation
-- [ ] Edge cases from RISKS_AND_PITFALLS.md covered
+- [ ] Edge cases from IMPLEMENTATION.md (pitfalls) covered
 - [ ] Golden files test determinism, not specific values
 ```
 
@@ -198,7 +198,7 @@ Run this after EVERY implementation:
 ```text
 1. STOP coding
 2. Re-read the architecture doc section
-3. Check RISKS_AND_PITFALLS.md for relevant pitfall
+3. Check IMPLEMENTATION.md (pitfalls) for relevant pitfall
 4. Check ARCHITECTURE_PLAN.md for structural guidance
 5. If still stuck: ask user for clarification
 ```

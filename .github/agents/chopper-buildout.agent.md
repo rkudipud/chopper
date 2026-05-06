@@ -81,9 +81,9 @@ After completing significant work, update `.github/agent_memory/chopper-buildout
 3. Implement EXACTLY what it says — no more, no less
 4. If ambiguous, check subordinate docs in this order:
    - `technical_docs/ARCHITECTURE_PLAN.md`
-   - `technical_docs/TCL_PARSER_SPEC.md`
+   - `technical_docs/IMPLEMENTATION.md` (parser section)
    - `technical_docs/DIAGNOSTIC_CODES.md`
-   - `technical_docs/RISKS_AND_PITFALLS.md`
+   - `technical_docs/IMPLEMENTATION.md` (pitfalls)
 
 **When docs disagree:** The architecture doc wins. Fix the subordinate doc before proceeding.
 
@@ -120,7 +120,7 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 │  1. READ the architecture doc section for this task                     │
 │  2. QUOTE the specific requirement (FR-xx, §x.x)            │
 │  3. CHECK DIAGNOSTIC_CODES.md for any codes needed          │
-│  4. CHECK RISKS_AND_PITFALLS.md for relevant P-xx pitfalls  │
+│  4. CHECK IMPLEMENTATION.md (pitfalls) for relevant P-xx pitfalls  │
 │  5. VERIFY no scope-lock violations                          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -255,16 +255,16 @@ mypy src/chopper/core/ --strict
 
 ### Stage 1: Parser (`parser/`)
 
-**Architecture Doc reference:** §5.2, TCL_PARSER_SPEC.md §3.0
+**Architecture Doc reference:** §1.5.2, IMPLEMENTATION.md (parser section) §1.3.0
 
 **Deliverables:**
-- `src/chopper/parser/tokenizer.py` — State machine per TCL_PARSER_SPEC.md §3.0
+- `src/chopper/parser/tokenizer.py` — State machine per IMPLEMENTATION.md (parser section) §1.3.0
 - `src/chopper/parser/proc_extractor.py` — Extract `ProcEntry` with line spans
 - `src/chopper/parser/namespace_tracker.py` — LIFO namespace stack
 - `src/chopper/parser/call_extractor_body.py`, `call_extractor_*.py` — Unresolved call tokens and source references
 - `src/chopper/parser/service.py` — `parse_file() -> list[ProcEntry]`
 
-**Critical Pitfalls (from RISKS_AND_PITFALLS.md):**
+**Critical Pitfalls (from IMPLEMENTATION.md (pitfalls)):**
 - **P-01:** Quote context inside braced bodies — DO NOT track quotes in braces
 - **P-02:** Backslash line continuation — count lines separately
 - **P-03:** Namespace stack persistence — LIFO per block, pop on exit
@@ -396,9 +396,9 @@ make ci  # All 25 active scenarios must pass
 1. **Cite the architecture doc:** `# Per architecture doc §5.3, R1 L1 says...`
 2. **Check subordinate docs:**
    - Architecture: `technical_docs/ARCHITECTURE_PLAN.md`
-   - Parser: `technical_docs/TCL_PARSER_SPEC.md`
+   - Parser: `technical_docs/IMPLEMENTATION.md` (parser section)
    - Diagnostics: `technical_docs/DIAGNOSTIC_CODES.md`
-   - Risks: `technical_docs/RISKS_AND_PITFALLS.md`
+   - Risks: `technical_docs/IMPLEMENTATION.md` (pitfalls)
 3. **Verify no drift:** Does implementation match spec exactly?
 
 **After implementing:**

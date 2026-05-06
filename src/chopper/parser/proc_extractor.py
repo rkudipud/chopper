@@ -632,7 +632,7 @@ def _scan_dpa(
 def _scan_dpa_block_end(lines: list[str], dpa_start_0: int) -> int:
     """Return the last physical line belonging to the DPA command.
 
-    Per `TCL_PARSER_SPEC.md` §4.6, DPA metadata may span multiple physical
+    Per `technical_docs/IMPLEMENTATION.md` (parser section) §1.4.6, DPA metadata may span multiple physical
     lines via both trailing backslash continuations and brace-delimited option
     payloads such as ``-define_args { ... }``. Real production files often
     stop using trailing backslash continuations once the outer

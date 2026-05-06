@@ -31,7 +31,7 @@ options:
   --strict              Exit non-zero if any warning is present (does not rewrite severity)
 ```
 
-> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](FUTURE_PLANNED_DEVELOPMENTS.md#fd-10-machine-readable-cli-output). `--version` prints `chopper <version>` and exits 0; it is a top-level global flag and does not require a subcommand.
+> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A1. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as [`FD-10`](IMPLEMENTATION.md Appendix B#fd-10-machine-readable-cli-output). `--version` prints `chopper <version>` and exits 0; it is a top-level global flag and does not require a subcommand.
 
 ---
 

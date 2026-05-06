@@ -542,7 +542,7 @@ class ParseResult:
     index: Mapping[str, ProcEntry]       # canonical_name → entry
     # Canonical name format is fixed by contract: "<domain-relative-posix-path>::<proc_name>"
     # (for example, "common/helpers.tcl::foo"). Enforced at ParseResult construction;
-    # tests assert the format. See RISKS_AND_PITFALLS.md TC-02.
+    # tests assert the format. See IMPLEMENTATION.md (pitfalls) TC-02.
 
 @dataclass(frozen=True)
 class CompiledManifest:
@@ -631,7 +631,7 @@ class AuditManifest:
 |---|---|
 | `DomainStateService.run` | `(ctx: ChopperContext) -> DomainState` |
 | `ConfigService.run` | `(ctx: ChopperContext, state: DomainState) -> LoadedConfig` |
-| `ParserService.run` | `(ctx: ChopperContext, files: Sequence[Path], *, loaded: LoadedConfig | None = None) -> ParseResult` — wraps the pure `parse_file()` utility described in [`technical_docs/TCL_PARSER_SPEC.md`](TCL_PARSER_SPEC.md) §2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **O1 optimization:** when `loaded` is provided and `loaded.domain_file_cache` is non-empty (P1 walked the domain for glob expansion), the full-domain harvest phase filters the cache for `.tcl` files instead of re-walking the filesystem. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. **I/O-boundary contract:** paths flow through the pipeline in domain-relative form (models, diagnostics, audit artifacts), but `ctx.fs.read_text(...)` calls are made against `ctx.config.domain_root / path` — i.e. the parser absolutises only at the filesystem boundary. This keeps `LocalFS` (real disk) and `InMemoryFS` interchangeable without either adapter having to know what `domain_root` is. |
+| `ParserService.run` | `(ctx: ChopperContext, files: Sequence[Path], *, loaded: LoadedConfig | None = None) -> ParseResult` — wraps the pure `parse_file()` utility described in [`technical_docs/IMPLEMENTATION.md` (parser section)](IMPLEMENTATION.md) §1.2.1. The utility stays a small, callback-driven internal function (`on_diagnostic` forwards straight into `ctx.diag.emit(...)`); the service is what the orchestrator and other services actually depend on. Reading through `ctx.fs` (never `Path.read_text` directly) is the service's job — the utility takes already-decoded text. **O1 optimization:** when `loaded` is provided and `loaded.domain_file_cache` is non-empty (P1 walked the domain for glob expansion), the full-domain harvest phase filters the cache for `.tcl` files instead of re-walking the filesystem. **Path normalization contract:** `ParserService.run()` normalises every path in `files` to a domain-relative POSIX string before passing it to `parse_file()`. The canonical-name prefix in every `ProcEntry.canonical_name` and in every key of `ParseResult.index` is therefore always a domain-relative POSIX path (e.g. `"procs/core.tcl::setup"`). Neither absolute paths nor OS-native separators ever appear in the index. **I/O-boundary contract:** paths flow through the pipeline in domain-relative form (models, diagnostics, audit artifacts), but `ctx.fs.read_text(...)` calls are made against `ctx.config.domain_root / path` — i.e. the parser absolutises only at the filesystem boundary. This keeps `LocalFS` (real disk) and `InMemoryFS` interchangeable without either adapter having to know what `domain_root` is. |
 | `CompilerService.run` | `(ctx: ChopperContext, loaded: LoadedConfig, parsed: ParseResult) -> CompiledManifest` |
 | `TracerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, loaded: LoadedConfig | None = None) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, state: DomainState) -> TrimReport` |
@@ -718,7 +718,7 @@ def make_test_context(
 - **Diagnostic order is emission order.** Because v1 is single-threaded and phase order is fixed (§6.2), emission order is reproducible without any sort. `CollectingSink` preserves it verbatim (§8.3).
 - **Concurrency.** **Chopper is single-threaded. Period.** No thread pools, no `asyncio`, no `multiprocessing`, no background workers, no locks of any kind — not in the sink, not around `.chopper/`, not around the domain tree. Chopper is a single-user push-button tool: one operator runs it against one on-disk domain, it finishes, and it exits. If two operators race the same checkout, the second invocation will observe a half-written `DomainStateService` state and abort through normal diagnostics — that is the intended failure mode, not a bug to guard against with locking. This is a closed design decision, not a deferral.
 - **Memory envelope.** ≤1 GB domain → whole-file reads acceptable (architecture doc §11 NFR-06). No streaming.
-- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09).
+- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/IMPLEMENTATION.md` Appendix B](IMPLEMENTATION.md) §FD-09).
 
 ---
 
@@ -819,7 +819,7 @@ Policy: read each file as UTF-8. On `UnicodeDecodeError`, retry as Latin-1 and e
 
 ### Deferred (explicitly not v1)
 
-- Runtime optimization and per-phase budgets — deferred to [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](FUTURE_PLANNED_DEVELOPMENTS.md) §FD-09.
+- Runtime optimization and per-phase budgets — deferred to [`technical_docs/IMPLEMENTATION.md` Appendix B](IMPLEMENTATION.md) §FD-09.
 
 ---
 
