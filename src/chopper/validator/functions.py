@@ -366,24 +366,26 @@ def _check_manifest_vs_trim(
                 expected_bytes=outcome.bytes_out,
             )
 
-        expected_kept = expected_keep_by_file.get(path, frozenset())
-        actual_kept = frozenset(outcome.procs_kept)
-        if actual_kept != expected_kept:
-            missing = tuple(sorted(expected_kept - actual_kept))
-            unexpected = tuple(sorted(actual_kept - expected_kept))
-            _emit_trim_output_mismatch(
-                ctx,
-                path=path,
-                message=(
-                    "Manifest/TrimReport proc-set mismatch for "
-                    f"{path.as_posix()!r}; missing={list(missing)!r}; "
-                    f"unexpected={list(unexpected)!r}"
-                ),
-                reason="manifest-procs-mismatch",
-                expected_bytes=outcome.bytes_out,
-            )
+        if expected_treatment is FileTreatment.PROC_TRIM:
+            expected_kept = expected_keep_by_file.get(path, frozenset())
+            actual_kept = frozenset(outcome.procs_kept)
+            if actual_kept != expected_kept:
+                missing = tuple(sorted(expected_kept - actual_kept))
+                unexpected = tuple(sorted(actual_kept - expected_kept))
+                _emit_trim_output_mismatch(
+                    ctx,
+                    path=path,
+                    message=(
+                        "Manifest/TrimReport proc-set mismatch for "
+                        f"{path.as_posix()!r}; missing={list(missing)!r}; "
+                        f"unexpected={list(unexpected)!r}"
+                    ),
+                    reason="manifest-procs-mismatch",
+                    expected_bytes=outcome.bytes_out,
+                )
 
-    for path in sorted(set(outcomes_by_path) - set(expected_treatments), key=lambda p: p.as_posix()):
+    unexpected_paths = sorted(set(outcomes_by_path) - set(expected_treatments), key=lambda p: p.as_posix())
+    for path in unexpected_paths:
         outcome = outcomes_by_path[path]
         _emit_trim_output_mismatch(
             ctx,
@@ -413,9 +415,8 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
         return
 
     for outcome in trim_report.outcomes:
-        target = ctx.config.domain_root / outcome.path
-
         if outcome.treatment is FileTreatment.REMOVE:
+            target = ctx.config.domain_root / outcome.path
             if ctx.fs.exists(target):
                 _emit_trim_output_mismatch(
                     ctx,
@@ -429,6 +430,7 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
                 )
             continue
 
+        target = ctx.config.domain_root / outcome.path
         if not ctx.fs.exists(target):
             _emit_trim_output_mismatch(
                 ctx,
@@ -471,18 +473,38 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
             )
             continue
 
-        if st.size != outcome.bytes_out:
+        if outcome.treatment is FileTreatment.PROC_TRIM:
+            logical_size = _logical_text_size(ctx, target)
+            actual_size = logical_size if logical_size is not None else st.size
+        else:
+            actual_size = st.size
+        if actual_size != outcome.bytes_out:
             _emit_trim_output_mismatch(
                 ctx,
                 path=outcome.path,
                 message=(
                     f"Trim report recorded {outcome.bytes_out} bytes for "
-                    f"{outcome.path.as_posix()!r}, but the rebuilt domain has {st.size}"
+                    f"{outcome.path.as_posix()!r}, but the rebuilt domain has {actual_size}"
                 ),
                 reason="size-mismatch",
                 expected_bytes=outcome.bytes_out,
-                actual_bytes=st.size,
+                actual_bytes=actual_size,
             )
+
+
+def _logical_text_size(ctx: ChopperContext, path: Path) -> int | None:
+    """Return UTF-8 logical payload size for text files, else ``None``.
+
+    On Windows, ``write_text`` may persist CRLF bytes on disk even when the
+    in-memory transformed payload used LF. Comparing ``stat().size`` directly
+    against trimmer-recorded ``bytes_out`` would then false-positive.
+    """
+
+    try:
+        text = ctx.fs.read_text(path)
+    except (OSError, UnicodeDecodeError):
+        return None
+    return len(text.encode("utf-8"))
 
 
 def _emit_trim_output_mismatch(

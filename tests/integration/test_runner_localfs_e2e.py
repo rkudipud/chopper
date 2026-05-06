@@ -100,6 +100,7 @@ def test_runner_localfs_dry_run_manifest_matches_live_trim_outputs_1_to_1(tmp_pa
     live_result = ChopperRunner().run(live_ctx, command="trim")
     live_codes = [d.code for d in live_sink.snapshot()]
     assert live_result.exit_code == 0, f"live trim failed; diagnostics: {live_codes}"
+    assert "VW-10" not in live_codes, f"live trim reported output mismatch: {live_codes}"
 
     for rel_path, treatment in expected_manifest.file_decisions.items():
         if treatment is FileTreatment.GENERATED:

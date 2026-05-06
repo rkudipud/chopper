@@ -307,7 +307,6 @@ def test_validate_post_ignores_escaped_braces() -> None:
 
 
 def test_validate_post_emits_vw10_when_live_output_missing() -> None:
-    manifest = _make_manifest(files={Path("copied.tcl"): FileTreatment.FULL_COPY})
     outcome = FileOutcome(
         path=Path("copied.tcl"),
         treatment=FileTreatment.FULL_COPY,
@@ -317,7 +316,7 @@ def test_validate_post_emits_vw10_when_live_output_missing() -> None:
         procs_removed=(),
     )
     ctx = _ctx()
-    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    validate_post(ctx, _make_manifest(), _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
     assert "VW-10" in _codes(ctx)
 
 
@@ -325,21 +324,18 @@ def test_validate_post_emits_vw10_when_live_output_size_mismatches() -> None:
     fs = InMemoryFS()
     rel = Path("trimmed.tcl")
     fs.write_text(DOMAIN / rel, "short\n")
-    keep = "trimmed.tcl::keep_me"
-    manifest = _make_manifest(
-        files={rel: FileTreatment.PROC_TRIM},
-        procs={keep: ProcDecision(canonical_name=keep, source_file=rel, selection_source="base:procedures.include")},
-    )
     outcome = FileOutcome(
         path=rel,
         treatment=FileTreatment.PROC_TRIM,
         bytes_in=20,
         bytes_out=99,
-        procs_kept=(keep,),
+        procs_kept=("trimmed.tcl::keep_me",),
         procs_removed=("trimmed.tcl::drop_me",),
     )
     ctx = _ctx(fs=fs)
-    validate_post(ctx, manifest, _empty_graph(), rewritten=(DOMAIN / rel,), trim_report=_make_trim_report(outcome))
+    validate_post(
+        ctx, _make_manifest(), _empty_graph(), rewritten=(DOMAIN / rel,), trim_report=_make_trim_report(outcome)
+    )
     assert "VW-10" in _codes(ctx)
 
 
@@ -433,6 +429,23 @@ def test_validate_post_emits_vw10_when_manifest_proc_set_mismatches_trim_report(
     )
     ctx = _ctx()
     validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_removed_file_still_present() -> None:
+    fs = InMemoryFS()
+    rel = Path("should_be_removed.tcl")
+    fs.write_text(DOMAIN / rel, "proc keep {} { return ok }\n")
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.REMOVE,
+        bytes_in=10,
+        bytes_out=0,
+        procs_kept=(),
+        procs_removed=(),
+    )
+    ctx = _ctx(fs=fs)
+    validate_post(ctx, _make_manifest(), _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
     assert "VW-10" in _codes(ctx)
 
 
