@@ -17,7 +17,7 @@ What this module guards:
 3. **BFS frontier determinism.** Given a random call graph, the BFS
    traversal order is purely a function of the *set* of seeds + edges,
    not of their input ordering. This matches the contract in architecture doc §5.4
-   and TCL_PARSER_SPEC §10.1: *"frontier sorted lexicographically at
+   and IMPLEMENTATION.md (parser section) §1.8.5.2: *"frontier sorted lexicographically at
    each step"*.
 
 The tests deliberately stay at the pure-function level — no
@@ -114,8 +114,8 @@ def test_dump_model_is_insertion_order_independent(pairs: list[tuple[str, int]])
 # 3. BFS determinism — pure property test over a call-graph shape.
 # ---------------------------------------------------------------------------
 #
-# Mirrors the shape the tracer uses (architecture doc §1.5.5, TCL_PARSER_SPEC §10.1):
-# seeds + adjacency lists. ``bfs_visit`` below is the same algorithm
+# Mirrors the shape the tracer uses (architecture doc §1.5.5, IMPLEMENTATION.md
+# (parser section) §1.8.5.2): seeds + adjacency lists. ``bfs_visit`` below is the same algorithm
 # (frontier sorted lex at each step, visited set dedupes). The property
 # asserts that shuffling the input ordering of seeds and of each
 # adjacency list produces the same visit sequence.

@@ -257,7 +257,7 @@ class TestEdgeCases:
         assert ("b", 2, True) in words
 
     def test_semicolon_inside_braces_still_emits_token(self) -> None:
-        # TCL_PARSER_SPEC §1.3.0 + §1.3.4 rule 3: brace-delimited blocks are
+        # IMPLEMENTATION.md (parser section) §1.3.0 + §1.3.4 rule 3: brace-delimited blocks are
         # treated as scripts. `;` inside braces is a command terminator
         # and `#` at the resulting cmd-pos activates a comment.
         r = tokenize("proc f {} { a ; b }")

@@ -757,7 +757,7 @@ def _make_proc(
 
 
 class TestProcEntryCanonicalName:
-    """TCL_PARSER_SPEC §1.4.3.1 canonical-name test vectors."""
+    """IMPLEMENTATION.md (parser section) §1.4.3.1 canonical-name test vectors."""
 
     @pytest.mark.parametrize(
         ("file_path", "qualified_name", "expected"),
