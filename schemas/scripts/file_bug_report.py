@@ -55,6 +55,7 @@ REQUIRED_FIELDS = (
 )
 
 BUG_LABEL = "bug"
+BUG_ASSIGNEES = "rkudipud,@me"
 
 
 def parse_args() -> argparse.Namespace:
@@ -230,6 +231,8 @@ def create_issue(repo: str, title: str, body_path: Path) -> str:
             str(body_path),
             "--label",
             BUG_LABEL,
+            "--assignee",
+            BUG_ASSIGNEES,
         ],
         capture_output=True,
         text=True,

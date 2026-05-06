@@ -2,6 +2,7 @@ name: Bug Report
 description: Report incorrect behavior, a crash, or unexpected output from Chopper.
 title: "[Bug] "
 labels: ["bug"]
+assignees: ["rkudipud"]
 body:
   - type: markdown
     attributes:

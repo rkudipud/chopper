@@ -88,6 +88,10 @@ O1 cache domain walk and O2 cache short_to_canonical are implemented. O3 sort-on
 
 - None pending. Await next task.
 
+## Recent Repo Automation Work (2026-05-05)
+
+- Bug issue assignment now covers both creation paths. `.github/ISSUE_TEMPLATE/bug_report.yml` statically assigns `rkudipud`; `schemas/scripts/file_bug_report.py` now passes `--assignee rkudipud,@me` to `gh issue create`; and `.github/workflows/assign-bug-issues.yml` assigns `rkudipud` plus the GitHub issue opener for newly opened `bug` issues, with fallback to `rkudipud` only when the opener is not assignable.
+
 ## Open Questions
 
 - None.

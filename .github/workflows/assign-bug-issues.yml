@@ -1,0 +1,48 @@
+name: Assign bug issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign rkudipud and reporter for bug issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = (issue.labels || []).map((label) => label.name);
+            if (!labels.includes('bug')) {
+              core.info('Issue is not labeled bug; skipping assignment.');
+              return;
+            }
+
+            const ownerAssignee = 'rkudipud';
+            const reporterAssignee = issue.user?.login;
+            const assignees = [...new Set([ownerAssignee, reporterAssignee].filter(Boolean))];
+
+            try {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                assignees,
+              });
+            } catch (error) {
+              if (reporterAssignee && reporterAssignee !== ownerAssignee) {
+                core.warning(`Could not assign reporter ${reporterAssignee}; retrying with ${ownerAssignee} only. ${error.message}`);
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  assignees: [ownerAssignee],
+                });
+                return;
+              }
+              throw error;
+            }
