@@ -123,6 +123,58 @@ def test_runner_localfs_dry_run_manifest_matches_live_trim_outputs_1_to_1(tmp_pa
         )
 
 
+def test_runner_localfs_live_trim_formats_full_copy_proc_trim_and_generated_tcl(tmp_path: Path) -> None:
+    """P5c formats every emitted Tcl output before P6 validates byte counts."""
+
+    domain = tmp_path / "format_domain"
+    (domain / "jsons").mkdir(parents=True)
+    (domain / "full.tcl").write_text("proc copied {} {\nputs copied\n}\n", encoding="utf-8")
+    (domain / "trim.tcl").write_text(
+        "proc keep {} {\nputs keep\n}\n\nproc drop {} {\nputs drop\n}\n",
+        encoding="utf-8",
+    )
+    (domain / "jsons" / "base.json").write_text(
+        json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "format_domain",
+                "files": {"include": ["full.tcl"]},
+                "procedures": {"include": [{"file": "trim.tcl", "procs": ["keep"]}]},
+                "stages": [
+                    {
+                        "name": "stage",
+                        "load_from": "",
+                        "steps": ["if {$ready} {", "puts ready", "}"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    ctx, sink = _make_ctx(domain, dry_run=False)
+    result = ChopperRunner().run(ctx, command="trim")
+
+    codes = [d.code for d in sink.snapshot()]
+    assert result.exit_code == 0, f"live trim failed; diagnostics: {codes}"
+    assert "VW-10" not in codes, f"formatting byte counts drifted from P6 expectations: {codes}"
+    assert result.trim_report is not None
+
+    full_text = (domain / "full.tcl").read_text(encoding="utf-8")
+    trim_text = (domain / "trim.tcl").read_text(encoding="utf-8")
+    stage_text = (domain / "stage.tcl").read_text(encoding="utf-8")
+    assert full_text == "proc copied {} {\n    puts copied\n}\n"
+    assert "proc keep" in trim_text
+    assert "    puts keep\n" in trim_text
+    assert "proc drop" not in trim_text
+    assert stage_text == "# Chopper-generated stage: stage\nif {$ready} {\n    puts ready\n}\n"
+    assert result.generated_artifacts[0].content == stage_text
+
+    outcomes = {outcome.path.as_posix(): outcome for outcome in result.trim_report.outcomes}
+    assert outcomes["full.tcl"].bytes_out == len(full_text.encode("utf-8"))
+    assert outcomes["trim.tcl"].bytes_out == len(trim_text.encode("utf-8"))
+
+
 # ---------------------------------------------------------------------------
 # stages_domain — F3 generate_stack dry-run (manifest shape)
 # ---------------------------------------------------------------------------

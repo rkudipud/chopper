@@ -788,16 +788,17 @@ fs.write_text(domain_root / rel, text)
 
 That works for ordinary Tcl and simple text files, but it explodes on domain artifacts such as `.sn.gz`, compressed reports, binary sidecars, and other opaque payloads that are legitimately included by F1. The immediate symptom is a `UnicodeDecodeError` during P5 `FULL_COPY`, after the rebuild has already started. Chopper then leaves a half-rebuilt `domain/` in place by design (P-13), so a bad full-copy path turns one file-handling bug into a visible mid-run failure.
 
-**Correct Behavior:** `FULL_COPY` is an opaque file-copy operation, not a text rewrite. Chopper must preserve file bytes exactly and carry the file forward without attempting to interpret encoding, normalize line endings, or otherwise reserialize content. In P5, content reads are reserved to the Tcl-specific `PROC_TRIM` path only.
+**Correct Behavior:** `FULL_COPY` is an opaque file-copy operation for non-Tcl files. Chopper must preserve non-Tcl bytes exactly and carry those files forward without attempting to interpret encoding, normalize line endings, or otherwise reserialize content. Surviving `.tcl` files are the explicit exception: they are copied first, then P5c applies the deterministic Tcl indentation-normalization pass before P6 validation.
 
 **Implementation Requirement:**
 - `FULL_COPY` must use a filesystem-level single-file copy operation from `<domain>_backup/` to `domain/`.
-- The copy must preserve file bytes exactly. No UTF-8 decode, no newline normalization, no "best effort" text fallback.
+- For non-Tcl files, the copy must preserve file bytes exactly. No UTF-8 decode, no newline normalization, no "best effort" text fallback.
 - The live filesystem adapter must preserve source mode bits on the copied file.
 - `REMOVE` byte-accounting must come from metadata (`stat().size` or equivalent), not by reading file contents.
-- `PROC_TRIM` is the only P5 path that may read file contents, and only for `.tcl` files selected for proc trimming.
+- `PROC_TRIM` is the only P5a path that may read file contents for proc-body deletion, and only for `.tcl` files selected for proc trimming.
+- P5c may read and rewrite every surviving/generated `.tcl` output for indentation normalization, including `.tcl` files whose manifest treatment is `FULL_COPY` or `GENERATED`. It must update `TrimReport.bytes_out` for `FULL_COPY` and `PROC_TRIM` `.tcl` outcomes so P6 compares against final normalized bytes.
 
-**Why It Matters:** F1 is intentionally file-type agnostic. Real EDA domains contain Tcl next to Perl, Python, gzip-compressed artifacts, scheduler payloads, reports, and tool-generated sidecars. If `FULL_COPY` assumes "surviving file == decodable text", trims fail on legitimate inputs and the user gets a broken rebuild from an avoidable implementation mistake.
+**Why It Matters:** F1 is intentionally file-type agnostic. Real EDA domains contain Tcl next to Perl, Python, gzip-compressed artifacts, scheduler payloads, reports, and tool-generated sidecars. If `FULL_COPY` assumes "surviving file == decodable text" for every extension, trims fail on legitimate inputs and the user gets a broken rebuild from an avoidable implementation mistake. Tcl is handled as a deliberate, extension-scoped readability pass after the opaque copy has already succeeded.
 
 **Tests:**
 - `tests/unit/adapters/test_fs_local.py::test_copy_file_preserves_opaque_bytes`

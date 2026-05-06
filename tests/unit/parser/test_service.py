@@ -477,9 +477,10 @@ class TestRealWorldScenarios:
         assert codes == [], f"CRLF + DPA continuation regressed: {codes}"
         proc = next(iter(result.index.values()))
         assert proc.short_name == "match_nd_to_1d"
-        # DPA range must cover lines 5–8 of the CRLF source (1-indexed).
+        # DPA range must cover lines 5–9 of the CRLF source (1-indexed),
+        # including the physical line where the -define_args brace closes.
         assert proc.dpa_start_line == 5
-        assert proc.dpa_end_line == 8
+        assert proc.dpa_end_line == 9
 
     def test_column_zero_proc_body_parses_as_single_proc(self) -> None:
         """Unindented proc body — brace balance alone must bound the proc.

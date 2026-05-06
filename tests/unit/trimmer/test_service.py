@@ -485,17 +485,17 @@ def test_prepare_workspace_oserror_emits_ve23_and_returns_interrupted() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _WriteFailingFS(InMemoryFS):
-    """FS adapter that allows read but fails on write_text with OSError."""
+class _CopyFailingFS(InMemoryFS):
+    """FS adapter that allows metadata reads but fails on copy_file."""
 
-    def write_text(self, path: Path, content: str, *, encoding: str = "utf-8") -> None:  # type: ignore[override]
+    def copy_file(self, src: Path, dst: Path) -> None:
         raise OSError("disk full")
 
 
 def test_dispatch_oserror_emits_ve25_and_halts() -> None:
     # Case 3 (backup exists; no domain) — avoids the prep rename that
-    # _WriteFailingFS doesn't override.
-    fs = _WriteFailingFS({BACKUP / "a.tcl": "hi\n"})
+    # _CopyFailingFS doesn't override.
+    fs = _CopyFailingFS({BACKUP / "a.tcl": "hi\n"})
     ctx, sink = make_ctx(fs=fs)
     manifest = CompiledManifest(
         file_decisions={Path("a.tcl"): FileTreatment.FULL_COPY},

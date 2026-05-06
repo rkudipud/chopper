@@ -501,12 +501,12 @@ F1 performs whole-file trimming via `files.include` and `files.exclude` in base 
 | **Input unit** | Literal file path or glob pattern |
 | **Output unit** | Whole file copied or removed |
 | **File-type scope** | **All file types** — Tcl, Perl, Python, shell, config, and any other file under the domain. F1 is fully file-type agnostic. |
-| **Write semantics** | `FULL_COPY` is an opaque byte-preserving copy from `<domain>_backup/` into the rebuilt `domain/` tree. Chopper does not decode, normalize, or rewrite file contents on this path. |
+| **Write semantics** | `FULL_COPY` first copies bytes from `<domain>_backup/` into the rebuilt `domain/` tree. Non-Tcl files remain opaque and byte-preserved; surviving `.tcl` files are then indentation-normalized by the P5c Tcl formatting pass before P6 validation. |
 | **Best for** | Tcl scripts without shared proc libraries, configs, stack files, hooks, Perl/Python/csh |
 
 > **F1 is file-type agnostic.** `files.include` and `files.exclude` glob patterns match every file under the domain regardless of extension. Non-Tcl files (`.py`, `.pl`, `.csh`, config, etc.) receive a `FULL_COPY` or `REMOVE` treatment decision through F1 file-level trimming. They are never parsed by P2 (OOS-01) and are therefore never eligible for F2 proc-level trimming, but they participate in F1 copy/remove decisions identically to `.tcl` files. Glob-matched non-Tcl files enter the manifest universe directly from the compiler's universe-construction step, not from the parser output.
 
-> **F1 does not text-rewrite surviving files.** When F1 keeps a file as `FULL_COPY`, P5 copies it verbatim from backup to output. This rule applies equally to text files and opaque artifacts such as compressed reports, binary payloads, and vendor sidecar files. The F1 contract is about survival, not reinterpretation.
+> **F1 keeps non-Tcl files opaque.** When F1 keeps a non-Tcl file as `FULL_COPY`, P5 copies it verbatim from backup to output. Opaque artifacts such as compressed reports, binary payloads, and vendor sidecar files are never decoded or normalized. Surviving `.tcl` files are the explicit exception: they are copied first, then rewritten by the P5c indentation-normalization pass so all emitted Tcl has consistent leading whitespace.
 
 **Glob patterns** are supported in `files.include` and `files.exclude` only. Three special characters are recognized:
 
@@ -531,7 +531,7 @@ F1 performs whole-file trimming via `files.include` and `files.exclude` in base 
 - Wildcard-expanded includes are pruned by matching `files.exclude` entries.
 - Glob patterns match **all file types** — `.tcl`, `.py`, `.pl`, `.csh`, and any other extension. F1 is file-type agnostic; extension filtering is never applied during glob expansion.
 - Non-Tcl files matched by a glob receive `FULL_COPY` or `REMOVE` treatment (F1). They are excluded from P2 parsing (OOS-01) and are therefore never eligible for F2 proc-level trimming.
-- `FULL_COPY` is a byte-preserving file copy. P5 must not decode file contents, normalize newlines, or otherwise treat the file as text on the F1 path.
+- `FULL_COPY` is byte-preserving for non-Tcl files. `.tcl` files that survive as `FULL_COPY` are copied first and then indentation-normalized by P5c; the `TrimReport` records the final normalized byte count so P6 does not report a false `VW-10` size mismatch.
 - When a glob pattern expands to zero files it is silently ignored.
 - All expansions are normalized, deduplicated, and sorted lexicographically before compilation.
 - Patterns are case-sensitive.
@@ -545,7 +545,7 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 |---|---|
 | **Input unit** | `{ file, procs[] }` — exact file path and proc name list |
 | **Output unit** | Original Tcl file copied, unwanted proc definitions deleted |
-| **File-type scope** | Tcl files only. F2 is the only trimming mode that rewrites file contents. |
+| **File-type scope** | Tcl files only. F2 is the only trimming mode that deletes proc bodies; P5c may subsequently normalize indentation for any surviving `.tcl` output. |
 | **Best for** | `*_procs.tcl`, shared utility proc files, rule libraries |
 
 **`procEntry` structure:**
@@ -564,7 +564,7 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 - An entry with an empty `procs` array (`"procs": []`) is a **hard validation error**. Use `files.include` to keep a whole file.
 - Proc names in `procs` are the short names as authored in the file; Chopper resolves canonical form (`file.tcl::qualified_name`) internally.
 - Only `.tcl` files participate in F2. If a file must survive unchanged, even when it contains Tcl-adjacent text, the correct surface is F1 `files.include`, not F2.
-- In P5, `PROC_TRIM` is the only path that reads file contents for rewriting, and it does so only for Tcl files selected for proc trimming.
+- In P5a, `PROC_TRIM` is the only path that reads file contents for proc-body deletion, and it does so only for Tcl files selected for proc trimming. P5c later reads every surviving/generated `.tcl` output for indentation normalization.
 - Tracing is default-on: explicitly included procs are expanded transitively for diagnostics and call-tree reporting (PI+), but only explicitly listed procs survive in the trimmed output. See R3.
 
 ### 3.6 F3 — Run-File Generation
@@ -1208,6 +1208,7 @@ chopper trim --dry-run --project configs/project_abc.json
    ▼
   P5  Build output             copy surviving files from backup; proc-delete unwanted
    │                           definitions from PROC_TRIM files; generate F3 stage scripts;
+   │                           normalize indentation for every surviving/generated `.tcl`;
    │                           write directly into rebuilt domain/  [NO DOMAIN WRITES in --dry-run]
    │
    ▼
@@ -1278,10 +1279,12 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 #### P5 — Build output (skipped under `--dry-run`)
 
 - For each manifest entry:
-  - `FULL_COPY` → copy the file verbatim, byte-for-byte, from the backup into the rebuilt `domain/` tree. This path does not decode content, normalize line endings, or reinterpret the file as text.
+  - `FULL_COPY` → copy the file from backup into the rebuilt `domain/` tree. Non-Tcl files remain byte-for-byte opaque. `.tcl` files are copied first and then participate in the P5c indentation-normalization pass.
   - `PROC_TRIM` → for `.tcl` manifest entries only, read the file from backup, delete the line spans of every proc not in `surviving_procs(F)`, rewrite directly into the rebuilt `domain/` tree.
   - `GENERATED` → run the F3 generator (`flow_actions` is authoritative for ordering here).
   - `REMOVE` → record the omission; do not write or content-read the file during P5.
+- After P5a/P5b writes complete, P5c indentation-normalizes every emitted `.tcl` file whose manifest treatment is `FULL_COPY`, `PROC_TRIM`, or `GENERATED`. The formatter mirrors the legacy Perl brace-driven logic: strip each line's leading whitespace, adjust a running four-space indent from unescaped `{` / `}` characters, outdent lines whose first structural token closes a block, and half-outdent `topology:`, `interface:`, `constraint:`, `action:`, `end`, and `pattern <name>` marker lines. P5c is skipped under `--dry-run`.
+- P5c updates the live `TrimReport` byte counts for `FULL_COPY` and `PROC_TRIM` `.tcl` outcomes after formatting. This is required because P6 compares rebuilt-domain bytes against the final `TrimReport`; recording pre-format byte counts would correctly trigger `VW-10` size mismatches.
 - Write `.chopper/trim_report.json` and `trim_report.txt` describing every file and proc operation and the diagnostics correlated with each.
 - Owner: `trimmer/` + `generators/`.
 - Output: the rebuilt `domain/` tree plus the trim-report artifacts. If P5 fails mid-run, the partially rebuilt `domain/` is left in place and the intact `<domain>_backup/` is the recovery source for the next invocation.
@@ -1289,7 +1292,7 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 #### P6 — Post-trim validate
 
 - Phase 2 validation runs against the rebuilt output (or, under `--dry-run`, against the synthetic trim plan):
-  - under a live trim: brace balance across every rewritten file,
+  - under a live trim: brace balance across every `.tcl` file rewritten or indentation-normalized during P5,
   - dangling proc references (every call target in a surviving file must resolve to a surviving proc or an accepted external such as a vendor/Tcl built-in),
   - missing `source` / `iproc_source` targets (must resolve to a surviving file or an accepted external).
 - Emit `VE-*` / `VW-*`; `--strict` changes the final process exit code if any warning is present, but does **not** rewrite diagnostic severity.
@@ -1972,7 +1975,7 @@ Both modes execute the same eight-phase pipeline. The only difference is which p
 | P3 Compile selections | Executes | Executes |
 | P4 Trace dependencies | Executes | Executes |
 | P5 Build output | **Writes directly to `<domain>/`** | **Skipped** |
-| P6 Post-trim validate | Executes against the rewritten files in `<domain>/` | Executes against the resolved sets only (manifest-derivable checks); filesystem re-read checks are skipped |
+| P6 Post-trim validate | Executes against the final rewritten/normalized `.tcl` files in `<domain>/` | Executes against the resolved sets only (manifest-derivable checks); filesystem re-read checks are skipped |
 | P7 Finalize & audit | Writes `.chopper/` artifacts | Writes `.chopper/` artifacts (reports only; no domain writes) |
 
 **Dry-run P6 scope.** Because no file is rewritten in dry-run, brace-balance and other filesystem-dependent checks (`VE-16`, `VE-26`, `VW-10`) cannot run. P6 under `--dry-run` runs only the manifest-derivable checks: `VW-05 dangling-proc-call`, `VW-06 source-file-removed`, `VW-14 step-file-missing`, `VW-15 step-proc-missing`, `VW-16 step-source-missing`, `VW-17 external-reference`. All other P6 behavior is unchanged.
@@ -1990,9 +1993,9 @@ Chopper has two validation phases that run within the pipeline:
 | Phase | When | Service | Input | What it checks |
 |---|---|---|---|---|
 | **Phase 1** (within P1) | Pre-trim | `validate_pre(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, cross-source veto detection |
-| **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, graph, rewritten_paths, trim_report=None)` | `CompiledManifest` + `DependencyGraph` + sequence of paths the trimmer actually rewrote + optional live `TrimReport` | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); when a live `TrimReport` is present, first reconciles `CompiledManifest` vs `TrimReport` path/treatment/proc-set expectations, then verifies rebuilt-domain filesystem reality (removed files absent; surviving outputs present, file-typed, and byte-count aligned), then re-parses each rewritten `PROC_TRIM` file to confirm its surviving canonical proc set matches the expected set (`VW-10`); reads the P4 dependency graph to find surviving procs whose resolved calls or `source`/`iproc_source` edges point into trimmed-away targets (`VW-05`, `VW-06`); classifies F3 step tokens against the manifest for cross-validate (`VW-14`–`VW-17`) |
+| **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, graph, rewritten_paths, trim_report=None)` | `CompiledManifest` + `DependencyGraph` + sequence of final `.tcl` paths rewritten or indentation-normalized during P5 + optional live `TrimReport` | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); when a live `TrimReport` is present, first reconciles `CompiledManifest` vs `TrimReport` path/treatment/proc-set expectations, then verifies rebuilt-domain filesystem reality (removed files absent; surviving outputs present, file-typed, and byte-count aligned), then re-parses each rewritten `PROC_TRIM` file to confirm its surviving canonical proc set matches the expected set (`VW-10`); reads the P4 dependency graph to find surviving procs whose resolved calls or `source`/`iproc_source` edges point into trimmed-away targets (`VW-05`, `VW-06`); classifies F3 step tokens against the manifest for cross-validate (`VW-14`–`VW-17`) |
 
-Phase 2 input contract: `rewritten_paths` contains only files the trimmer re-tokenized and rewrote during P5 (`PROC_TRIM`). Files copied verbatim from `<domain>_backup/` are **not** re-tokenized — they were already validated at P2 and the trimmer did not change their Tcl structure. When `trim_report` is supplied on the live path, P6 uses `CompiledManifest` as the dry-run-equivalent expectation source and enforces live conformance via `VW-10`; only `PROC_TRIM` files participate in the re-parse proc-set reconciliation step.
+Phase 2 input contract: `rewritten_paths` contains every emitted `.tcl` path whose final contents were changed by P5 (`PROC_TRIM`, generated stage `.tcl`, and `FULL_COPY` `.tcl` after P5c indentation normalization). Non-Tcl files copied verbatim from `<domain>_backup/` are **not** re-tokenized. When `trim_report` is supplied on the live path, P6 uses `CompiledManifest` as the dry-run-equivalent expectation source and enforces live conformance via `VW-10`; size reconciliation uses logical UTF-8 text bytes for normalized `.tcl` outcomes so Windows CRLF persistence does not false-positive, while non-Tcl `FULL_COPY` outputs still use raw metadata size. Only `PROC_TRIM` files participate in the re-parse proc-set reconciliation step.
 
 **Cross-validate contract (`options.cross_validate`).** The F3 cross-validate checks (`VW-14`/`VW-15`/`VW-16`) are part of P6 (`validate_post`) and derive their answers from `CompiledManifest` — never from a filesystem re-scan. For each step string in every surviving stage, the validator classifies the token by syntax:
 
@@ -2206,6 +2209,32 @@ Chopper is a Python ≥ 3.11 CLI (3.13 preferred). The rules below are authorita
 #### 5.12.8 Testing Standards
 
 Coverage gates, fixture conventions, and the integration-test harness are defined in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md). Parser fixture catalog is in [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md). Minimum line coverage is 78% overall; parser 85%, compiler 80%, trimmer 80%, config 85%, core 80%.
+
+#### 5.12.9 Permitted Cross-Phase Exception: Validator Imports Parser (VW-10 Proc-Set Reconciliation)
+
+**Single permitted import across phase boundaries:**
+
+```python
+# In src/chopper/validator/functions.py
+from chopper.parser.service import parse_file
+```
+
+This import is **explicitly permitted** and is **not** an architecture violation. It exists because post-trim validation (`validate_post`, Phase P6) must verify that trimmed output files contain exactly the proc set that the trim operation promised to keep. This is the `VW-10` check.
+
+**Why this is cleaner than alternatives:**
+
+1. **Direct, deterministic.** The validator re-parses the actual trimmed file and compares the canonical proc names discovered to the `TrimReport.procs_kept` set. No guessing, no heuristics, no reconstructed state.
+2. **Catches real bugs.** If the trimmer has a bug that drops a proc it should have kept, or keeps a proc it should have dropped, `VW-10` catches it immediately and emits a clear mismatch report.
+3. **Single source of truth.** Both validator and compiler use the same `parse_file()` function, so they agree on what constitutes a valid proc definition.
+4. **Better than alternatives:**
+   - Storing a pre-trim proc index in the manifest would require synchronization with post-trim state (error-prone).
+   - Walking the AST of `TrimReport` to reconstruct proc names would reinvent the parser (maintenance burden).
+   - Skipping the check would leave silent corruption (unacceptable).
+5. **No bidirectional coupling.** The parser does not import anything from validator; only validator imports parser. Parser remains a lower-level service that does not know it is being called by a cross-phase checker.
+
+**Scope:** This exception applies **only** to `src/chopper/validator/functions.py` importing `src/chopper/parser/service.parse_file`. No other cross-phase imports are permitted. Parser, compiler, and trimmer remain layered services that do not import each other.
+
+**Testing:** The `VW-10` proc-set reconciliation is tested in `tests/unit/validator/test_validator.py` under the `validate_post_emits_vw10_*` test family. Integration tests validate end-to-end trim correctness under `tests/integration/test_cli_e2e.py`.
 
 ---
 
@@ -3158,6 +3187,7 @@ This log records the conscious design decisions that shaped the current document
 | 2026-05-05 | **`chopper --version` global flag (FR-45).** Added `--version` as a top-level global flag to `build_parser()` in `src/chopper/cli/main.py` using argparse's built-in `action='version'`. The version string is `chopper <version>` sourced from `chopper.__version__` (installed package metadata with `pyproject.toml` fallback). The flag does not require a subcommand; it prints to stdout and exits 0. Cascaded to `CLI_HELP_TEXT_REFERENCE.md` (usage block and flag-scope note) and **FR-45** added to the requirements table §7.1. |
 | 2026-05-06 | **0.8.2 — F1 glob-matched non-Tcl file gap fixed (P-42).** Two compounding bugs caused all non-Tcl files (`.py`, `.pl`, `.csh`, config) reachable *only* via a `files.include` glob pattern to be silently absent from `compiled_manifest.json` with no diagnostic (exit code 0). **Bug 1 — glob expansion against wrong candidate set:** `_build_source_facts` in `compiler/merge_service.py` passed only `parsed_paths` (Tcl-only keys of `ParseResult.files`) to `_extract_facts` for FI glob expansion. Non-Tcl surface files from P1 were never in the candidate set, so they could never enter `fi_glob_surviving`. **Bug 2 — `_collect_universe` missed `fi_glob_surviving`:** Even if `fi_glob_surviving` had been populated, `_collect_universe` only unioned `fi_literal`; glob-surviving paths were dropped. **Fix:** (1) `_build_source_facts` now computes `all_surface_paths = frozenset(loaded.surface_files) | parsed_paths` and passes that full set to `_extract_facts`; (2) `_collect_universe` now also unions `facts.fi_glob_surviving` for every source. Architecture doc §3.4 (F1 — File Chopping) expanded with an explicit **F1 is file-type agnostic** callout, a new table row, and two new rules. Pitfall **P-42** in `RISKS_AND_PITFALLS.md` updated to document both bug layers with naïve-vs-correct code blocks for each. Three regression tests added: one unit test calling `_collect_universe` directly, one end-to-end `CompilerService` unit test, and one integration CLI test (`TestGlobFilesIncludeRegression::test_trim_glob_only_subdir_non_tcl_files_survive`). Version bumped 0.8.1 → 0.8.2. No schema, diagnostic-registry, CLI surface, or exit-code changes. |
 | 2026-05-06 | **0.8.3 — P5 opaque-file copy contract tightened (P-44).** Clarified the owning sections for F1, F2, P5, and the `FileSystemPort` surface so the runtime contract is explicit at the first mention, not deferred to later implementation notes. `FULL_COPY` is now specified as an opaque byte-preserving copy from `<domain>_backup/` into the rebuilt domain, with no text decode or newline normalization. `PROC_TRIM` is explicitly limited to `.tcl` files and is the only P5 path that reads file contents for rewriting. `REMOVE` is documented as a no-write, no-content-read path during P5. This closes the ambiguity that previously let implementers infer that any surviving file could be round-tripped through text I/O. The matching implementation trap is recorded as **P-44** in `RISKS_AND_PITFALLS.md`. Version bumped 0.8.2 → 0.8.3. |
+| 2026-05-06 | **0.8.4 — P5c Tcl indentation normalization.** Added a deterministic post-write Tcl readability pass inside P5, after proc trimming and F3 generation but before P6 validation. Every emitted `.tcl` with manifest treatment `FULL_COPY`, `PROC_TRIM`, or `GENERATED` is normalized with the legacy Perl brace-driven indentation logic; non-Tcl files remain opaque byte-preserving copies under P-44. The live `TrimReport` byte counts for `FULL_COPY` and `PROC_TRIM` `.tcl` outputs now reflect final normalized bytes so P6 `VW-10` size checks compare against the final filesystem state. Generated stage `.tcl` artifacts are normalized too. No schema, diagnostic-registry, CLI surface, or exit-code changes. Version bumped 0.8.3 → 0.8.4. |
 
 ---
 

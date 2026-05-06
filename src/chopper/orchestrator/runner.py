@@ -21,7 +21,7 @@ from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Phase
 from chopper.core.errors import ChopperError
 from chopper.core.models_audit import InternalError, RunRecord, RunResult
-from chopper.core.models_common import DomainState, FileTreatment
+from chopper.core.models_common import DomainState
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph
 from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParseResult
@@ -30,6 +30,7 @@ from chopper.generators.service import GeneratorService
 from chopper.orchestrator.domain_state import DomainStateService
 from chopper.orchestrator.gates import has_errors
 from chopper.parser.service import ParserService
+from chopper.trimmer.indentation import TclIndentationService
 from chopper.trimmer.service import TrimmerService
 from chopper.validator import validate_post, validate_pre
 
@@ -117,17 +118,14 @@ class ChopperRunner:
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
                 # P5b — Generators.
                 artifacts = GeneratorService().run(ctx, manifest)
+                trim_report, artifacts, rewritten = TclIndentationService().run(ctx, manifest, trim_report, artifacts)
+                if has_errors(ctx, Phase.P5_TRIM):
+                    ctx.progress.phase_done(Phase.P5_TRIM)
+                    exit_code = 1
+                    return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
                 ctx.progress.phase_done(Phase.P5_TRIM)
 
-                # P6 — Post-validate over rewritten files.
-                # "Rewritten" = files the trimmer re-tokenised and wrote
-                # (PROC_TRIM). FULL_COPY files are verbatim copies — they
-                # were validated at P2 and don't need re-checking.
-                rewritten = tuple(
-                    ctx.config.domain_root / outcome.path
-                    for outcome in trim_report.outcomes
-                    if outcome.treatment is FileTreatment.PROC_TRIM
-                )
+                # P6 — Post-validate final Tcl outputs rewritten during P5.
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
                 validate_post(ctx, manifest, graph, rewritten, trim_report=trim_report)
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)

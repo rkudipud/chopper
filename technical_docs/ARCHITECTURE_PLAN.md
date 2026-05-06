@@ -166,6 +166,7 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `TracerService` | P4 | `ctx, manifest, parsed, loaded?` → `DependencyGraph` | `compiler/trace_service.py` |
 | `TrimmerService` | P5a | `ctx, manifest, parsed, state` → `TrimReport` | `trimmer/service.py` |
 | `GeneratorService` | P5b | `ctx, manifest` → `tuple[GeneratedArtifact, ...]` | `generators/service.py` |
+| `TclIndentationService` | P5c | `ctx, manifest, trim_report, artifacts` → `(TrimReport, tuple[GeneratedArtifact, ...], tuple[Path, ...])` | `trimmer/indentation.py` |
 | `validate_post` (function) | P6 | `ctx, manifest, graph, rewritten` → emits diagnostics | `validator/functions.py` |
 | `AuditService` | P7 | `ctx, record` → `AuditManifest` | `audit/service.py` |
 
@@ -634,9 +635,10 @@ class AuditManifest:
 | `CompilerService.run` | `(ctx: ChopperContext, loaded: LoadedConfig, parsed: ParseResult) -> CompiledManifest` |
 | `TracerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, loaded: LoadedConfig | None = None) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, state: DomainState) -> TrimReport` |
-| `GeneratorService.run` | `(ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is a manifest record consumed by `AuditService` for audit artifacts. The runner does not re-write the returned content. |
+| `GeneratorService.run` | `(ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]` — writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is handed to `TclIndentationService.run` so generated `.tcl` content can be indentation-normalized before P6. |
+| `TclIndentationService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, trim_report: TrimReport, artifacts: tuple[GeneratedArtifact, ...]) -> tuple[TrimReport, tuple[GeneratedArtifact, ...], tuple[Path, ...]]` — P5c live-only normalization pass. Reads every emitted `.tcl` whose manifest treatment is `FULL_COPY`, `PROC_TRIM`, or `GENERATED`, rewrites leading indentation with the legacy brace-driven rules, updates `TrimReport.bytes_out` for non-generated Tcl outcomes, updates generated Tcl artifact content, and returns the absolute Tcl path tuple consumed by `validate_post`. |
 | `validate_pre` | `(ctx, loaded) -> None` — plain module function in `validator/functions.py`; emits diagnostics. |
-| `validate_post` | `(ctx, manifest, graph, rewritten: Sequence[Path]) -> None` — plain module function; emits diagnostics. `graph` is the P4 :class:`DependencyGraph`; VW-05 / VW-06 read resolved edges from it to detect calls/source-refs into trimmed-away procs/files without re-parsing. |
+| `validate_post` | `(ctx, manifest, graph, rewritten: Sequence[Path]) -> None` — plain module function; emits diagnostics. `rewritten` contains final Tcl outputs rewritten or indentation-normalized during P5. `graph` is the P4 :class:`DependencyGraph`; VW-05 / VW-06 read resolved edges from it to detect calls/source-refs into trimmed-away procs/files without re-parsing. |
 | `AuditService.run` | `(ctx: ChopperContext, record: RunRecord) -> AuditManifest` — the runner assembles a :class:`RunRecord` in its `finally` block with whatever phase outputs were produced (manifest / graph / trim_report may be ``None``) and hands it to the audit service, which writes every artifact under `ctx.config.audit_root` via `ctx.fs.write_text()`. |
 
 ### 9.3 Communication rules
@@ -667,6 +669,9 @@ To make every feature "individually and isolatedly developable/enhanceable" (you
 3. **Cross-service data flows only through frozen dataclasses.** Two services never share a mutable object.
 4. **Diagnostic codes are the API contract for user-visible behavior.** Adding a code requires a registry edit in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before use.
 5. **Stage discipline is hard.** Stage N may not import from Stage N+1. Enforced by `import-linter` contracts in CI.
+
+   **Permitted exception:** P6 validator imports P2 parser for post-trim validation accuracy. The validator's `validate_post` function calls `parse_file()` from the parser to re-parse trimmed `.tcl` outputs and verify that the proc set matches the `TrimReport` promise (VW-10 check). This is the **only** permitted cross-stage import; all other stage boundaries remain sealed. See [`technical_docs/chopper_description.md`](chopper_description.md) §5.12.9 and [`.github/instructions/project.instructions.md`](.../.github/instructions/project.instructions.md) §1.1 for the full rationale: re-parsing is the cleanest way to catch real bugs (incorrect proc drops), and the parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
+
 6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `CollectingSink`, `SilentProgress` — they never touch the real filesystem. Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`; there is no ClockPort.
 7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (§6.2) — no plugin registry, no dynamic phase insertion. Adding a new phase means editing `runner.py`. That is deliberate: v1 has seven phases, period.
 8. **`ctx` bindings are stable; port state is not.** A service must not try to swap or reassign ports on `ctx`. Local scratch data stays local and is returned as part of the typed result.

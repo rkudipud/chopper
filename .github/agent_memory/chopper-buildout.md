@@ -2,6 +2,8 @@
 
 ## Current Focus
 
+- 2026-05-06 P5c Tcl indentation normalization complete. Added `TclIndentationService` in `src/chopper/trimmer/indentation.py`, hooked runner after P5a trim + P5b generation and before P6, formats every emitted `.tcl` (`FULL_COPY`, `PROC_TRIM`, `GENERATED`), updates `TrimReport.bytes_out` and generated artifact content, passes all normalized Tcl paths to `validate_post`, and removed the legacy Perl reference script from `technical_docs/`. Version bumped 0.8.3 → 0.8.4. Focused validation green: 72 passed (`test_indentation`, LocalFS e2e, runner, validator), Makefile lint/format scopes green, changed-file mypy green, docs-gate green. Follow-up unit gate now green after aligning stale DPA CRLF span and FULL_COPY copy-failure tests: `877 passed, 7 skipped`. Full `make check` unavailable because Windows shell lacks `make`; remaining fallback blocker is the pre-existing import-linter validator→parser import.
+
 - 2026-05-01 Wave B continuation. **Wave A IMPLEMENTED + Wave B O1/O2/O5/O6 DONE; O3/O4 verified no-op.** Version 0.8.0.
 - 2026-05-01 GitNexus setup pass. Official docs checked (`abhigyanpatwari/GitNexus`, npm latest 1.6.3). Ran `npx gitnexus setup` (configured Claude Code MCP/skills/hooks; Cursor/OpenCode/Codex skipped as not installed). Refreshed repo index with `npx gitnexus analyze --skip-agents-md`; status up to date at commit `d293620` with 5161 nodes / 9006 edges / 86 flows. Workspace MCP config now uses official `npx -y gitnexus@latest mcp`; agents/skills instruct GitNexus MCP when exposed and `.github/agent_memory/*.md` + local search fallback when not.
 

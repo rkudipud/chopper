@@ -473,7 +473,7 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
             )
             continue
 
-        if outcome.treatment is FileTreatment.PROC_TRIM:
+        if outcome.treatment is FileTreatment.PROC_TRIM or outcome.path.suffix.lower() == ".tcl":
             logical_size = _logical_text_size(ctx, target)
             actual_size = logical_size if logical_size is not None else st.size
         else:
@@ -497,7 +497,7 @@ def _logical_text_size(ctx: ChopperContext, path: Path) -> int | None:
 
     On Windows, ``write_text`` may persist CRLF bytes on disk even when the
     in-memory transformed payload used LF. Comparing ``stat().size`` directly
-    against trimmer-recorded ``bytes_out`` would then false-positive.
+    against final normalized Tcl ``bytes_out`` would then false-positive.
     """
 
     try:

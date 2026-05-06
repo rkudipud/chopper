@@ -355,7 +355,7 @@ def test_validate_post_emits_vw10_when_rewritten_proc_set_mismatches() -> None:
         path=rel,
         treatment=FileTreatment.PROC_TRIM,
         bytes_in=64,
-        bytes_out=len("proc keep_me {} { return ok }\nproc stray {} { return nope }\n".encode("utf-8")),
+        bytes_out=len(b"proc keep_me {} { return ok }\nproc stray {} { return nope }\n"),
         procs_kept=(keep,),
         procs_removed=("trimmed.tcl::drop_me",),
     )

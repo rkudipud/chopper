@@ -32,9 +32,9 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 
 If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
 
-#### 1.1 Narrowed from a prior closure (read-only MCP)
+#### 1.1 Narrowed from prior closures
 
-The MCP row above was **narrowed** in 0.4.0 (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/chopper_description.md` §3.8:
+**Read-only MCP (narrowed in 0.4.0):** The MCP row above was **narrowed** (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/chopper_description.md` §3.8:
 
 - `chopper mcp-serve` subcommand.
 - `src/chopper/mcp/` package containing a **stdio-only** JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon).
@@ -43,6 +43,8 @@ The MCP row above was **narrowed** in 0.4.0 (not removed). The following MCP sur
 - `PE-04 mcp-protocol-error` in the diagnostic registry, emitted **only** from `src/chopper/mcp/`.
 
 Everything else in the MCP row stays closed: no destructive tools over MCP, no progress/diagnostic sinks mounted to MCP, no adapters that bridge Chopper internals to MCP, no networked transports, no MCP client code.
+
+**Validator imports parser for post-trim validation (permitted in 0.4.0+):** The validator module is permitted to import `parse_file` from the parser service (`src/chopper/validator/functions` → `src/chopper/parser/service.parse_file`) for the **sole purpose** of post-trim proc-set reconciliation (VW-10 check). This is specified in the architecture doc at `technical_docs/chopper_description.md` §5.12.9. This is the only permitted cross-phase import in the codebase; all other phase-boundary imports remain forbidden. The rationale: re-parsing is the cleanest and most reliable way to verify that the trimmer correctly preserved exactly the proc set promised in the `CompiledManifest` and `TrimReport`. The parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
 ### 2. Single Authority: The Architecture Doc
 

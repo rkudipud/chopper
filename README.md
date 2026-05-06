@@ -328,6 +328,17 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 0.9.0 — 2026-05-06
+
+- **Documented permitted validator→parser import exception (VW-10 proc-set reconciliation).** The validator module now explicitly documents its import of `parse_file` from the parser service for post-trim validation accuracy. This is the only permitted cross-phase import in the codebase, justified by the need to verify trimmed outputs contain exactly the proc set promised in `CompiledManifest` and `TrimReport`. This validation mechanism catches real bugs (dropped/kept procs that shouldn't be) with no bidirectional coupling. Architecture doc §5.12.9 added; project.instructions.md §1.1 and ARCHITECTURE_PLAN.md §10.1 updated for clarity and cross-reference.
+
+### 0.8.4 — 2026-05-06
+
+- **P5c Tcl indentation normalization.** Live trims now run a deterministic Tcl formatting pass after proc trimming and F3 generation, before P6 validation. Every emitted `.tcl` output is covered: `FULL_COPY` Tcl files, `PROC_TRIM` Tcl files, and generated stage `<stage>.tcl` files.
+- **P6 byte-count alignment.** The formatter updates `TrimReport.bytes_out` for `FULL_COPY` and `PROC_TRIM` `.tcl` outcomes after normalization so P6 `VW-10` compares against the final filesystem state rather than pre-format bytes.
+- **Non-Tcl opacity preserved.** Binary and non-Tcl `FULL_COPY` files still use byte-preserving filesystem copies and are never decoded.
+- **No schema, diagnostic-registry, CLI surface, or exit-code changes.**
+
 ### 0.8.3 — 2026-05-06
 
 - **P5 opaque-file copy contract tightened (bug fix: GitHub #21 / Pitfall P-44).** The `FULL_COPY` path in `trimmer/file_writer.py` was incorrectly round-tripping every surviving file through UTF-8 text I/O (`read_text` → `write_text`). This crashed with a `UnicodeDecodeError` whenever a domain included non-UTF-8 or binary artifacts via F1 `files.include` (e.g., `.sn.gz` compressed sidecars, vendor binary payloads). The fix introduces a dedicated `copy_file(src, dst)` operation on `FileSystemPort` — implemented with `shutil.copy2` in `LocalFS` (preserves mode bits) and an in-memory clone in `InMemoryFS` — and rewires `full_copy_file()` to use it. The `remove_file()` byte-accounting is likewise fixed to use `stat().size` rather than reading file contents. `PROC_TRIM` remains the only P5 path that reads file text, and only for `.tcl` files selected for F2 proc trimming. Architecture doc §3.4 (F1), §3.5 (F2), and §5.2.1 (P5 walkthrough) updated in place with the write-semantics contract. Pitfall **P-44** added to `RISKS_AND_PITFALLS.md`.
