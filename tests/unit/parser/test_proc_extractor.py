@@ -312,6 +312,23 @@ class TestDPA:
         assert p.dpa_start_line == 4  # type: ignore[attr-defined]
         assert p.dpa_end_line == 5  # type: ignore[attr-defined]
 
+    def test_dpa_multiline_define_args_consumes_full_braced_block(self) -> None:
+        fixture = (
+            Path(__file__).resolve().parents[2]
+            / "fixtures"
+            / "edge_cases"
+            / "parser_multi_procs_with_sequential_dpa.tcl"
+        )
+        source = fixture.read_text(encoding="utf-8")
+        by = _procs_by_short(source, path=fixture.name)
+
+        assert by["pc_eco_set_dont_touch_annotated_delay"].dpa_start_line == 14  # type: ignore[attr-defined]
+        assert by["pc_eco_set_dont_touch_annotated_delay"].dpa_end_line == 19  # type: ignore[attr-defined]
+        assert by["pc_eco_set_size_cell_restrictions"].dpa_start_line == 26  # type: ignore[attr-defined]
+        assert by["pc_eco_set_size_cell_restrictions"].dpa_end_line == 31  # type: ignore[attr-defined]
+        assert by["pc_eco_remove_attr_name_size_cell_restrictions"].dpa_start_line == 38  # type: ignore[attr-defined]
+        assert by["pc_eco_remove_attr_name_size_cell_restrictions"].dpa_end_line == 43  # type: ignore[attr-defined]
+
     def test_dpa_with_blank_lines(self) -> None:
         # Up to 3 blank lines permitted between proc and DPA.
         src = 'proc foo {} {}\n\n\ndefine_proc_attributes foo -info "x"\n'

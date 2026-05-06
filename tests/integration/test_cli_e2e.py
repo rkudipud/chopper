@@ -375,6 +375,60 @@ class TestGlobFilesIncludeRegression:
             "glob-matched .pl file must survive — F1 is file-type agnostic (P-42)"
         )
 
+    def test_trim_multiple_procs_excluded_with_dpa_all_dropped_atomically(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Regression for GitHub #19: excluding multiple procs with sequential
+        DPA blocks must not leave orphan metadata behind or trigger VE-16."""
+        domain = tmp_path / "eco"
+        domain.mkdir(parents=True, exist_ok=True)
+
+        fixture = (
+            Path(__file__).resolve().parents[1]
+            / "fixtures"
+            / "edge_cases"
+            / "parser_multi_procs_with_sequential_dpa.tcl"
+        )
+        (domain / "eco_procs.tcl").write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
+
+        jsons = domain / "jsons"
+        jsons.mkdir()
+        base_path = jsons / "base.json"
+        base_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "base-v1",
+                    "domain": domain.name,
+                    "files": {"include": ["eco_procs.tcl"]},
+                    "procedures": {
+                        "exclude": [
+                            {
+                                "file": "eco_procs.tcl",
+                                "procs": [
+                                    "pc_eco_set_dont_touch_annotated_delay",
+                                    "pc_eco_set_size_cell_restrictions",
+                                    "pc_eco_remove_attr_name_size_cell_restrictions",
+                                ],
+                            }
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base_path)])
+        captured = capsys.readouterr()
+        assert rc == 0, f"trim should exit 0; stderr:\n{captured.err}"
+        assert "VE-16" not in captured.err
+
+        trimmed_text = (domain / "eco_procs.tcl").read_text(encoding="utf-8")
+        assert "pc_eco_set_dont_touch_annotated_delay" not in trimmed_text
+        assert "pc_eco_set_size_cell_restrictions" not in trimmed_text
+        assert "pc_eco_remove_attr_name_size_cell_restrictions" not in trimmed_text
+        assert "proc pc_eco_report_timing" in trimmed_text
+        assert "define_proc_attributes pc_eco_report_timing" in trimmed_text
+
     def test_validate_glob_only_subdir_exits_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         domain = tmp_path / "power"
         base, feat = self._seed_glob_domain(domain)

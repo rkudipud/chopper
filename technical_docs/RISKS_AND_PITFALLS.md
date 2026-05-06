@@ -539,6 +539,45 @@ for facts in facts_iter:
 
 ---
 
+### Pitfall P-43: DPA Span Truncated When `-define_args` Continues by Brace Depth Alone
+
+**THE TRAP (bug report: GitHub #19 / `pc_eco_eco_settings_procs.tcl`):**
+
+```tcl
+proc pc_eco_set_size_cell_restrictions {args} {
+    ...
+}
+define_proc_attributes pc_eco_set_size_cell_restrictions \
+    -info "Restrict lib cell sizing" \
+    -define_args {
+        {-attr_name ...}
+        {-lib_cell_pattern ...}
+        {-reset_value ...}
+    }
+```
+
+**Naive parser:** advances `dpa_end_line` only while the current physical line ends with `\`. That works for the first two lines above, but it stops on the first `{-attr_name ...}` row because that row does not end with `\`, even though the outer `-define_args {` block is still open. The parser records `dpa_end_line` too early, the trimmer drops only the front of the metadata command, and the remaining `{-...}` rows are left orphaned in the file. Post-validation then fails with `VE-16` brace imbalance.
+
+**Correct behavior:** DPA span collection must continue until the full command closes. The stop condition is **both** of the following:
+- the current physical line does not end with an unescaped `\`; and
+- the outer DPA brace depth has returned to zero.
+
+Braces inside double-quoted strings are ignored for this scan; the goal is not full Tcl parsing, only correct physical extent for the metadata command.
+
+**Implementation Requirement (`proc_extractor._scan_dpa`):**
+- Track DPA brace depth across physical lines after the initial DPA line is found.
+- Keep consuming lines while either continuation or brace depth indicates the command is still open.
+- Record `dpa_end_line` at the physical line where the outer brace depth returns to zero and no continuation remains.
+
+**Why It Matters:** Real Synopsys metadata blocks mix both styles in the same command: the prologue uses `\`, while the `-define_args` body uses brace structure only. If the parser misses the tail, trimming excluded procs leaves malformed Tcl and fails at P6 with `VE-16`.
+
+**Tests:**
+- `tests/fixtures/edge_cases/parser_multi_procs_with_sequential_dpa.tcl` — multi-proc fixture with sequential DPA blocks whose `-define_args` sections close by brace depth, not trailing `\` on every row.
+- `tests/unit/parser/test_proc_extractor.py::TestDPA::test_dpa_multiline_define_args_consumes_full_braced_block`
+- `tests/integration/test_cli_e2e.py::TestGlobFilesIncludeRegression::test_trim_multiple_procs_excluded_with_dpa_all_dropped_atomically`
+
+---
+
 ### Pitfall P-41: P4 / P6 Diagnostics Must Carry the Source File Path
 
 **THE TRAP (sta_pt domain, bug `diagnostics_file_null_for_p4_p6.md`):**

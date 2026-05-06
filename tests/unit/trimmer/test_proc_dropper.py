@@ -93,6 +93,33 @@ def test_dpa_after_proc_still_absorbed() -> None:
     assert drop_procs(text, [proc]) == "proc kept {} {}\n"
 
 
+def test_multiple_procs_each_with_sequential_dpa_dropped_together() -> None:
+    lines = [
+        "proc foo {} {",
+        "  body",
+        "}",
+        "define_proc_attributes foo -info 'first'",
+        "proc bar {} {",
+        "  body",
+        "}",
+        "define_proc_attributes bar -info 'second'",
+        "proc baz {} {",
+        "  body",
+        "}",
+        "define_proc_attributes baz -info 'third'",
+        "proc kept {} {}",
+    ]
+    text = "\n".join(lines) + "\n"
+    p_foo = _mk("foo", start=1, end=3, dpa=(4, 4))
+    p_bar = _mk("bar", start=5, end=7, dpa=(8, 8))
+    p_baz = _mk("baz", start=9, end=11, dpa=(12, 12))
+
+    result = drop_procs(text, [p_foo, p_bar, p_baz])
+
+    assert result == "proc kept {} {}\n"
+    assert "define_proc_attributes" not in result
+
+
 def test_descending_order_preserves_coords_with_multiple_drops() -> None:
     """Drop two procs in any manifest order — output must be identical."""
     lines = [

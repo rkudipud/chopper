@@ -611,12 +611,7 @@ def _scan_dpa(
         return (None, None, diagnostics)
 
     dpa_start_0 = i
-    dpa_end_0 = i
-    # §4.6 step 3c: collect continuation lines while current ends with ``\``.
-    while dpa_end_0 < n and _line_ends_with_continuation(lines[dpa_end_0]):
-        dpa_end_0 += 1
-        if dpa_end_0 >= n:
-            break
+    dpa_end_0 = _scan_dpa_block_end(lines, dpa_start_0)
 
     # Assemble the logical DPA command (continuation-joined for name extraction).
     joined = " ".join(line.rstrip("\\").rstrip() for line in lines[dpa_start_0 : dpa_end_0 + 1])
@@ -632,6 +627,62 @@ def _scan_dpa(
         return (None, None, diagnostics)
 
     return (dpa_start_0 + 1, dpa_end_0 + 1, diagnostics)
+
+
+def _scan_dpa_block_end(lines: list[str], dpa_start_0: int) -> int:
+    """Return the last physical line belonging to the DPA command.
+
+    Per `TCL_PARSER_SPEC.md` §4.6, DPA metadata may span multiple physical
+    lines via both trailing backslash continuations and brace-delimited option
+    payloads such as ``-define_args { ... }``. Real production files often
+    stop using trailing backslash continuations once the outer
+    ``-define_args {`` has opened, so continuation-only scanning truncates the
+    DPA span and leaves orphaned metadata behind during trimming.
+    """
+    dpa_end_0 = dpa_start_0
+    brace_depth = 0
+    in_quotes = False
+    n = len(lines)
+
+    while dpa_end_0 < n:
+        brace_depth, in_quotes = _update_tcl_brace_depth(lines[dpa_end_0], brace_depth, in_quotes)
+        if brace_depth == 0 and not _line_ends_with_continuation(lines[dpa_end_0]):
+            break
+        dpa_end_0 += 1
+        if dpa_end_0 >= n:
+            return n - 1
+
+    return dpa_end_0
+
+
+def _update_tcl_brace_depth(line: str, brace_depth: int, in_quotes: bool) -> tuple[int, bool]:
+    """Update a lightweight Tcl brace balance for DPA block scanning.
+
+    This is intentionally narrower than full Tcl parsing: it only needs to
+    detect when a DPA command's brace-delimited option payload has closed so
+    the scanner can keep consuming physical lines after the final backslash
+    continuation.
+    Braces inside double-quoted strings are ignored, and escaped characters do
+    not affect brace state.
+    """
+    escaped = False
+    for char in line.rstrip("\r\n"):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == '"':
+            in_quotes = not in_quotes
+            continue
+        if in_quotes:
+            continue
+        if char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth = max(0, brace_depth - 1)
+    return brace_depth, in_quotes
 
 
 def _line_ends_with_continuation(line: str) -> bool:
