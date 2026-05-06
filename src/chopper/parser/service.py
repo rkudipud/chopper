@@ -321,12 +321,12 @@ class ParserService:
         # Fallback: full BFS walk (P1 had no globs so no cache).
         from collections import deque  # noqa: PLC0415
 
-        domain = ctx.config.domain_root
-        if not ctx.fs.exists(domain):
+        source_root = self._source_root(ctx)
+        if not ctx.fs.exists(source_root):
             return []
 
         results: list[Path] = []
-        frontier: deque[Path] = deque([domain])
+        frontier: deque[Path] = deque([source_root])
         while frontier:
             current = frontier.popleft()
             try:
@@ -335,7 +335,7 @@ class ParserService:
                 continue
             for child in children:
                 try:
-                    rel = child.relative_to(domain)
+                    rel = child.relative_to(source_root)
                 except ValueError:
                     continue
                 rel_posix = rel.as_posix()
@@ -351,6 +351,20 @@ class ParserService:
                     results.append(rel)
         results.sort(key=lambda p: p.as_posix())
         return results
+
+    @staticmethod
+    def _source_root(ctx: ChopperContext) -> Path:
+        """Return the filesystem root P2 should read.
+
+        Case-2 and Case-3 reruns rebuild from ``backup_root`` in P5, so P2
+        must parse that same source tree. Otherwise a rerun would compute
+        proc drop ranges from the already-trimmed domain and then apply them
+        to the full backup text.
+        """
+
+        if ctx.fs.exists(ctx.config.backup_root):
+            return ctx.config.backup_root
+        return ctx.config.domain_root
 
     @staticmethod
     def _normalize(ctx: ChopperContext, raw: Path) -> Path:
@@ -404,7 +418,7 @@ class ParserService:
         (canonical names, ParsedFile keys, diagnostics). When the port
         is a real-disk adapter (:class:`LocalFS`), it cannot resolve a
         bare relative path without a base. The parser owns that
-        resolution here by prepending ``ctx.config.domain_root`` when
+        resolution here by prepending the active source root when
         ``path`` is relative.
 
         :class:`InMemoryFS` stores its keys under relative paths that
@@ -414,7 +428,7 @@ class ParserService:
         """
         if path.is_absolute() or path.anchor:
             return path
-        return ctx.config.domain_root / path
+        return ParserService._source_root(ctx) / path
 
     def _read_with_fallback(
         self,

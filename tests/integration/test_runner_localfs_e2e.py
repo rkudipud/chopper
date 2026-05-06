@@ -18,6 +18,7 @@ for ``options.generate_stack``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -32,7 +33,13 @@ FIXTURE_MINI = Path(__file__).resolve().parents[1] / "fixtures" / "mini_domain"
 FIXTURE_STAGES = Path(__file__).resolve().parents[1] / "fixtures" / "stages_domain"
 
 
-def _make_ctx(domain: Path, *, dry_run: bool = True) -> tuple[ChopperContext, CollectingSink]:
+def _make_ctx(
+    domain: Path,
+    *,
+    dry_run: bool = True,
+    base_path: Path | None = None,
+    feature_paths: tuple[Path, ...] = (),
+) -> tuple[ChopperContext, CollectingSink]:
     sink = CollectingSink()
     cfg = RunConfig(
         domain_root=domain,
@@ -40,10 +47,31 @@ def _make_ctx(domain: Path, *, dry_run: bool = True) -> tuple[ChopperContext, Co
         audit_root=domain / ".chopper",
         strict=False,
         dry_run=dry_run,
-        base_path=domain / "jsons" / "base.json",
+        base_path=base_path or domain / "jsons" / "base.json",
+        feature_paths=feature_paths,
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=sink, progress=SilentProgress())
     return ctx, sink
+
+
+def _domain_payload_hashes(domain: Path) -> dict[str, str]:
+    """Return file payload hashes under ``domain``, excluding Chopper audit output."""
+
+    out: dict[str, str] = {}
+    for file_path in sorted(domain.rglob("*")):
+        if not file_path.is_file():
+            continue
+        rel = file_path.relative_to(domain)
+        if rel.parts and rel.parts[0] == ".chopper":
+            continue
+        out[rel.as_posix()] = hashlib.sha256(file_path.read_bytes()).hexdigest()
+    return out
+
+
+def _copy_fixture_jsons(domain: Path, target: Path) -> Path:
+    config_root = target / "jsons"
+    shutil.copytree(domain / "jsons", config_root)
+    return config_root
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +149,93 @@ def test_runner_localfs_dry_run_manifest_matches_live_trim_outputs_1_to_1(tmp_pa
             f"proc-set mismatch for {rel_path.as_posix()!r}: "
             f"expected={sorted(expected_proc_set)!r}, actual={sorted(actual_proc_set)!r}"
         )
+
+
+def test_runner_localfs_live_rerun_same_selection_is_byte_stable(tmp_path: Path) -> None:
+    """A Case-2 rerun with the same selection discards stale domain edits and rebuilds byte-stably."""
+
+    domain = tmp_path / "mini_domain"
+    shutil.copytree(FIXTURE_MINI, domain)
+    config_root = _copy_fixture_jsons(domain, tmp_path / "config_same_selection")
+
+    first_ctx, first_sink = _make_ctx(domain, dry_run=False, base_path=config_root / "base.json")
+    first_result = ChopperRunner().run(first_ctx, command="trim")
+    first_codes = [d.code for d in first_sink.snapshot()]
+    assert first_result.exit_code == 0, f"first trim failed; diagnostics: {first_codes}"
+    assert first_result.state is not None
+    assert first_result.state.case == 1
+    first_hashes = _domain_payload_hashes(domain)
+
+    stale = domain / "stale_after_first_trim.tcl"
+    stale.write_text("proc stale {} { return stale }\n", encoding="utf-8")
+
+    second_ctx, second_sink = _make_ctx(domain, dry_run=False, base_path=config_root / "base.json")
+    second_result = ChopperRunner().run(second_ctx, command="trim")
+    second_codes = [d.code for d in second_sink.snapshot()]
+    assert second_result.exit_code == 0, f"rerun failed; diagnostics: {second_codes}"
+    assert second_result.state is not None
+    assert second_result.state.case == 2
+
+    assert not stale.exists(), "Case-2 rerun must discard stale rebuilt-domain edits"
+    assert _domain_payload_hashes(domain) == first_hashes
+
+
+def test_runner_localfs_live_rerun_with_feature_changes_selection(tmp_path: Path) -> None:
+    """A Case-2 rerun can rebuild from backup with an expanded feature selection."""
+
+    domain = tmp_path / "mini_domain"
+    shutil.copytree(FIXTURE_MINI, domain)
+    config_root = _copy_fixture_jsons(domain, tmp_path / "config_feature_rerun")
+
+    base_ctx, base_sink = _make_ctx(domain, dry_run=False, base_path=config_root / "base.json")
+    base_result = ChopperRunner().run(base_ctx, command="trim")
+    base_codes = [d.code for d in base_sink.snapshot()]
+    assert base_result.exit_code == 0, f"base trim failed; diagnostics: {base_codes}"
+    assert not (domain / "extra_utils.tcl").exists()
+    assert "proc cleanup_flow" not in (domain / "main_flow.tcl").read_text(encoding="utf-8")
+
+    feature_ctx, feature_sink = _make_ctx(
+        domain,
+        dry_run=False,
+        base_path=config_root / "base.json",
+        feature_paths=(config_root / "features" / "feature_a.json",),
+    )
+    feature_result = ChopperRunner().run(feature_ctx, command="trim")
+    feature_codes = [d.code for d in feature_sink.snapshot()]
+    assert feature_result.exit_code == 0, f"feature rerun failed; diagnostics: {feature_codes}"
+    assert feature_result.state is not None
+    assert feature_result.state.case == 2
+
+    assert (domain / "extra_utils.tcl").exists()
+    assert "proc cleanup_flow" in (domain / "main_flow.tcl").read_text(encoding="utf-8")
+
+
+def test_runner_localfs_dry_live_dry_sequence_keeps_domain_payload_stable(tmp_path: Path) -> None:
+    """Dry-run before and after a live trim must not mutate rebuilt domain payloads."""
+
+    domain = tmp_path / "mini_domain"
+    shutil.copytree(FIXTURE_MINI, domain)
+    config_root = _copy_fixture_jsons(domain, tmp_path / "config_dry_live_dry")
+
+    dry_ctx, dry_sink = _make_ctx(domain, dry_run=True, base_path=config_root / "base.json")
+    dry_result = ChopperRunner().run(dry_ctx, command="validate")
+    dry_codes = [d.code for d in dry_sink.snapshot()]
+    assert dry_result.exit_code == 0, f"initial dry-run failed; diagnostics: {dry_codes}"
+    before_live_hashes = _domain_payload_hashes(domain)
+
+    live_ctx, live_sink = _make_ctx(domain, dry_run=False, base_path=config_root / "base.json")
+    live_result = ChopperRunner().run(live_ctx, command="trim")
+    live_codes = [d.code for d in live_sink.snapshot()]
+    assert live_result.exit_code == 0, f"live trim failed; diagnostics: {live_codes}"
+    after_live_hashes = _domain_payload_hashes(domain)
+    assert after_live_hashes != before_live_hashes
+
+    dry_again_ctx, dry_again_sink = _make_ctx(domain, dry_run=True, base_path=config_root / "base.json")
+    dry_again_result = ChopperRunner().run(dry_again_ctx, command="validate")
+    dry_again_codes = [d.code for d in dry_again_sink.snapshot()]
+    assert dry_again_result.exit_code == 0, f"post-live dry-run failed; diagnostics: {dry_again_codes}"
+
+    assert _domain_payload_hashes(domain) == after_live_hashes
 
 
 def test_runner_localfs_live_trim_formats_full_copy_proc_trim_and_generated_tcl(tmp_path: Path) -> None:

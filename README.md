@@ -330,6 +330,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 1.0.0 — 2026-05-07
+
+- **Coverage hardened to ≥98% across all source files.** Added 74 surgical unit tests in [tests/unit/test_coverage_98.py](tests/unit/test_coverage_98.py) covering previously-unhit defensive branches across the validator, parser, compiler (trace + merge + flow resolver), config, audit, adapters, trimmer, and CLI modules. Total line+branch coverage: 92% → **98.75%**. Test suite: 1005 → **1079 passing**, 7 skipped.
+- **No production code drift.** No schema, diagnostic-registry, CLI surface, exit-code, runtime, or pipeline-phase changes. Pure test-coverage release.
+- **v1 stability milestone.** All six pipeline phases (P0–P7) now ship at near-complete branch coverage; version bumped 0.9.2 → 1.0.0 to mark the v1 stability line.
+
 ### 0.9.2 — 2026-05-06
 
 - **End-user documentation consolidated and renamed.** The four-guide `doc/` folder (`README.md`, `USER_MANUAL.md`, `BEHAVIOR_GUIDE.md`, `TECHNICAL_GUIDE.md`, `IMPLEMENTATION_GUIDE.md`) was deleted and replaced with a leaner three-part suite under [user_docs/](user_docs/): [01_OVERVIEW.md](user_docs/01_OVERVIEW.md) (problem → solution → F1/F2/F3 → JSON structure → optional switches → BKMs → ownership), [02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md) (every subcommand, every flag, deep examples, troubleshooting, bug-reporting), and [03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) (P0–P7 pipeline, design rules, where Chopper fits, FAQ). The new structure follows a thesis-style abstraction: descriptive opening, then commands, then internals — designed to ramp a reader up after the onboarding presentation in 60–90 minutes without fatigue. The Chopper-vs-Flow-Builder framing is now stated explicitly in the overview so the "Chopper" name does not mislead.

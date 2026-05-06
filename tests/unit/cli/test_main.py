@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from importlib import import_module
+from pathlib import Path
+
 import pytest
 
 from chopper.cli.main import build_parser
+from chopper.core.models_audit import InternalError
 
 
 def test_build_parser_has_four_subcommands() -> None:
@@ -79,3 +83,26 @@ def test_version_flag_does_not_require_subcommand(capsys: pytest.CaptureFixture[
     with pytest.raises(SystemExit) as exc_info:
         build_parser().parse_args(["--version"])
     assert exc_info.value.code == 0
+
+
+def test_main_pre_runner_exception_writes_internal_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main_module = import_module("chopper.cli.main")
+
+    def _boom(args):  # noqa: ANN001, ARG001
+        raise RuntimeError("synthetic setup failure")
+
+    def _fake_internal_error(ctx, *, run_id, exc):  # noqa: ANN001, ARG001
+        return InternalError(kind=type(exc).__name__, message=str(exc), log_path=Path(".chopper/internal-error.log"))
+
+    monkeypatch.setattr(main_module, "cmd_mcp_serve", _boom)
+    monkeypatch.setattr(main_module, "write_internal_error_log", _fake_internal_error)
+
+    assert main_module.main(["mcp-serve"]) == 1
+    captured = capsys.readouterr()
+    assert "[chopper] fatal: RuntimeError: synthetic setup failure" in captured.err
+    assert (
+        "[chopper] crash log: .chopper\\internal-error.log" in captured.err
+        or "[chopper] crash log: .chopper/internal-error.log" in captured.err
+    )

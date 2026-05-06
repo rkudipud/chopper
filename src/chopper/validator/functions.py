@@ -192,7 +192,7 @@ def _check_pattern(
 
     # Literal path.
     rel = Path(pattern)
-    target = ctx.config.domain_root / rel
+    target = _validation_source_root(ctx) / rel
     if not ctx.fs.exists(target):
         ctx.diag.emit(
             Diagnostic.build(
@@ -257,7 +257,7 @@ def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
     from chopper.core.globs import glob_to_regex as _glob_to_regex_local  # noqa: PLC0415
 
     regex = _glob_to_regex_local(pattern)
-    domain = ctx.config.domain_root
+    domain = _validation_source_root(ctx)
     if not ctx.fs.exists(domain):
         return False
 
@@ -289,6 +289,18 @@ def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
                 elif _fnmatchcase(rel_posix, pattern):
                     return True
     return False
+
+
+def _validation_source_root(ctx: ChopperContext) -> Path:
+    """Return the tree P1 should validate against.
+
+    First trims validate against ``domain_root``. Reruns validate against
+    ``backup_root`` because P5 rebuilds from that preserved source tree.
+    """
+
+    if ctx.fs.exists(ctx.config.backup_root):
+        return ctx.config.backup_root
+    return ctx.config.domain_root
 
 
 # ---------------------------------------------------------------------------

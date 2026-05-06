@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from chopper.parser import proc_extractor as proc_extractor_module
 from chopper.parser.proc_extractor import (
     ExtractorDiagnostic,
     extract_procs,
 )
+from chopper.parser.tokenizer import TokenKind, tokenize
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -365,6 +367,17 @@ class TestDPA:
         p = _procs_by_short(src)["foo"]
         assert p.dpa_start_line == 3  # type: ignore[attr-defined]
 
+    def test_dpa_block_without_trailing_continuations_still_consumes_braces(self) -> None:
+        src = "proc foo {} {}\ndefine_proc_attributes foo -define_args {\n  {-clock Clock name}\n}\nproc bar {} {}\n"
+        p = _procs_by_short(src)["foo"]
+        assert p.dpa_start_line == 2  # type: ignore[attr-defined]
+        assert p.dpa_end_line == 4  # type: ignore[attr-defined]
+
+    def test_define_proc_arguments_is_treated_like_define_proc_attributes(self) -> None:
+        src = "proc foo {} {}\ndefine_proc_arguments ::foo -define_args {{-x value}}\n"
+        p = _procs_by_short(src)["foo"]
+        assert p.dpa_start_line == 2  # type: ignore[attr-defined]
+
 
 # ---------------------------------------------------------------------------
 # Continuation and quoted args (§7.2, §3.3.1)
@@ -385,6 +398,100 @@ class TestContinuation:
         src = 'proc foo "arg1 {arg2}" { return 1 }\n'
         by = _procs_by_short(src)
         assert "foo" in by
+
+
+class TestPrivateHelperBranches:
+    def test_peek_name_token_skips_newlines_and_handles_missing_word(self) -> None:
+        tokens = tokenize("proc\nfoo {} {}\n").tokens
+        proc_idx = next(i for i, token in enumerate(tokens) if token.kind is TokenKind.WORD and token.value == "proc")
+
+        assert proc_extractor_module._peek_name_token(tokens, proc_idx).value == "foo"
+
+        missing = tokenize("proc\n{} {}\n").tokens
+        proc_idx = next(i for i, token in enumerate(missing) if token.kind is TokenKind.WORD and token.value == "proc")
+        assert proc_extractor_module._peek_name_token(missing, proc_idx) is None
+
+    def test_scan_proc_layout_returns_none_when_name_is_missing(self) -> None:
+        tokens = tokenize("proc\n").tokens
+        proc_idx = next(i for i, token in enumerate(tokens) if token.kind is TokenKind.WORD and token.value == "proc")
+
+        assert proc_extractor_module._scan_proc_layout(tokens, proc_idx, base_depth=0) is None
+
+    def test_scan_proc_layout_malformed_args_and_body_branches(self) -> None:
+        cases = (
+            "proc foo\n",
+            "proc foo\n;\n",
+            "proc foo {} body\n",
+            "proc foo {} {\n",
+        )
+        for source in cases:
+            tokens = tokenize(source).tokens
+            proc_idx = next(
+                i for i, token in enumerate(tokens) if token.kind is TokenKind.WORD and token.value == "proc"
+            )
+            assert proc_extractor_module._scan_proc_layout(tokens, proc_idx, base_depth=0) is None
+
+    def test_consume_brace_block_rejects_non_lbrace_and_unclosed_block(self) -> None:
+        word_tokens = tokenize("proc foo {} {}\n").tokens
+        word_idx = next(i for i, token in enumerate(word_tokens) if token.kind is TokenKind.WORD)
+        assert proc_extractor_module._consume_brace_block(word_tokens, word_idx, base_depth=0) is None
+
+        unclosed = tokenize("{ still open").tokens
+        lbrace_idx = next(i for i, token in enumerate(unclosed) if token.kind is TokenKind.LBRACE)
+        assert proc_extractor_module._consume_brace_block(unclosed, lbrace_idx, base_depth=0) is None
+
+    def test_detect_non_brace_body_defensive_branches(self) -> None:
+        diagnostic = proc_extractor_module._detect_non_brace_body(
+            tokenize("proc\nfoo {} body\n").tokens,
+            0,
+            base_depth=0,
+        )
+        assert diagnostic == ExtractorDiagnostic(kind="non-brace-body", line_no=2, detail="foo")
+
+        for source in ("proc\n", "proc foo\n", "proc foo\n;\n", "proc foo {}\n"):
+            tokens = tokenize(source).tokens
+            proc_idx = next(
+                i for i, token in enumerate(tokens) if token.kind is TokenKind.WORD and token.value == "proc"
+            )
+            assert proc_extractor_module._detect_non_brace_body(tokens, proc_idx, base_depth=0) is None
+
+    def test_build_entry_reports_computed_name_when_called_directly(self) -> None:
+        tokens = tokenize("proc $computed {} {}\n").tokens
+        proc_idx = next(i for i, token in enumerate(tokens) if token.kind is TokenKind.WORD and token.value == "proc")
+        layout = proc_extractor_module._scan_proc_layout(tokens, proc_idx, base_depth=0)
+        assert layout is not None
+
+        entry, diagnostics = proc_extractor_module._build_entry(
+            layout=layout,
+            tokens=tokens,
+            lines=["proc $computed {} {}\n"],
+            source_file=Path("u.tcl"),
+            namespace_path="",
+        )
+
+        assert entry is None
+        assert diagnostics == [ExtractorDiagnostic(kind="computed-proc-name", line_no=1, detail="$computed")]
+
+    def test_scan_dpa_block_end_returns_last_line_for_unclosed_payload(self) -> None:
+        lines = ["define_proc_attributes foo -define_args {\n", "    {-x value}\n"]
+
+        assert proc_extractor_module._scan_dpa_block_end(lines, 0) == 1
+
+    def test_line_continuation_helper_distinguishes_odd_and_even_backslashes(self) -> None:
+        assert proc_extractor_module._line_ends_with_continuation("cmd \\") is True
+        assert proc_extractor_module._line_ends_with_continuation("cmd \\\\") is False
+        assert proc_extractor_module._line_ends_with_continuation("cmd") is False
+
+    def test_update_tcl_brace_depth_ignores_quotes_and_escaped_braces(self) -> None:
+        depth, in_quotes = proc_extractor_module._update_tcl_brace_depth('puts "{" \\{ {', 0, False)
+
+        assert depth == 1
+        assert in_quotes is False
+
+    def test_extract_dpa_proc_name_handles_absolute_and_empty_lines(self) -> None:
+        assert proc_extractor_module._extract_dpa_proc_name("define_proc_attributes ::ns::foo -info x") == "ns::foo"
+        assert proc_extractor_module._extract_dpa_proc_name("::bare -info x") == "bare"
+        assert proc_extractor_module._extract_dpa_proc_name("") == ""
 
 
 # ---------------------------------------------------------------------------

@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from chopper.adapters import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from chopper.core.models_common import FileStat
+from chopper.core.models_config import BaseJson, LoadedConfig
 from chopper.parser.service import ParserService, parse_file
 
 # ---------------------------------------------------------------------------
@@ -305,6 +307,90 @@ class TestPathNormalization:
         result = ParserService().run(ctx, [outside])
         # ProcEntry built; canonical name uses the original absolute POSIX form.
         assert any(cn.endswith("::foo") for cn in result.index.keys())
+
+
+class TestFullDomainHarvest:
+    def test_domain_file_cache_harvests_non_surface_tcl_for_index_only(self) -> None:
+        surface = Path("surface.tcl")
+        hidden = Path("hidden.tcl")
+        ignored = Path("notes.txt")
+        ctx, sink = _make_ctx(
+            {
+                surface: b"proc surface_proc {} {}\n",
+                hidden: b"proc hidden_proc {} {}\nproc ${dynamic} {} {}\n",
+                ignored: b"proc not_tcl {} {}\n",
+            }
+        )
+        loaded = LoadedConfig(
+            base=BaseJson(source_path=Path("base.json"), domain="dom"),
+            domain_file_cache=((ignored, "file"), (hidden, "file"), (surface, "file")),
+        )
+
+        result = ParserService().run(ctx, [surface], loaded=loaded)
+
+        assert set(result.files) == {surface}
+        assert "surface.tcl::surface_proc" in result.index
+        assert "hidden.tcl::hidden_proc" in result.index
+        assert "notes.txt::not_tcl" not in result.index
+        # The computed-name diagnostic from hidden.tcl is dropped because
+        # full-domain harvest is index-only.
+        assert sink.emissions == []
+
+    def test_filesystem_walk_harvests_hidden_tcl_and_skips_dot_chopper(self) -> None:
+        domain = Path("/work/domain")
+        fs = InMemoryFS(
+            {
+                domain / "surface.tcl": "proc surface_proc {} {}\n",
+                domain / "lib" / "hidden.tcl": "proc hidden_proc {} {}\n",
+                domain / ".chopper" / "audit.tcl": "proc audit_proc {} {}\n",
+            }
+        )
+        sink = _CollectingSink()
+        cfg = RunConfig(
+            domain_root=domain,
+            backup_root=Path("/work/domain_backup"),
+            audit_root=domain / ".chopper",
+            strict=False,
+            dry_run=False,
+        )
+        ctx = ChopperContext(config=cfg, fs=fs, diag=sink, progress=_NullProgress())
+
+        result = ParserService().run(ctx, [Path("surface.tcl")])
+
+        assert set(result.files) == {Path("surface.tcl")}
+        assert "surface.tcl::surface_proc" in result.index
+        assert "lib/hidden.tcl::hidden_proc" in result.index
+        assert "audit.tcl::audit_proc" not in result.index
+
+    def test_enumerate_domain_tcl_returns_empty_when_domain_missing(self) -> None:
+        ctx, _ = _make_ctx({})
+
+        assert ParserService()._enumerate_domain_tcl(ctx) == []
+
+    def test_parser_reads_backup_root_when_backup_exists(self) -> None:
+        domain = Path("/work/domain")
+        backup = Path("/work/domain_backup")
+        rel = Path("flow.tcl")
+        fs = InMemoryFS(
+            {
+                domain / rel: "proc keep {} {}\n",
+                backup / rel: "proc keep {} {}\nproc restore_from_backup {} {}\n",
+            }
+        )
+        sink = _CollectingSink()
+        cfg = RunConfig(
+            domain_root=domain,
+            backup_root=backup,
+            audit_root=domain / ".chopper",
+            strict=False,
+            dry_run=False,
+        )
+        ctx = ChopperContext(config=cfg, fs=fs, diag=sink, progress=_NullProgress())
+
+        result = ParserService().run(ctx, [rel])
+
+        assert "flow.tcl::keep" in result.index
+        assert "flow.tcl::restore_from_backup" in result.index
 
 
 # ---------------------------------------------------------------------------

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from chopper.core.diagnostics import DiagnosticSummary
+from chopper.core.models_audit import RunResult
 from chopper.mcp.tools import (
     DESTRUCTIVE_TOOL_NAMES,
     TOOL_NAMES,
@@ -14,6 +17,7 @@ from chopper.mcp.tools import (
     build_tools,
     call_explain_diagnostic,
     call_read_audit,
+    call_validate,
 )
 
 
@@ -80,6 +84,32 @@ class TestExplainDiagnostic:
         assert "domain" in payload["description"].lower()
         assert payload["recovery_hint"]
 
+    def test_missing_registry_doc_returns_empty_prose(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from chopper.mcp import tools as tools_module
+
+        monkeypatch.setattr(tools_module, "_REGISTRY_DOC", tmp_path / "missing.md")
+        monkeypatch.setattr(tools_module, "_prose_cache", None)
+
+        raw = call_explain_diagnostic({"code": "VE-06"})
+        payload = json.loads(raw)
+
+        assert payload["description"] == ""
+        assert payload["recovery_hint"] == ""
+
+    def test_registry_parser_ignores_non_rows_and_short_rows(self, tmp_path: Path) -> None:
+        from chopper.mcp import tools as tools_module
+
+        registry = tmp_path / "DIAGNOSTIC_CODES.md"
+        registry.write_text(
+            "not a table row\n| VE-06 | too-short |\n| VE-07 | P1 | validator | 1 | real description | real hint |\n",
+            encoding="utf-8",
+        )
+
+        parsed = tools_module._parse_registry(registry)
+
+        assert parsed["VE-07"].description == "real description"
+        assert parsed["VE-07"].recovery_hint == "real hint"
+
 
 class TestReadAudit:
     def test_missing_bundle_path_raises_protocol_error(self) -> None:
@@ -113,6 +143,73 @@ class TestReadAudit:
         raw = call_read_audit({"bundle_path": str(bundle)})
         payload = json.loads(raw)
         assert payload["files"]["bogus.json"] == {"__invalid_json__": "not json"}
+
+    def test_binary_file_is_reported_as_skipped(self, tmp_path: Path) -> None:
+        bundle = tmp_path / ".chopper"
+        bundle.mkdir()
+        (bundle / "opaque.bin").write_bytes(b"\xff\xfe\x00")
+
+        raw = call_read_audit({"bundle_path": str(bundle)})
+        payload = json.loads(raw)
+
+        assert payload["files"]["opaque.bin"] == {"__skipped__": "binary content"}
+
+
+class TestValidate:
+    def test_missing_domain_root_raises_protocol_error(self) -> None:
+        with pytest.raises(MCPProtocolError):
+            call_validate({"base": "base.json"})
+
+    def test_project_is_mutually_exclusive_with_base(self) -> None:
+        with pytest.raises(MCPProtocolError, match="mutually exclusive"):
+            call_validate({"domain_root": "/domain", "project": "project.json", "base": "base.json"})
+
+    def test_base_or_project_is_required(self) -> None:
+        with pytest.raises(MCPProtocolError, match="one of"):
+            call_validate({"domain_root": "/domain"})
+
+    def test_features_must_be_string_array(self) -> None:
+        with pytest.raises(MCPProtocolError, match="features"):
+            call_validate({"domain_root": "/domain", "base": "base.json", "features": ["ok.json", 7]})
+
+    def test_successful_validate_returns_serialized_run_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import chopper.orchestrator as orchestrator_module
+        from chopper.cli import commands as commands_module
+
+        captured: dict[str, Any] = {}
+
+        def _fake_make_context(ns: Any, *, dry_run: bool) -> tuple[object, object]:
+            captured["namespace"] = ns
+            captured["dry_run"] = dry_run
+            return object(), object()
+
+        class _Runner:
+            def run(self, ctx: object, *, command: str) -> RunResult:
+                captured["ctx"] = ctx
+                captured["command"] = command
+                return RunResult(exit_code=0, summary=DiagnosticSummary(errors=0, warnings=0, infos=0))
+
+        monkeypatch.setattr(commands_module, "_make_context", _fake_make_context)
+        monkeypatch.setattr(orchestrator_module, "ChopperRunner", _Runner)
+
+        raw = call_validate(
+            {
+                "domain_root": "/domain",
+                "base": "base.json",
+                "features": ["feature_b.json", "feature_a.json"],
+                "strict": True,
+            }
+        )
+        payload = json.loads(raw)
+
+        assert payload["exit_code"] == 0
+        assert captured["dry_run"] is True
+        assert captured["command"] == "validate"
+        ns = captured["namespace"]
+        assert ns.command == "validate"
+        assert ns.domain == "/domain"
+        assert ns.features == "feature_b.json,feature_a.json"
+        assert ns.strict is True
 
 
 class TestServerGuard:

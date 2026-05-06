@@ -139,7 +139,7 @@ class ConfigService:
 
         # --- surface_files: union of literal file refs from all sources ---
         # Also capture domain_file_cache for O1 optimization (P2 reuse).
-        surface, domain_file_cache = _collect_surface_files(base_json, sorted_features, ctx)
+        surface, domain_file_cache = _collect_surface_files(base_json, sorted_features, ctx, state=state)
         surface_sorted = tuple(sorted(surface, key=lambda p: p.as_posix()))
 
         # --- tool_command_pool: built-in lists + any --tool-commands paths ---
@@ -254,19 +254,25 @@ def _glob_to_regex_local(pattern: str) -> re.Pattern[str] | None:
     return glob_to_regex(pattern)
 
 
-def _enumerate_domain_files(ctx: ChopperContext) -> list[tuple[Path, str]]:
+def _config_source_root(ctx: ChopperContext, state: DomainState | None) -> Path:
+    if state is not None and state.backup_exists:
+        return ctx.config.backup_root
+    return ctx.config.domain_root
+
+
+def _enumerate_domain_files(ctx: ChopperContext, state: DomainState | None = None) -> list[tuple[Path, str]]:
     """Walk the domain filesystem once and return all regular files as
     ``(domain_relative_path, posix_string)`` pairs.
 
     The ``.chopper/`` audit directory is always excluded.  Returns an empty
     list if the domain root does not exist (e.g. unit-test in-memory FS).
     """
-    domain = ctx.config.domain_root
-    if not ctx.fs.exists(domain):
+    source_root = _config_source_root(ctx, state)
+    if not ctx.fs.exists(source_root):
         return []
 
     results: list[tuple[Path, str]] = []
-    frontier: deque[Path] = deque([domain])
+    frontier: deque[Path] = deque([source_root])
     while frontier:
         current = frontier.popleft()
         try:
@@ -275,7 +281,7 @@ def _enumerate_domain_files(ctx: ChopperContext) -> list[tuple[Path, str]]:
             continue
         for child in children:
             try:
-                rel = child.relative_to(domain)
+                rel = child.relative_to(source_root)
             except ValueError:
                 continue
             rel_posix = rel.as_posix()
@@ -308,7 +314,7 @@ def _match_glob_against(pattern: str, domain_files: list[tuple[Path, str]]) -> s
 
 
 def _collect_surface_files(
-    base: BaseJson, features: list[FeatureJson], ctx: ChopperContext
+    base: BaseJson, features: list[FeatureJson], ctx: ChopperContext, state: DomainState | None = None
 ) -> tuple[set[Path], list[tuple[Path, str]]]:
     """Union of every file path contributed by all JSON sources.
 
@@ -342,7 +348,7 @@ def _collect_surface_files(
 
     sources: tuple[BaseJson | FeatureJson, ...] = (base, *features)
     has_fi_glob = any(_is_glob_pattern(p) for s in sources for p in s.files.include)
-    domain_files: list[tuple[Path, str]] = _enumerate_domain_files(ctx) if has_fi_glob else []
+    domain_files: list[tuple[Path, str]] = _enumerate_domain_files(ctx, state) if has_fi_glob else []
 
     for src in sources:
         for pattern in src.files.include:

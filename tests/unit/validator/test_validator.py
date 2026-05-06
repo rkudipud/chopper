@@ -58,6 +58,17 @@ def _ctx(fs: InMemoryFS | None = None) -> ChopperContext:
     return ChopperContext(config=cfg, fs=fs or InMemoryFS(), diag=_Sink(), progress=_Progress())
 
 
+class _StatFailFS(InMemoryFS):
+    def __init__(self, files: dict[Path, str], failing_path: Path) -> None:
+        super().__init__(files)
+        self._failing_path = failing_path
+
+    def stat(self, path: Path):  # type: ignore[no-untyped-def]
+        if path == self._failing_path:
+            raise OSError("metadata unavailable")
+        return super().stat(path)
+
+
 def _codes(ctx: ChopperContext) -> list[str]:
     return [d.code for d in ctx.diag.snapshot()]
 
@@ -120,6 +131,18 @@ def test_validate_pre_does_not_emit_ve06_when_file_present() -> None:
     assert "VE-06" not in _codes(ctx)
 
 
+def test_validate_pre_accepts_literal_file_present_in_backup_for_rerun() -> None:
+    fs = InMemoryFS()
+    fs.mkdir(DOMAIN, parents=True, exist_ok=True)
+    fs.write_text(BACKUP / "extra_utils.tcl", "proc extra {} {}\n")
+    ctx = _ctx(fs=fs)
+    loaded = LoadedConfig(base=_base(files=FilesSection(include=("extra_utils.tcl",))))
+
+    validate_pre(ctx, loaded)
+
+    assert "VE-06" not in _codes(ctx)
+
+
 # ---------------------------------------------------------------------------
 # validate_pre — VE-09 malformed glob
 # ---------------------------------------------------------------------------
@@ -139,6 +162,18 @@ def test_validate_pre_accepts_wellformed_star_glob() -> None:
     loaded = LoadedConfig(base=_base(files=FilesSection(include=("lib/*.tcl",))))
     validate_pre(ctx, loaded)
     assert "VE-09" not in _codes(ctx)
+
+
+def test_validate_pre_glob_matches_backup_for_rerun() -> None:
+    fs = InMemoryFS()
+    fs.mkdir(DOMAIN, parents=True, exist_ok=True)
+    fs.write_text(BACKUP / "lib/a.tcl", "proc x {} {}\n")
+    ctx = _ctx(fs=fs)
+    loaded = LoadedConfig(base=_base(files=FilesSection(include=("lib/*.tcl",))))
+
+    validate_pre(ctx, loaded)
+
+    assert "VW-03" not in _codes(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -307,8 +342,9 @@ def test_validate_post_ignores_escaped_braces() -> None:
 
 
 def test_validate_post_emits_vw10_when_live_output_missing() -> None:
+    rel = Path("copied.tcl")
     outcome = FileOutcome(
-        path=Path("copied.tcl"),
+        path=rel,
         treatment=FileTreatment.FULL_COPY,
         bytes_in=12,
         bytes_out=12,
@@ -316,7 +352,9 @@ def test_validate_post_emits_vw10_when_live_output_missing() -> None:
         procs_removed=(),
     )
     ctx = _ctx()
-    validate_post(ctx, _make_manifest(), _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    manifest = _make_manifest(files={rel: FileTreatment.FULL_COPY})
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
     assert "VW-10" in _codes(ctx)
 
 
@@ -445,8 +483,53 @@ def test_validate_post_emits_vw10_when_removed_file_still_present() -> None:
         procs_removed=(),
     )
     ctx = _ctx(fs=fs)
-    validate_post(ctx, _make_manifest(), _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+    manifest = _make_manifest(files={rel: FileTreatment.REMOVE})
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
     assert "VW-10" in _codes(ctx)
+
+
+def test_validate_post_emits_vw10_when_live_output_stat_fails() -> None:
+    rel = Path("copied.tcl")
+    fs = _StatFailFS({DOMAIN / rel: "proc p {} {}\n"}, DOMAIN / rel)
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.FULL_COPY,
+        bytes_in=13,
+        bytes_out=13,
+        procs_kept=(),
+        procs_removed=(),
+    )
+    ctx = _ctx(fs=fs)
+    manifest = _make_manifest(files={rel: FileTreatment.FULL_COPY})
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+
+    vw10 = [d for d in ctx.diag.snapshot() if d.code == "VW-10"]
+    assert vw10
+    assert vw10[0].context["reason"] == "stat-failed"
+
+
+def test_validate_post_emits_vw10_when_live_output_is_directory() -> None:
+    rel = Path("copied.tcl")
+    fs = InMemoryFS()
+    fs.mkdir(DOMAIN / rel, parents=True, exist_ok=True)
+    outcome = FileOutcome(
+        path=rel,
+        treatment=FileTreatment.FULL_COPY,
+        bytes_in=13,
+        bytes_out=13,
+        procs_kept=(),
+        procs_removed=(),
+    )
+    ctx = _ctx(fs=fs)
+    manifest = _make_manifest(files={rel: FileTreatment.FULL_COPY})
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), trim_report=_make_trim_report(outcome))
+
+    vw10 = [d for d in ctx.diag.snapshot() if d.code == "VW-10"]
+    assert vw10
+    assert vw10[0].context["reason"] == "is-dir"
 
 
 # ---------------------------------------------------------------------------
@@ -593,6 +676,54 @@ def test_validate_post_ignores_unresolved_edges() -> None:
     assert "VW-05" not in _codes(ctx)
 
 
+def test_validate_post_ignores_resolved_call_from_removed_caller() -> None:
+    graph = DependencyGraph(
+        pi_seeds=("removed.tcl::caller",),
+        nodes=("removed.tcl::caller",),
+        pt=(),
+        edges=(
+            Edge(
+                caller="removed.tcl::caller",
+                callee="removed.tcl::callee",
+                kind="proc_call",
+                status="resolved",
+                token="callee",
+                line=1,
+            ),
+        ),
+        reachable_from_includes=frozenset({"removed.tcl::caller"}),
+    )
+    ctx = _ctx()
+
+    validate_post(ctx, _make_manifest(), graph, rewritten=())
+
+    assert "VW-05" not in _codes(ctx)
+
+
+def test_validate_post_accepts_resolved_call_to_surviving_proc() -> None:
+    caller = "a.tcl::caller"
+    callee = "a.tcl::callee"
+    manifest = _make_manifest(
+        files={Path("a.tcl"): FileTreatment.FULL_COPY},
+        procs={
+            caller: ProcDecision(caller, Path("a.tcl"), "base:procedures.include"),
+            callee: ProcDecision(callee, Path("a.tcl"), "base:procedures.include"),
+        },
+    )
+    graph = DependencyGraph(
+        pi_seeds=(caller,),
+        nodes=(callee, caller),
+        pt=(callee,),
+        edges=(Edge(caller=caller, callee=callee, kind="proc_call", status="resolved", token="callee", line=3),),
+        reachable_from_includes=frozenset({caller, callee}),
+    )
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, graph, rewritten=())
+
+    assert "VW-05" not in _codes(ctx)
+
+
 # ---------------------------------------------------------------------------
 # validate_post — F3 cross-validate (VW-14/15/16/17)
 # ---------------------------------------------------------------------------
@@ -646,6 +777,18 @@ def test_validate_post_emits_vw16_for_source_cmd_missing_target() -> None:
     assert "VW-16" in _codes(ctx)
 
 
+def test_validate_post_accepts_source_cmd_existing_target() -> None:
+    manifest = _make_manifest(
+        files={Path("lib/present.tcl"): FileTreatment.FULL_COPY},
+        stages=(_stage(steps=("source lib/present.tcl",)),),
+    )
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert "VW-16" not in _codes(ctx)
+
+
 def test_validate_post_emits_vw17_for_external_path() -> None:
     manifest = _make_manifest(stages=(_stage(steps=("/abs/path/script.tcl",)),))
     ctx = _ctx()
@@ -658,6 +801,24 @@ def test_validate_post_vw17_triggers_for_dotdot_path() -> None:
     ctx = _ctx()
     validate_post(ctx, manifest, _empty_graph(), rewritten=())
     assert "VW-17" in _codes(ctx)
+
+
+def test_validate_post_vw17_triggers_for_drive_letter_path() -> None:
+    manifest = _make_manifest(stages=(_stage(steps=("C:/eda/script.tcl",)),))
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert "VW-17" in _codes(ctx)
+
+
+def test_validate_post_ignores_blank_and_comment_stage_steps() -> None:
+    manifest = _make_manifest(stages=(_stage(steps=("", "   ", "# comment")),))
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert not any(code in _codes(ctx) for code in ("VW-14", "VW-15", "VW-16", "VW-17"))
 
 
 # ---------------------------------------------------------------------------
