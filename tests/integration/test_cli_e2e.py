@@ -429,6 +429,36 @@ class TestGlobFilesIncludeRegression:
         assert "proc pc_eco_report_timing" in trimmed_text
         assert "define_proc_attributes pc_eco_report_timing" in trimmed_text
 
+    def test_trim_full_copy_binary_file_survives_without_unicode_decode_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        domain = tmp_path / "power_bin"
+        domain.mkdir(parents=True, exist_ok=True)
+        onepower = domain / "onepower"
+        onepower.mkdir()
+        (onepower / "basic.tcl").write_text("proc basic {} {}\n", encoding="utf-8")
+        payload = b"\x1f\x8b\x08\x00binary-payload"
+        (onepower / "payload.sn.gz").write_bytes(payload)
+
+        jsons = domain / "jsons"
+        jsons.mkdir()
+        base_path = jsons / "base.json"
+        base_path.write_text(
+            json.dumps({"$schema": "base-v1", "domain": domain.name, "files": {"include": ["onepower/basic.tcl"]}}),
+            encoding="utf-8",
+        )
+        feat_path = jsons / "bin.feature.json"
+        feat_path.write_text(
+            json.dumps({"$schema": "feature-v1", "name": "bin", "files": {"include": ["onepower/payload.sn.gz"]}}),
+            encoding="utf-8",
+        )
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base_path), "--features", str(feat_path)])
+        captured = capsys.readouterr()
+
+        assert rc == 0, f"trim should succeed for opaque FULL_COPY files; stderr:\n{captured.err}"
+        assert (onepower / "payload.sn.gz").read_bytes() == payload
+
     def test_validate_glob_only_subdir_exits_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         domain = tmp_path / "power"
         base, feat = self._seed_glob_domain(domain)

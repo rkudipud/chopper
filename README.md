@@ -328,6 +328,17 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 0.8.3 — 2026-05-06
+
+- **P5 opaque-file copy contract tightened (bug fix: GitHub #21 / Pitfall P-44).** The `FULL_COPY` path in `trimmer/file_writer.py` was incorrectly round-tripping every surviving file through UTF-8 text I/O (`read_text` → `write_text`). This crashed with a `UnicodeDecodeError` whenever a domain included non-UTF-8 or binary artifacts via F1 `files.include` (e.g., `.sn.gz` compressed sidecars, vendor binary payloads). The fix introduces a dedicated `copy_file(src, dst)` operation on `FileSystemPort` — implemented with `shutil.copy2` in `LocalFS` (preserves mode bits) and an in-memory clone in `InMemoryFS` — and rewires `full_copy_file()` to use it. The `remove_file()` byte-accounting is likewise fixed to use `stat().size` rather than reading file contents. `PROC_TRIM` remains the only P5 path that reads file text, and only for `.tcl` files selected for F2 proc trimming. Architecture doc §3.4 (F1), §3.5 (F2), and §5.2.1 (P5 walkthrough) updated in place with the write-semantics contract. Pitfall **P-44** added to `RISKS_AND_PITFALLS.md`.
+- **Technical docs tightened.** F1, F2, P5, and `FileSystemPort` sections of `technical_docs/chopper_description.md` now state the write contract at the first mention; the "FULL_COPY = opaque copy" decision is no longer implied by absence of explicit description.
+- **No schema, diagnostic-registry, CLI surface, or exit-code changes.**
+
+### 0.8.2 — 2026-05-06
+
+- **F1 glob-matched non-Tcl file gap fixed (Pitfall P-42).** Non-Tcl files (`.py`, `.pl`, `.csh`, config files) reachable *only* via a `files.include` glob pattern were silently absent from `compiled_manifest.json` with exit code 0. Fixed in `compiler/merge_service.py`.
+- **No schema, diagnostic-registry, CLI surface, or exit-code changes.**
+
 ### 0.8.1 — 2026-05-01
 
 - **Performance uplift: O1–O6 optimization wave complete.** This release integrates all six optimizations tracked as O1–O6 across the pipeline and activates the cache-reuse pattern introduced in the architecture doc.

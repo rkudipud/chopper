@@ -501,9 +501,12 @@ F1 performs whole-file trimming via `files.include` and `files.exclude` in base 
 | **Input unit** | Literal file path or glob pattern |
 | **Output unit** | Whole file copied or removed |
 | **File-type scope** | **All file types** — Tcl, Perl, Python, shell, config, and any other file under the domain. F1 is fully file-type agnostic. |
+| **Write semantics** | `FULL_COPY` is an opaque byte-preserving copy from `<domain>_backup/` into the rebuilt `domain/` tree. Chopper does not decode, normalize, or rewrite file contents on this path. |
 | **Best for** | Tcl scripts without shared proc libraries, configs, stack files, hooks, Perl/Python/csh |
 
 > **F1 is file-type agnostic.** `files.include` and `files.exclude` glob patterns match every file under the domain regardless of extension. Non-Tcl files (`.py`, `.pl`, `.csh`, config, etc.) receive a `FULL_COPY` or `REMOVE` treatment decision through F1 file-level trimming. They are never parsed by P2 (OOS-01) and are therefore never eligible for F2 proc-level trimming, but they participate in F1 copy/remove decisions identically to `.tcl` files. Glob-matched non-Tcl files enter the manifest universe directly from the compiler's universe-construction step, not from the parser output.
+
+> **F1 does not text-rewrite surviving files.** When F1 keeps a file as `FULL_COPY`, P5 copies it verbatim from backup to output. This rule applies equally to text files and opaque artifacts such as compressed reports, binary payloads, and vendor sidecar files. The F1 contract is about survival, not reinterpretation.
 
 **Glob patterns** are supported in `files.include` and `files.exclude` only. Three special characters are recognized:
 
@@ -528,6 +531,7 @@ F1 performs whole-file trimming via `files.include` and `files.exclude` in base 
 - Wildcard-expanded includes are pruned by matching `files.exclude` entries.
 - Glob patterns match **all file types** — `.tcl`, `.py`, `.pl`, `.csh`, and any other extension. F1 is file-type agnostic; extension filtering is never applied during glob expansion.
 - Non-Tcl files matched by a glob receive `FULL_COPY` or `REMOVE` treatment (F1). They are excluded from P2 parsing (OOS-01) and are therefore never eligible for F2 proc-level trimming.
+- `FULL_COPY` is a byte-preserving file copy. P5 must not decode file contents, normalize newlines, or otherwise treat the file as text on the F1 path.
 - When a glob pattern expands to zero files it is silently ignored.
 - All expansions are normalized, deduplicated, and sorted lexicographically before compilation.
 - Patterns are case-sensitive.
@@ -540,7 +544,8 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 | Behavior | Description |
 |---|---|
 | **Input unit** | `{ file, procs[] }` — exact file path and proc name list |
-| **Output unit** | Original file copied, unwanted proc definitions deleted |
+| **Output unit** | Original Tcl file copied, unwanted proc definitions deleted |
+| **File-type scope** | Tcl files only. F2 is the only trimming mode that rewrites file contents. |
 | **Best for** | `*_procs.tcl`, shared utility proc files, rule libraries |
 
 **`procEntry` structure:**
@@ -558,6 +563,8 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 **Rules:**
 - An entry with an empty `procs` array (`"procs": []`) is a **hard validation error**. Use `files.include` to keep a whole file.
 - Proc names in `procs` are the short names as authored in the file; Chopper resolves canonical form (`file.tcl::qualified_name`) internally.
+- Only `.tcl` files participate in F2. If a file must survive unchanged, even when it contains Tcl-adjacent text, the correct surface is F1 `files.include`, not F2.
+- In P5, `PROC_TRIM` is the only path that reads file contents for rewriting, and it does so only for Tcl files selected for proc trimming.
 - Tracing is default-on: explicitly included procs are expanded transitively for diagnostics and call-tree reporting (PI+), but only explicitly listed procs survive in the trimmed output. See R3.
 
 ### 3.6 F3 — Run-File Generation
@@ -1271,10 +1278,10 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 #### P5 — Build output (skipped under `--dry-run`)
 
 - For each manifest entry:
-  - `FULL_COPY` → copy the file verbatim from the backup into the rebuilt `domain/` tree.
-  - `PROC_TRIM` → read the file from backup, delete the line spans of every proc not in `surviving_procs(F)`, rewrite directly into the rebuilt `domain/` tree.
+  - `FULL_COPY` → copy the file verbatim, byte-for-byte, from the backup into the rebuilt `domain/` tree. This path does not decode content, normalize line endings, or reinterpret the file as text.
+  - `PROC_TRIM` → for `.tcl` manifest entries only, read the file from backup, delete the line spans of every proc not in `surviving_procs(F)`, rewrite directly into the rebuilt `domain/` tree.
   - `GENERATED` → run the F3 generator (`flow_actions` is authoritative for ordering here).
-  - `REMOVE` → record the omission; do not write.
+  - `REMOVE` → record the omission; do not write or content-read the file during P5.
 - Write `.chopper/trim_report.json` and `trim_report.txt` describing every file and proc operation and the diagnostics correlated with each.
 - Owner: `trimmer/` + `generators/`.
 - Output: the rebuilt `domain/` tree plus the trim-report artifacts. If P5 fails mid-run, the partially rebuilt `domain/` is left in place and the intact `<domain>_backup/` is the recovery source for the next invocation.
@@ -2106,7 +2113,7 @@ The extension surface is deliberately small:
 
 | Extension Point | Contract | Purpose |
 |---|---|---|
-| `FileSystemPort` | `read_text`, `write_text`, `exists`, `rename`, `remove`, `mkdir`, `copy_tree`, ... | Lets tests and future frontends drive the engine without assuming a real on-disk tree in every scenario |
+| `FileSystemPort` | `read_text`, `write_text`, `copy_file`, `exists`, `rename`, `remove`, `mkdir`, `copy_tree`, ... | Lets tests and future frontends drive the engine without assuming a real on-disk tree in every scenario, while keeping Tcl text operations separate from opaque full-file copies |
 | `ProgressSink` | `phase_started()`, `phase_done()`, `step()` | Progress panels, spinners, CI silence, or future GUI status widgets |
 | `DiagnosticSink` | `emit()`, `snapshot()`, `finalize()` | Diagnostic collection and presentation-independent reporting |
 
@@ -3150,6 +3157,7 @@ This log records the conscious design decisions that shaped the current document
 | 2026-05-01 | **0.8.0 — Wave B O5/O6 structural refactor.** Split the core model god-module into phase-owned `core/models_*.py` files and removed the aggregate model shim so code imports those modules directly. Split parser call extraction into focused constants, classification, source-path, structural-skip, and body-walk modules and removed the call-extractor facade; `extract_body_refs` lives in `parser/call_extractor_body.py`, and public suppression sets live in `parser/call_extractor_constants.py`. No schema, diagnostic-registry, CLI, or runtime behavior changed; the decision was made to reduce review surface and future change risk without introducing new capability. |
 | 2026-05-05 | **`chopper --version` global flag (FR-45).** Added `--version` as a top-level global flag to `build_parser()` in `src/chopper/cli/main.py` using argparse's built-in `action='version'`. The version string is `chopper <version>` sourced from `chopper.__version__` (installed package metadata with `pyproject.toml` fallback). The flag does not require a subcommand; it prints to stdout and exits 0. Cascaded to `CLI_HELP_TEXT_REFERENCE.md` (usage block and flag-scope note) and **FR-45** added to the requirements table §7.1. |
 | 2026-05-06 | **0.8.2 — F1 glob-matched non-Tcl file gap fixed (P-42).** Two compounding bugs caused all non-Tcl files (`.py`, `.pl`, `.csh`, config) reachable *only* via a `files.include` glob pattern to be silently absent from `compiled_manifest.json` with no diagnostic (exit code 0). **Bug 1 — glob expansion against wrong candidate set:** `_build_source_facts` in `compiler/merge_service.py` passed only `parsed_paths` (Tcl-only keys of `ParseResult.files`) to `_extract_facts` for FI glob expansion. Non-Tcl surface files from P1 were never in the candidate set, so they could never enter `fi_glob_surviving`. **Bug 2 — `_collect_universe` missed `fi_glob_surviving`:** Even if `fi_glob_surviving` had been populated, `_collect_universe` only unioned `fi_literal`; glob-surviving paths were dropped. **Fix:** (1) `_build_source_facts` now computes `all_surface_paths = frozenset(loaded.surface_files) | parsed_paths` and passes that full set to `_extract_facts`; (2) `_collect_universe` now also unions `facts.fi_glob_surviving` for every source. Architecture doc §3.4 (F1 — File Chopping) expanded with an explicit **F1 is file-type agnostic** callout, a new table row, and two new rules. Pitfall **P-42** in `RISKS_AND_PITFALLS.md` updated to document both bug layers with naïve-vs-correct code blocks for each. Three regression tests added: one unit test calling `_collect_universe` directly, one end-to-end `CompilerService` unit test, and one integration CLI test (`TestGlobFilesIncludeRegression::test_trim_glob_only_subdir_non_tcl_files_survive`). Version bumped 0.8.1 → 0.8.2. No schema, diagnostic-registry, CLI surface, or exit-code changes. |
+| 2026-05-06 | **0.8.3 — P5 opaque-file copy contract tightened (P-44).** Clarified the owning sections for F1, F2, P5, and the `FileSystemPort` surface so the runtime contract is explicit at the first mention, not deferred to later implementation notes. `FULL_COPY` is now specified as an opaque byte-preserving copy from `<domain>_backup/` into the rebuilt domain, with no text decode or newline normalization. `PROC_TRIM` is explicitly limited to `.tcl` files and is the only P5 path that reads file contents for rewriting. `REMOVE` is documented as a no-write, no-content-read path during P5. This closes the ambiguity that previously let implementers infer that any surviving file could be round-tripped through text I/O. The matching implementation trap is recorded as **P-44** in `RISKS_AND_PITFALLS.md`. Version bumped 0.8.2 → 0.8.3. |
 
 ---
 

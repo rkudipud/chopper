@@ -76,6 +76,15 @@ class FileSystemPort(Protocol):
 
     def mkdir(self, path: Path, *, parents: bool = False, exist_ok: bool = False) -> None: ...
 
+    def copy_file(self, src: Path, dst: Path) -> None:
+        """Copy one file from ``src`` to ``dst`` without decoding its contents.
+
+        This is the opaque-file path used by ``FULL_COPY`` treatments. The
+        implementation must preserve file bytes exactly; metadata preservation
+        beyond content is adapter-defined.
+        """
+        ...
+
     def copy_tree(self, src: Path, dst: Path) -> None:
         """Recursively copy ``src`` to ``dst``, excluding any top-level ``.chopper/``.
 

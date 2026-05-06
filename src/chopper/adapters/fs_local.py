@@ -59,6 +59,10 @@ class LocalFS:
     def mkdir(self, path: Path, *, parents: bool = False, exist_ok: bool = False) -> None:
         path.mkdir(parents=parents, exist_ok=exist_ok)
 
+    def copy_file(self, src: Path, dst: Path) -> None:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+
     def copy_tree(self, src: Path, dst: Path) -> None:
         def _ignore(directory: str, names: list[str]) -> list[str]:  # noqa: ARG001
             # Only exclude `.chopper/` at the top level of the source tree.

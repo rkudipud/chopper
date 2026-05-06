@@ -167,3 +167,19 @@ def test_dry_run_does_not_touch_destination(tmp_path: Path) -> None:
     assert not dst.exists(), "dry-run must not create the destination file"
     # Outcome is still produced so the audit bundle can describe the planned action.
     assert outcome.path == rel
+
+
+def test_full_copy_file_copies_binary_payload_without_text_decode(tmp_path: Path) -> None:
+    ctx = _make_ctx(tmp_path)
+    rel = Path("opaque/cbsads.sn.gz")
+    src = ctx.config.backup_root / rel
+    src.parent.mkdir(parents=True)
+    payload = b"\x1f\x8b\x08\x00binary-payload"
+    src.write_bytes(payload)
+
+    outcome = full_copy_file(ctx, rel, procs_in_file=())
+
+    dst = ctx.config.domain_root / rel
+    assert dst.read_bytes() == payload
+    assert outcome.bytes_in == len(payload)
+    assert outcome.bytes_out == len(payload)

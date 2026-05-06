@@ -169,6 +169,17 @@ class InMemoryFS:
             self._dirs.add(ancestor)
         self._dirs.add(key)
 
+    def copy_file(self, src: Path, dst: Path) -> None:
+        src_key = _key(src)
+        dst_key = _key(dst)
+        if src_key not in self._files:
+            raise FileNotFoundError(f"InMemoryFS: copy_file source does not exist: {src.as_posix()}")
+        if dst_key in self._dirs:
+            raise IsADirectoryError(f"InMemoryFS: cannot copy file over directory: {dst.as_posix()}")
+        for ancestor in dst_key.parents:
+            self._dirs.add(ancestor)
+        self._files[dst_key] = self._files[src_key]
+
     def copy_tree(self, src: Path, dst: Path) -> None:
         src_key = _key(src)
         dst_key = _key(dst)

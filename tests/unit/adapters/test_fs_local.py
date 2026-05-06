@@ -90,6 +90,18 @@ def test_copy_tree_excludes_top_level_dot_chopper(tmp_path: Path) -> None:
     assert chopper.exists()
 
 
+def test_copy_file_preserves_opaque_bytes(tmp_path: Path) -> None:
+    fs = LocalFS()
+    src = tmp_path / "src" / "payload.sn.gz"
+    src.parent.mkdir(parents=True)
+    src.write_bytes(b"\x1f\x8b\x08\x00opaque-bytes")
+    dst = tmp_path / "dst" / "payload.sn.gz"
+
+    fs.copy_file(src, dst)
+
+    assert dst.read_bytes() == src.read_bytes()
+
+
 def test_remove_dir_nonrecursive_raises_if_nonempty(tmp_path: Path) -> None:
     fs = LocalFS()
     d = tmp_path / "d"

@@ -36,6 +36,12 @@ def test_write_text_creates_file_and_implicit_dirs() -> None:
     assert fs.read_text(Path("/d/sub/b.tcl")) == "body"
 
 
+def test_copy_file_copies_stored_content() -> None:
+    fs = InMemoryFS({Path("/src/file.pl"): "opaque-ish text"})
+    fs.copy_file(Path("/src/file.pl"), Path("/dst/file.pl"))
+    assert fs.read_text(Path("/dst/file.pl")) == "opaque-ish text"
+
+
 def test_list_returns_sorted_children() -> None:
     fs = InMemoryFS(
         {
@@ -220,6 +226,12 @@ def test_copy_tree_missing_source_raises_filenotfound() -> None:
     fs = InMemoryFS()
     with pytest.raises(FileNotFoundError, match="copy_tree source"):
         fs.copy_tree(Path("/ghost"), Path("/dst"))
+
+
+def test_copy_file_missing_source_raises_filenotfound() -> None:
+    fs = InMemoryFS()
+    with pytest.raises(FileNotFoundError, match="copy_file source"):
+        fs.copy_file(Path("/ghost"), Path("/dst"))
 
 
 def test_copy_tree_excludes_dot_chopper_subtree() -> None:

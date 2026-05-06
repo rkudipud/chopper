@@ -1,6 +1,6 @@
 # Chopper — Technical Risks and Implementation Pitfalls
 
-**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-42) that prevent those risks from being realized.
+**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-44) that prevent those risks from being realized.
 **Audience:** Engineering team
 **Replaces:** prior `TECHNICAL_CHALLENGES.md` and the former `technical_docs/IMPLEMENTATION_PITFALLS_GUIDE.md`.
 
@@ -11,7 +11,7 @@
 This guide merges two previously separate documents:
 
 - **Technical Challenges (TC-01 – TC-10)** — High-level risk areas identified during architecture. Each TC names a category of failure that would compromise trim correctness, reproducibility, or safety.
-- **Implementation Pitfalls (P-01 – P-42)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
+- **Implementation Pitfalls (P-01 – P-44)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
 
 The document is organized by module. Each module section opens with the relevant TC risk statements, followed by the detailed pitfalls that guard against them.
 
@@ -777,6 +777,36 @@ set y 2
 
 ---
 
+### Pitfall P-44: `FULL_COPY` Must Not Decode Opaque Files
+
+**THE TRAP (bug report: GitHub #21):**
+```python
+# WRONG: every surviving file is treated as UTF-8 text
+text = fs.read_text(backup_root / rel)
+fs.write_text(domain_root / rel, text)
+```
+
+That works for ordinary Tcl and simple text files, but it explodes on domain artifacts such as `.sn.gz`, compressed reports, binary sidecars, and other opaque payloads that are legitimately included by F1. The immediate symptom is a `UnicodeDecodeError` during P5 `FULL_COPY`, after the rebuild has already started. Chopper then leaves a half-rebuilt `domain/` in place by design (P-13), so a bad full-copy path turns one file-handling bug into a visible mid-run failure.
+
+**Correct Behavior:** `FULL_COPY` is an opaque file-copy operation, not a text rewrite. Chopper must preserve file bytes exactly and carry the file forward without attempting to interpret encoding, normalize line endings, or otherwise reserialize content. In P5, content reads are reserved to the Tcl-specific `PROC_TRIM` path only.
+
+**Implementation Requirement:**
+- `FULL_COPY` must use a filesystem-level single-file copy operation from `<domain>_backup/` to `domain/`.
+- The copy must preserve file bytes exactly. No UTF-8 decode, no newline normalization, no "best effort" text fallback.
+- The live filesystem adapter must preserve source mode bits on the copied file.
+- `REMOVE` byte-accounting must come from metadata (`stat().size` or equivalent), not by reading file contents.
+- `PROC_TRIM` is the only P5 path that may read file contents, and only for `.tcl` files selected for proc trimming.
+
+**Why It Matters:** F1 is intentionally file-type agnostic. Real EDA domains contain Tcl next to Perl, Python, gzip-compressed artifacts, scheduler payloads, reports, and tool-generated sidecars. If `FULL_COPY` assumes "surviving file == decodable text", trims fail on legitimate inputs and the user gets a broken rebuild from an avoidable implementation mistake.
+
+**Tests:**
+- `tests/unit/adapters/test_fs_local.py::test_copy_file_preserves_opaque_bytes`
+- `tests/unit/adapters/test_fs_memory.py::test_copy_file_copies_stored_content`
+- `tests/unit/trimmer/test_file_writer_modes.py::test_full_copy_file_copies_binary_payload_without_text_decode`
+- `tests/integration/test_cli_e2e.py::TestGlobFilesIncludeRegression::test_trim_full_copy_binary_file_survives_without_unicode_decode_error`
+
+---
+
 ## VALIDATOR MODULE — Risk: Silent Failures
 
 **TC-07 — Validation Quality:** Validation must catch broken Tcl syntax, missing files, unjustifiable proc references, and F3 output pointing to trimmed-away content. Diagnostics must use stable IDs, severities, and actionable hints so CI, text reports, and future UIs all consume the same signal.
@@ -1244,8 +1274,9 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Compiler** | Trace expansion is non-deterministic | Require exact match, not ambiguous (P-08) |
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |
 | **Compiler** | Glob results include duplicates | Normalize + deduplicate (P-11) |
-| **Trimmer** | Crash leaves domain corrupted | Atomic transitions or safe re-run (P-13) |
+| **Trimmer** | Crash leaves domain half-rebuilt | Backup-and-rebuild model with deterministic safe re-run from `domain_backup/` (P-13) |
 | **Trimmer** | Lost work on re-trim | Detect existing backup and rebuild from it (P-20) |
+| **Trimmer** | `FULL_COPY` decodes opaque files as text | Use filesystem-level opaque copy; reserve content reads to Tcl `PROC_TRIM` only (P-44) |
 | **Validator** | Typos in JSON go unnoticed | Validate JSON references exist (P-16) |
 | **Audit** | Diagnostics lack context | Include location in every diagnostic (P-18) |
 | **Config** | Paths break on different OS | Always use forward slashes (P-21) |

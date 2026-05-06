@@ -69,10 +69,9 @@ def full_copy_file(ctx: ChopperContext, rel: Path, *, procs_in_file: tuple[str, 
 
     src = _backup_path(ctx, rel)
     dst = _domain_path(ctx, rel)
-    content = ctx.fs.read_text(src)
-    bytes_in = len(content.encode("utf-8"))
+    bytes_in = ctx.fs.stat(src).size
     if not ctx.config.dry_run:
-        ctx.fs.write_text(dst, content)
+        ctx.fs.copy_file(src, dst)
         _mirror_mode(src, dst)
     return FileOutcome(
         path=rel,
@@ -134,8 +133,7 @@ def remove_file(ctx: ChopperContext, rel: Path) -> FileOutcome:
 
     src = _backup_path(ctx, rel)
     try:
-        content = ctx.fs.read_text(src)
-        bytes_in = len(content.encode("utf-8"))
+        bytes_in = ctx.fs.stat(src).size
     except (OSError, FileNotFoundError):
         bytes_in = 0
     return FileOutcome(

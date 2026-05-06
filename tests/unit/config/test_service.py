@@ -39,6 +39,7 @@ class _InMemoryFS:
     def rename(self, src: Path, dst: Path) -> None: ...  # pragma: no cover
     def remove(self, path: Path, *, recursive: bool = False) -> None: ...  # pragma: no cover
     def mkdir(self, path: Path, *, parents: bool = False, exist_ok: bool = False) -> None: ...  # pragma: no cover
+    def copy_file(self, src: Path, dst: Path) -> None: ...  # pragma: no cover
     def copy_tree(self, src: Path, dst: Path) -> None: ...  # pragma: no cover
 
 

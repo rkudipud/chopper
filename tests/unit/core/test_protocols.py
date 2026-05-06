@@ -53,6 +53,9 @@ class _StubFS:
     def mkdir(self, path: Path, *, parents: bool = False, exist_ok: bool = False) -> None:
         return None
 
+    def copy_file(self, src: Path, dst: Path) -> None:
+        return None
+
     def copy_tree(self, src: Path, dst: Path) -> None:
         return None
 
