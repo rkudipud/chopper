@@ -4,9 +4,9 @@ mode: agent
 
 # Validate my Chopper JSONs
 
-Invoke the **Chopper Domain Companion** in `analyze-only` mode (no CLI calls to `chopper`).
+Invoke the **Chopper Agent** in `analyze-only` mode (no CLI calls to `chopper`).
 
-Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain-companion.agent.md), then:
+Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), then:
 
 1. Ask me for the domain root (or infer from the workspace)
 2. Run `python schemas/scripts/validate_jsons.py <domain_root>/`

@@ -4,9 +4,9 @@ mode: agent
 
 # Why was `<name>` dropped (or kept)?
 
-Invoke the **Chopper Domain Companion**.
+Invoke the **Chopper Agent**.
 
-Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain-companion.agent.md), then:
+Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), then:
 
 1. Ask me for the proc name or file path in question, and the `.chopper/` bundle path
 2. Search `dependency_graph.json` for the symbol — surface its callers, callees, and reachability

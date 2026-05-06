@@ -2165,7 +2165,7 @@ GUI-relevant data surfaces (file selection, proc selection, dependency graph, tr
 
 ### FD-13: Host-Integrated GitHub Issue Attachment Upload
 
-The Chopper Domain Companion may package local evidence and create a GitHub issue body automatically, but v1 does not standardize binary attachment upload to the created issue. GitHub's attachment flow is host- and credential-dependent: browser UI upload works today, while CLI/API support for issue attachments varies by environment and is not exposed through a stable Chopper-owned contract.
+The Chopper Agent may package local evidence and create a GitHub issue body automatically, but v1 does not standardize binary attachment upload to the created issue. GitHub's attachment flow is host- and credential-dependent: browser UI upload works today, while CLI/API support for issue attachments varies by environment and is not exposed through a stable Chopper-owned contract.
 
 If future users require truly end-to-end companion filing, this FD would define:
 

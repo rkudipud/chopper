@@ -4,9 +4,9 @@ mode: agent
 
 # Package Chopper bug artifacts from Unix paths
 
-Invoke the **Chopper Domain Companion**.
+Invoke the **Chopper Agent**.
 
-Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain-companion.agent.md), then help me package local evidence for a GitHub bug report directly from VS Code on a Unix host:
+Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), then help me package local evidence for a GitHub bug report directly from VS Code on a Unix host:
 
 1. Ask me for one or more Unix paths to a `.chopper/` directory, a terminal log, a markdown report, or screenshots.
 2. Use `python schemas/scripts/package_bug_report.py <paths...>` to create a single zip bundle. If I provide an explicit output path, pass `--output`.

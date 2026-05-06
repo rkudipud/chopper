@@ -4,9 +4,9 @@ mode: agent
 
 # Explain my last Chopper run
 
-Invoke the **Chopper Domain Companion**.
+Invoke the **Chopper Agent**.
 
-Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain-companion.agent.md) — especially the "Audit artifacts you must know how to interpret" section — then:
+Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md) — especially the "Audit artifacts you must know how to interpret" section — then:
 
 1. Find the most recent `.chopper/` directory in the workspace (or ask me for the path)
 2. Read `chopper_run.json` and report: exit code, phase results, wall time

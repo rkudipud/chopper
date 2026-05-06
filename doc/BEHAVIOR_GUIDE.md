@@ -432,7 +432,7 @@ Yes. Chopper has no EDA-specific dependencies at its core; the parser handles st
 
 ### Where do I file a bug?
 
-The fastest path: open VS Code Copilot Chat, pick the **Chopper Domain Companion** agent, and run the `report-chopper-bug` prompt. It will gather the evidence from the `.chopper/` bundle and file a GitHub issue automatically when `gh` is available; if not, it falls back to a local issue body you can paste manually.
+The fastest path: open VS Code Copilot Chat, pick the **Chopper Agent** agent, and run the `report-chopper-bug` prompt. It will gather the evidence from the `.chopper/` bundle and file a GitHub issue automatically when `gh` is available; if not, it falls back to a local issue body you can paste manually.
 
 Manual path — include:
 

@@ -8,9 +8,11 @@ This document provides activation prompts for the Chopper buildout agents.
 
 | Agent | Purpose | Use For |
 | --- | --- | --- |
-| **Chopper Buildout Agent** | Master orchestrator | Planning, milestone tracking, drift detection |
-| **Chopper Stage Builder** | Implementation agent | Actual code writing, test-first development |
-| **Devils Advocate** | Quality challenger | Final review before milestone sign-off |
+| **Chopper Buildout Agent** | Master orchestrator | Planning, milestone tracking, drift detection, milestone sign-off (internalizes principal-engineer / SWE / devil's advocate / beast-mode personas) |
+| **Chopper Stage Builder** | Implementation agent | Actual code writing, test-first development (same internalized personas) |
+| **Chopper Agent** | User-facing companion | Domain analysis, JSON authoring, audit interpretation, bug/enhancement filing |
+
+> Personas — **Principal Engineer**, **Senior SWE**, **Devil's Advocate**, **Beast Mode** — are internalized inside each agent; there are no separate persona agents to invoke.
 
 ---
 
@@ -78,16 +80,18 @@ Post-implementation:
 
 ### Milestone Quality Review
 
-```text
-@workspace /devils-advocate
+The milestone review is part of the Chopper Buildout Agent's own duties (devil's-advocate persona) — there is no separate review agent.
 
-Review Stage [N] implementation for Chopper.
+```text
+@workspace /chopper-buildout
+
+Milestone review for Stage [N].
 
 1. Verify all code traces to architecture doc sections
 2. Check for scope-lock violations
 3. Identify any over-engineering
 4. Verify diagnostic codes match registry
-5. Stress-test edge cases
+5. Stress-test edge cases (devil's-advocate pass)
 6. Sign off or block with specific issues
 ```
 
@@ -252,7 +256,7 @@ Run this after EVERY implementation:
 4. `fev_formality_real` acceptance trim succeeds
 5. Coverage thresholds met (parser 85%, compiler 80%, trimmer 80%, overall 78%)
 6. Zero drift from spec
-7. Devils Advocate sign-off obtained
+7. Devil's-advocate review (run by Chopper Buildout Agent itself) signs off
 
 ---
 

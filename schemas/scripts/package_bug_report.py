@@ -122,7 +122,7 @@ def main() -> int:
     file_count = create_bundle(inputs, output)
     print(f"Created bug-report bundle: {output.resolve().as_posix()}")
     print(f"Included {file_count} file(s) from {len(inputs)} input path(s).")
-    print("Upload this zip in the GitHub bug form, or point the Chopper Domain Companion at it.")
+    print("Upload this zip in the GitHub bug form, or point the Chopper Agent at it.")
     return 0
 
 

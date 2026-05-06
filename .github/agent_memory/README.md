@@ -10,8 +10,7 @@ Recommended filenames:
 
 - `chopper-buildout.md`
 - `chopper-stage-builder.md`
-- `principal-software-engineer.md`
-- `chopper-domain-companion.md`
+- `chopper-agent.md`
 
 ## Lifecycle
 

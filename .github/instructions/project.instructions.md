@@ -117,9 +117,37 @@ First time? Set up your environment with a platform-agnostic script:
 | Windows | PowerShell 5.1+ | `. .\setup.ps1` |
 | Windows | cmd.exe | `setup.bat` |
 
-tcsh is the primary Unix shell for this system. bash/zsh support is available as a fallback.
+**tcsh on Unix is the primary system.** Windows is supported but secondary; macOS and Linux bash/zsh are fallback paths only.
 
 This creates `.venv`, activates it, and installs dev dependencies. See [SETUP_GUIDE.md](SETUP_GUIDE.md) for auto-activation and troubleshooting.
+
+---
+
+## System Check (Run Before Any Command)
+
+Before invoking shell commands or Chopper subcommands, an agent **must** detect the host shell and select the correct invocation form. The detection order is fixed:
+
+1. **tcsh on Unix (PRIMARY).** If `$SHELL` ends in `tcsh` or `csh`, use `setenv` for env vars, `source setup.csh`, and forward-slash paths. This is the production target.
+2. **Windows PowerShell.** If `$env:OS` reports `Windows_NT` and the active terminal is `pwsh` or `powershell`, use `;` as the command separator, `$env:VAR = "..."` for env vars, `. .\setup.ps1` for activation, and backslash or forward-slash paths (PowerShell accepts both).
+3. **Windows cmd.exe.** If running under `cmd.exe`, use `setup.bat` and `&` as the command separator.
+4. **Unix bash/zsh (fallback).** If `$SHELL` ends in `bash` or `zsh`, use `export` for env vars and `source setup.sh`.
+
+**Quick detection snippets:**
+
+| Goal | tcsh | PowerShell | bash/zsh |
+|------|------|-----------|----------|
+| Print shell | `echo $shell` | `$PSVersionTable.PSVersion` | `echo $SHELL` |
+| Set env var | `setenv VAR value` | `$env:VAR = "value"` | `export VAR=value` |
+| Chain commands | `cmd1 ; cmd2` | `cmd1 ; cmd2` | `cmd1 && cmd2` |
+| Run Python | `python script.py` | `python script.py` | `python script.py` |
+
+**Rules:**
+
+- Never paste a bash heredoc into PowerShell or vice versa.
+- Never assume `&&` works in PowerShell — use `;`.
+- Never run `source` in cmd.exe — use the corresponding `.bat`.
+- When in doubt, run a one-line probe (`echo $shell` or `$PSVersionTable.PSVersion`) before the real command.
+- All Chopper internals use `pathlib.Path` and POSIX-normalize, so paths in JSON, audit artifacts, and diagnostics are shell-agnostic — only the host invocation differs.
 
 ---
 
@@ -532,6 +560,7 @@ This applies to:
 - Diagnostic code descriptions (registry → implementation constants → test assertions → docs)
 - Architecture decisions (design doc → technical requirements → risks and pitfalls guide)
 - CLI flag names or schema fields (spec → help text → user reference manual)
+- **Version bumps and release notes** (`pyproject.toml` `[project].version` → `technical_docs/ARCHITECTURE.md` revision-history table → `README.md` `## Changelog` section near the bottom of the file). The `README.md` changelog at the end of the file is the user-facing release log; every version bump must add an entry there with the same date and a short bullet summary that mirrors the architecture-doc revision-history row. Do not bump the version in `pyproject.toml` without updating both the architecture doc revision history and the README changelog in the same commit.
 
 ### Targeted, In-Place Edits
 

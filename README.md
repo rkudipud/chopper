@@ -1,11 +1,11 @@
-﻿# Chopper
+# Chopper
 
 ![Status](https://img.shields.io/badge/status-ready-0a7a3d)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
 ![License](https://img.shields.io/badge/license-Intel%20Proprietary-555555)
 ![Pipeline](https://img.shields.io/badge/pipeline-P0--P7-8a3ffc)
 
-[![Chopper Domain Companion](https://img.shields.io/badge/🤖_Agent-Chopper_Domain_Companion-0f62fe)](.github/agents/chopper-domain-companion.agent.md)
+[![Chopper Agent](https://img.shields.io/badge/🤖_Agent-Chopper_Agent-0f62fe)](.github/agents/chopper-agent.agent.md)
 [![Onboarding Presentation](https://img.shields.io/badge/📊_Onboarding-Presentation-8a3ffc)](https://rkudipud.github.io/chopper/)
 
 **Chopper is a Python CLI that surgically trims VLSI EDA tool-flow domains down to exactly what a project actually needs** — specified by JSON, reproducible on every run, and audited automatically after every trim.
@@ -21,11 +21,11 @@ Instead of editing Tcl by hand and hoping you caught every dependency, you write
 
 You do not have to figure out domain boundaries or JSON structure by hand. A purpose-built agent ships in-repo for VS Code Copilot Chat.
 
-### Chopper Domain Companion
+### Chopper Agent
 
-![Chopper Domain Companion](https://img.shields.io/badge/VS%20Code%20Agent-Chopper%20Domain%20Companion-0f62fe)
+![Chopper Agent](https://img.shields.io/badge/VS%20Code%20Agent-Chopper%20Agent-0f62fe)
 
-The **Chopper Domain Companion** ([.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md)) is the **single user-facing agent** for anything Chopper-related — from a convoluted Tcl codebase all the way to a validated, trimmed output. It absorbs the former Domain Analyzer.
+The **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agents/chopper-agent.agent.md)) is the **single user-facing agent** for anything Chopper-related — from a convoluted Tcl codebase all the way to a validated, trimmed output. It absorbs the former Domain Analyzer.
 
 **What it does:**
 
@@ -40,7 +40,7 @@ The **Chopper Domain Companion** ([.github/agents/chopper-domain-companion.agent
 **Prompt library** — ready-to-use starting points under [.github/prompts/](.github/prompts/): `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`, `package-bug-artifacts`.
 
 > [!TIP]
-> Open VS Code Copilot Chat, pick the Chopper Domain Companion, and say: *"bootstrap a starter JSON for my domain at `path/to/domain/`"* — or just *"hi"* and it will show you a two-tier menu of everything it can do.
+> Open VS Code Copilot Chat, pick the Chopper Agent, and say: *"bootstrap a starter JSON for my domain at `path/to/domain/`"* — or just *"hi"* and it will show you a two-tier menu of everything it can do.
 
 ---
 
@@ -159,7 +159,7 @@ The project JSON can also sit outside the domain — in a separate `configs/` di
 
 Copy the nearest example into your domain root, replace every placeholder, then validate with `python schemas/scripts/validate_jsons.py <domain_root>/`. Full field reference is in [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md).
 
-Use the **Chopper Domain Companion** ([.github/agents/chopper-domain-companion.agent.md](.github/agents/chopper-domain-companion.agent.md)) to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
+Use the **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agents/chopper-agent.agent.md)) to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
 
 ### Step 3 — Validate first, always
 
@@ -300,7 +300,7 @@ The authoritative specification for the MCP surface is [technical_docs/ARCHITECT
 
 Found a bug? [Open a bug report](../../issues/new?template=bug_report.yml) on GitHub. The form guides you through providing everything needed to reproduce the problem quickly.
 
-If you are in VS Code, ask the Chopper Domain Companion to `report-chopper-bug`. It now packages local evidence, renders the GitHub issue body, and files the issue automatically when `gh` is installed and authenticated. If that step fails, it falls back to the simple local behavior automatically and leaves you with the ready-to-submit issue body and bundle paths.
+If you are in VS Code, ask the Chopper Agent to `report-chopper-bug`. It now packages local evidence, renders the GitHub issue body, and files the issue automatically when `gh` is installed and authenticated. If that step fails, it falls back to the simple local behavior automatically and leaves you with the ready-to-submit issue body and bundle paths.
 
 **What to include:**
 
@@ -327,6 +327,15 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 0.9.1 — 2026-05-06
+
+- **Documentation restructure.** Renamed `CLI_HELP_TEXT_REFERENCE.md` → `CLI_REFERENCE.md`, `ARCHITECTURE_PLAN.md` → `ENGINEERING.md`, and `chopper_description.md` → `ARCHITECTURE.md`. Consolidated `TCL_PARSER_SPEC.md`, `RISKS_AND_PITFALLS.md`, `IMPLEMENTATION_DECISION_LOG.md`, and `FUTURE_PLANNED_DEVELOPMENTS.md` into `IMPLEMENTATION.md` (parser §1, pitfalls §2–3, Appendix B `FD-xx`).
+- **Cross-reference + semantic doc-vs-code validation.** Eight-stage sweep cleaned every stale citation across `src/`, `doc/`, `examples/`, `schemas/`, `tests/`, and `.github/`; fixed four behavioral drifts (MCP §3.9 wording, audit-bundle table, module table, fixture-catalog references).
+- **Agent consolidation.** Deleted four redundant `.github/agents/*.agent.md` files (`devils-advocate`, `principal-software-engineer`, `swe-subagent`, `Thinking-Beast-Mode`) and absorbed their behaviors into the surviving agents as internalized personas. Renamed `chopper-domain-companion.agent.md` → `chopper-agent.agent.md`.
+- **System Check.** Added a System Check section to `.github/instructions/project.instructions.md` and to every active agent so they detect tcsh (Unix primary) / PowerShell (Windows secondary) / cmd.exe / bash-zsh (fallback) before issuing shell commands.
+- **Chopper Agent upgrade.** Rewrote `chopper-agent.agent.md` with a Documentation Index, an explicit conversational style (one focused question + 2–3 active suggestions per turn), and a strengthened bug-reporting flow that funnels users to the GitHub issue template.
+- **No schema, diagnostic-registry, CLI surface, exit-code, runtime, or pipeline-phase changes.** Pure tooling-and-docs release.
 
 ### 0.9.0 — 2026-05-06
 
@@ -409,7 +418,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 0.5.1 — 2026-04-27
 
-- **`$schema` IDs are now short, path-agnostic identifiers.** The `$schema` field in all Chopper JSONs changed from slash-delimited paths (`chopper/base/v1`, `chopper/feature/v1`, `chopper/project/v1`) to short identifiers (`base-v1`, `feature-v1`, `project-v1`). Chopper resolves each ID by looking it up in `schemas/` relative to its own install root — no file-system path is encoded in the value, so the JSONs work regardless of where the repo is checked out or where `schemas/` is on disk. The schema files themselves (`base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`) were updated in lockstep (`$id` and `const`). All examples, test fixtures, tests, docs, and the Chopper Domain Companion were updated in the same pass.
+- **`$schema` IDs are now short, path-agnostic identifiers.** The `$schema` field in all Chopper JSONs changed from slash-delimited paths (`chopper/base/v1`, `chopper/feature/v1`, `chopper/project/v1`) to short identifiers (`base-v1`, `feature-v1`, `project-v1`). Chopper resolves each ID by looking it up in `schemas/` relative to its own install root — no file-system path is encoded in the value, so the JSONs work regardless of where the repo is checked out or where `schemas/` is on disk. The schema files themselves (`base-v1.schema.json`, `feature-v1.schema.json`, `project-v1.schema.json`) were updated in lockstep (`$id` and `const`). All examples, test fixtures, tests, docs, and the Chopper Agent were updated in the same pass.
 
 ### 0.5.0 — 2026-04-25
 
@@ -428,7 +437,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 0.3.2 — 2026-04-24
 
-- **Companion consolidation + discoverability.** The former `domain-analyzer` agent was absorbed into the [Chopper Domain Companion](.github/agents/chopper-domain-companion.agent.md), now the **single user-facing agent** for anything Chopper-related. The companion card gained explicit **Operating Modes** (`analyze-only` vs `full-loop`), a **Q1–Q5 Discovery Protocol** for unfamiliar codebases, **JSON Templates & Checklists**, a **Schema Error → Fix Mapping** table, a **Bootstrapping-a-new-domain** playbook, and named **Common CLI Workflows** (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic). The greeting is now a tier-2 menu (Tier 1 "where are you starting from?" table → Tier 2 full capability list).
+- **Companion consolidation + discoverability.** The former `domain-analyzer` agent was absorbed into the [Chopper Agent](.github/agents/chopper-agent.agent.md), now the **single user-facing agent** for anything Chopper-related. The companion card gained explicit **Operating Modes** (`analyze-only` vs `full-loop`), a **Q1–Q5 Discovery Protocol** for unfamiliar codebases, **JSON Templates & Checklists**, a **Schema Error → Fix Mapping** table, a **Bootstrapping-a-new-domain** playbook, and named **Common CLI Workflows** (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic). The greeting is now a tier-2 menu (Tier 1 "where are you starting from?" table → Tier 2 full capability list).
 - **Prompt library.** New [`.github/prompts/`](.github/prompts/) directory with six ready-to-use starting points: `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
 - **USER_MANUAL cross-ref.** [doc/USER_MANUAL.md](doc/USER_MANUAL.md) now points at the companion at the top of the Operating Tasks section.
 - No runtime, schema, diagnostic-registry, or scope-lock changes — agents, docs, and version files only.
@@ -441,7 +450,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 0.3.0 — 2026-04-24
 
 - **F3 stack-file auto-generation (`options.generate_stack`).** Base JSON gains an optional `options.generate_stack` boolean (default `false`). When enabled alongside `stages`, the generator (P5b) emits one `<stage>.stack` per resolved stage alongside `<stage>.tcl`, using the N/J/L/D/I/O/R format documented in the architecture doc §3.6. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Generated `.stack` files participate in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like `.tcl` run scripts.
-...it/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to `.github/agents/domain-analyzer.agent.md` (later absorbed into the Chopper Domain Companion in 0.3.2), and the validator to [scripts/validate_jsons.py](scripts/validate_jsons.py). The kit's private version file was folded into the main package metadata.
+...it/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to `.github/agents/domain-analyzer.agent.md` (later absorbed into the Chopper Agent in 0.3.2), and the validator to [scripts/validate_jsons.py](scripts/validate_jsons.py). The kit's private version file was folded into the main package metadata.
 - Authoring guide §2.1 added; example 03 and example 07 opted in to `generate_stack` for demonstration.
 
 ### 0.2.0 — 2026-04-23
@@ -458,7 +467,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 - **Parser hardening.** Tokenizer state machine and proc extractor cover the Tcl edge cases catalogued in [technical_docs/IMPLEMENTATION.md (parser section)](technical_docs/IMPLEMENTATION.md) and the `tests/fixtures/edge_cases/` corpus.
 - **Audit bundle.** Every run (success or failure) writes `.chopper/` with `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, and JSON-Lines event log.
 - **JSON Kit extraction (superseded in 0.3.0).** Base/feature/project schemas, validator, authoring guide, and eleven worked examples were packaged as a standalone kit under `json_kit/` so domain owners could author JSON before the runtime shipped. The kit was absorbed into the main repository in 0.3.0.
-- **Agentic workflow.** Chopper Buildout Agent and Chopper Domain Companion shipped with the repository, each backed by a local memory file under `.github/agent_memory/`.
+- **Agentic workflow.** Chopper Buildout Agent and Chopper Agent shipped with the repository, each backed by a local memory file under `.github/agent_memory/`.
 - **Spec-first foundation.** Eight-phase pipeline (P0–P7), R1 merge rules, diagnostic-code registry, and risks/pitfalls catalogue established as the authoritative basis for every subsequent change.
 
 ---

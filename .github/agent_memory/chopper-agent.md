@@ -1,4 +1,4 @@
-# Chopper Domain Companion Memory
+# Chopper Agent Memory
 
 ## Current Focus
 

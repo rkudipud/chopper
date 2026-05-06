@@ -11,7 +11,7 @@ body:
 
         Do not leave the evidence sections blank. If an artifact is unavailable, say why in that field so the report still contains a complete record.
 
-        If you are using the Chopper Domain Companion in VS Code, ask it to `report-chopper-bug` and it can prepare this issue body automatically. Raw local zip attachments, when needed, still use the GitHub attachment UI.
+        If you are using the Chopper Agent in VS Code, ask it to `report-chopper-bug` and it can prepare this issue body automatically. Raw local zip attachments, when needed, still use the GitHub attachment UI.
 
         **Before submitting:** check that no existing open issue covers the same problem.
 

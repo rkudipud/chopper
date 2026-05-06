@@ -4,9 +4,9 @@ mode: agent
 
 # File a Chopper bug report automatically
 
-Invoke the **Chopper Domain Companion**.
+Invoke the **Chopper Agent**.
 
-Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain-companion.agent.md), then file the bug report end to end when the required evidence is available:
+Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), then file the bug report end to end when the required evidence is available:
 
 1. Ask me for the `.chopper/` bundle from the failing run (or the full command + terminal output if the run never produced one). If I only have Unix filesystem paths to a `.chopper/` directory, log, or markdown report, package them first with `python schemas/scripts/package_bug_report.py <paths...>`.
 2. Extract these facts from the bundle:

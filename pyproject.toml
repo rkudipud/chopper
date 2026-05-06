@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "0.9.0"
+version = "0.9.1"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.11 so the tool installs on EDA grid
 # nodes that lag behind HEAD. The development venv is created against 3.13
@@ -117,6 +117,14 @@ layers = [
     "chopper.adapters",
     "chopper.core",
 ]
+# Documented exception: the validator re-parses trimmed Tcl in P6 to
+# verify the proc set promised by `CompiledManifest`/`TrimReport` (VW-10
+# reconciliation). This is the only permitted cross-service import in
+# the codebase. See `.github/instructions/project.instructions.md` §1.1
+# and `technical_docs/ARCHITECTURE.md` §5.12.9.
+ignore_imports = [
+    "chopper.validator.functions -> chopper.parser.service",
+]
 
 [[tool.importlinter.contracts]]
 name = "core is stdlib-only (no sibling imports)"
@@ -151,6 +159,11 @@ modules = [
     "chopper.generators",
     "chopper.validator",
     "chopper.audit",
+]
+# Same documented exception as the layered contract above:
+# validator -> parser is permitted for P6 VW-10 reconciliation.
+ignore_imports = [
+    "chopper.validator.functions -> chopper.parser.service",
 ]
 
 [[tool.importlinter.contracts]]

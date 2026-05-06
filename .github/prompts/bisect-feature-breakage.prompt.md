@@ -4,9 +4,9 @@ mode: agent
 
 # Bisect the feature that broke trim
 
-Invoke the **Chopper Domain Companion** in `full-loop` mode.
+Invoke the **Chopper Agent** in `full-loop` mode.
 
-Read [.github/agents/chopper-domain-companion.agent.md](../agents/chopper-domain-companion.agent.md) — especially the "Bisect the feature that broke trim" playbook — then:
+Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md) — especially the "Bisect the feature that broke trim" playbook — then:
 
 1. Ask me for the project JSON path and the failing command (`chopper validate` or `chopper trim`)
 2. Run the command with **base only** (no features) — record exit code
