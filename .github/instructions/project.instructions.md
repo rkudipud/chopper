@@ -34,7 +34,7 @@ If you find a file that violates any row above, the correct action is **remove t
 
 #### 1.1 Narrowed from prior closures
 
-**Read-only MCP (narrowed in 0.4.0):** The MCP row above was **narrowed** (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §3.8:
+**Read-only MCP (narrowed in 0.4.0):** The MCP row above was **narrowed** (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §3.9:
 
 - `chopper mcp-serve` subcommand.
 - `src/chopper/mcp/` package containing a **stdio-only** JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon).

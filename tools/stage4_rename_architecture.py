@@ -62,8 +62,12 @@ def rename_file() -> None:
     if not OLD_PATH.exists():
         raise SystemExit(f"[error] {OLD} not found")
     run(
-        "git", "-C", str(ROOT), "mv",
-        f"technical_docs/{OLD}", f"technical_docs/{NEW}",
+        "git",
+        "-C",
+        str(ROOT),
+        "mv",
+        f"technical_docs/{OLD}",
+        f"technical_docs/{NEW}",
     )
     print(f"[git mv] {OLD} -> {NEW}")
 

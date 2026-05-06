@@ -69,7 +69,7 @@ def rewrite_engineering_doc() -> None:
     # Internal self-reference: "this plan" wording is fine; but the §16 Q1 MCP
     # paragraph is stale. Replace the entire Q1 block with a version that
     # acknowledges the narrowed read-only stdio MCP closure (per
-    # `.github/instructions/project.instructions.md` §1.1 and architecture doc §3.8).
+    # `.github/instructions/project.instructions.md` §1.1 and architecture doc §3.9).
     old_q1 = (
         "### Q1 — Plugin host / MCP / AI advisor (CLOSED — permanently out of scope)\n"
         "\n"
@@ -103,7 +103,7 @@ def rewrite_engineering_doc() -> None:
         "the `src/chopper/mcp/` package are permitted: a stdio-only JSON-RPC server (no TCP, no "
         "HTTP, no WebSocket, no daemon) exposing read-only tools "
         "(`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Specified in the "
-        "architecture doc at [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §3.8; "
+        "architecture doc at [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §3.9; "
         "the canonical scope-lock list lives in "
         "[`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) §1.1.\n"
         "\n"
