@@ -356,7 +356,7 @@ pytest tests/unit/validator/ -v
 
 ### Stage 5: CLI & Integration (`cli/`)
 
-**Architecture Doc reference:** §5.1, CLI_HELP_TEXT_REFERENCE.md
+**Architecture Doc reference:** §5.1, CLI_REFERENCE.md
 
 **Deliverables:**
 - `src/chopper/cli/main.py` — Entry point

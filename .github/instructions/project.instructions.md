@@ -20,7 +20,7 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 |---|---|---|
 | Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §16 Q3 |
 | Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §16 Q2 |
-| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
+| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `cleanup` exist) |
 | Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §8.2 rule 4; `--strict` is exit-code policy only |
 | Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
 | MCP — destructive surface (closed) | `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code inside Chopper, HTTP/TCP/WebSocket MCP transports, MCP tool exposing `chopper.trim` or `chopper.cleanup`, MCP-driven filesystem mutation | [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) §7, §16 Q1 |
@@ -52,7 +52,7 @@ Everything else in the MCP row stays closed: no destructive tools over MCP, no p
 
 - [`technical_docs/ARCHITECTURE_PLAN.md`](../../technical_docs/ARCHITECTURE_PLAN.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
 - [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
-- [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md), [`technical_docs/RISKS_AND_PITFALLS.md`](../../technical_docs/RISKS_AND_PITFALLS.md), [`technical_docs/TCL_PARSER_SPEC.md`](../../technical_docs/TCL_PARSER_SPEC.md) — all subordinate.
+- [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/RISKS_AND_PITFALLS.md`](../../technical_docs/RISKS_AND_PITFALLS.md), [`technical_docs/TCL_PARSER_SPEC.md`](../../technical_docs/TCL_PARSER_SPEC.md) — all subordinate.
 - [`technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md`](../../technical_docs/FUTURE_PLANNED_DEVELOPMENTS.md) — records what was considered and *not* shipped; never a green light to build.
 
 **When docs disagree, the architecture doc wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
@@ -268,7 +268,7 @@ All authoritative documentation lives under [technical_docs/](../../technical_do
 2. **[technical_docs/TCL_PARSER_SPEC.md](../../technical_docs/TCL_PARSER_SPEC.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
 3. **[technical_docs/RISKS_AND_PITFALLS.md](../../technical_docs/RISKS_AND_PITFALLS.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
 4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
-5. **[technical_docs/CLI_HELP_TEXT_REFERENCE.md](../../technical_docs/CLI_HELP_TEXT_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples.
+5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, flags, examples.
 
 Other key docs:
 

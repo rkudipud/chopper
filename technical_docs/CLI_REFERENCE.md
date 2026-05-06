@@ -1,8 +1,6 @@
-# Chopper — CLI Help Text Reference
+# Chopper — CLI Reference
 
-> **Status:** Implementation Reference
-> **Resolves:** E-10 (FINAL_PRODUCTION_REVIEW.md)
-> **Purpose:** Canonical help text phrasing for all CLI subcommands. Implement `argparse` help strings from this file for consistency.
+> **Purpose:** Canonical reference for all CLI subcommands, flags, and help text. The `argparse` help strings in `src/chopper/cli/` are derived from this file; the two must stay in lockstep.
 
 ---
 

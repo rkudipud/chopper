@@ -92,7 +92,7 @@ class RunConfig:
 class PresentationConfig:
     """CLI-side UX config. Drives adapter selection; never read by services.
 
-    Flag-to-effect mapping (see CLI_HELP_TEXT_REFERENCE):
+    Flag-to-effect mapping (see CLI_REFERENCE):
 
     * ``verbose`` (``-v``): raises the CLI progress renderer to
       DEBUG-level detail. Chopper has no internal structured-logging

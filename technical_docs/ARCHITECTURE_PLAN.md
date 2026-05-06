@@ -293,7 +293,7 @@ class ChopperContext:
     # core.serialization.dump_model(), and ctx.fs directly. See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A3–A5.
 ```
 
-**Flag-to-adapter mapping (CLI responsibility; see [`technical_docs/CLI_HELP_TEXT_REFERENCE.md`](CLI_HELP_TEXT_REFERENCE.md) for flag definitions).**
+**Flag-to-adapter mapping (CLI responsibility; see [`technical_docs/CLI_REFERENCE.md`](CLI_REFERENCE.md) for flag definitions).**
 
 | `PresentationConfig` field | Source flag | Effect |
 |---|---|---|
