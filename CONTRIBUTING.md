@@ -11,7 +11,7 @@ Read the documents that define the behavior you are changing:
 
 | Path | Purpose |
 | --- | --- |
-| [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) | High-level system design for integrators and contributors |
+| [user_docs/03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) | High-level system design for integrators and contributors |
 | [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) | Authoritative product behavior and pipeline contract |
 | [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) | Diagnostic registry |
 | [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md) | Architecture details and implementation boundaries |

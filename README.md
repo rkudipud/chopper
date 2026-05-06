@@ -284,12 +284,14 @@ The authoritative specification for the MCP surface is [technical_docs/ARCHITECT
 
 ## Documentation
 
+All end-user documentation lives under [user_docs/](user_docs/) — a consolidated three-part guide designed to take you from the onboarding deck to a working trim in 60–90 minutes.
+
 | Who You Are | Where to Start |
 | --- | --- |
-| First-time operator | [doc/USER_MANUAL.md](doc/USER_MANUAL.md) — commands, flags, tasks, troubleshooting |
-| JSON author / domain owner | [doc/BEHAVIOR_GUIDE.md](doc/BEHAVIOR_GUIDE.md) — merge rules, tracing, patterns, FAQ |
-| Integrator or contributor | [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md) — pipeline, modules, ports, error model |
-| Engineer reading the code | [doc/IMPLEMENTATION_GUIDE.md](doc/IMPLEMENTATION_GUIDE.md) — code-level walkthrough |
+| Anyone new to Chopper | [user_docs/](user_docs/) — start here |
+| Just want the thesis | [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md) — problem, solution, F1/F2/F3, JSON, BKMs, ownership |
+| About to run the CLI | [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md) — every subcommand, every flag, deep examples |
+| Want to understand the pipeline | [user_docs/03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) — P0–P7, design rules, where Chopper fits, FAQ |
 | JSON schemas and examples | [schemas/](schemas/) and [examples/](examples/) — authoritative schemas and 11 worked examples; see [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) |
 | Authoritative specification | [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) — workflow, quality gates, scope rules |
@@ -327,6 +329,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 0.9.2 — 2026-05-06
+
+- **End-user documentation consolidated and renamed.** The four-guide `doc/` folder (`README.md`, `USER_MANUAL.md`, `BEHAVIOR_GUIDE.md`, `TECHNICAL_GUIDE.md`, `IMPLEMENTATION_GUIDE.md`) was deleted and replaced with a leaner three-part suite under [user_docs/](user_docs/): [01_OVERVIEW.md](user_docs/01_OVERVIEW.md) (problem → solution → F1/F2/F3 → JSON structure → optional switches → BKMs → ownership), [02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md) (every subcommand, every flag, deep examples, troubleshooting, bug-reporting), and [03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) (P0–P7 pipeline, design rules, where Chopper fits, FAQ). The new structure follows a thesis-style abstraction: descriptive opening, then commands, then internals — designed to ramp a reader up after the onboarding presentation in 60–90 minutes without fatigue. The Chopper-vs-Flow-Builder framing is now stated explicitly in the overview so the "Chopper" name does not mislead.
+- **All back-references cascaded.** [README.md](README.md) documentation table, [CONTRIBUTING.md](CONTRIBUTING.md) "Before You Start" table, [.github/agents/chopper-agent.agent.md](.github/agents/chopper-agent.agent.md) Documentation Index, and [.github/ISSUE_TEMPLATE/config.yml](.github/ISSUE_TEMPLATE/config.yml) all point at `user_docs/`. Historical revision-history entries that mention the old `doc/` paths are left intact as point-in-time records (per project documentation convention).
+- **No schema, diagnostic-registry, CLI surface, exit-code, runtime, or pipeline-phase changes.** Pure docs release.
 
 ### 0.9.1 — 2026-05-06
 

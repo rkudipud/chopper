@@ -2039,6 +2039,7 @@ R serial</div>
     <div class="card f3">
       <h3>What domain owners do today</h3>
       <ol>
+        <li>Read <code>user_docs/01_OVERVIEW.md</code> + <code>user_docs/02_CLI_GUIDE.md</code> (≈45 min)</li>
         <li>Pick the closest <code>examples/</code> folder for your shape (F1 / F2 / F3 / combo)</li>
         <li>Copy <code>jsons/</code> into your domain root, replace placeholders</li>
         <li>Run <code>python schemas/scripts/validate_jsons.py &lt;domain&gt;/</code></li>
@@ -2049,27 +2050,34 @@ R serial</div>
   </div>
 
   <div class="cards c3" style="margin-top:18px">
-    <div class="card">
-      <h3>Documentation</h3>
-      <ul style="font-size:15px">
-        <li><code>technical_docs/ARCHITECTURE.md</code></li>
-        <li><code>technical_docs/JSON_AUTHORING_GUIDE.md</code></li>
-        <li><code>technical_docs/CLI_REFERENCE.md</code></li>
-        <li><code>technical_docs/DIAGNOSTIC_CODES.md</code></li>
+    <div class="card f1">
+      <h3>📘 User docs — start here</h3>
+      <ul style="font-size:14px">
+        <li><code>user_docs/README.md</code> — landing + reading order</li>
+        <li><code>user_docs/01_OVERVIEW.md</code> — problem, F1/F2/F3, JSON, BKMs</li>
+        <li><code>user_docs/02_CLI_GUIDE.md</code> — every flag, deep examples</li>
+        <li><code>user_docs/03_HOW_CHOPPER_WORKS.md</code> — pipeline, FAQ</li>
+      </ul>
+      <p style="font-size:13px;margin-top:6px;color:var(--ink-mute)"><em>Designed to ramp from this deck in 60–90 min.</em></p>
+    </div>
+    <div class="card f2">
+      <h3>🗃️ Technical docs — deep dive</h3>
+      <ul style="font-size:14px">
+        <li><code>technical_docs/ARCHITECTURE.md</code> — authoritative spec</li>
+        <li><code>technical_docs/JSON_AUTHORING_GUIDE.md</code> — every JSON field</li>
+        <li><code>technical_docs/CLI_REFERENCE.md</code> — full CLI surface</li>
+        <li><code>technical_docs/DIAGNOSTIC_CODES.md</code> — every code</li>
+        <li><code>technical_docs/ENGINEERING.md</code> — module &amp; service catalog</li>
+        <li><code>technical_docs/IMPLEMENTATION.md</code> — parser internals + pitfalls</li>
       </ul>
     </div>
-    <div class="card">
-      <h3>Examples (11 progressive)</h3>
-      <ul style="font-size:15px">
+    <div class="card f3">
+      <h3>📂 Examples &amp; schemas</h3>
+      <ul style="font-size:14px">
         <li><code>examples/01_base_files_only/</code></li>
         <li><code>examples/02_base_procs_only/</code></li>
         <li><code>examples/07_base_full/</code></li>
         <li><code>examples/09_base_plus_multiple_features/</code></li>
-      </ul>
-    </div>
-    <div class="card">
-      <h3>Schemas (in repo)</h3>
-      <ul style="font-size:15px">
         <li><code>schemas/base-v1.schema.json</code></li>
         <li><code>schemas/feature-v1.schema.json</code></li>
         <li><code>schemas/project-v1.schema.json</code></li>

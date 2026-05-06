@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or usage help
-    url: https://github.com/rkudipud/chopper/blob/main/doc/USER_MANUAL.md
-    about: Read the User Manual before opening a non-bug issue.
+    url: https://github.com/rkudipud/chopper/blob/main/user_docs/02_CLI_GUIDE.md
+    about: Read the CLI Guide before opening a non-bug issue.
   - name: Diagnostic reference
     url: https://github.com/rkudipud/chopper/blob/main/technical_docs/DIAGNOSTIC_CODES.md
     about: Look up diagnostic codes and recovery hints before filing an issue.

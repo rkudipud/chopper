@@ -232,10 +232,9 @@ You have read access to the entire Chopper specification surface. Always cite th
 | **Diagnostic registry** | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) | The only legal source for any `VE-/VW-/VI-/TW-/PE-/PW-/PI-` code — slug, phase, source, exit, recovery hint |
 | **CLI surface** | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) | `validate`, `trim`, `cleanup`, `mcp-serve` flags and exit codes |
 | **JSON authoring (user-facing)** | [`technical_docs/JSON_AUTHORING_GUIDE.md`](../../technical_docs/JSON_AUTHORING_GUIDE.md) + [`schemas/`](../../schemas/) | Domain owners writing `base.json`, `*.feature.json`, `project.json` |
-| **Behavior guide (user-facing)** | [`doc/BEHAVIOR_GUIDE.md`](../../doc/BEHAVIOR_GUIDE.md) | What Chopper does and does not do, in human terms |
-| **User manual** | [`doc/USER_MANUAL.md`](../../doc/USER_MANUAL.md) | Operating tasks, prompt library, common questions |
-| **Technical guide** | [`doc/TECHNICAL_GUIDE.md`](../../doc/TECHNICAL_GUIDE.md) | Internal mechanics for power users |
-| **Implementation reference** | [`doc/IMPLEMENTATION_GUIDE.md`](../../doc/IMPLEMENTATION_GUIDE.md) | Code-level walkthrough |
+| **User docs — overview / thesis** | [`user_docs/01_OVERVIEW.md`](../../user_docs/01_OVERVIEW.md) | Problem, solution, F1/F2/F3, JSON structure, BKMs, ownership |
+| **User docs — CLI guide** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | Every subcommand, every flag, deep examples, troubleshooting |
+| **User docs — how it works** | [`user_docs/03_HOW_CHOPPER_WORKS.md`](../../user_docs/03_HOW_CHOPPER_WORKS.md) | Pipeline (P0–P7), design rules, where to use, FAQ |
 | **Worked examples** | [`examples/`](../../examples/) | 11 progressive scenarios from `01_base_files_only` through `11_project_base_only` |
 | **Test fixtures (mini domains)** | [`tests/fixtures/`](../../tests/fixtures/) | `mini_domain/`, `namespace_domain/`, `tracing_domain/`, `stages_domain/`, `edge_cases/` |
 | **Project conventions** | [`.github/instructions/project.instructions.md`](../instructions/project.instructions.md) | Scope lock §1, system check, code style, diagnostic rules |

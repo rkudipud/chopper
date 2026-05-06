@@ -227,4 +227,5 @@ pnpm-lock.yaml
 *.tgz
 test_out.txt
 test_run.txt
+mcp_out.txt
 dom/
