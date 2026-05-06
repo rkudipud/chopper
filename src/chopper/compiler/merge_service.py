@@ -108,8 +108,10 @@ class CompilerService:
         sources, facts_by_source = _build_source_facts(loaded, parsed)
 
         # Universe of files the manifest reasons over: parsed files + every
-        # literal path named by any source that the parser did not see
-        # (non-.tcl companions such as config files surface here).
+        # literal or glob-surviving path named by any source that the parser
+        # did not see.  Non-.tcl companions (Perl, Python, shell, config) are
+        # file-type agnostic F1 entries — they must reach the universe
+        # regardless of whether they were named literally or via a glob pattern.
         universe = _collect_universe(parsed, facts_by_source.values())
 
         # Pre-compute all_procs(F) (canonical_name set) for quick classification.
@@ -277,20 +279,30 @@ def _build_source_facts(
     loaded: LoadedConfig, parsed: ParseResult
 ) -> tuple[list[_SourceRef], dict[_SourceRef, _SourceFacts]]:
     """Iterate sources in canonical order (base then features) and distill
-    each into a :class:`_SourceFacts` record."""
+    each into a :class:`_SourceFacts` record.
+
+    FI glob expansion must be run against all surface files — not just the
+    Tcl files returned by the parser (P2).  Non-Tcl files (.py, .pl, .csh,
+    configs, …) that were collected by P1 live in ``loaded.surface_files``
+    but never enter ``parsed.files``.  Using the union of both sets as the
+    glob-match candidate set ensures that glob-matched non-Tcl files reach
+    ``fi_glob_surviving`` and ultimately the manifest universe (P-42 fix).
+    """
     parsed_paths = frozenset(parsed.files.keys())
+    # All files reachable from the domain (Tcl + non-Tcl) — used for glob expansion.
+    all_surface_paths: frozenset[Path] = frozenset(loaded.surface_files) | parsed_paths
 
     sources: list[_SourceRef] = []
     facts: dict[_SourceRef, _SourceFacts] = {}
 
     base_ref = _SourceRef(key="base", source_path=loaded.base.source_path)
     sources.append(base_ref)
-    facts[base_ref] = _extract_facts(base_ref, loaded.base, parsed_paths)
+    facts[base_ref] = _extract_facts(base_ref, loaded.base, all_surface_paths)
 
     for feature in loaded.features:
         f_ref = _SourceRef(key=feature.name, source_path=feature.source_path)
         sources.append(f_ref)
-        facts[f_ref] = _extract_facts(f_ref, feature, parsed_paths)
+        facts[f_ref] = _extract_facts(f_ref, feature, all_surface_paths)
 
     return sources, facts
 
@@ -298,10 +310,16 @@ def _build_source_facts(
 def _extract_facts(
     ref: _SourceRef,
     source: BaseJson | FeatureJson,
-    parsed_paths: frozenset[Path],
+    surface_paths: frozenset[Path],
 ) -> _SourceFacts:
     """Partition ``files.include`` into literal / glob buckets, apply
-    same-source FE pruning to the glob bucket, and collect PI/PE by file."""
+    same-source FE pruning to the glob bucket, and collect PI/PE by file.
+
+    ``surface_paths`` is the union of all files reachable in the domain —
+    both ``.tcl`` files from the parser and non-Tcl files from P1 surface
+    collection.  Glob expansion must run against the full surface so that
+    non-Tcl files (e.g. ``.py``, ``.pl``) can enter ``fi_glob_surviving``.
+    """
     files = source.files
     fi_literal_set: set[Path] = set()
     fi_glob_patterns: list[str] = []
@@ -319,15 +337,15 @@ def _extract_facts(
         else:
             fe_literal_set.add(Path(entry))
 
-    # FE hits on parsed files: literal hits + glob matches against parsed_paths.
-    fe_hits: set[Path] = {p for p in fe_literal_set if p in parsed_paths}
+    # FE hits on surface files: literal hits + glob matches against surface_paths.
+    fe_hits: set[Path] = {p for p in fe_literal_set if p in surface_paths}
     for pattern in fe_glob_patterns:
-        fe_hits.update(_match_glob(pattern, parsed_paths))
+        fe_hits.update(_match_glob(pattern, surface_paths))
 
-    # FI glob expansion against parsed_paths.
+    # FI glob expansion against surface_paths (includes non-Tcl files).
     fi_glob_matches: set[Path] = set()
     for pattern in fi_glob_patterns:
-        fi_glob_matches.update(_match_glob(pattern, parsed_paths))
+        fi_glob_matches.update(_match_glob(pattern, surface_paths))
     # L2.1: same-source FE prunes same-source glob expansions; literal FI always survives.
     fi_glob_surviving = fi_glob_matches - fe_hits
 
@@ -353,12 +371,20 @@ def _collect_universe(parsed: ParseResult, facts_iter: Iterable[_SourceFacts]) -
     """Universe of files the manifest reasons over — lex-sorted by POSIX.
 
     Includes every parsed file plus every literal ``files.include`` path
-    across all sources (literal FI can refer to non-``.tcl`` companion
-    files that the parser does not cover).
+    and every glob-surviving ``files.include`` path across all sources.
+
+    F1 is file-type agnostic: any file matched by a glob pattern (``*.py``,
+    ``*.pl``, ``*.csh``, config files, …) must reach the manifest universe
+    and receive a ``FULL_COPY`` / ``REMOVE`` treatment decision.  Before this
+    fix, only literal FI paths were added for non-``.tcl`` companions;
+    glob-matched non-Tcl files were silently absent from the universe because
+    P2 never records them in ``ParseResult.files`` (the parser only processes
+    ``.tcl`` files).  Adding ``fi_glob_surviving`` here closes the gap.
     """
     paths: set[Path] = set(parsed.files.keys())
     for facts in facts_iter:
         paths.update(facts.fi_literal)
+        paths.update(facts.fi_glob_surviving)
     return sorted(paths, key=lambda p: p.as_posix())
 
 
@@ -845,8 +871,8 @@ def _is_glob(entry: str) -> bool:
     return any(ch in _GLOB_METACHARS for ch in entry)
 
 
-def _match_glob(pattern: str, parsed_paths: frozenset[Path]) -> set[Path]:
-    """Match ``pattern`` against every path in ``parsed_paths`` using POSIX
+def _match_glob(pattern: str, paths: frozenset[Path]) -> set[Path]:
+    """Match ``pattern`` against every path in ``paths`` using POSIX
     semantics. Supports ``*``, ``?``, ``[...]``, and ``**`` (recursive,
     matching zero or more path components).
 
@@ -860,7 +886,7 @@ def _match_glob(pattern: str, parsed_paths: frozenset[Path]) -> set[Path]:
     """
     regex = _glob_to_regex(pattern)
     hits: set[Path] = set()
-    for path in parsed_paths:
+    for path in paths:
         posix = path.as_posix()
         full_match = getattr(PurePosixPath(posix), "full_match", None)
         if full_match is not None:

@@ -1,6 +1,6 @@
 # Chopper — Technical Risks and Implementation Pitfalls
 
-**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-37) that prevent those risks from being realized.
+**Purpose:** Document the known technical risks (TC-01 through TC-10) and the concrete implementation pitfalls (P-01 through P-42) that prevent those risks from being realized.
 **Audience:** Engineering team
 **Replaces:** prior `TECHNICAL_CHALLENGES.md` and the former `technical_docs/IMPLEMENTATION_PITFALLS_GUIDE.md`.
 
@@ -11,7 +11,7 @@
 This guide merges two previously separate documents:
 
 - **Technical Challenges (TC-01 – TC-10)** — High-level risk areas identified during architecture. Each TC names a category of failure that would compromise trim correctness, reproducibility, or safety.
-- **Implementation Pitfalls (P-01 – P-37)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
+- **Implementation Pitfalls (P-01 – P-42)** — Concrete coding traps, each with a "naïve vs correct" example, implementation requirements, and a mandatory test fixture.
 
 The document is organized by module. Each module section opens with the relevant TC risk statements, followed by the detailed pitfalls that guard against them.
 
@@ -481,6 +481,61 @@ define_proc_attributes gen_clock_arrival_report \
 **Tests:**
 - `tests/fixtures/bug_reports/dpa_multiline.tcl` — verbatim 6-line DPA with nested `{...}` arg descriptors.
 - `tests/unit/parser/test_bug_report_regressions.py::TestDpaMultilineContinuation`
+
+---
+
+### Pitfall P-42: Glob-Matched Non-Tcl Files Must Enter the Manifest Universe
+
+**THE TRAP (bug report: glob-only feature silent no-op for non-Tcl files):**
+
+A feature JSON with only a glob entry such as `"onepower/iscp_reports/**"` matches `.tcl`, `.py`, `.pl`, and other file types at P1. However, the P2 parser only processes `.tcl` files and records them in `ParseResult.files`. Non-Tcl files matched by the glob never appear in `ParseResult.files`.
+
+**Root cause — two compounding bugs at separate layers:**
+
+1. **`_build_source_facts` / `_extract_facts`** — FI glob expansion was performed against `parsed_paths` (the keys of `ParseResult.files`, Tcl-only). Non-Tcl surface files were never given as candidates for glob matching, so they could never enter `fi_glob_surviving`.
+
+2. **`_collect_universe`** — even if `fi_glob_surviving` had contained non-Tcl paths, the function only unioned `facts.fi_literal` (literal non-Tcl paths); it did not union `facts.fi_glob_surviving`. So even a correctly-populated `fi_glob_surviving` would still have been dropped here.
+
+Both bugs must be fixed together. Fixing only `_collect_universe` while `_extract_facts` still expands globs against Tcl-only paths leaves `fi_glob_surviving` always empty for non-Tcl files.
+
+**Correct Behavior:**
+
+`_build_source_facts` must compute `all_surface_paths = frozenset(loaded.surface_files) | parsed_paths` and pass that full set to `_extract_facts` so that FI globs can match non-Tcl files. `_collect_universe` must also union `facts.fi_glob_surviving` for every source.
+
+F1 is file-type agnostic — a glob-matched `.py` file must receive the same `FULL_COPY` / `REMOVE` treatment decision as a glob-matched `.tcl` file.
+
+**Implementation Requirements:**
+
+```python
+# WRONG in _build_source_facts — globs only match .tcl files
+parsed_paths = frozenset(parsed.files.keys())
+facts[base_ref] = _extract_facts(base_ref, loaded.base, parsed_paths)  # bug
+
+# CORRECT — glob expansion uses full surface (Tcl + non-Tcl)
+parsed_paths = frozenset(parsed.files.keys())
+all_surface_paths: frozenset[Path] = frozenset(loaded.surface_files) | parsed_paths
+facts[base_ref] = _extract_facts(base_ref, loaded.base, all_surface_paths)
+```
+
+```python
+# WRONG in _collect_universe — misses glob-matched non-Tcl files
+paths: set[Path] = set(parsed.files.keys())
+for facts in facts_iter:
+    paths.update(facts.fi_literal)   # only literal non-Tcl paths
+
+# CORRECT — includes both literal and glob-surviving non-Tcl files
+paths: set[Path] = set(parsed.files.keys())
+for facts in facts_iter:
+    paths.update(facts.fi_literal)
+    paths.update(facts.fi_glob_surviving)  # glob-matched files of any extension
+```
+
+**Why It Matters:** Domain owners rely on `"reports/**"` or `"onepower/iscp_reports/**"` to include entire subdirectories that contain Perl scripts, Python reporting tools, and config files alongside `.tcl` files. Silently dropping those files with no diagnostic gives the user a false `exit_code: 0` while the trimmed domain is incomplete.
+
+**Tests:**
+- `tests/unit/compiler/test_merge_service.py::test_glob_matched_non_tcl_file_receives_full_copy_treatment` — directly calls `_collect_universe` with a synthetic `fi_glob_surviving` containing a `.py` path.
+- `tests/unit/compiler/test_merge_service.py::test_compiler_service_glob_only_non_tcl_receives_full_copy` — end-to-end through `CompilerService` with a literal `.py` in `files.include`.
+- `tests/integration/test_cli_e2e.py::TestGlobFilesIncludeRegression::test_trim_glob_only_subdir_non_tcl_files_survive` — full CLI trim with `.py` and `.pl` files in a glob-only subdirectory; asserts they appear in `compiled_manifest.json` with `FULL_COPY` treatment.
 
 ---
 
@@ -1145,6 +1200,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Parser** | `switch` pattern labels extracted as proc calls | Pre-pass marks odd-indexed body WORDs as skip (P-39) |
 | **Parser** | DPA name parser concatenates option-list fragments | Take first whitespace-token after keyword; ignore option list entirely (P-40) |
 | **Compiler/Validator** | Diagnostics serialise with `"file": null` | P4/P6 emit sites must pass `path=`; recover from canonical name where ProcEntry is absent (P-41) |
+| **Compiler** | Glob-matched non-Tcl files silently absent from manifest | (1) Pass full surface paths (not Tcl-only `parsed_paths`) to `_extract_facts`; (2) Add `fi_glob_surviving` to `_collect_universe`; F1 is file-type agnostic (P-42) |
 | **Trimmer** | Adjacent drop-ranges leave blank-line artifacts | Coalesce adjacent/overlapping ranges before deletion pass (P-37) |
 | **Compiler** | Trace expansion is non-deterministic | Require exact match, not ambiguous (P-08) |
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |

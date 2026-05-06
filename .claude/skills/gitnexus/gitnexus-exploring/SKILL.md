@@ -5,8 +5,6 @@ description: "Use when the user asks how code works, wants to understand archite
 
 # Exploring Codebases with GitNexus
 
-> Availability protocol: use this workflow when GitNexus MCP tools or `gitnexus://...` resources are exposed in the current session. If MCP is unavailable, read the relevant `.github/agent_memory/*.md` file first, then explore with local search/read tools.
-
 ## When to Use
 
 - "How does authentication work?"
@@ -20,20 +18,20 @@ description: "Use when the user asks how code works, wants to understand archite
 ```
 1. READ gitnexus://repos                          → Discover indexed repos
 2. READ gitnexus://repo/{name}/context             → Codebase overview, check staleness
-3. query({query: "<what you want to understand>"})           → Find related execution flows
-4. context({name: "<symbol>"})                               → Deep dive on specific symbol
+3. gitnexus_query({query: "<what you want to understand>"})  → Find related execution flows
+4. gitnexus_context({name: "<symbol>"})            → Deep dive on specific symbol
 5. READ gitnexus://repo/{name}/process/{name}      → Trace full execution flow
 ```
 
-> If step 2 says "Index is stale" -> run `npx gitnexus analyze --skip-agents-md` in terminal.
+> If step 2 says "Index is stale" → run `npx gitnexus analyze` in terminal.
 
 ## Checklist
 
 ```
 - [ ] READ gitnexus://repo/{name}/context
-- [ ] GitNexus query for the concept you want to understand
+- [ ] gitnexus_query for the concept you want to understand
 - [ ] Review returned processes (execution flows)
-- [ ] GitNexus context on key symbols for callers/callees
+- [ ] gitnexus_context on key symbols for callers/callees
 - [ ] READ process resource for full execution traces
 - [ ] Read source files for implementation details
 ```
@@ -49,18 +47,18 @@ description: "Use when the user asks how code works, wants to understand archite
 
 ## Tools
 
-**GitNexus query** — find execution flows related to a concept:
+**gitnexus_query** — find execution flows related to a concept:
 
 ```
-query({query: "payment processing"})
+gitnexus_query({query: "payment processing"})
 → Processes: CheckoutFlow, RefundFlow, WebhookHandler
 → Symbols grouped by flow with file locations
 ```
 
-**GitNexus context** — 360-degree view of a symbol:
+**gitnexus_context** — 360-degree view of a symbol:
 
 ```
-context({name: "validateUser"})
+gitnexus_context({name: "validateUser"})
 → Incoming calls: loginHandler, apiMiddleware
 → Outgoing calls: checkToken, getUserById
 → Processes: LoginFlow (step 2/5), TokenRefresh (step 1/3)
@@ -70,10 +68,10 @@ context({name: "validateUser"})
 
 ```
 1. READ gitnexus://repo/my-app/context       → 918 symbols, 45 processes
-2. query({query: "payment processing"})
+2. gitnexus_query({query: "payment processing"})
    → CheckoutFlow: processPayment → validateCard → chargeStripe
    → RefundFlow: initiateRefund → calculateRefund → processRefund
-3. context({name: "processPayment"})
+3. gitnexus_context({name: "processPayment"})
    → Incoming: checkoutHandler, webhookHandler
    → Outgoing: validateCard, chargeStripe, saveTransaction
 4. Read src/payments/processor.ts for implementation details

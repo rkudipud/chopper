@@ -328,6 +328,53 @@ class TestGlobFilesIncludeRegression:
             "server_reports/power.tcl must survive — referenced only via glob server_reports/**"
         )
 
+    def test_trim_glob_only_subdir_non_tcl_files_survive(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Regression for pitfall P-42: non-Tcl files in the glob-only subdirectory
+        must also survive.  Before the fix, .py and .pl files were silently absent
+        from compiled_manifest.json because _collect_universe omitted fi_glob_surviving."""
+        domain = tmp_path / "power2"
+        domain.mkdir(parents=True, exist_ok=True)
+        (domain / "core.tcl").write_text("proc core_setup {} {}\n", encoding="utf-8")
+        reports = domain / "server_reports"
+        reports.mkdir()
+        (reports / "activity.tcl").write_text("proc report_activity {} {}\n", encoding="utf-8")
+        (reports / "report.py").write_text("# python report\nprint('hi')\n", encoding="utf-8")
+        (reports / "run.pl").write_text("#!/usr/bin/perl\nprint 'ok';\n", encoding="utf-8")
+
+        jsons = domain / "jsons"
+        jsons.mkdir()
+        base_path = jsons / "base.json"
+        base_path.write_text(
+            json.dumps({"$schema": "base-v1", "domain": domain.name, "files": {"include": ["core.tcl"]}}),
+            encoding="utf-8",
+        )
+        feat_path = jsons / "srv.feature.json"
+        feat_path.write_text(
+            json.dumps({"$schema": "feature-v1", "name": "srv", "files": {"include": ["server_reports/**"]}}),
+            encoding="utf-8",
+        )
+
+        rc = main(
+            ["trim", "--domain", str(domain), "--base", str(base_path), "--features", str(feat_path), "--dry-run"]
+        )
+        captured = capsys.readouterr()
+        assert rc == 0, f"trim should exit 0; stderr:\n{captured.err}"
+
+        manifest_path = domain / ".chopper" / "compiled_manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        surviving = {d["path"] for d in manifest.get("files", []) if d.get("treatment") != "remove"}
+
+        assert "server_reports/activity.tcl" in surviving, "Tcl file must survive via glob"
+        assert "server_reports/report.py" in surviving, (
+            "glob-matched .py file must survive — F1 is file-type agnostic (P-42)"
+        )
+        assert "server_reports/run.pl" in surviving, (
+            "glob-matched .pl file must survive — F1 is file-type agnostic (P-42)"
+        )
+
     def test_validate_glob_only_subdir_exits_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         domain = tmp_path / "power"
         base, feat = self._seed_glob_domain(domain)

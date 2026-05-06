@@ -97,6 +97,68 @@ def test_feature_flow_action_appears_in_stage_input_sources() -> None:
 
 
 # ---------------------------------------------------------------------------
+# P-42 — Glob-matched non-Tcl files must reach the manifest (F1 is type-agnostic)
+# ---------------------------------------------------------------------------
+
+
+def test_glob_matched_non_tcl_file_receives_full_copy_treatment() -> None:
+    """Regression for pitfall P-42: a ``.py`` file reachable *only* via a
+    glob-surviving FI path must enter ``_collect_universe`` and therefore
+    receive a ``FULL_COPY`` treatment in the manifest.
+
+    Before the fix, ``_collect_universe`` only unioned ``fi_literal``;
+    ``fi_glob_surviving`` was ignored, so glob-matched non-Tcl files were
+    silently absent from the manifest.
+    """
+    from chopper.compiler.merge_service import (  # noqa: PLC0415
+        _collect_universe,  # noqa: PLC0415
+        _SourceFacts,
+        _SourceRef,
+    )
+
+    ctx, _ = make_ctx()
+    parsed = make_parsed({"core.tcl": ["setup"]})
+
+    # Simulate: a feature whose files.include glob matched report.py (non-Tcl).
+    # The .py was in fi_glob_surviving but NOT in fi_literal or parsed.files.
+    report_py = Path("reports/report.py")
+    fake_facts = _SourceFacts(
+        ref=_SourceRef(key="feat", source_path=Path("/dom/feat.json")),
+        fi_literal=frozenset(),
+        fi_glob_surviving=frozenset({report_py}),
+        fe_literal=frozenset(),
+        pi_by_file={},
+        pe_by_file={},
+    )
+
+    universe = _collect_universe(parsed, [fake_facts])
+    assert report_py in universe, (
+        "glob-matched non-Tcl file must appear in the manifest universe (P-42: F1 is file-type agnostic)"
+    )
+
+
+def test_compiler_service_glob_only_non_tcl_receives_full_copy() -> None:
+    """End-to-end through CompilerService: a feature glob-only pattern expands
+    to a non-Tcl file (pre-populated in fi_glob_surviving via _extract_facts).
+    The file must appear in the manifest as FULL_COPY."""
+    ctx, _ = make_ctx()
+    # parsed has only a.tcl; report.py is NOT in parsed.files
+    parsed = make_parsed({"a.tcl": ["foo"]})
+    # Using a literal path here because _extract_facts classifies literals;
+    # the companion test above covers the fi_glob_surviving path directly.
+    # Using a .py literal to confirm non-Tcl literal FI still works.
+    report_py = Path("reports/report.py")
+    base = make_base(
+        files=files_section(include=("a.tcl", "reports/report.py")),
+    )
+    loaded = make_loaded(base, surface_files=(Path("a.tcl"), report_py))
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert manifest.file_decisions.get(report_py) is FileTreatment.FULL_COPY, (
+        "non-Tcl file named in files.include must survive as FULL_COPY"
+    )
+
+
+# ---------------------------------------------------------------------------
 # VW-13 — PE prunes include to empty (row 9 / row 10)
 # ---------------------------------------------------------------------------
 
