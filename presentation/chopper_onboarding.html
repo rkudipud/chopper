@@ -749,6 +749,9 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     <p class="leadIn" style="margin-top:8px;font-size:18px;color:var(--ink-dim)">
       by <strong>Rajesh Kudipudi</strong> &mdash; FEV Global / PESG &middot; DDI
     </p>
+    <p class="leadIn" style="margin-top:4px;font-size:14px;color:var(--ink-mute)">
+      Inspired by FlowBuilder by Stelian and SNORT by Mike McCurdy
+    </p>
     <div class="kpis">
       <div class="kpi"><div class="v grad">3</div><div class="l">Capabilities &mdash; F1 &middot; F2 &middot; F3</div></div>
       <div class="kpi"><div class="v grad">8</div><div class="l">Pipeline phases P0&ndash;P7</div></div>
@@ -2468,18 +2471,11 @@ function animateProcTrace(){
 const _deck  = document.getElementById('deck');
 const _stage = document.getElementById('stage');
 const _root  = document.documentElement;
-const _baseDPR = window.devicePixelRatio || 1;
 /* User-driven readability scaler.
   +/- changes type size and effective content viewport (padding density),
   not deck transform zoom. */
 let   _uiScale = 1;
 const _scaleVal  = document.getElementById('scaleVal');
-function _zoomFactor(){
-  // devicePixelRatio tracks browser zoom on Chromium/Edge/Firefox.
-  // Clamp to a sane range so unusual monitor DPIs don't blow things up.
-  const z = (window.devicePixelRatio || 1) / _baseDPR;
-  return Math.max(0.5, Math.min(z, 4));
-}
 function fitDeck(){
   if(!_deck) return;
   const pad = 4; // hairline gutter; the canvas should fill the viewport
@@ -2488,8 +2484,9 @@ function fitDeck(){
   const h = window.innerHeight - pad*2 - navH;
   // Base fit-to-viewport scale.
   const fit = Math.min(w/1440, h/900);
-  // Honour browser zoom (Ctrl+= / Ctrl+-), but keep in-app +/- as readability controls.
-  const s = fit * _zoomFactor();
+  // Keep deck geometry tied to viewport fit only to avoid overscaling/clipping
+  // under mixed OS scaling + browser zoom combinations.
+  const s = fit;
   _deck.style.transform = `scale(${s})`;
   _stage.style.paddingBottom = navH + 'px';
   // Update scaler readout.
@@ -2516,18 +2513,6 @@ function setScale(s){
 function scaleBy(delta){ setScale(_uiScale + delta); }
 function resetScale(){ setScale(1); }
 window.addEventListener('resize', fitDeck);
-// devicePixelRatio change events fire on browser-zoom in modern browsers.
-if(window.matchMedia){
-  // Re-bind on any DPR change. The matchMedia pattern catches Ctrl+= reliably.
-  let _dprMQL = null;
-  function _bindDpr(){
-    if(_dprMQL) _dprMQL.removeEventListener && _dprMQL.removeEventListener('change', _onDpr);
-    _dprMQL = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    _dprMQL.addEventListener ? _dprMQL.addEventListener('change', _onDpr) : _dprMQL.addListener(_onDpr);
-  }
-  function _onDpr(){ fitDeck(); _bindDpr(); }
-  _bindDpr();
-}
 fitDeck();
 
 /* ============ Fullscreen-aware nav (translucent + auto-hide) ============ */
