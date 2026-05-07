@@ -123,6 +123,16 @@ class ChopperRunner:
                     ctx.progress.phase_done(Phase.P5_TRIM)
                     exit_code = 1
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+                # P5a tail — preserve selected JSON inputs in the rebuilt
+                # domain (ARCHITECTURE.md §5.6). Best-effort; OSError →
+                # VW-20, run continues.
+                from dataclasses import replace as _replace
+
+                from chopper.trimmer.input_preserver import preserve_input_sources
+
+                preserved_count = preserve_input_sources(ctx, loaded)
+                if preserved_count:
+                    trim_report = _replace(trim_report, inputs_preserved=preserved_count)
                 ctx.progress.phase_done(Phase.P5_TRIM)
 
                 # P6 — Post-validate final Tcl outputs rewritten during P5.

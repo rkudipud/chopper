@@ -41,6 +41,21 @@ def _seed_valid_domain(domain: Path) -> Path:
     return base_path
 
 
+def _write_base_json(base_path: Path, *, domain_name: str) -> Path:
+    base_path.parent.mkdir(parents=True, exist_ok=True)
+    base_path.write_text(
+        json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": domain_name,
+                "files": {"include": ["vars.tcl", "helper.tcl"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return base_path
+
+
 # ---------------------------------------------------------------------------
 # validate subcommand
 # ---------------------------------------------------------------------------
@@ -106,6 +121,321 @@ class TestTrimSubcommand:
         assert backup.exists(), "backup directory must exist after live trim (Case 1)"
         # Rebuilt domain has the included files.
         assert (domain / "vars.tcl").exists()
+
+    def test_trim_rerun_from_backup_cwd_reuses_original_backup(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+        base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
+
+        first_rc = main(["trim", "--domain", str(domain), "--base", str(base)])
+        first_captured = capsys.readouterr()
+        assert first_rc == 0, f"stderr: {first_captured.err}"
+
+        backup = tmp_path / "mini_backup"
+        monkeypatch.chdir(backup)
+
+        rerun_rc = main(["trim", "--base", str(base)])
+        rerun_captured = capsys.readouterr()
+        assert rerun_rc == 0, f"stderr: {rerun_captured.err}"
+        assert backup.exists(), "re-trim must keep using the original backup"
+        assert not (tmp_path / "mini_backup_backup").exists(), "rerun must not create nested backups"
+
+    def test_trim_dry_run_does_not_create_backup_directory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``--dry-run`` must not produce any domain-level mutation.
+
+        See ``technical_docs/ARCHITECTURE.md`` §3.7 (dry-run is the
+        live-mutation gate). Snapshot the workspace before and after and
+        assert the only new artifact is the audit bundle.
+        """
+        domain = tmp_path / "mini"
+        base = _seed_valid_domain(domain)
+        before = {p.name for p in tmp_path.iterdir()}
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base), "--dry-run"])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr: {captured.err}"
+
+        after = {p.name for p in tmp_path.iterdir()}
+        new_entries = after - before
+        # Allowed delta in the parent dir: nothing — the audit bundle
+        # lives under <domain>/.chopper, not as a sibling.
+        assert new_entries == set(), f"dry-run created sibling entries: {new_entries}"
+        # Hard rule: no <domain>_backup/ may appear.
+        assert not (tmp_path / "mini_backup").exists(), "--dry-run must not create <domain>_backup/"
+
+    def test_re_trim_does_not_copy_backup_chopper_into_rebuilt_domain(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The audit bundle is the *current* run's bookkeeping. When P5
+        rebuilds the domain from ``<domain>_backup/`` (Case 2), the
+        backup's ``.chopper/`` directory must never be copied into the
+        rebuilt domain — see ``technical_docs/ARCHITECTURE.md`` §2.4.
+        """
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+        # Place base JSON outside the domain so it survives the
+        # rename-to-backup performed by P5 lifecycle.
+        base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
+
+        # First run produces <domain>_backup/ and writes .chopper/ into it
+        # via the lifecycle move.
+        first_rc = main(["trim", "--domain", str(domain), "--base", str(base)])
+        first_captured = capsys.readouterr()
+        assert first_rc == 0, f"stderr: {first_captured.err}"
+
+        backup = tmp_path / "mini_backup"
+        # Plant a sentinel under backup/.chopper/ that should never appear
+        # in the rebuilt domain.
+        backup_chopper = backup / ".chopper"
+        backup_chopper.mkdir(parents=True, exist_ok=True)
+        sentinel = backup_chopper / "sentinel_from_backup.txt"
+        sentinel.write_text("must-not-be-copied", encoding="utf-8")
+
+        # Second run: rebuilt domain copies surfaced files from backup,
+        # but .chopper/ must not propagate.
+        second_rc = main(["trim", "--domain", str(domain), "--base", str(base)])
+        second_captured = capsys.readouterr()
+        assert second_rc == 0, f"stderr: {second_captured.err}"
+
+        rebuilt_chopper = domain / ".chopper"
+        assert rebuilt_chopper.exists(), "fresh .chopper/ must exist for the second run"
+        assert not (rebuilt_chopper / "sentinel_from_backup.txt").exists(), (
+            "backup's .chopper/ contents must never be copied into the rebuilt domain"
+        )
+
+    def test_glob_expansion_never_matches_chopper_audit_directory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``files.include`` glob expansion must skip ``.chopper/``.
+
+        Architecture §2.4: the audit bundle is owned by Chopper; user
+        JSONs cannot pull files out of it via ``**`` patterns.
+        """
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+        # Configs live outside the domain so they survive the
+        # rename-to-backup the trimmer performs.
+        base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
+
+        # First trim writes .chopper/ inside the domain.
+        rc1 = main(["trim", "--domain", str(domain), "--base", str(base)])
+        assert rc1 == 0
+        capsys.readouterr()
+
+        chopper_dir = domain / ".chopper"
+        assert chopper_dir.exists()
+
+        # Second pass: a base JSON whose only include is a recursive glob
+        # that *would* sweep .chopper/ if not filtered.
+        greedy_base = tmp_path / "configs" / "greedy.json"
+        greedy_base.write_text(
+            json.dumps(
+                {
+                    "$schema": "base-v1",
+                    "domain": domain.name,
+                    "files": {"include": ["**/*.json"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc2 = main(["validate", "--domain", str(domain), "--base", str(greedy_base)])
+        captured = capsys.readouterr()
+        assert rc2 in (0, 1), f"validate exit ambiguous; stderr:\n{captured.err}"
+
+        # Whatever the result, the manifest must not list any path that
+        # starts with .chopper/.
+        manifest_path = domain / ".chopper" / "compiled_manifest.json"
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            paths = [d["path"] for d in manifest.get("files", [])]
+            audit_paths = [p for p in paths if p.startswith(".chopper/") or p.startswith(".chopper\\")]
+            assert audit_paths == [], f"glob expansion must skip .chopper/: {audit_paths}"
+
+    def test_project_paths_resolve_from_cwd_not_project_file_directory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``project.base`` and ``project.features`` are domain-relative.
+
+        See ``technical_docs/IMPLEMENTATION.md`` §1.10 P-25 / config
+        service: paths in the project JSON resolve from the domain root
+        (cwd), not from the project file's parent directory. This test
+        places the project JSON in a sibling location whose parent does
+        NOT contain ``base.json``, then asserts the run still succeeds
+        because resolution happens from the domain root.
+        """
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+
+        # Project JSON lives outside the domain entirely. If paths
+        # resolved from the project file's parent, ``base.json`` would
+        # be searched at ``tmp_path/external/jsons/base.json`` and the
+        # run would fail with VE-01.
+        external = tmp_path / "external"
+        external.mkdir(parents=True)
+        project_path = external / "project.json"
+        project_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "project-v1",
+                    "project": "p",
+                    "domain": domain.name,
+                    "base": "jsons/base.json",
+                    "features": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        # Run from the domain root (cwd policy). VE-17 expects
+        # cwd.name == project.domain.
+        monkeypatch.chdir(domain)
+        rc = main(["validate", "--project", str(project_path)])
+        captured = capsys.readouterr()
+        assert rc == 0, (
+            "project paths must resolve from cwd (the domain root), not from the project file's directory; "
+            f"stderr:\n{captured.err}"
+        )
+
+    def test_trim_with_domain_flag_from_unrelated_cwd_succeeds(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """``--domain`` is the highest-priority resolution input.
+
+        Per ``technical_docs/ARCHITECTURE.md`` §5.1, when ``--domain``
+        is supplied the run uses ``Path(args.domain).resolve()`` and
+        ignores cwd entirely. Run from an unrelated cwd and confirm
+        the trim still succeeds and writes into the explicit domain.
+        """
+        domain = tmp_path / "mini"
+        base = _seed_valid_domain(domain)
+        unrelated_cwd = tmp_path / "elsewhere"
+        unrelated_cwd.mkdir()
+        monkeypatch.chdir(unrelated_cwd)
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base)])
+        captured = capsys.readouterr()
+        assert rc == 0, f"--domain must override cwd; stderr:\n{captured.err}"
+        # No VE-17 expected.
+        assert "VE-17" not in captured.err
+        assert (tmp_path / "mini_backup").exists(), "backup must land next to the explicit domain root"
+        assert (domain / ".chopper" / "chopper_run.json").exists()
+
+    def test_trim_preserves_in_tree_jsons_in_rebuilt_domain(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Selected JSON inputs that live under the domain root survive
+        the live trim with byte-identical contents at their original
+        relative path. See ``technical_docs/ARCHITECTURE.md`` §5.5
+        ("Preserved JSON inputs in the rebuilt domain")."""
+        domain = tmp_path / "mini"
+        base = _seed_valid_domain(domain)
+        original_bytes = base.read_bytes()
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(base)])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        preserved = domain / "jsons" / "base.json"
+        assert preserved.exists(), "in-tree base.json must survive in the rebuilt domain"
+        assert preserved.read_bytes() == original_bytes, "preserved JSON must be byte-identical to source"
+
+    def test_trim_copies_external_jsons_into_rebuilt_domain_external_dir(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Out-of-tree selected JSON inputs land under
+        ``<domain>/jsons/_external/<NN>_<basename>`` with byte-identical
+        contents. See ``technical_docs/ARCHITECTURE.md`` §5.5."""
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+        external_base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
+        original_bytes = external_base.read_bytes()
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(external_base)])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        external_dir = domain / "jsons" / "_external"
+        assert external_dir.exists(), "_external preservation directory must be created"
+        copies = sorted(external_dir.iterdir())
+        assert len(copies) == 1, f"expected exactly one external copy, got {copies}"
+        copied = copies[0]
+        assert copied.name.endswith("_base.json"), f"name must be NN_base.json: {copied.name}"
+        assert copied.name[:2].isdigit(), f"name must start with two-digit prefix: {copied.name}"
+        assert copied.read_bytes() == original_bytes
+
+    def test_trim_only_preserves_selected_features_not_unselected(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Only the JSONs actually consumed by the run are preserved.
+        Unselected features sitting on disk must NOT appear in the
+        rebuilt domain. See ``technical_docs/ARCHITECTURE.md`` §5.5."""
+        domain = tmp_path / "mini"
+        base = _seed_valid_domain(domain)
+        jsons = domain / "jsons"
+        feat_a = jsons / "a.feature.json"
+        feat_a.write_text(
+            json.dumps({"$schema": "feature-v1", "name": "a", "files": {"include": ["vars.tcl"]}}),
+            encoding="utf-8",
+        )
+        feat_b = jsons / "b.feature.json"
+        feat_b.write_text(
+            json.dumps({"$schema": "feature-v1", "name": "b", "files": {"include": ["vars.tcl"]}}),
+            encoding="utf-8",
+        )
+        feat_c = jsons / "c.feature.json"
+        feat_c.write_text(
+            json.dumps({"$schema": "feature-v1", "name": "c", "files": {"include": ["vars.tcl"]}}),
+            encoding="utf-8",
+        )
+
+        rc = main(
+            [
+                "trim",
+                "--domain",
+                str(domain),
+                "--base",
+                str(base),
+                "--features",
+                f"{feat_a},{feat_b}",
+            ]
+        )
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        # Selected features survive at their in-tree path.
+        assert (domain / "jsons" / "a.feature.json").exists()
+        assert (domain / "jsons" / "b.feature.json").exists()
+        # Unselected feature must not be re-materialised by the
+        # preserver. _seed_valid_domain doesn't recreate it, but the
+        # backup contains the original; the rebuilt domain must NOT.
+        assert not (domain / "jsons" / "c.feature.json").exists(), (
+            "preserver must only copy JSONs that were actually loaded for the run"
+        )
+
+    def test_trim_dry_run_does_not_preserve_jsons(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """Dry-run is the live-mutation gate; preservation does not run.
+        See ``technical_docs/ARCHITECTURE.md`` §5.5 (live-trim only)."""
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+        external_base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
+
+        rc = main(["trim", "--domain", str(domain), "--base", str(external_base), "--dry-run"])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        # No external preservation directory under dry-run.
+        assert not (domain / "jsons" / "_external").exists(), "dry-run must not create _external preservation directory"
 
 
 # ---------------------------------------------------------------------------

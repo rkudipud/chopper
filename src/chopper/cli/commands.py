@@ -30,11 +30,37 @@ __all__ = ["cmd_cleanup", "cmd_mcp_serve", "cmd_trim", "cmd_validate"]
 # ---------------------------------------------------------------------------
 
 
-def _resolve_domain_root(args: argparse.Namespace) -> Path:
+def _resolve_domain_root(args: argparse.Namespace) -> tuple[Path, Path | None]:
+    """Resolve the operational domain root.
+
+    Per ``technical_docs/ARCHITECTURE.md`` §5.1 (Domain-root resolution),
+    a single two-step rule applies:
+
+    1. **Pick the candidate.** If ``--domain`` is provided, the candidate
+       is ``Path(args.domain).resolve()`` and cwd is not consulted.
+       Otherwise the candidate is ``Path.cwd().resolve()``.
+    2. **Conditional ``_backup`` redirect.** If the candidate's basename
+       ends in ``_backup`` *and* the stripped sibling exists as a
+       directory, the operational domain root becomes that sibling and
+       the original candidate is reported as the previous-run snapshot
+       (caller emits ``VI-03 domain-suffix-strip-applied``). The
+       redirect is single-shot: ``foo_backup_backup`` redirects to
+       ``foo_backup`` if and only if ``foo_backup/`` exists. If the
+       stripped sibling does not exist on disk, the candidate is
+       returned unchanged — a coincidentally-named domain is honored
+       as-is.
+
+    Returns a ``(domain_root, original_candidate)`` tuple. The second
+    element is the unstripped candidate when the redirect was applied;
+    it is ``None`` otherwise.
+    """
     raw = getattr(args, "domain", None)
-    if raw is None:
-        return Path.cwd().resolve()
-    return Path(raw).resolve()
+    candidate = Path(raw).resolve() if raw is not None else Path.cwd().resolve()
+    if candidate.name.endswith("_backup"):
+        stripped = candidate.with_name(candidate.name[: -len("_backup")])
+        if stripped.is_dir():
+            return stripped, candidate
+    return candidate, None
 
 
 def _make_progress(args: argparse.Namespace) -> ProgressSink:
@@ -77,8 +103,8 @@ def _expand_feature_dirs(features: str | None) -> str | None:
     return ",".join(expanded)
 
 
-def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
-    domain_root = _resolve_domain_root(args)
+def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunConfig, Path | None]:
+    domain_root, stripped_candidate = _resolve_domain_root(args)
     backup_root = domain_root.with_name(domain_root.name + "_backup")
     audit_root = domain_root / ".chopper"
 
@@ -101,7 +127,7 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
     raw_tc = getattr(args, "tool_commands", None) or []
     tool_command_paths = tuple(Path(p).resolve() for p in raw_tc)
 
-    return RunConfig(
+    cfg = RunConfig(
         domain_root=domain_root,
         backup_root=backup_root,
         audit_root=audit_root,
@@ -112,17 +138,45 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> RunConfig:
         feature_paths=feature_paths,
         tool_command_paths=tool_command_paths,
     )
+    return cfg, stripped_candidate
 
 
 def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperContext, CollectingSink]:
     sink = CollectingSink()
-    cfg = _build_run_config(args, dry_run=dry_run)
+    cfg, stripped_candidate = _build_run_config(args, dry_run=dry_run)
     ctx = ChopperContext(
         config=cfg,
         fs=LocalFS(),
         diag=sink,
         progress=_make_progress(args),
     )
+    if stripped_candidate is not None:
+        # Per ARCHITECTURE.md §5.1, emit VI-03 so the suffix-strip
+        # redirect is visible in stderr and recorded in the audit
+        # bundle. Info severity; --strict does not escalate.
+        from chopper.core.diagnostics import Diagnostic, Phase
+
+        sink.emit(
+            Diagnostic.build(
+                "VI-03",
+                phase=Phase.P1_CONFIG,
+                message=(
+                    f"--domain or cwd ended in '_backup' and a stripped sibling exists; "
+                    f"resolved operational domain root to {cfg.domain_root.as_posix()!r} "
+                    f"(redirected from {stripped_candidate.as_posix()!r}). "
+                    "The original path is treated as the previous-run snapshot."
+                ),
+                path=stripped_candidate,
+                hint=(
+                    "If this redirect was unintended, rename the live domain so it does not "
+                    "shadow the backup, or run from inside the intended domain"
+                ),
+                context={
+                    "original_candidate": stripped_candidate.as_posix(),
+                    "resolved_domain_root": cfg.domain_root.as_posix(),
+                },
+            )
+        )
     return ctx, sink
 
 
@@ -165,7 +219,12 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         render_cleanup_message("chopper cleanup: --confirm is required; refusing to remove backup")
         return 2
 
-    domain_root = _resolve_domain_root(args)
+    domain_root, stripped_candidate = _resolve_domain_root(args)
+    if stripped_candidate is not None:
+        render_cleanup_message(
+            f"chopper cleanup: --domain or cwd ended in '_backup' and live sibling exists; "
+            f"redirected to {domain_root.as_posix()} (from {stripped_candidate.as_posix()}) [VI-03]"
+        )
     backup_root = domain_root.with_name(domain_root.name + "_backup")
     if not backup_root.exists():
         render_cleanup_message(f"chopper cleanup: no backup to remove at {backup_root.as_posix()}")

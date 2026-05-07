@@ -337,6 +337,32 @@ class TestDPA:
         p = _procs_by_short(src)["foo"]
         assert p.dpa_start_line == 4  # type: ignore[attr-defined]
 
+    @pytest.mark.parametrize(
+        ("blanks", "expected_dpa_line", "should_attach"),
+        [
+            (0, 2, True),  # immediate DPA on the next line
+            (1, 3, True),  # one blank line between
+            (2, 4, True),  # two blank lines between
+            (3, 5, True),  # three blank lines (boundary; spec §1.4.6 rule 2)
+            (4, None, False),  # four blank lines exceeds the window — no DPA
+        ],
+    )
+    def test_dpa_blank_line_tolerance_boundary(
+        self, blanks: int, expected_dpa_line: int | None, should_attach: bool
+    ) -> None:
+        """`technical_docs/IMPLEMENTATION.md` §1.4.6 rule 2: DPA association
+        permits up to three blank lines between the proc close and the
+        ``define_proc_attributes`` block. Four or more blank lines breaks
+        the window and the DPA is not attached.
+        """
+        gap = "\n" * blanks
+        src = f'proc foo {{}} {{}}\n{gap}define_proc_attributes foo -info "x"\n'
+        p = _procs_by_short(src)["foo"]
+        if should_attach:
+            assert p.dpa_start_line == expected_dpa_line  # type: ignore[attr-defined]
+        else:
+            assert p.dpa_start_line is None  # type: ignore[attr-defined]
+
     def test_dpa_comment_line_breaks_association(self) -> None:
         # §4.6 rule 2: comment lines between proc and DPA break the link.
         src = 'proc foo {} {}\n# unrelated comment\ndefine_proc_attributes foo -info "x"\n'

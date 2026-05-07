@@ -347,6 +347,7 @@ After `chopper trim --base jsons/base.json`:
 |---|---|
 | `VE-17 project-domain-mismatch` | `cd` into the folder whose name matches the JSON `domain` field |
 | `VE-21 no-domain-or-backup` | You are in a folder with neither `<domain>/` nor `<domain>_backup/` |
+| `VI-03 domain-suffix-strip-applied` | Info, not an error. Your `--domain` (or cwd) ended in `_backup` and a live sibling exists, so Chopper redirected to the live sibling. If you genuinely meant the `_backup` path, rename the colliding live sibling or run from inside the intended domain. |
 | `VE-03 empty-procs-array` | `procEntry` has `"procs": []` — list procs or use `files.include` |
 | `PW-01 dynamic-proc-name` | Tcl uses `proc ${prefix}_foo`. Chopper cannot index it — list the resolved name(s) explicitly. |
 | `TW-02` flood | Pass `--tool-commands` so vendor commands surface as `TI-01` info instead. |

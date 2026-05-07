@@ -193,6 +193,36 @@ class TestStrictMode:
         assert result.summary.errors == 0
         assert result.summary.warnings >= 1
 
+    def test_strict_does_not_rewrite_warning_severity(self) -> None:
+        """``--strict`` is exit-code policy only — warning diagnostics keep
+        ``severity == Severity.WARNING`` in the sink, even when the run
+        exits 1.
+
+        See ``technical_docs/ENGINEERING.md`` §8.2 rule 4 and
+        ``technical_docs/DIAGNOSTIC_CODES.md`` Notes — strict must not
+        mutate emitted records (``XE-*`` / severity rewriting is a
+        closed decision).
+        """
+        fs = InMemoryFS()
+        _seed_good_domain(fs)
+        ctx, sink = _make_ctx(fs, strict=True)
+        injected = Diagnostic.build(
+            "VW-03",
+            phase=Phase.P1_CONFIG,
+            message="strict-must-not-rewrite-this",
+        )
+        ctx.diag.emit(injected)
+        result = ChopperRunner().run(ctx, command="validate")
+
+        assert result.exit_code == 1
+        # Locate the injected diagnostic in the sink and assert its
+        # severity field is unchanged.
+        matches = [d for d in sink.snapshot() if d.code == "VW-03" and d.message == "strict-must-not-rewrite-this"]
+        assert len(matches) == 1, [d.code for d in sink.snapshot()]
+        assert matches[0].severity is Severity.WARNING
+        # Code stays in the W-band — never silently re-banded to an E-code.
+        assert matches[0].code.startswith("VW-")
+
 
 class TestChopperErrorPath:
     def test_chopper_error_yields_exit_3(self, monkeypatch: pytest.MonkeyPatch) -> None:

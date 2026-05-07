@@ -49,7 +49,7 @@ parses Tcl, compiles selections, and runs the trace phase.
 Does not modify domain content files.
 
 options:
-  --domain PATH        Domain root path (default: current directory)
+  --domain PATH        Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
   --base PATH          Path to base JSON (required unless --project is used)
   --features PATHS     Comma-separated ordered list of feature JSON paths.
                        Validate-only: any entry may also be a directory, which
@@ -85,7 +85,7 @@ On failure:  leave state as-is and exit non-zero; re-run to resume (the next
              or manually run `rm -rf domain && mv domain_backup domain` to reset.
 
 options:
-  --domain PATH        Domain root path (default: current directory)
+  --domain PATH        Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
   --base PATH          Path to base JSON (required unless --project is used)
   --features PATHS     Comma-separated ordered list of feature JSON paths
   --project PATH       Path to project JSON (mutually exclusive with --base/--features)
@@ -108,7 +108,7 @@ Remove domain_backup/ permanently after the trim window is complete.
 This operation is irreversible. Requires --confirm flag.
 
 options:
-  --domain PATH   Domain root path (default: current directory)
+  --domain PATH   Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
   --confirm       Required confirmation flag (cleanup refuses to run without it)
 ```
 

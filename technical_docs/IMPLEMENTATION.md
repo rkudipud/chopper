@@ -1808,7 +1808,7 @@ if args.dry_run:
 
 ---
 
-### Pitfall P-25: Project JSON Paths Resolve Relative to the Current Working Directory
+### Pitfall P-25: Project JSON Paths Resolve Relative to the Operational Domain Root
 
 **THE TRAP:**
 ```python
@@ -1820,21 +1820,20 @@ if args.dry_run:
 base_path = Path("../configs/") / "jsons/base.json"
 # Result: ../configs/jsons/base.json (doesn't exist there)
 #
-# CORRECT: resolve relative to the current working directory / domain root
-base_path = Path.cwd() / "jsons/base.json"
+# CORRECT: resolve relative to the operational domain root (RunConfig.domain_root)
+base_path = ctx.config.domain_root / "jsons/base.json"
 # Result: fev_formality/jsons/base.json (correct)
 ```
 
-**Correct Behavior:** `base` and `features` paths inside a project JSON are resolved relative to the current working directory, which is the operational domain root, NOT relative to the project JSON file location.
+**Correct Behavior:** `base` and `features` paths inside a project JSON are resolved relative to the operational domain root recorded on `RunConfig.domain_root`, NOT relative to the project JSON file location. The domain root is computed by the CLI per ARCHITECTURE §5.1 priority: `--domain` (highest) → backup-cwd suffix-strip guard → `Path.cwd()`.
 
 **Implementation Requirement:**
-- CLI layer assumes the current working directory is the domain root
+- CLI layer computes the operational domain root via `_resolve_domain_root` (priority above)
 - CLI layer loads project JSON, extracts `base` and `features` fields
-- Resolves all paths relative to `Path.cwd()`
+- Resolves all project-JSON-relative paths against `RunConfig.domain_root`
 - Default expected curated JSON locations under the domain are `jsons/base.json` and `jsons/features/*.feature.json`
 - The project JSON file itself can live anywhere (e.g., `configs/`, `projects/`, outside the repo)
-- The project JSON `domain` field must match `Path.cwd().name`
-- If `--domain` is accepted, verify that it resolves to the same path as `Path.cwd()`
+- The project JSON `domain` field must match `domain_root.name` (case-insensitive `casefold()`); see VE-17
 - After resolution, passes fully resolved `Path` objects into the `RunConfig` bound by `ChopperContext`
 - Phase 1 validation (`VE-13 project-path-unresolvable`) catches unresolvable paths
 
@@ -1987,7 +1986,7 @@ These fields flow through `ConfigService` → `CompiledManifest` and are written
 
 ---
 
-### Pitfall P-31: Project JSON Domain Must Match the Current Working Directory
+### Pitfall P-31: Project JSON Domain Must Match the Operational Domain Root
 
 **THE TRAP:**
 ```bash
@@ -1997,13 +1996,13 @@ These fields flow through `ConfigService` → `CompiledManifest` and are written
 # Which root wins?
 ```
 
-**Correct Behavior:** The current working directory is the domain root. The project JSON `domain` field is a consistency identifier and must match `Path.cwd().name`. If `--domain` is provided alongside `--project`, it must resolve to the same directory as `Path.cwd()`; otherwise Chopper exits with code 2.
+**Correct Behavior:** The operational domain root is computed by the CLI per ARCHITECTURE §5.1 priority list: `--domain` (highest) → backup-cwd suffix-strip guard → `Path.cwd()`. The project JSON `domain` field is a consistency identifier and must match `domain_root.name` (case-insensitive). When `--domain` is provided, it is the source of truth — cwd is **not** consulted, and there is no separate "cwd does not match `--domain`" exit-2 gate. Mismatch between `domain_root.name` and the project's `domain` field is reported as `VE-17` (exit 1).
 
 **Implementation Requirement:**
-- Use `Path.cwd()` as the verified domain root for project path resolution
-- Require `project_json["domain"] == Path.cwd().name`
-- If `--domain` is provided, resolve it and require it to equal `Path.cwd()`
-- If any of those checks fail: exit code 2 with actionable message
+- Compute the operational domain root via the priority list and store it on `RunConfig.domain_root`
+- Use `RunConfig.domain_root` (not `Path.cwd()`) as the verified domain root for project path resolution
+- Require `project_json["domain"].casefold() == domain_root.name.casefold()` (→ VE-17 on miss)
+- Do **not** validate `--domain` against `Path.cwd()` — `--domain` is authoritative on its own
 
 **Why It Matters:** This freezes one path root for the whole run and avoids hidden path-resolution branches.
 

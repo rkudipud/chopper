@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-30 | 26 | 4 | 30 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-20 | 19 | 1 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate, audit write failures |
-| `VI` Validation Info | VI-01–VI-05 | 2 | 3 | 5 | Advisory notices; no action required |
+| `VW` Validation Warnings | VW-01–VW-20 | 20 | 0 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate, audit write failures |
+| `VI` Validation Info | VI-01–VI-05 | 3 | 2 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **71** | **39** | **110** | |
+| **Total** | | **73** | **37** | **110** | |
 
 ---
 
@@ -58,7 +58,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-14 | `duplicate-feature-name` | 1 | compiler | 1 | Two or more selected features have the same `name` field | Rename one feature or remove the duplicate |
 | VE-15 | `missing-depends-on-feature` | 1 | validator | 1 | Feature JSON `depends_on` prerequisite is not selected in project `features` | Add the prerequisite feature to the project or remove the dependency declaration |
 | VE-16 | `brace-error-post-trim` | 6 | validator | **3** | Post-trim re-tokenization of a rewritten `.tcl` file reports brace imbalance. This is an **internal-consistency assertion**: `PE-02` already rejects pre-existing imbalanced files in P2, so the only way P6 sees one is if the trimmer itself introduced it (programmer error). Exit 3 signals "Chopper broke," not "user input is bad." | File a bug with the offending path and the `trim_report.json`; restore `<domain>_backup/` and re-run |
-| VE-17 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the current working directory. Comparison is **case-insensitive** (`Path.cwd().name.casefold() == project.domain.casefold()`): operators authoring on Windows and running on Linux grid nodes are tolerated. | Run Chopper from the correct domain root, or fix `domain` in the project JSON |
+| VE-17 | `project-domain-mismatch` | 1 | validator | 1 | Project JSON `domain` field does not match the basename of the operational domain root (resolved per ARCHITECTURE §5.1: `--domain` → backup-cwd guard → `Path.cwd()`). Comparison is **case-insensitive** (`domain_root.name.casefold() == project.domain.casefold()`): operators authoring on Windows and running on Linux grid nodes are tolerated. | Pass the correct `--domain`, run from the correct domain root, or fix `domain` in the project JSON |
 | VE-18 | `duplicate-feature-entry` | 1 | validator | 1 | Same feature path appears more than once in project `features[]` | Remove duplicate entries; feature order must be unique |
 | VE-19 | `occurrence-suffix-zero` | 1 | compiler | 1 | `@0` used on an action `reference` — `@n` is 1-based | Use `@1` for the first occurrence, or omit `@n` entirely |
 | VE-20 | `ambiguous-step-target` | 1 | compiler | 1 | `replace_step` / `remove_step` targets a duplicate step string without `@n` disambiguation | Add `@n` to the `reference` to pick a specific occurrence |
@@ -109,9 +109,10 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | --- | --- | --- | --- | --- | --- | --- |
 | VI-01 | `empty-base-json` | 1 | validator | 0 | Base JSON has no `files`, `procedures`, or `stages` blocks | May be intentional for feature-driven flow; review if draft |
 | VI-02 | `top-level-tcl-only` | 5 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
-| — | — | — | — | — | **VI-03 through VI-05 reserved** | — |
+| VI-03 | `domain-suffix-strip-applied` | 1 | cli | 0 | Resolution candidate (from `--domain` or cwd) ended in `_backup` and a stripped sibling exists as a directory; the operational domain root was redirected to that sibling, and the original candidate is treated as the previous-run snapshot. The redirect is single-shot and conditional — a `_backup`-suffixed path with no live sibling is honored as-is. The diagnostic carries the original candidate path and the resolved domain root in its context. | If the redirect was unintended (i.e. the user genuinely meant the `_backup` path and the sibling collision is coincidental), rename the live sibling to break the collision, or run from inside the intended domain. Otherwise no action is required — the run will proceed against the real domain. |
+| — | — | — | — | — | **VI-04 through VI-05 reserved** | — |
 
-> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* This replaces a previously-proposed `VI-03 domain-hand-edited` code. See [`ENGINEERING.md`](ENGINEERING.md) §16 closed decisions.
+> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* A `VI-03 domain-hand-edited` code was proposed and rejected during pre-1.0 design (see [`ENGINEERING.md`](ENGINEERING.md) §16 closed decisions). The `VI-03` slot was later reused in 1.2.0 for `domain-suffix-strip-applied` (above) per the registry's lowest-available-slot convention.
 
 ---
 

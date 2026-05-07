@@ -49,6 +49,7 @@ class TrimReport:
     procs_kept_total: int
     procs_removed_total: int
     rebuild_interrupted: bool = False
+    inputs_preserved: int = 0
 
     def __post_init__(self) -> None:
         paths = [o.path.as_posix() for o in self.outcomes]

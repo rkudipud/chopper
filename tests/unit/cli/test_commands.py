@@ -47,8 +47,165 @@ def test_resolve_domain_root_falls_back_to_cwd_when_args_domain_is_none(
 
     monkeypatch.chdir(tmp_path)
     args = _ns(domain=None)
-    resolved = _resolve_domain_root(args)
+    resolved, stripped = _resolve_domain_root(args)
     assert resolved == tmp_path.resolve()
+    assert stripped is None
+
+
+def test_resolve_domain_root_redirects_backup_cwd_when_live_sibling_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Conditional redirect: cwd ends in ``_backup`` and live sibling exists."""
+    from chopper.cli.commands import _resolve_domain_root
+
+    live = tmp_path / "mini"
+    live.mkdir()
+    backup_cwd = tmp_path / "mini_backup"
+    backup_cwd.mkdir()
+    monkeypatch.chdir(backup_cwd)
+
+    args = _ns(domain=None)
+    resolved, stripped = _resolve_domain_root(args)
+    assert resolved == live.resolve()
+    assert stripped == backup_cwd.resolve()
+
+
+def test_resolve_domain_root_honors_backup_cwd_when_no_live_sibling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No redirect when the stripped sibling does not exist on disk.
+
+    A coincidentally ``_backup``-suffixed directory with no live
+    sibling is honored as-is (a fresh domain, not a Chopper backup).
+    """
+    from chopper.cli.commands import _resolve_domain_root
+
+    backup_cwd = tmp_path / "mini_backup"
+    backup_cwd.mkdir()
+    # No tmp_path/"mini" sibling exists.
+    monkeypatch.chdir(backup_cwd)
+
+    args = _ns(domain=None)
+    resolved, stripped = _resolve_domain_root(args)
+    assert resolved == backup_cwd.resolve()
+    assert stripped is None
+
+
+def test_resolve_domain_root_prefers_domain_flag_over_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--domain`` is the highest-priority resolution source.
+
+    Per ``technical_docs/ARCHITECTURE.md`` §5.1, when ``--domain`` is
+    provided the candidate is ``Path(args.domain).resolve()`` and
+    ``Path.cwd()`` is not consulted.
+    """
+    from chopper.cli.commands import _resolve_domain_root
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    unrelated_cwd = tmp_path / "unrelated_cwd"
+    unrelated_cwd.mkdir()
+    monkeypatch.chdir(unrelated_cwd)
+
+    args = _ns(domain=str(elsewhere))
+    resolved, stripped = _resolve_domain_root(args)
+    assert resolved == elsewhere.resolve()
+    assert stripped is None
+
+
+def test_resolve_domain_root_redirects_explicit_domain_flag_when_live_sibling_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Conditional redirect applies to ``--domain`` too, not only cwd.
+
+    If the user (or a script) points ``--domain`` at ``<domain>_backup/``
+    and a live ``<domain>/`` sibling exists, redirect to the sibling
+    and report the original candidate so the caller can emit VI-03.
+    """
+    from chopper.cli.commands import _resolve_domain_root
+
+    live = tmp_path / "mini"
+    live.mkdir()
+    backup = tmp_path / "mini_backup"
+    backup.mkdir()
+    cwd = tmp_path / "elsewhere"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+
+    args = _ns(domain=str(backup))
+    resolved, stripped = _resolve_domain_root(args)
+    assert resolved == live.resolve()
+    assert stripped == backup.resolve()
+
+
+def test_resolve_domain_root_honors_explicit_domain_flag_when_no_live_sibling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--domain /path/foo_backup`` with no ``foo/`` sibling is honored as-is.
+
+    The redirect is conditional, not unconditional: a coincidentally
+    ``_backup``-suffixed domain remains usable.
+    """
+    from chopper.cli.commands import _resolve_domain_root
+
+    backup = tmp_path / "mini_backup"
+    backup.mkdir()
+    # No tmp_path/"mini" sibling exists.
+    monkeypatch.chdir(tmp_path)
+
+    args = _ns(domain=str(backup))
+    resolved, stripped = _resolve_domain_root(args)
+    assert resolved == backup.resolve()
+    assert stripped is None
+
+
+def test_resolve_domain_root_redirect_is_single_shot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``foo_backup_backup`` redirects to ``foo_backup`` only, never to ``foo``."""
+    from chopper.cli.commands import _resolve_domain_root
+
+    one_strip = tmp_path / "mini_backup"
+    one_strip.mkdir()
+    two_strip = tmp_path / "mini_backup_backup"
+    two_strip.mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    args = _ns(domain=str(two_strip))
+    resolved, stripped = _resolve_domain_root(args)
+    assert resolved == one_strip.resolve()
+    assert stripped == two_strip.resolve()
+
+
+def test_make_context_emits_vi03_when_redirect_fires(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the conditional ``_backup`` redirect fires, ``_make_context``
+    emits ``VI-03 domain-suffix-strip-applied`` into the diagnostic sink.
+    """
+    from chopper.cli.commands import _make_context
+
+    live = tmp_path / "mini"
+    live.mkdir()
+    backup = tmp_path / "mini_backup"
+    backup.mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    args = _ns(domain=str(backup))
+    ctx, sink = _make_context(args, dry_run=True)
+    assert ctx.config.domain_root == live.resolve()
+    codes = [d.code for d in sink.snapshot()]
+    assert "VI-03" in codes
+
+
+def test_make_context_does_not_emit_vi03_when_no_redirect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No VI-03 when the candidate is not redirected (no live sibling)."""
+    from chopper.cli.commands import _make_context
+
+    backup = tmp_path / "mini_backup"
+    backup.mkdir()
+    # No tmp_path/"mini" sibling.
+    monkeypatch.chdir(tmp_path)
+
+    args = _ns(domain=str(backup))
+    _ctx, sink = _make_context(args, dry_run=True)
+    codes = [d.code for d in sink.snapshot()]
+    assert "VI-03" not in codes
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +255,7 @@ def test_build_run_config_parses_comma_separated_features(tmp_path: Path) -> Non
         base=str(base),
         features=f"{f1},{f2}",
     )
-    cfg = _build_run_config(args, dry_run=True)
+    cfg, _stripped = _build_run_config(args, dry_run=True)
     assert cfg.feature_paths == (f1.resolve(), f2.resolve())
 
 
@@ -112,7 +269,7 @@ def test_build_run_config_skips_empty_feature_segments(tmp_path: Path) -> None:
         p.write_text("{}", encoding="utf-8")
 
     args = _ns(domain=str(tmp_path), features=f"{a},,{b}")
-    cfg = _build_run_config(args, dry_run=False)
+    cfg, _stripped = _build_run_config(args, dry_run=False)
     assert cfg.feature_paths == (a.resolve(), b.resolve())
 
 
@@ -127,7 +284,7 @@ def test_build_run_config_with_project_ignores_base_and_features(tmp_path: Path)
         base="ignored_base.json",
         features="ignored_a.json,ignored_b.json",
     )
-    cfg = _build_run_config(args, dry_run=True)
+    cfg, _stripped = _build_run_config(args, dry_run=True)
     assert cfg.project_path == project.resolve()
     assert cfg.base_path is None
     assert cfg.feature_paths == ()

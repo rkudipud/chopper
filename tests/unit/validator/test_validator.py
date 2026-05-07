@@ -260,6 +260,33 @@ def test_validate_pre_ve17_is_case_insensitive() -> None:
     assert "VE-17" not in _codes(ctx)
 
 
+def test_validate_pre_ve17_uses_domain_root_basename_not_cwd(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """VE-17 compares against ``RunConfig.domain_root.name`` (per
+    ``technical_docs/ARCHITECTURE.md`` §5.1), never against
+    ``Path.cwd().name``.
+
+    Construct a context whose ``domain_root.name == 'my_domain'`` and
+    chdir the test process into an unrelated directory. The project
+    JSON declaring ``domain == 'my_domain'`` must NOT trigger VE-17 —
+    the cwd basename is irrelevant.
+    """
+    elsewhere = tmp_path / "not_the_domain"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    ctx = _ctx()  # domain_root is /work/my_domain, set above.
+    project = ProjectJson(
+        source_path=Path("/cfg/project.json"),
+        project="p",
+        domain="my_domain",
+        base="base.json",
+    )
+    loaded = LoadedConfig(base=_base(), project=project)
+    validate_pre(ctx, loaded)
+    assert "VE-17" not in _codes(ctx), (
+        f"VE-17 must not depend on cwd; only domain_root.name should matter. Codes: {_codes(ctx)}"
+    )
+
+
 def test_validate_pre_emits_ve18_for_duplicate_feature_path() -> None:
     ctx = _ctx()
     project = ProjectJson(
