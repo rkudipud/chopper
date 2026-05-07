@@ -127,7 +127,19 @@ else
     echo "  Installed chopper version matches repo version ($repo_version). Skipping reinstall."
 endif
 
-echo "[6/6] Validating venv and Chopper launcher..."
+echo "[6/6] Validating venv and Chopper launchers (installed + source-mode)..."
+# Source-mode fallback: prepend <repo>/src to PYTHONPATH so `python -m chopper`
+# always resolves to the checkout, even if the editable install ever gets
+# stale. Idempotent: skip if already present.
+if ( $?PYTHONPATH ) then
+    echo "$PYTHONPATH" | grep -q "$script_dir/src"
+    if ( $status != 0 ) then
+        setenv PYTHONPATH "$script_dir/src":"$PYTHONPATH"
+    endif
+else
+    setenv PYTHONPATH "$script_dir/src"
+endif
+
 set active_prefix = `python -c "import sys; print(sys.prefix)"`
 if ( "$active_prefix" != "$venv_dir" ) then
     echo "ERROR: Active Python is not using the expected venv."
@@ -138,11 +150,18 @@ endif
 
 set chopper_version = `python -c "import chopper; print(chopper.__version__)"`
 chopper --help >& /dev/null
-if ( $status == 0 ) then
-    set chopper_line = "$chopper_version (launcher OK)"
+set installed_ok = $status
+python -m chopper --help >& /dev/null
+set module_ok = $status
+if ( $installed_ok == 0 && $module_ok == 0 ) then
+    set chopper_line = "$chopper_version (chopper + python -m chopper OK)"
+else if ( $module_ok == 0 ) then
+    set chopper_line = "$chopper_version (python -m chopper OK; installed launcher FAILED)"
+    echo "WARN: 'chopper' console script failed but 'python -m chopper' works."
+    echo "      You can use either — to repair the installed launcher run:"
+    echo "        python -m pip install -e . --force-reinstall --no-deps"
 else
-    echo "ERROR: chopper launcher validation failed."
-    echo "  Chopper  : $chopper_version (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')"
+    echo "ERROR: Both 'chopper' and 'python -m chopper' failed."
     return 1
 endif
 

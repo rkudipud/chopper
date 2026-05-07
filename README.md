@@ -330,6 +330,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 1.2.6 — 2026-05-07
+
+- **Dual-mode launcher.** Chopper can now be invoked as either the installed console script (`chopper ...`) **or** as a module (`python -m chopper ...`). Added [src/chopper/__main__.py](src/chopper/__main__.py) and updated [setup.csh](setup.csh), [setup.sh](setup.sh), [setup.ps1](setup.ps1), and [setup.bat](setup.bat) to prepend `<repo>/src` to `PYTHONPATH` and validate both invocation forms during setup. The existing `pip install -e .` step is retained, so `git pull` continues to pick up source changes immediately for both forms. The module form is the failsafe path: it always reads the working tree, even when the editable-install shim gets out of sync. No source-package, schema, diagnostic-registry, CLI surface, exit-code, runtime, or pipeline-phase changes — pure DX release.
+
 ### 1.2.5 — 2026-05-07
 
 - **Validation-pass version bump.** Patch-level bump after the post-1.2.0 documentation cross-validation pass. Two prose drifts repaired in place: the `ARCHITECTURE.md` 1.1.0 revision-history row referenced a `_copy_input_sources` helper in `trimmer/service.py`; the live implementation is `preserve_input_sources` in [src/chopper/trimmer/input_preserver.py](src/chopper/trimmer/input_preserver.py) (called from the runner at the P5a tail). The README 1.1.0 entry pointed at `ARCHITECTURE.md §5.5` for preserved inputs; the subsection lives at §5.6. No source, schema, diagnostic-registry, CLI surface, exit-code, runtime, or pipeline-phase changes.

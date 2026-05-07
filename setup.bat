@@ -119,7 +119,21 @@ if /i "!installedVersion!"=="!repoVersion!" (
     python -m pip install -e . --force-reinstall --no-deps --quiet
 )
 
-echo [6/6] Validating venv and Chopper launcher...
+echo [6/6] Validating venv and Chopper launchers (installed + source-mode)...
+
+REM Source-mode fallback: prepend <repo>\src to PYTHONPATH so `python -m chopper`
+REM always resolves to the checkout, even if the editable install ever gets
+REM stale. Idempotent: skip if already present.
+set "srcDir=%scriptDir%\src"
+echo ;%PYTHONPATH%; | findstr /i /c:";%srcDir%;" >nul
+if !ERRORLEVEL! NEQ 0 (
+    if "%PYTHONPATH%"=="" (
+        set "PYTHONPATH=%srcDir%"
+    ) else (
+        set "PYTHONPATH=%srcDir%;%PYTHONPATH%"
+    )
+)
+
 for /f "usebackq delims=" %%P in (`python -c "import sys; print(sys.prefix)" 2^>nul`) do set "activePrefix=%%P"
 if /i not "!activePrefix!"=="%venvDir%" (
     echo ERROR: Active Python is not using the expected venv.
@@ -130,13 +144,24 @@ if /i not "!activePrefix!"=="%venvDir%" (
 
 for /f "usebackq delims=" %%V in (`python -c "import chopper; print(chopper.__version__)" 2^>nul`) do set "chopperVersion=%%V"
 chopper --help >nul 2>&1
-if !ERRORLEVEL! EQU 0 (
-    set "chopperLine=!chopperVersion! ^(launcher OK^)"
-) else (
-    echo ERROR: chopper launcher validation failed.
-    echo   Chopper  : !chopperVersion! ^(launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps'^)
-    exit /b 1
+set "installedOk=!ERRORLEVEL!"
+python -m chopper --help >nul 2>&1
+set "moduleOk=!ERRORLEVEL!"
+if "!installedOk!"=="0" if "!moduleOk!"=="0" (
+    set "chopperLine=!chopperVersion! ^(chopper + python -m chopper OK^)"
+    goto :validation_done
 )
+if "!moduleOk!"=="0" (
+    set "chopperLine=!chopperVersion! ^(python -m chopper OK; installed launcher FAILED^)"
+    echo WARN: 'chopper' console script failed but 'python -m chopper' works.
+    echo       To repair the installed launcher run:
+    echo         python -m pip install -e . --force-reinstall --no-deps
+    goto :validation_done
+)
+echo ERROR: Both 'chopper' and 'python -m chopper' failed.
+echo   Chopper  : !chopperVersion!
+exit /b 1
+:validation_done
 
 echo.
 echo === Setup complete ===
@@ -169,7 +194,7 @@ echo Run: chopper --help
 echo Test: pytest
 echo.
 echo Venv is active; handing control back to you.
-endlocal & call "%venvDir%\Scripts\activate.bat"
+endlocal & set "PYTHONPATH=%srcDir%;%PYTHONPATH%" & call "%venvDir%\Scripts\activate.bat"
 goto :eof
 
 :check_venv_health

@@ -153,7 +153,19 @@ if ($installedVersion.Trim() -ne $repoVersion.Trim()) {
     Write-Host "  Installed chopper version matches repo version ($repoVersion). Skipping reinstall." -ForegroundColor Gray
 }
 
-Write-Host "[6/6] Validating venv and Chopper launcher..." -ForegroundColor Yellow
+Write-Host "[6/6] Validating venv and Chopper launchers (installed + source-mode)..." -ForegroundColor Yellow
+
+# Source-mode fallback: prepend <repo>/src to PYTHONPATH so `python -m chopper`
+# always resolves to the checkout, even if the editable install ever gets
+# stale. Idempotent: skip if already present.
+$srcDir = Join-Path $scriptDir "src"
+$existingPP = $env:PYTHONPATH
+if ([string]::IsNullOrEmpty($existingPP)) {
+    $env:PYTHONPATH = $srcDir
+} elseif (-not ($existingPP.Split([IO.Path]::PathSeparator) -contains $srcDir)) {
+    $env:PYTHONPATH = "$srcDir$([IO.Path]::PathSeparator)$existingPP"
+}
+
 $activePrefix = (python -c "import sys; print(sys.prefix)" 2>&1)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Could not inspect active Python sys.prefix." -ForegroundColor Red
@@ -186,11 +198,23 @@ try {
 } catch {
     $chopperOk = $false
 }
-if ($chopperOk) {
-    Write-Host "  Chopper  : $chopperPkgVersion (launcher OK)" -ForegroundColor Green
+$moduleOk = $false
+try {
+    & python -m chopper --help *> $null
+    if ($LASTEXITCODE -eq 0) { $moduleOk = $true }
+} catch {
+    $moduleOk = $false
+}
+if ($chopperOk -and $moduleOk) {
+    Write-Host "  Chopper  : $chopperPkgVersion (chopper + python -m chopper OK)" -ForegroundColor Green
+} elseif ($moduleOk) {
+    Write-Host "  Chopper  : $chopperPkgVersion (python -m chopper OK; installed launcher FAILED)" -ForegroundColor Yellow
+    Write-Host "  WARN: 'chopper' console script failed but 'python -m chopper' works." -ForegroundColor Yellow
+    Write-Host "        To repair the installed launcher run:" -ForegroundColor Yellow
+    Write-Host "          python -m pip install -e . --force-reinstall --no-deps" -ForegroundColor Yellow
 } else {
-    Write-Host "ERROR: chopper launcher validation failed." -ForegroundColor Red
-    Write-Host "  Chopper  : $chopperPkgVersion (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')" -ForegroundColor Red
+    Write-Host "ERROR: Both 'chopper' and 'python -m chopper' failed." -ForegroundColor Red
+    Write-Host "  Chopper  : $chopperPkgVersion" -ForegroundColor Red
     return
 }
 Write-Host "  Venv     : $venvDir" -ForegroundColor Green

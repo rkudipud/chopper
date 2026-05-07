@@ -122,7 +122,15 @@ else
     echo "  Installed chopper version matches repo version ($repo_version). Skipping reinstall."
 fi
 
-echo "[6/6] Validating venv and Chopper launcher..."
+echo "[6/6] Validating venv and Chopper launchers (installed + source-mode)..."
+# Source-mode fallback: prepend <repo>/src to PYTHONPATH so `python -m chopper`
+# always resolves to the checkout, even if the editable install ever gets
+# stale. Idempotent: skip if already present.
+case ":${PYTHONPATH:-}:" in
+    *":$script_dir/src:"*) ;;
+    *) export PYTHONPATH="$script_dir/src${PYTHONPATH:+:$PYTHONPATH}" ;;
+esac
+
 active_prefix=$(python -c "import sys; print(sys.prefix)" 2>&1)
 expected_prefix=$(cd "$venv_dir" && pwd -P)
 actual_prefix=$(cd "$active_prefix" 2>/dev/null && pwd -P || printf '%s' "$active_prefix")
@@ -134,11 +142,17 @@ if [[ "$actual_prefix" != "$expected_prefix" ]]; then
 fi
 
 chopper_version=$(python -c "import chopper; print(chopper.__version__)" 2>&1)
-if chopper --help >/dev/null 2>&1; then
-    chopper_line="$chopper_version (launcher OK)"
+chopper --help >/dev/null 2>&1; installed_ok=$?
+python -m chopper --help >/dev/null 2>&1; module_ok=$?
+if [[ $installed_ok -eq 0 && $module_ok -eq 0 ]]; then
+    chopper_line="$chopper_version (chopper + python -m chopper OK)"
+elif [[ $module_ok -eq 0 ]]; then
+    chopper_line="$chopper_version (python -m chopper OK; installed launcher FAILED)"
+    echo "WARN: 'chopper' console script failed but 'python -m chopper' works."
+    echo "      You can use either — to repair the installed launcher run:"
+    echo "        python -m pip install -e . --force-reinstall --no-deps"
 else
-    echo "ERROR: chopper launcher validation failed."
-    echo "  Chopper  : $chopper_version (launcher FAILED - run 'python -m pip install -e . --force-reinstall --no-deps')"
+    echo "ERROR: Both 'chopper' and 'python -m chopper' failed."
     return 1 2>/dev/null || exit 1
 fi
 
