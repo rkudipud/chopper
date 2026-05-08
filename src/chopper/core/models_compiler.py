@@ -14,6 +14,7 @@ __all__ = [
     "Edge",
     "FileProvenance",
     "ProcDecision",
+    "ShadowEvent",
     "StageSpec",
 ]
 
@@ -38,6 +39,25 @@ class ProcDecision:
 
 
 @dataclass(frozen=True)
+class ShadowEvent:
+    """One transition where a later layer changed a prior decision in the R1 ordered overlay.
+
+    Recorded in :attr:`FileProvenance.shadowed_by` for audit-trail visibility
+    (also surfaced as ``VW-21 layer-shadowed`` warnings at emission time).
+    """
+
+    layer: str
+    prior_layer: str
+    action: Literal["replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"]
+
+    def __post_init__(self) -> None:
+        if not self.layer:
+            raise ValueError("ShadowEvent.layer must be non-empty")
+        if not self.prior_layer:
+            raise ValueError("ShadowEvent.prior_layer must be non-empty")
+
+
+@dataclass(frozen=True)
 class FileProvenance:
     """Per-file provenance record written into the compiled manifest."""
 
@@ -45,14 +65,13 @@ class FileProvenance:
     treatment: FileTreatment
     reason: str
     input_sources: tuple[str, ...] = ()
-    vetoed_entries: tuple[str, ...] = ()
-    proc_model: Literal["additive", "subtractive"] | None = None
+    contributed_by: str | None = None
+    shadowed_by: tuple[ShadowEvent, ...] = ()
+    proc_model: Literal["overlay"] | None = None
 
     def __post_init__(self) -> None:
         if self.input_sources != tuple(sorted(self.input_sources)):
             raise ValueError("FileProvenance.input_sources must be lex-sorted")
-        if self.vetoed_entries != tuple(sorted(self.vetoed_entries)):
-            raise ValueError("FileProvenance.vetoed_entries must be lex-sorted")
         if self.proc_model is not None and self.treatment is not FileTreatment.PROC_TRIM:
             raise ValueError(
                 f"FileProvenance.proc_model is only valid for PROC_TRIM files (got treatment={self.treatment})"

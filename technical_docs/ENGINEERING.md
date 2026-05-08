@@ -162,7 +162,7 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `ConfigService` | P1 | `ctx, state` → `LoadedConfig` | `config/service.py` |
 | `validate_pre` (function) | P1 | `ctx, loaded` → emits diagnostics | `validator/functions.py` |
 | `ParserService` | P2 | `(ctx: ChopperContext, files: Sequence[Path], *, loaded: LoadedConfig | None = None) -> ParseResult` | `parser/service.py` |
-| `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` — **Two-pass implementation required.** Pass 1: iterate `loaded.features` in topo-sort order and collect per-source contribution sets (FI, FE, PI, PE per source). Pass 2: apply R1 L1/L2/L3 cross-source resolution on the collected sets. F1/F2 output must be identical regardless of feature declaration order; only F3 `flow_actions` sequencing depends on order. Never apply excludes as a sequential mutating pass over a shared set — that makes F1/F2 order-dependent. |
+| `CompilerService` | P3 | `ctx, loaded, parsed` → `CompiledManifest` | `compiler/merge_service.py` — **Ordered overlay implementation required.** Apply layers in declared order: `base` first, then each entry of `loaded.features` left-to-right. For each layer, fold its `files.include` / `files.exclude` / `procedures.include` / `procedures.exclude` into the running file/proc set produced by previous layers; the **last layer that mentions a file or proc wins**. Any transition that changes a prior decision (a later layer cancels an include, removes a proc that was kept, or downgrades a whole-file include to PROC_TRIM) emits `VW-21 layer-shadowed` with `(layer, prior_layer, action)` provenance. Feature ordering is authoritative for F1, F2, **and** F3 (was F3-only). The previous two-pass per-source classification + cross-source aggregation is gone; do not reintroduce a pass that collects per-source contribution sets and then resolves cross-source conflicts — that is the additive-only model and was retired in 2.0.0-alpha (see [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §4 R1, §5.3). |
 | `TracerService` | P4 | `ctx, manifest, parsed, loaded?` → `DependencyGraph` | `compiler/trace_service.py` |
 | `TrimmerService` | P5a | `ctx, manifest, parsed, state` → `TrimReport` | `trimmer/service.py` |
 | `GeneratorService` | P5b | `ctx, manifest` → `tuple[GeneratedArtifact, ...]` | `generators/service.py` |
@@ -735,8 +735,8 @@ def make_test_context(
 | 1 | Cyclic proc calls (A→B→A) | BFS visited-set terminates; cycle reported | `TracerService` | `TW-04` |
 | 2 | Dirty `.chopper/` from prior crash | Detected; stale artifacts overwritten; run proceeds | `AuditService` | — (silent) |
 | 3 | Parser fails mid-domain (unbalanced braces) | Phase records error; orchestrator aborts before P5; backup untouched | `ParserService` → `Runner` | `PE-02` |
-| 4 | Feature-level `FE` vetoed by another source's `FI` | Cross-source L1 wins: include survives; warning emitted | `CompilerService` | `VW-19` |
-| 5 | Feature-level `PE` vetoed by another source's `PI` | Cross-source L1 wins: include survives; warning emitted | `CompilerService` | `VW-18` |
+| 4 | Later layer's `FE` cancels an earlier layer's `FI` | Ordered overlay: later layer wins; file is removed; `VW-21` records the shadow | `CompilerService` | `VW-21` |
+| 5 | Later layer's `PE` removes a proc kept by an earlier layer | Ordered overlay: later layer wins; proc is dropped; `VW-21` records the shadow | `CompilerService` | `VW-21` |
 | 6 | Duplicate `proc foo {...}` in same file | Last definition wins; `PE-01` emitted; index reflects the last one | `ParserService` | `PE-01` |
 | 7 | Backslash line continuation across proc header | Lines are **not** physically merged; tokenizer carries state across newlines; line numbers in diagnostics point at the continuation start | `ParserService` | `PW-05` |
 | 8 | Comment line with open brace (`# { ...`) | Treated as a comment (to end of line); brace does **not** enter the brace-depth counter | `ParserService` | — |
@@ -756,7 +756,7 @@ def make_test_context(
 | 22 | Service raises unexpectedly | Outer `try/finally` in §6.2 writes `.chopper/internal-error.log` + partial audit; exits `3` (programmer-error channel) | `Runner` | (internal error log) |
 | 23 | Identical diagnostic emitted twice | Deduplicated at sink by `(code, path, line_no, message)` | `CollectingSink` | — |
 | 24 | JSON with trailing commas / BOM | Reject at load with a schema error; do not enter P2 | `ConfigService` | `VE-01` / schema |
-| 25 | `project.json` overrides a feature's `PE` with `PI` | Project L1 wins over feature L2; proc survives | `CompilerService` | — |
+| 25 | `project.json` features ordering puts a feature with `PI` after a feature with `PE` | Last layer wins under R1 ordered overlay; the later `PI` re-adds the proc | `CompilerService` | `VW-21` (when the PI shadows a prior PE) |
 | 26 | Feature selects a proc that doesn't exist in any parsed file | Emit warning; dependency graph records miss; trim proceeds | `CompilerService` | `VW-11` |
 | 27 | File is included but referenced proc is in a different file | Whole-file include wins; other file unchanged | `CompilerService` | — |
 | 28 | Trim interrupted by Ctrl-C mid-write | Next run detects inconsistent state via `DomainStateService` (architecture doc §2.8 matrix); restore from backup proceeds normally. No lock file is inspected (there is no lock file). | `DomainStateService` | — |
@@ -827,4 +827,4 @@ Policy: read each file as UTF-8. On `UnicodeDecodeError`, retry as Latin-1 and e
 
 ---
 
-*This plan is additive to, and subordinate to, [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md). When this plan and the architecture doc disagree, the architecture doc wins and this plan is updated in place (no addendums — per [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Documentation Conventions).*
+*This plan is subordinate to [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md). When this plan and the architecture doc disagree, the architecture doc wins and this plan is updated in place (no addendums — per [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Documentation Conventions).*

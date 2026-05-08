@@ -24,15 +24,15 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01–VE-30 | 26 | 4 | 30 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-20 | 20 | 0 | 20 | Soft mismatches, overlaps, stale globs, cross-source additivity vetoes, F3 cross-validate, audit write failures |
+| `VE` Validation Errors | VE-01–VE-30 | 27 | 3 | 30 | Schema, path, action, ordering, filesystem failures — block output |
+| `VW` Validation Warnings | VW-01–VW-30 | 19 | 9 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01–VI-05 | 3 | 2 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **73** | **37** | **110** | |
+| **Total** | | **73** | **45** | **120** | |
 
 ---
 
@@ -68,11 +68,12 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-24 | `backup-contents-missing` | 5 | trimmer | 1 | A file named in `CompiledManifest` as `FULL_COPY` or `PROC_TRIM` was not found under `<domain>_backup/` at P5. Manifest is out of sync with the backup tree (typically because the backup was hand-edited between runs). | Re-create the domain from version control and re-run; do not hand-edit `<domain>_backup/` |
 | VE-25 | `domain-write-failed` | 5 | trimmer | 1 | Write to the rebuilt `<domain>/` failed mid-operation (partial write, post-write size mismatch, directory-vs-file collision). Distinct from `VE-23` which covers OS-reported errors; `VE-25` covers semantic-integrity failures (the write returned OK but the result is wrong). | Inspect `trim_report.json` for the offending path; re-run to resume from `<domain>_backup/` |
 | VE-26 | `proc-atomic-drop-failed` | 5 | trimmer | 1 | The trimmer could not align a proc's byte span with its parser-reported line range during atomic deletion. Typically caused by DPA-block or comment-banner lookahead drift between P2 and P5 (files were edited between parse and trim, or parser output is stale). | Re-run Chopper end-to-end (parser output will be regenerated); if it persists, file a parser bug with the offending file |
-| — | — | — | — | — | **VE-27 through VE-30 reserved** | — |
+| VE-27 | `no-op-exclude` | 1 | validator | 1 | A layer's `files.exclude` or `procedures.exclude` entry does not match anything in the running set established by earlier layers and (for FE) does not match any file via glob expansion at this layer. Almost always a typo or stale reference. | Verify the path or proc name; remove the exclude entry if no earlier layer (base or any preceding feature) contributes the target. |
+| — | — | — | — | — | **VE-28 through VE-30 reserved** | — |
 
 ---
 
-## 2. Validation Warnings — `VW-01` through `VW-20`
+## 2. Validation Warnings — `VW-01` through `VW-30`
 
 > Exit 0; `--strict` forces the final process exit code to 1 if any warning is present, but does **not** rewrite severity. Warnings stay warnings in `diagnostics.json` and in rendered output.
 
@@ -89,15 +90,17 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-09 | `fi-pi-overlap` | 1 | compiler | 0 | File is in `files.include` and also has procs in `procedures.include`; PI entries are redundant on `FULL_COPY` files | Remove from `files.include` to enable selective proc inclusion, or remove from `procedures.include` |
 | VW-10 | `trim-output-mismatch` | 6 | validator | 0 | A live P5 output does not satisfy the dry-run-equivalent expectation set: `CompiledManifest` and `TrimReport` disagree on path/treatment/proc-set, a removed file still exists, a surviving file is missing or is a directory, on-disk bytes differ from `bytes_out`, or a rewritten `PROC_TRIM` file re-parses to a different surviving proc set than expected | Inspect the offending path in `trim_report.json`; re-run from `<domain>_backup/` and file a bug if the mismatch persists |
 | VW-11 | `fe-pe-same-source-conflict` | 1 | compiler | 0 | Within a single JSON source, the same file appears in both `files.exclude` and `procedures.exclude` with no matching `procedures.include`. Both are removal-within-this-source signals; this source contributes nothing for the file (other sources may still contribute). | Within one JSON, use `files.exclude` alone to drop a file, or `procedures.exclude` alone to keep it with some procs removed |
-| VW-12 | `pi-pe-same-file` | 1 | compiler | 0 | Same file has procs in both `procedures.include` and `procedures.exclude`; PI takes precedence, PE ignored for this file | Choose one model per file: additive (PI) or subtractive (PE), not both |
+| VW-12 | `pi-pe-same-file` | 1 | compiler | 0 | Same file has procs in both `procedures.include` and `procedures.exclude`; PI takes precedence, PE ignored for this file | Choose one model per file: include-list (PI) or exclude-list (PE), not both |
 | VW-13 | `pe-removes-all-procs` | 1 | compiler | 0 | All procs excluded from file via `procedures.exclude`; file survives as comment/blank-only | Consider using `files.exclude` to remove the entire file instead |
 | VW-14 | `step-file-missing` | 6 | validator | 0 | F3 step string is a bare `.tcl` filename but the target file did not survive trim (cross-validate) | Add the file to `files.include` or remove the step |
 | VW-15 | `step-proc-missing` | 6 | validator | 0 | F3 step string is a bare proc name but the proc did not survive trim (cross-validate) | Add the proc to `procedures.include` or remove the step |
 | VW-16 | `step-source-missing` | 6 | validator | 0 | F3 step contains `source` / `iproc_source` with a literal file path that did not survive trim | Add the sourced file to `files.include` or remove the step |
 | VW-17 | `external-reference` | 6 | validator | 0 | Surviving code references a path outside the domain boundary (not an error; informational for cross-domain awareness) | Verify the external dependency is intentional; no action required if expected |
-| VW-18 | `cross-source-pe-vetoed` | 1 | compiler | 0 | A source lists proc `p` of file `F` in `procedures.exclude`, but `p` survives because another source contributes `F` whole-file or includes `p` explicitly via `procedures.include`. The PE entry from the excluding source is discarded. Features cannot strip procs from content contributed by other sources. | Remove the redundant PE entry, or align with the other source's include intent |
-| VW-19 | `cross-source-fe-vetoed` | 1 | compiler | 0 | File is in one source's `files.exclude` but survives because another source (base or another feature) contributes the file via FI, PI, or PE. The excluding source's FE entry is discarded. Features are purely additive and cannot remove content contributed by other sources. | Remove the redundant `files.exclude` entry, or verify the other source's inclusion is intentional |
+| VW-18 | `RETIRED` | — | — | — | **RETIRED in 2.0.0-alpha** — was `cross-source-pe-vetoed` under the additive-only model. Cannot fire under the ordered-overlay R1 (a later layer's PE actually removes the proc rather than being vetoed). Slot preserved per registry policy. | — |
+| VW-19 | `RETIRED` | — | — | — | **RETIRED in 2.0.0-alpha** — was `cross-source-fe-vetoed` under the additive-only model. Cannot fire under the ordered-overlay R1 (a later layer's FE actually removes the file rather than being vetoed). Slot preserved per registry policy. | — |
 | VW-20 | `audit-write-failed` | 7 | audit | 0 | An audit-bundle artifact under `.chopper/` could not be written (filesystem-layer `OSError`: disk full, permission denied, etc.). The run otherwise succeeded; this diagnostic ensures silent partial bundles surface to the user instead of being swallowed. The artifact name is included in the diagnostic context. | Free disk space or fix `.chopper/` permissions and re-run; check `diagnostics.json` for the failed artifact name |
+| VW-21 | `layer-shadowed` | 1 | compiler | 0 | A later layer in the R1 overlay actually changed a decision made by an earlier layer (cancelled an include, removed a proc that was kept, downgraded a whole-file include to PROC_TRIM). Informational; the audit bundle records every such transition with `(layer, prior_layer, action)` provenance. | No action required if intentional; verify the layer order in `project.features[]` if the shadow is unexpected. |
+| — | — | — | — | — | **VW-22 through VW-30 reserved** | — |
 
 ---
 

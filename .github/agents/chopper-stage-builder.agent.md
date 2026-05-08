@@ -416,12 +416,13 @@ def extract_proc(tokens: list[Token], state: ParserState) -> ProcEntry | None:
 # Per architecture doc §4 R1
 
 class MergeService:
-    """R1 merge algorithm implementation.
+    """R1 ordered-overlay fold.
     
     Per architecture doc §4:
-    - L1: Explicit include wins cross-source
-    - L2: Same-source authoring conveniences
-    - L3: Base inviolable, features additive-only
+    - Single rule: layers are applied in declared order.
+    - The last layer that mentions a file/proc wins.
+    - Same-layer authoring conveniences still apply (VW-09, VW-11, VW-12, VW-13).
+    - Layer transitions that change a prior decision emit VW-21 layer-shadowed.
     """
     
     def merge(
@@ -429,35 +430,43 @@ class MergeService:
         base: LoadedConfig,
         features: list[LoadedConfig],
     ) -> CompiledManifest:
-        """Two-pass merge algorithm.
+        """Single-pass ordered fold over (base, *features).
         
-        Pass 1: Classify per-source contributions
-        Pass 2: Aggregate cross-source with provenance
+        Initialize an empty running set; for each layer in declared order,
+        apply files.include / files.exclude / procedures.include / procedures.exclude
+        to the running set. Emit VW-21 on transitions that change prior decisions.
+        Derive treatment per file from the final running set.
         """
-        # Pass 1: Per-source classification
-        contributions = []
-        contributions.append(self._classify_source(base, "base"))
-        for i, feat in enumerate(features):
-            contributions.append(self._classify_source(feat, f"feature:{feat.name}"))
-        
-        # Pass 2: Cross-source aggregation
-        return self._aggregate(contributions)
+        running: dict[Path, FileSignal] = {}
+        layers = [("base", base), *((f"feature:{f.name}", f) for f in features)]
+        for layer_key, layer in layers:
+            self._apply_layer(running, layer_key, layer)
+        return self._derive_manifest(running)
     
-    def _classify_source(
-        self, 
-        config: LoadedConfig, 
-        source: str,
-    ) -> SourceContribution:
-        """Classify files as WHOLE/TRIM/NONE per source."""
+    def _apply_layer(
+        self,
+        running: dict[Path, FileSignal],
+        layer_key: str,
+        layer: LoadedConfig,
+    ) -> None:
+        """Apply one layer's signals to the running set."""
+        # 1. files.include (literals + globs - same-layer FE pruning)
+        # 2. files.exclude (literals; emit VW-21 if shadowing, VE-27 if no-op)
+        # 3. procedures.include (union into running keep; emit VW-21 if downgrading WHOLE)
+        # 4. procedures.exclude (remove from running keep; emit VW-21 if was kept, VE-27 if no-op)
         ...
     
-    def _aggregate(
-        self, 
-        contributions: list[SourceContribution],
+    def _derive_manifest(
+        self,
+        running: dict[Path, FileSignal],
     ) -> CompiledManifest:
-        """Apply L1/L2/L3 rules across sources."""
-        # L1: Explicit include wins
-        # If any source explicitly includes, file survives
+        """Read final treatment off the running set.
+        
+        WHOLE -> FULL_COPY; TRIM(keep) -> PROC_TRIM; absent -> REMOVE / GENERATED.
+        Each entry records contributed_by (last winning layer) and shadowed_by[]
+        (transition log).
+        """
+        ...
         ...
 ```
 

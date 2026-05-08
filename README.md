@@ -173,7 +173,7 @@ Use the **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agent
 | Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only listed procs survive. |
 | Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except excluded procs survive. |
 | File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
-| Feature tries to remove a base file | Base includes file, feature excludes file | Base include wins; feature exclude is vetoed with `VW-19`. |
+| Feature tries to remove a base file | Base includes file, a later feature excludes file | Feature is the later layer under R1 ordered overlay; the file is removed and `VW-21 layer-shadowed` records the transition. |
 
 ### Step 3 — Validate first, always
 
@@ -343,6 +343,15 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 2.0.0-alpha — 2026-05-08
+
+- **R1 collapses to a single rule: ordered overlay, last layer wins.** Features are no longer additive — they are **layered**. Layers (`base` first, then each selected feature in declared order) are applied left-to-right; for each file/proc, the last layer that mentions it wins. A feature can now add new content, remove base content, or replace base content with its own. Same-layer authoring conveniences (`VW-09`, `VW-11`, `VW-12`, `VW-13`) are unchanged. `project.json` `features` ordering is now authoritative for **F1, F2, and F3** (was F3-only). Mental model: kustomize / Docker layers / CSS cascade. Full spec in [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) §4 (R1) and §5.3 (P3 algorithm).
+- **Diagnostic registry: `VW-21` and `VE-27` added; `VW-18` and `VW-19` retired.** New `VW-21 layer-shadowed` (warning, exit 0) records every layer transition that changes a prior decision. New `VE-27 no-op-exclude` (error, exit 1) catches typo-class `files.exclude` / `procedures.exclude` entries that match nothing in the running set or via glob. Retired `VW-18 cross-source-pe-vetoed` and `VW-19 cross-source-fe-vetoed` cannot fire under the overlay model (a later layer's PE/FE *actually removes* the proc/file rather than being vetoed). Slot rows preserved per registry policy (slug `RETIRED`); never reuse the slots. VW band ceiling extended to `VW-30` to accommodate `VW-21` and future overlay diagnostics.
+- **`FileProvenance` shape changed.** `vetoed_entries: tuple[str, ...]` field **removed**. Two new fields: `contributed_by: str | None` (the single last layer that positively contributed to the file) and `shadowed_by: tuple[ShadowEvent, ...]` (the audit trail of every layer transition that changed a prior decision). New frozen dataclass `ShadowEvent(layer, prior_layer, action)` with `action ∈ {"replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"}`. `FileProvenance.proc_model` literal narrowed from `"additive" | "subtractive" | None` to `"overlay" | None`. `input_sources` field kept (P5 needs it for input-JSON copy logic in `<domain>/jsons/`).
+- **Audit artifact provenance lines updated.** `files_kept.txt` provenance column changed from a comma-separated `<source_key>:<json_field>` list (formerly `FileProvenance.input_sources`) to a single `<contributed_by>` token (the last winning layer key). `files_removed.txt` provenance column changed from `vetoed-by:<src1>,<src2>,...` / `default-exclude` to one of `removed-by:<layer_key>:files.exclude` (last `ShadowEvent` action `"remove"`), `shadowed-by:<layer_key>:procedures.exclude` (last shadow event was a PE-driven removal), or `default-exclude` (file was never positively contributed to by any layer). Header comments in both artifacts updated.
+- **Compiler `merge_service.py` rewritten as an ordered fold.** Replaces the previous two-pass per-source classification + cross-source aggregation (cases A/B/C, `_classify_source`, `_aggregate`) with a single-pass fold over `(base, *features_in_order)` carrying a `running` map. `tests/unit/compiler/test_aggregate.py` and `tests/unit/compiler/test_per_source.py` deleted (tested helpers that no longer exist). Validator gains a `VE-27` no-op-exclude check.
+- **No backward compatibility** — alpha release. JSON-authoring surface is unchanged for the additive subset (a base-only domain or a feature whose excludes only target paths the same JSON includes still behaves exactly as in 1.x), but any `project.json` whose features removed or replaced base content via `VW-18` / `VW-19` cross-source vetoes will produce different output: the later layer now wins outright.
 
 ### 1.2.7 — 2026-05-07
 

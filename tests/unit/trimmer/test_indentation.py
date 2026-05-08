@@ -23,7 +23,7 @@ def _manifest(decisions: dict[str, FileTreatment]) -> CompiledManifest:
             treatment=treatment,
             reason="fi-literal" if treatment is not FileTreatment.REMOVE else "default-exclude",
             input_sources=("base:files.include",) if treatment is not FileTreatment.REMOVE else (),
-            proc_model="additive" if treatment is FileTreatment.PROC_TRIM else None,
+            proc_model="overlay" if treatment is FileTreatment.PROC_TRIM else None,
         )
     return CompiledManifest(file_decisions=file_decisions, proc_decisions={}, provenance=provenance)
 

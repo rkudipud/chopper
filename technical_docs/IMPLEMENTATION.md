@@ -1390,7 +1390,7 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 
 ---
 
-### Pitfall P-09: Include Always Wins Over Exclude
+### Pitfall P-09: Same-Layer Include Wins Over Exclude (and Later Layers Win Over Earlier Layers)
 
 **THE TRAP:**
 ```json
@@ -1400,18 +1400,18 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 }
 ```
 
-**Correct Behavior:** `helper` is included because it was explicitly requested. `files.exclude` remains meaningful only for wildcard-expanded file candidates. `procedures.exclude` is a *same-file* proc-trimming instruction (`PROC_TRIM` keep-set = `all_procs(file) − PE`); it does **not** filter trace-expanded callees, because trace (P4) is reporting-only and never adds procs to the surviving set. Only procs explicitly listed in `procedures.include` survive trimming — traced callees are emitted in `dependency_graph.json` and `trim_report.json` for visibility but are not copied.
+**Correct Behavior:** Under the R1 ordered overlay (later layer wins), the feature is the *later* layer in this example, so its `procedures.exclude` actually drops `helper`; the transition emits `VW-21 layer-shadowed`. Within a *single* layer, an explicit `procedures.include` for a proc and a `procedures.exclude` for the same proc still resolves include-wins (same-layer authoring rule, `VW-12`). Trace (P4) is reporting-only and never adds procs to the surviving set: traced callees are emitted in `dependency_graph.json` and `trim_report.json` for visibility but are not copied.
 
 **Implementation Requirement:**
 - Literal file paths in `files.include` are authoritative and always survive
 - `files.exclude` applies only to files matched by wildcard `files.include` patterns
 - Explicit `procedures.include` entries are authoritative and always survive
-- `procedures.exclude` prunes procs inside `PROC_TRIM` files (same-source authoring rule L2); it cannot remove another source's explicit `procedures.include` (`VW-18`) and cannot remove a whole-file include (`VW-19`)
+- `procedures.exclude` prunes procs inside `PROC_TRIM` files contributed by this layer, and — because R1 is now an **ordered overlay** — a later layer's `procedures.exclude` can also drop a proc that an earlier layer (base or a preceding feature) contributed. Such transitions emit `VW-21 layer-shadowed`. The retired `VW-18` / `VW-19` cross-source veto warnings no longer fire.
 - PI+ (transitive trace set) is **reporting-only**: see [ARCHITECTURE.md](ARCHITECTURE.md) §5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
 
-**Why It Matters:** This keeps owner-requested content safe. Excludes remain useful for broad globs and for authoring conveniences inside a single source, but never for second-guessing another author's explicit include.
+**Why It Matters:** Within a single layer, explicit include must beat its sibling exclude (otherwise authors cannot say "keep this one named proc and exclude the rest"). Across layers, a later layer must be able to remove or replace what an earlier layer contributed (otherwise variant flows would have to split every removable item into its own feature). The two rules together are R1 ordered overlay.
 
-**Test:** Scenario: base includes proc X, feature excludes proc X. Final output must contain proc X and emit `VW-18`. Scenario: proc Y is only reachable via trace (called by an explicitly-included proc); feature excludes Y. Final output omits Y from the trimmed domain regardless — Y was never going to be copied — and the PE entry is recorded with no diagnostic suppression.
+**Test:** Scenario: base includes proc X, a later feature excludes proc X. Final output must omit proc X and emit `VW-21 layer-shadowed`. Scenario: a single feature lists proc X in both `procedures.include` and `procedures.exclude`; same-layer include wins, X survives, `VW-12` is emitted. Scenario: proc Y is only reachable via trace (called by an explicitly-included proc); a later feature excludes Y. Y was never going to be copied (trace is reporting-only), so the trimmed domain omits Y regardless and the PE entry is recorded with no extra diagnostic.
 
 ---
 
@@ -2148,13 +2148,7 @@ v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-0
 
 ### FD-14: Feature Replacement Semantics
 
-Some domains want a selected feature to replace base-contributed implementation content: for example, the base includes `old.tcl`, while feature `new_flow` wants to remove `old.tcl` or drop `legacy_proc` and add `new.tcl` / `new_proc`. The current architecture rejects that model for F1/F2. R1 L3 makes the base inviolable, so feature `files.exclude` / `procedures.exclude` entries only prune the feature's own contributions; cross-source attempts to remove base or sibling-feature content are vetoed with `VW-19` / `VW-18`.
-
-**Considered because:** variant flows often start from a broad base and then need replacement behavior, not merely additive layering. Requiring domain owners to split every removable base item into its own feature can be awkward when the existing domain already has a common baseline plus a few mutually exclusive variants.
-
-**Deferred because:** allowing feature-side removal would change Chopper's core safety model. The architecture would need to specify an explicit opt-in replacement contract, conflict rules when multiple selected features remove or replace the same file/proc, whether F1/F2 feature ordering becomes meaningful, how provenance and audit artifacts explain removed base content, what diagnostics are emitted, and how `--strict` treats replacement conflicts. Silent removal by ordinary `files.exclude` / `procedures.exclude` would be too dangerous because it would make today's veto warnings destructive.
-
-**If adopted:** `technical_docs/ARCHITECTURE.md` §4 would need a new R1 branch that narrows L3 for an explicit replacement/removal surface; P3 aggregation would need ordered or priority-aware conflict resolution; `schemas/base-v1.schema.json`, `schemas/feature-v1.schema.json`, `technical_docs/DIAGNOSTIC_CODES.md`, compiler tests, integration scenarios, and user-facing docs would need to be updated in the same cascade. No schema field, diagnostic code, or namespace is reserved by this FD.
+**ADOPTED in 2.0.0-alpha.** Adopted as the design baseline. See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §4 (R1 ordered overlay). The original FD-14 proposal was the seed of the overlay model: features are now layered, not additive, and the last layer that mentions a file or proc wins. A feature can therefore add new content, remove base content, or replace base content with its own — exactly the use case this FD called out. The previous additive-only semantics with `VW-18` / `VW-19` cross-source vetoes are retired.
 
 ---
 
@@ -2246,7 +2240,7 @@ Per the scope-lock policy in [`.github/instructions/project.instructions.md`](..
 |---|---|---|---|
 | FD-01 | Parser | Advanced namespace resolution | Out of scope for v1 |
 | FD-02 | Pipeline | Cross-domain dependency awareness | Out of scope for v1 |
-| FD-14 | Pipeline | Feature replacement semantics | Deferred; would require an explicit architecture change to R1/L3 |
+| FD-14 | Pipeline | Feature replacement semantics | **ADOPTED in 2.0.0-alpha** — R1 ordered overlay (see ARCHITECTURE.md §4) |
 | FD-03 | CLI/UX | Interactive feature selection TUI | Architecturally enabled, deferred |
 | FD-04 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred (§1.5.11) |
 | FD-05 | Docs | Quick-start guide | Deferred until spec final |

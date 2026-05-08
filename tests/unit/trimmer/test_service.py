@@ -68,7 +68,7 @@ def _manifest(
         fd[path] = treatment
         reason = {
             FileTreatment.FULL_COPY: "fi-literal",
-            FileTreatment.PROC_TRIM: "pi-additive",
+            FileTreatment.PROC_TRIM: "pi-overlay",
             FileTreatment.REMOVE: "default-exclude",
             FileTreatment.GENERATED: "fi-literal",
         }[treatment]
@@ -77,7 +77,7 @@ def _manifest(
             treatment=treatment,
             reason=reason,
             input_sources=("base:files.include",) if treatment is not FileTreatment.REMOVE else (),
-            proc_model=("additive" if treatment is FileTreatment.PROC_TRIM else None),
+            proc_model=("overlay" if treatment is FileTreatment.PROC_TRIM else None),
         )
     pd: dict[str, ProcDecision] = {}
     for cn, field in sorted(proc_survivors.items()):
@@ -418,8 +418,8 @@ def _manifest_full_copy_then_proc_trim_then_remove() -> CompiledManifest:
         Path("m.tcl"): FileProvenance(
             path=Path("m.tcl"),
             treatment=FileTreatment.PROC_TRIM,
-            reason="pi-additive",
-            proc_model="additive",
+            reason="pi-overlay",
+            proc_model="overlay",
         ),
         Path("stages/s1.tcl"): FileProvenance(
             path=Path("stages/s1.tcl"), treatment=FileTreatment.GENERATED, reason="fi-literal"

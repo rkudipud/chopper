@@ -1,27 +1,22 @@
-"""CompilerService — P3 R1 merge algorithm.
+"""CompilerService — P3 R1 ordered-overlay merge algorithm.
 
-Implements the provenance-aware include/exclude resolution in two passes:
+Implements the single-rule overlay specified in
+``technical_docs/ARCHITECTURE.md`` §4 (R1) and §5.3 (P3 algorithm). Layers
+are applied in declared order ``(base, *features)`` to a running per-file
+signal map; the last layer that mentions a file or proc wins.
 
-1. **Per-source classification.** For every source ``s`` (base JSON plus
-   each topo-sorted feature) and every relevant file ``F``, decide
-   ``s``'s contribution as one of:
+Per-layer apply step (one file at a time):
 
-   * ``_NONE``   — source contributes nothing for this file;
-   * ``_WHOLE``  — source wants the whole file (``FULL_COPY`` signal);
-   * ``_TRIM(keep)`` — source wants the file with a specific proc subset.
-
-   Same-source authoring diagnostics (``VW-09``, ``VW-11``, ``VW-12``,
-   ``VW-13``) are emitted here.
-
-2. **Cross-source aggregation.** Per-source contributions union: any
-   ``_WHOLE`` wins and forces ``FULL_COPY``; otherwise every ``_TRIM``
-   unions into a single ``PROC_TRIM`` survivor set. Cross-source vetoes
-   (``VW-18``, ``VW-19``) are emitted here.
-
-F1/F2 aggregation is **order-independent**. Feature order matters only
-for the first-wins ``selection_source`` stamping on :class:`ProcDecision`
-and for F3 ``flow_actions`` sequencing (delegated to
-:mod:`chopper.compiler.flow_resolver`).
+* Same-layer authoring conveniences (``VW-09``, ``VW-11``, ``VW-12``,
+  ``VW-13``) emit here exactly as before — they are local invariants and
+  unchanged by the overlay model.
+* Layer transitions that change a prior decision emit ``VW-21``
+  ``layer-shadowed`` with ``(layer, prior_layer, action)``; the same
+  events are recorded structurally on
+  :attr:`FileProvenance.shadowed_by`.
+* No-op excludes (FE/PE entries that match nothing in the running set or
+  via glob expansion at this layer) are surfaced by the validator as
+  ``VE-27 no-op-exclude``; the compiler does not emit it.
 
 Not this service's job:
 
@@ -33,18 +28,17 @@ Not this service's job:
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from re import Pattern
-from typing import Literal
 
 from chopper.compiler.flow_resolver import resolve_stages
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.errors import ChopperError
 from chopper.core.models_common import FileTreatment
-from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
+from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision, ShadowEvent
 from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
 from chopper.core.models_parser import ParseResult
 
@@ -60,33 +54,40 @@ __all__ = ["CompilerService"]
 class _SourceRef:
     """Identifies one JSON source for diagnostics + provenance tagging."""
 
-    key: str  # "base" or feature.name
+    key: str  # "base" or "feature:<name>"
     source_path: Path  # original JSON path (for diagnostic provenance)
 
 
 @dataclass(frozen=True)
 class _SourceFacts:
-    """Pre-computed per-source sets consumed by classification and aggregation."""
+    """Pre-computed per-layer sets consumed by the ordered fold."""
 
     ref: _SourceRef
-    fi_literal: frozenset[Path]  # exact file paths named by files.include
-    fi_glob_surviving: frozenset[Path]  # glob-matched files after same-source FE pruning
-    fe_literal: frozenset[Path]  # files.exclude hits on parsed files (literal + glob)
-    pi_by_file: dict[Path, frozenset[str]]  # procedures.include: file → {short/qualified name}
-    pe_by_file: dict[Path, frozenset[str]]  # procedures.exclude: file → {short/qualified name}
+    fi_literal: frozenset[Path]
+    fi_glob_surviving: frozenset[Path]
+    fe_literal: frozenset[Path]
+    pi_by_file: dict[Path, frozenset[str]]
+    pe_by_file: dict[Path, frozenset[str]]
 
 
-@dataclass(frozen=True)
-class _Contribution:
-    """One (source, file) classification outcome."""
-
-    kind: Literal["NONE", "WHOLE", "TRIM"]
-    keep: frozenset[str] = frozenset()  # canonical_names (TRIM only)
-    reason: str = ""  # kebab-case tag for FileProvenance.reason
-    json_field: str = ""  # "files.include" | "procedures.include" | "procedures.exclude"
+# ---------------------------------------------------------------------------
+# Running-fold value objects (internal to this module).
+# ---------------------------------------------------------------------------
 
 
-_NONE = _Contribution(kind="NONE")
+@dataclass
+class _Whole:
+    """Running-set entry: file is currently included whole."""
+
+
+@dataclass
+class _Trim:
+    """Running-set entry: file is currently included as PROC_TRIM with ``keep`` survivors."""
+
+    keep: set[str] = field(default_factory=set)
+
+
+_RunningSignal = _Whole | _Trim
 
 
 # ---------------------------------------------------------------------------
@@ -96,61 +97,60 @@ _NONE = _Contribution(kind="NONE")
 
 @dataclass(frozen=True)
 class CompilerService:
-    """Phase 3 merge service.
-
-    Stateless: every call to :meth:`run` is independent. The returned
-    :class:`~chopper.core.models_compiler.CompiledManifest` is frozen and ready
-    for consumption by :class:`~chopper.compiler.TracerService` (P4).
-    """
+    """Phase 3 merge service (R1 ordered overlay)."""
 
     def run(self, ctx: ChopperContext, loaded: LoadedConfig, parsed: ParseResult) -> CompiledManifest:
-        """Merge ``loaded`` against ``parsed`` per R1 and return the manifest."""
+        """Apply the R1 ordered overlay and return the compiled manifest."""
         sources, facts_by_source = _build_source_facts(loaded, parsed)
-
-        # Universe of files the manifest reasons over: parsed files + every
-        # literal or glob-surviving path named by any source that the parser
-        # did not see.  Non-.tcl companions (Perl, Python, shell, config) are
-        # file-type agnostic F1 entries — they must reach the universe
-        # regardless of whether they were named literally or via a glob pattern.
         universe = _collect_universe(parsed, facts_by_source.values())
 
-        # Pre-compute all_procs(F) (canonical_name set) for quick classification.
         all_procs_by_file: dict[Path, frozenset[str]] = {
             path: frozenset(p.canonical_name for p in pf.procs) for path, pf in parsed.files.items()
         }
         for path in universe:
             all_procs_by_file.setdefault(path, frozenset())
 
-        # O2: per-file short/qualified → canonical_name map. This depends
-        # only on ``parsed`` (not on the source under consideration) so we
-        # build it once here instead of per-source-per-file in classify
-        # and aggregate. With S sources × F files this collapses 2*S*F
-        # dict builds to F.
         short_to_canonical_by_file: dict[Path, dict[str, str]] = {
             path: _build_short_to_canonical(pf) for path, pf in parsed.files.items()
         }
 
-        # ---- Pass 1: per-source per-file classification (L2) -----------------
-        contribs_by_source: dict[_SourceRef, dict[Path, _Contribution]] = {}
+        # ---- Ordered fold over (base, *features) -------------------------
+        running: dict[Path, _RunningSignal] = {}
+        contributed_by: dict[Path, str] = {}
+        shadow_events: dict[Path, list[ShadowEvent]] = {}
+        input_sources_by_file: dict[Path, set[str]] = {}
+        proc_winner: dict[tuple[Path, str], tuple[str, str]] = {}
+        last_reason_by_file: dict[Path, str] = {}
+
         for src in sources:
             facts = facts_by_source[src]
-            contribs_by_source[src] = _classify_source(
-                ctx, facts, universe, all_procs_by_file, short_to_canonical_by_file
+            _apply_layer(
+                ctx,
+                src,
+                facts,
+                running,
+                contributed_by,
+                shadow_events,
+                input_sources_by_file,
+                proc_winner,
+                last_reason_by_file,
+                all_procs_by_file,
+                short_to_canonical_by_file,
             )
 
-        # ---- Pass 2: cross-source aggregation (L1 + L3) ----------------------
-        file_decisions, proc_decisions, provenance = _aggregate(
-            ctx,
-            sources,
-            contribs_by_source,
-            facts_by_source,
+        # ---- Derive manifest from final running state --------------------
+        file_decisions, proc_decisions, provenance = _derive_manifest(
             universe,
-            all_procs_by_file,
-            short_to_canonical_by_file,
+            running,
+            contributed_by,
+            shadow_events,
+            input_sources_by_file,
+            proc_winner,
+            last_reason_by_file,
             parsed,
         )
 
-        # ---- Pass 3: F3 flow-action resolution -----------------------------
+        # ---- F3 flow-action resolution -----------------------------------
         stages = resolve_stages(ctx, loaded.base.stages, loaded.features)
         _register_generated_stage_files(file_decisions, provenance, stages, loaded)
 
@@ -164,7 +164,7 @@ class CompilerService:
 
 
 # ---------------------------------------------------------------------------
-# Pass 3 helper — F3 generated-file registration
+# F3 generated-file registration
 # ---------------------------------------------------------------------------
 
 
@@ -174,35 +174,17 @@ def _register_generated_stage_files(
     stages: tuple,
     loaded: LoadedConfig,
 ) -> None:
-    """Record one :class:`FileTreatment.GENERATED` entry per resolved stage.
-
-    ``GeneratorService`` emits ``<stage>.tcl`` at domain root for every
-    resolved stage. These paths must appear in
-    ``manifest.file_decisions`` so that the trimmer (P5) knows to skip
-    them (generator owns the writes) and the audit bundle (P7) can
-    surface them in ``compiled_manifest.json``.
-
-    When ``base.options.generate_stack`` is ``True``, the same registration
-    is performed for ``<stage>.stack`` so the stack files participate in
-    the manifest, trimmer skip-set, and audit bundle just like the
-    ``.tcl`` run scripts.
-
-    Collisions with trimmer-managed paths are a programmer-authoring
-    error; we raise :class:`ChopperError` (exit 3) rather than invent
-    a cross-phase diagnostic.
-    """
+    """Record one :class:`FileTreatment.GENERATED` entry per resolved stage."""
 
     if not stages:
         return
 
-    # Record which sources contributed to the F3 pipeline. The base JSON
-    # seeds stages; every feature with at least one flow_action mutates
-    # it. Lex-sorted for determinism (matches FileProvenance invariant).
     contributors: list[str] = ["base:stages"]
     for feature in loaded.features:
         if feature.flow_actions:
-            contributors.append(f"{feature.name}:flow_actions")
+            contributors.append(f"feature:{feature.name}:flow_actions")
     input_sources = tuple(sorted(contributors))
+    contributed_by_value = contributors[-1]
 
     emit_stack = loaded.base.options.generate_stack
 
@@ -220,7 +202,8 @@ def _register_generated_stage_files(
             treatment=FileTreatment.GENERATED,
             reason="fi-literal",
             input_sources=input_sources,
-            vetoed_entries=(),
+            contributed_by=contributed_by_value,
+            shadowed_by=(),
             proc_model=None,
         )
 
@@ -238,12 +221,11 @@ def _register_generated_stage_files(
                 treatment=FileTreatment.GENERATED,
                 reason="fi-literal",
                 input_sources=input_sources,
-                vetoed_entries=(),
+                contributed_by=contributed_by_value,
+                shadowed_by=(),
                 proc_model=None,
             )
 
-    # CompiledManifest requires lex-sorted keys by POSIX form. Re-sort
-    # file_decisions and provenance in place after insertion.
     _resort_by_posix(file_decisions)
     _resort_by_posix(provenance)
 
@@ -255,13 +237,7 @@ def _resort_by_posix(mapping: dict) -> None:
 
 
 def _build_short_to_canonical(parsed_file) -> dict[str, str]:  # type: ignore[no-untyped-def]
-    """Map every short and qualified name in ``parsed_file`` to its canonical name.
-
-    Built once per parsed file at the top of :meth:`CompilerService.run`
-    (O2). Both classify-pass and aggregate-pass consult this map per
-    source, so caching collapses ``2 * S * F`` per-source rebuilds into
-    ``F`` builds.
-    """
+    """Map every short and qualified name in ``parsed_file`` to its canonical name."""
 
     out: dict[str, str] = {}
     for proc in parsed_file.procs:
@@ -271,25 +247,15 @@ def _build_short_to_canonical(parsed_file) -> dict[str, str]:  # type: ignore[no
 
 
 # ---------------------------------------------------------------------------
-# Pass 1 — per-source fact extraction
+# Per-layer fact extraction
 # ---------------------------------------------------------------------------
 
 
 def _build_source_facts(
     loaded: LoadedConfig, parsed: ParseResult
 ) -> tuple[list[_SourceRef], dict[_SourceRef, _SourceFacts]]:
-    """Iterate sources in canonical order (base then features) and distill
-    each into a :class:`_SourceFacts` record.
-
-    FI glob expansion must be run against all surface files — not just the
-    Tcl files returned by the parser (P2).  Non-Tcl files (.py, .pl, .csh,
-    configs, …) that were collected by P1 live in ``loaded.surface_files``
-    but never enter ``parsed.files``.  Using the union of both sets as the
-    glob-match candidate set ensures that glob-matched non-Tcl files reach
-    ``fi_glob_surviving`` and ultimately the manifest universe (P-42 fix).
-    """
+    """Iterate layers in declared order (base then features)."""
     parsed_paths = frozenset(parsed.files.keys())
-    # All files reachable from the domain (Tcl + non-Tcl) — used for glob expansion.
     all_surface_paths: frozenset[Path] = frozenset(loaded.surface_files) | parsed_paths
 
     sources: list[_SourceRef] = []
@@ -300,7 +266,7 @@ def _build_source_facts(
     facts[base_ref] = _extract_facts(base_ref, loaded.base, all_surface_paths)
 
     for feature in loaded.features:
-        f_ref = _SourceRef(key=feature.name, source_path=feature.source_path)
+        f_ref = _SourceRef(key=f"feature:{feature.name}", source_path=feature.source_path)
         sources.append(f_ref)
         facts[f_ref] = _extract_facts(f_ref, feature, all_surface_paths)
 
@@ -312,14 +278,7 @@ def _extract_facts(
     source: BaseJson | FeatureJson,
     surface_paths: frozenset[Path],
 ) -> _SourceFacts:
-    """Partition ``files.include`` into literal / glob buckets, apply
-    same-source FE pruning to the glob bucket, and collect PI/PE by file.
-
-    ``surface_paths`` is the union of all files reachable in the domain —
-    both ``.tcl`` files from the parser and non-Tcl files from P1 surface
-    collection.  Glob expansion must run against the full surface so that
-    non-Tcl files (e.g. ``.py``, ``.pl``) can enter ``fi_glob_surviving``.
-    """
+    """Distill one layer into literal/glob FI buckets, FE hits, and PI/PE by file."""
     files = source.files
     fi_literal_set: set[Path] = set()
     fi_glob_patterns: list[str] = []
@@ -337,16 +296,13 @@ def _extract_facts(
         else:
             fe_literal_set.add(Path(entry))
 
-    # FE hits on surface files: literal hits + glob matches against surface_paths.
     fe_hits: set[Path] = {p for p in fe_literal_set if p in surface_paths}
     for pattern in fe_glob_patterns:
         fe_hits.update(_match_glob(pattern, surface_paths))
 
-    # FI glob expansion against surface_paths (includes non-Tcl files).
     fi_glob_matches: set[Path] = set()
     for pattern in fi_glob_patterns:
         fi_glob_matches.update(_match_glob(pattern, surface_paths))
-    # L2.1: same-source FE prunes same-source glob expansions; literal FI always survives.
     fi_glob_surviving = fi_glob_matches - fe_hits
 
     pi_by_file: dict[Path, set[str]] = {}
@@ -368,19 +324,7 @@ def _extract_facts(
 
 
 def _collect_universe(parsed: ParseResult, facts_iter: Iterable[_SourceFacts]) -> list[Path]:
-    """Universe of files the manifest reasons over — lex-sorted by POSIX.
-
-    Includes every parsed file plus every literal ``files.include`` path
-    and every glob-surviving ``files.include`` path across all sources.
-
-    F1 is file-type agnostic: any file matched by a glob pattern (``*.py``,
-    ``*.pl``, ``*.csh``, config files, …) must reach the manifest universe
-    and receive a ``FULL_COPY`` / ``REMOVE`` treatment decision.  Before this
-    fix, only literal FI paths were added for non-``.tcl`` companions;
-    glob-matched non-Tcl files were silently absent from the universe because
-    P2 never records them in ``ParseResult.files`` (the parser only processes
-    ``.tcl`` files).  Adding ``fi_glob_surviving`` here closes the gap.
-    """
+    """Universe of files the manifest reasons over — lex-sorted by POSIX."""
     paths: set[Path] = set(parsed.files.keys())
     for facts in facts_iter:
         paths.update(facts.fi_literal)
@@ -389,373 +333,378 @@ def _collect_universe(parsed: ParseResult, facts_iter: Iterable[_SourceFacts]) -
 
 
 # ---------------------------------------------------------------------------
-# Pass 1 — per-source per-file classification (L2)
+# Ordered fold — apply one layer to the running set
 # ---------------------------------------------------------------------------
 
 
-def _classify_source(
+def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
     ctx: ChopperContext,
+    src: _SourceRef,
     facts: _SourceFacts,
-    universe: list[Path],
+    running: dict[Path, _RunningSignal],
+    contributed_by: dict[Path, str],
+    shadow_events: dict[Path, list[ShadowEvent]],
+    input_sources_by_file: dict[Path, set[str]],
+    proc_winner: dict[tuple[Path, str], tuple[str, str]],
+    last_reason_by_file: dict[Path, str],
     all_procs_by_file: dict[Path, frozenset[str]],
     short_to_canonical_by_file: dict[Path, dict[str, str]],
-) -> dict[Path, _Contribution]:
-    """Apply same-source R1 rules to every (source, file) in ``universe``.
-    Emits ``VW-09``, ``VW-11``, ``VW-12``, ``VW-13``."""
-    return {fp: _classify_one(ctx, facts, fp, all_procs_by_file, short_to_canonical_by_file) for fp in universe}
-
-
-def _classify_one(
-    ctx: ChopperContext,
-    facts: _SourceFacts,
-    file_path: Path,
-    all_procs_by_file: dict[Path, frozenset[str]],
-    short_to_canonical_by_file: dict[Path, dict[str, str]],
-) -> _Contribution:
-    """Classify one (source, file) pair per the 16-row same-source matrix.
-
-    FI / FE / PI / PE are boolean flags describing whether this source
-    has any include/exclude signal for ``file_path``. The
-    literal-vs-glob distinction matters only for same-source FE
-    interaction (literal survives its own FE; glob does not, and is
-    already pruned out of ``facts.fi_glob_surviving``).
+) -> None:
+    """Apply layer ``src``'s signals to the running set, emitting same-layer
+    warnings (VW-09/11/12/13) and layer-transition warnings (VW-21).
     """
-    is_fi_literal = file_path in facts.fi_literal
-    is_fi_glob = file_path in facts.fi_glob_surviving
+    layer_key = src.key
+
+    files_touched: set[Path] = set()
+    files_touched |= facts.fi_literal | facts.fi_glob_surviving | facts.fe_literal
+    files_touched |= set(facts.pi_by_file.keys()) | set(facts.pe_by_file.keys())
+
+    for file_path in sorted(files_touched, key=lambda p: p.as_posix()):
+        is_fi_literal = file_path in facts.fi_literal
+        is_fi_glob = file_path in facts.fi_glob_surviving
+        fi_any = is_fi_literal or is_fi_glob
+        is_fe = file_path in facts.fe_literal
+        pi_short = facts.pi_by_file.get(file_path, frozenset())
+        pe_short = facts.pe_by_file.get(file_path, frozenset())
+
+        all_procs = all_procs_by_file.get(file_path, frozenset())
+        s2c = short_to_canonical_by_file.get(file_path, {})
+        pi_cn = frozenset(s2c[s] for s in pi_short if s in s2c)
+        pe_cn = frozenset(s2c[s] for s in pe_short if s in s2c)
+
+        # ---- Same-layer authoring warnings (unchanged from prior model) --
+        if fi_any and pi_short:
+            _emit_vw09(ctx, src, file_path)
+        if is_fe and pe_short and not fi_any and not pi_short:
+            _emit_vw11(ctx, src, file_path)
+        if pi_short and pe_short and not fi_any:
+            _emit_vw12(ctx, src, file_path)
+        if pe_short and not pi_short and not fi_any and not is_fe:
+            if all_procs and not (all_procs - pe_cn):
+                _emit_vw13(ctx, src, file_path)
+        if fi_any and pe_short:
+            keep_after = all_procs - pe_cn
+            if all_procs and not keep_after:
+                _emit_vw13(ctx, src, file_path)
+
+        intent = _classify_layer_intent(is_fi_literal, is_fi_glob, is_fe, pi_short, pe_short, pi_cn, pe_cn, all_procs)
+
+        if intent[0] == "none":
+            continue
+
+        prev = running.get(file_path)
+        prior_layer = contributed_by.get(file_path)
+
+        if intent[0] == "remove":
+            if prev is None:
+                # No-op exclude — VE-27 handled by validator.
+                continue
+            shadow_events.setdefault(file_path, []).append(
+                ShadowEvent(layer=layer_key, prior_layer=prior_layer or layer_key, action="remove")
+            )
+            _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "remove")
+            running.pop(file_path, None)
+            contributed_by.pop(file_path, None)
+            last_reason_by_file.pop(file_path, None)
+            for key in [k for k in proc_winner if k[0] == file_path]:
+                del proc_winner[key]
+            continue
+
+        if intent[0] == "whole":
+            _, reason, json_field = intent
+            _record_replace_transition(ctx, file_path, layer_key, prior_layer, prev, "whole", shadow_events)
+            running[file_path] = _Whole()
+            contributed_by[file_path] = layer_key
+            last_reason_by_file[file_path] = reason
+            input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
+            for cn in all_procs:
+                proc_winner[(file_path, cn)] = (layer_key, json_field)
+            continue
+
+        if intent[0] == "trim-replace":
+            _, new_keep, reason, json_field, _layer_pi, _layer_pe = intent
+            _record_replace_transition(ctx, file_path, layer_key, prior_layer, prev, "trim", shadow_events)
+            running[file_path] = _Trim(keep=set(new_keep))
+            contributed_by[file_path] = layer_key
+            last_reason_by_file[file_path] = reason
+            input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
+            for cn in new_keep:
+                proc_winner[(file_path, cn)] = (layer_key, json_field)
+            for key in [k for k in proc_winner if k[0] == file_path and k[1] not in new_keep]:
+                del proc_winner[key]
+            continue
+
+        if intent[0] == "trim-pi":
+            _, layer_pi, reason, json_field = intent
+            if prev is None:
+                running[file_path] = _Trim(keep=set(layer_pi))
+                contributed_by[file_path] = layer_key
+                last_reason_by_file[file_path] = reason
+            elif isinstance(prev, _Whole):
+                new_keep = set(all_procs) | set(layer_pi)
+                shadow_events.setdefault(file_path, []).append(
+                    ShadowEvent(
+                        layer=layer_key,
+                        prior_layer=prior_layer or layer_key,
+                        action="downgrade-whole-to-trim",
+                    )
+                )
+                _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "downgrade-whole-to-trim")
+                running[file_path] = _Trim(keep=new_keep)
+                contributed_by[file_path] = layer_key
+                last_reason_by_file[file_path] = reason
+            else:  # _Trim
+                added = set(layer_pi) - prev.keep
+                new_keep = prev.keep | set(layer_pi)
+                if added and prior_layer != layer_key:
+                    shadow_events.setdefault(file_path, []).append(
+                        ShadowEvent(layer=layer_key, prior_layer=prior_layer or layer_key, action="add-proc")
+                    )
+                    _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "add-proc")
+                running[file_path] = _Trim(keep=new_keep)
+                if added:
+                    contributed_by[file_path] = layer_key
+                    last_reason_by_file[file_path] = reason
+            input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
+            for cn in layer_pi:
+                proc_winner[(file_path, cn)] = (layer_key, json_field)
+            continue
+
+        if intent[0] == "trim-pe":
+            _, layer_pe, reason, json_field = intent
+            if prev is None:
+                new_keep = set(all_procs) - set(layer_pe)
+                running[file_path] = _Trim(keep=new_keep)
+                contributed_by[file_path] = layer_key
+                last_reason_by_file[file_path] = reason
+                for cn in new_keep:
+                    proc_winner[(file_path, cn)] = (layer_key, json_field)
+            elif isinstance(prev, _Whole):
+                new_keep = set(all_procs) - set(layer_pe)
+                shadow_events.setdefault(file_path, []).append(
+                    ShadowEvent(
+                        layer=layer_key,
+                        prior_layer=prior_layer or layer_key,
+                        action="downgrade-whole-to-trim",
+                    )
+                )
+                _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "downgrade-whole-to-trim")
+                running[file_path] = _Trim(keep=new_keep)
+                contributed_by[file_path] = layer_key
+                last_reason_by_file[file_path] = reason
+                for cn in new_keep:
+                    proc_winner[(file_path, cn)] = (layer_key, json_field)
+            else:  # _Trim
+                removed = set(layer_pe) & prev.keep
+                new_keep = prev.keep - set(layer_pe)
+                if removed and prior_layer != layer_key:
+                    shadow_events.setdefault(file_path, []).append(
+                        ShadowEvent(
+                            layer=layer_key,
+                            prior_layer=prior_layer or layer_key,
+                            action="remove-proc",
+                        )
+                    )
+                    _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "remove-proc")
+                running[file_path] = _Trim(keep=new_keep)
+                if removed:
+                    contributed_by[file_path] = layer_key
+                    last_reason_by_file[file_path] = reason
+                for cn in removed:
+                    proc_winner.pop((file_path, cn), None)
+            input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
+            continue
+
+
+def _classify_layer_intent(
+    is_fi_literal: bool,
+    is_fi_glob: bool,
+    is_fe: bool,
+    pi_short: frozenset[str],
+    pe_short: frozenset[str],
+    pi_cn: frozenset[str],
+    pe_cn: frozenset[str],
+    all_procs: frozenset[str],
+) -> tuple:
+    """Distill one layer's per-file (FI/FE/PI/PE) signals into a single intent tuple."""
     fi_any = is_fi_literal or is_fi_glob
-    is_fe_hit = file_path in facts.fe_literal
-    pi_set = facts.pi_by_file.get(file_path, frozenset())
-    pe_set = facts.pe_by_file.get(file_path, frozenset())
 
-    all_procs = all_procs_by_file.get(file_path, frozenset())
+    if not (fi_any or is_fe or pi_short or pe_short):
+        return ("none",)
 
-    # Per-file short/qualified → canonical_name map (built once at
-    # ``run()`` start — see O2). Empty dict for files the parser did
-    # not see (literal-FI non-tcl companions).
-    short_to_canonical = short_to_canonical_by_file.get(file_path, {})
+    # Same-layer FE+PE without FI/PI: contributes nothing (VW-11 contradiction).
+    if is_fe and pe_short and not fi_any and not pi_short:
+        return ("none",)
 
-    pi_canonical = frozenset(short_to_canonical[s] for s in pi_set if s in short_to_canonical)
-    pe_canonical = frozenset(short_to_canonical[s] for s in pe_set if s in short_to_canonical)
+    # Same-layer FE only: layer wants the file removed.
+    if is_fe and not fi_any and not pi_short and not pe_short:
+        return ("remove",)
 
-    # Row 1: nothing.
-    if not (fi_any or is_fe_hit or pi_set or pe_set):
-        return _NONE
+    # Glob FI pruned by same-layer FE, no PI/PE: contributes nothing.
+    if is_fi_glob and not is_fi_literal and is_fe and not (pi_short or pe_short):
+        return ("none",)
 
-    # Row 12: FE + PE only (no FI, no PI) → same-source contradiction. Emit VW-11.
-    if is_fe_hit and not fi_any and not pi_set and pe_set:
-        _emit_vw11(ctx, facts.ref, file_path)
-        return _NONE
+    # FI + PI + PE → PI redundant, PE qualifies.
+    if fi_any and pi_short and pe_short:
+        if is_fi_glob and not is_fi_literal and is_fe:
+            return ("none",)
+        new_keep = all_procs - pe_cn
+        return ("trim-replace", new_keep, "fi-and-pe", "procedures.exclude", pi_cn, pe_cn)
 
-    # Row 3: FE alone → NONE (candidate for cross-source veto surfacing).
-    if is_fe_hit and not fi_any and not pi_set and not pe_set:
-        return _NONE
+    # FI + PE (no PI) → TRIM(all - pe).
+    if fi_any and pe_short and not pi_short:
+        if is_fi_glob and not is_fi_literal and is_fe:
+            return ("none",)
+        new_keep = all_procs - pe_cn
+        reason = "fi-and-pe" if is_fi_literal else "pe-overlay"
+        return ("trim-replace", new_keep, reason, "procedures.exclude", frozenset(), pe_cn)
 
-    # Rows 7 / 13: PI + PE without FI. PI wins; emit VW-12.
-    if pi_set and pe_set and not fi_any:
-        _emit_vw12(ctx, facts.ref, file_path)
-        return _Contribution(
-            kind="TRIM",
-            keep=pi_canonical,
-            reason="pi-additive",
-            json_field="procedures.include",
-        )
+    # FI + PI (no PE) → WHOLE (PI redundant).
+    if fi_any and pi_short and not pe_short:
+        return ("whole", "fi-literal" if is_fi_literal else "fi-glob", "files.include")
 
-    # Rows 8 / 14: FI + PI (no PE). PI redundant with WHOLE; emit VW-09.
-    if fi_any and pi_set and not pe_set:
-        _emit_vw09(ctx, facts.ref, file_path)
-        return _whole(all_procs, is_fi_literal)
+    # FI alone.
+    if fi_any and not pi_short and not pe_short:
+        return ("whole", "fi-literal" if is_fi_literal else "fi-glob", "files.include")
 
-    # Rows 9 / 15: FI + PE (no PI). PE qualifies FI into TRIM(all − PE).
-    if fi_any and pe_set and not pi_set:
-        if is_fe_hit and not is_fi_literal:
-            return _NONE  # Row 15 glob-only pruned by same-source FE
-        keep = all_procs - pe_canonical
-        if not keep and all_procs:
-            _emit_vw13(ctx, facts.ref, file_path)
-        return _Contribution(
-            kind="TRIM",
-            keep=keep,
-            reason="fi-and-pe" if is_fi_literal else "pe-subtractive",
-            json_field="procedures.exclude",
-        )
+    # PI + PE no FI: PI wins (VW-12). Treat as PI-only union.
+    if pi_short and pe_short and not fi_any:
+        return ("trim-pi", pi_cn, "pi-overlay", "procedures.include")
 
-    # Rows 10 / 16: FI + PI + PE. PI redundant with FI; PE qualifies. Emit VW-09.
-    if fi_any and pi_set and pe_set:
-        _emit_vw09(ctx, facts.ref, file_path)
-        if is_fe_hit and not is_fi_literal:
-            return _NONE
-        keep = all_procs - pe_canonical
-        if not keep and all_procs:
-            _emit_vw13(ctx, facts.ref, file_path)
-        return _Contribution(
-            kind="TRIM",
-            keep=keep,
-            reason="fi-and-pe",
-            json_field="procedures.exclude",
-        )
+    # PI alone (no PE, no FI), with or without FE.
+    if pi_short and not pe_short and not fi_any:
+        return ("trim-pi", pi_cn, "pi-overlay", "procedures.include")
 
-    # Rows 2 / 4: FI only (literal or glob-surviving), possibly with same-source FE.
-    if fi_any and not pi_set and not pe_set:
-        return _whole(all_procs, is_fi_literal)
-
-    # Row 11: FE + PI (no FI, no PE). PI contributes; FE is moot for same-source PI.
-    if pi_set and is_fe_hit and not pe_set and not fi_any:
-        return _Contribution(
-            kind="TRIM",
-            keep=pi_canonical,
-            reason="pi-additive",
-            json_field="procedures.include",
-        )
-
-    # Row 5: PI only.
-    if pi_set and not pe_set and not fi_any and not is_fe_hit:
-        return _Contribution(
-            kind="TRIM",
-            keep=pi_canonical,
-            reason="pi-additive",
-            json_field="procedures.include",
-        )
-
-    # Row 6: PE only (no FI, no FE, no PI).
-    if pe_set and not pi_set and not fi_any and not is_fe_hit:
-        keep = all_procs - pe_canonical
-        if not keep and all_procs:
-            _emit_vw13(ctx, facts.ref, file_path)
-        return _Contribution(
-            kind="TRIM",
-            keep=keep,
-            reason="pe-subtractive",
-            json_field="procedures.exclude",
-        )
+    # PE alone (no PI, no FI, no FE).
+    if pe_short and not pi_short and not fi_any and not is_fe:
+        return ("trim-pe", pe_cn, "pe-overlay", "procedures.exclude")
 
     raise AssertionError(
-        f"CompilerService: unclassified row (source={facts.ref.key!r}, file={file_path!r}, "
-        f"FI_lit={is_fi_literal}, FI_glob={is_fi_glob}, FE={is_fe_hit}, "
-        f"PI={bool(pi_set)}, PE={bool(pe_set)})"
+        f"_classify_layer_intent: unhandled combination "
+        f"FI_lit={is_fi_literal}, FI_glob={is_fi_glob}, FE={is_fe}, "
+        f"PI={bool(pi_short)}, PE={bool(pe_short)}"
     )
 
 
-def _whole(all_procs: frozenset[str], is_fi_literal: bool) -> _Contribution:
-    return _Contribution(
-        kind="WHOLE",
-        keep=all_procs,
-        reason="fi-literal" if is_fi_literal else "fi-glob",
-        json_field="files.include",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Pass 2 — cross-source aggregation (L1 + L3)
-# ---------------------------------------------------------------------------
-
-
-def _aggregate(
+def _record_replace_transition(
     ctx: ChopperContext,
-    sources: list[_SourceRef],
-    contribs_by_source: dict[_SourceRef, dict[Path, _Contribution]],
-    facts_by_source: dict[_SourceRef, _SourceFacts],
+    file_path: Path,
+    layer_key: str,
+    prior_layer: str | None,
+    prev: _RunningSignal | None,
+    new_kind: str,
+    shadow_events: dict[Path, list[ShadowEvent]],
+) -> None:
+    """Record a ShadowEvent + emit VW-21 when a layer wholesale-replaces a prior decision."""
+    if prev is None or not prior_layer or prior_layer == layer_key:
+        return
+    if isinstance(prev, _Whole) and new_kind == "trim":
+        action = "downgrade-whole-to-trim"
+    else:
+        action = "replace"
+    shadow_events.setdefault(file_path, []).append(ShadowEvent(layer=layer_key, prior_layer=prior_layer, action=action))
+    _emit_vw21(ctx, file_path, layer_key, prior_layer, action)
+
+
+# ---------------------------------------------------------------------------
+# Manifest derivation from the final running state
+# ---------------------------------------------------------------------------
+
+
+def _derive_manifest(
     universe: list[Path],
-    all_procs_by_file: dict[Path, frozenset[str]],
-    short_to_canonical_by_file: dict[Path, dict[str, str]],
+    running: dict[Path, _RunningSignal],
+    contributed_by: dict[Path, str],
+    shadow_events: dict[Path, list[ShadowEvent]],
+    input_sources_by_file: dict[Path, set[str]],
+    proc_winner: dict[tuple[Path, str], tuple[str, str]],
+    last_reason_by_file: dict[Path, str],
     parsed: ParseResult,
 ) -> tuple[dict[Path, FileTreatment], dict[str, ProcDecision], dict[Path, FileProvenance]]:
     file_decisions: dict[Path, FileTreatment] = {}
     proc_decisions: dict[str, ProcDecision] = {}
     provenance: dict[Path, FileProvenance] = {}
 
-    # Pre-compute per-source PE canonical-name set per file — only actual
-    # ``procedures.exclude`` entries contribute to VW-18 surfacing.
-    # A source that simply did not name a proc via PI is not PE-ing it,
-    # so must not trigger VW-18. Uses the cached short_to_canonical map
-    # built once per run (O2).
-    pe_canonical_by_source: dict[_SourceRef, dict[Path, frozenset[str]]] = {}
-    for src, facts in facts_by_source.items():
-        per_file: dict[Path, frozenset[str]] = {}
-        for file_path, pe_set in facts.pe_by_file.items():
-            short_to_canonical = short_to_canonical_by_file.get(file_path)
-            if not short_to_canonical:
-                continue
-            per_file[file_path] = frozenset(short_to_canonical[s] for s in pe_set if s in short_to_canonical)
-        pe_canonical_by_source[src] = per_file
-
     for file_path in universe:
-        treatment, pv, procs_stamped = _aggregate_one(
-            ctx,
-            sources,
-            contribs_by_source,
-            facts_by_source,
-            pe_canonical_by_source,
-            file_path,
-            all_procs_by_file,
-            parsed,
-        )
-        file_decisions[file_path] = treatment
-        provenance[file_path] = pv
-        for pd in procs_stamped:
-            proc_decisions.setdefault(pd.canonical_name, pd)
+        signal = running.get(file_path)
+        sb = tuple(shadow_events.get(file_path, ()))
+        input_sources = tuple(sorted(input_sources_by_file.get(file_path, ())))
 
-    sorted_proc_decisions = {k: proc_decisions[k] for k in sorted(proc_decisions)}
-    return file_decisions, sorted_proc_decisions, provenance
+        if signal is None:
+            treatment = FileTreatment.REMOVE
+            reason = "default-exclude" if not sb else (last_reason_by_file.get(file_path) or "default-exclude")
+            pv = FileProvenance(
+                path=file_path,
+                treatment=treatment,
+                reason=reason,
+                input_sources=input_sources,
+                contributed_by=None,
+                shadowed_by=sb,
+                proc_model=None,
+            )
+            file_decisions[file_path] = treatment
+            provenance[file_path] = pv
+            continue
 
+        if isinstance(signal, _Whole):
+            treatment = FileTreatment.FULL_COPY
+            reason = last_reason_by_file.get(file_path, "fi-literal")
+            pv = FileProvenance(
+                path=file_path,
+                treatment=treatment,
+                reason=reason,
+                input_sources=input_sources,
+                contributed_by=contributed_by.get(file_path),
+                shadowed_by=sb,
+                proc_model=None,
+            )
+            file_decisions[file_path] = treatment
+            provenance[file_path] = pv
+            pf = parsed.files.get(file_path)
+            if pf is not None:
+                for p in pf.procs:
+                    layer_field = proc_winner.get((file_path, p.canonical_name))
+                    if layer_field is None:
+                        layer_field = (contributed_by.get(file_path, "base"), "files.include")
+                    proc_decisions.setdefault(
+                        p.canonical_name,
+                        ProcDecision(
+                            canonical_name=p.canonical_name,
+                            source_file=file_path,
+                            selection_source=f"{layer_field[0]}:{layer_field[1]}",
+                        ),
+                    )
+            continue
 
-def _aggregate_one(
-    ctx: ChopperContext,
-    sources: list[_SourceRef],
-    contribs_by_source: dict[_SourceRef, dict[Path, _Contribution]],
-    facts_by_source: dict[_SourceRef, _SourceFacts],
-    pe_canonical_by_source: dict[_SourceRef, dict[Path, frozenset[str]]],
-    file_path: Path,
-    all_procs_by_file: dict[Path, frozenset[str]],
-    parsed: ParseResult,
-) -> tuple[FileTreatment, FileProvenance, list[ProcDecision]]:
-    """Cross-source aggregation for one file."""
-    all_procs = all_procs_by_file.get(file_path, frozenset())
-
-    whole_sources: list[_SourceRef] = []
-    trim_contribs: list[tuple[_SourceRef, _Contribution]] = []
-    for src in sources:
-        contrib = contribs_by_source[src][file_path]
-        if contrib.kind == "WHOLE":
-            whole_sources.append(src)
-        elif contrib.kind == "TRIM":
-            trim_contribs.append((src, contrib))
-
-    fe_sources: list[_SourceRef] = [s for s in sources if file_path in facts_by_source[s].fe_literal]
-    contributing_sources: set[_SourceRef] = set(whole_sources) | {s for s, _ in trim_contribs}
-
-    def _pe_of(src: _SourceRef) -> frozenset[str]:
-        return pe_canonical_by_source.get(src, {}).get(file_path, frozenset())
-
-    # ---- Case A: at least one WHOLE → FULL_COPY ------------------------------
-    if whole_sources:
-        treatment = FileTreatment.FULL_COPY
-        winner = whole_sources[0]
-        winner_contrib = contribs_by_source[winner][file_path]
-        vetoed: list[str] = []
-        for src in fe_sources:
-            if src in contributing_sources:
-                continue
-            _emit_vw19(ctx, src, file_path, blocker=winner)
-            vetoed.append(f"{src.key}:files.exclude")
-        # VW-18: for every source with actual PE entries, each PE proc that
-        # still survives (all procs survive under FULL_COPY) is vetoed.
-        for src in sources:
-            if src is winner:
-                continue
-            for proc_cn in sorted(_pe_of(src) & all_procs):
-                _emit_vw18(ctx, src, file_path, proc_cn, blocker=winner)
-                vetoed.append(f"{src.key}:procedures.exclude:{proc_cn}")
-        input_sources = _stamp_input_sources(whole_sources, trim_contribs, contribs_by_source, file_path)
-        pv = FileProvenance(
-            path=file_path,
-            treatment=treatment,
-            reason=winner_contrib.reason,
-            input_sources=tuple(sorted(input_sources)),
-            vetoed_entries=tuple(sorted(vetoed)),
-            proc_model=None,
-        )
-        procs_stamped = _stamp_procs_full_copy(parsed, file_path, winner, winner_contrib)
-        return treatment, pv, procs_stamped
-
-    # ---- Case B: TRIM only → PROC_TRIM ---------------------------------------
-    if trim_contribs:
-        union_keep: set[str] = set()
-        proc_source_winner: dict[str, tuple[_SourceRef, _Contribution]] = {}
-        for src, contrib in trim_contribs:
-            for proc_cn in contrib.keep:
-                union_keep.add(proc_cn)
-                proc_source_winner.setdefault(proc_cn, (src, contrib))
-
-        trim_vetoed: list[str] = []
-        # VW-18: only actual PE entries that lose to another source's include.
-        for src in sources:
-            own_contrib = contribs_by_source[src][file_path]
-            own_keep = own_contrib.keep if own_contrib.kind == "TRIM" else frozenset()
-            for proc_cn in sorted(_pe_of(src)):
-                if proc_cn not in union_keep or proc_cn in own_keep:
-                    continue
-                blocker_src = proc_source_winner[proc_cn][0]
-                if blocker_src is src:
-                    continue
-                _emit_vw18(ctx, src, file_path, proc_cn, blocker=blocker_src)
-                trim_vetoed.append(f"{src.key}:procedures.exclude:{proc_cn}")
-        for src in fe_sources:
-            if src in contributing_sources:
-                continue
-            _emit_vw19(ctx, src, file_path, blocker=trim_contribs[0][0])
-            trim_vetoed.append(f"{src.key}:files.exclude")
-
-        _, first_contrib = trim_contribs[0]
-        reason = first_contrib.reason
-        proc_model: Literal["additive", "subtractive"] = "additive" if "pi" in reason else "subtractive"
-
-        input_sources = _stamp_input_sources([], trim_contribs, contribs_by_source, file_path)
+        # _Trim
         treatment = FileTreatment.PROC_TRIM
+        reason = last_reason_by_file.get(file_path, "pi-overlay")
         pv = FileProvenance(
             path=file_path,
             treatment=treatment,
             reason=reason,
-            input_sources=tuple(sorted(input_sources)),
-            vetoed_entries=tuple(sorted(trim_vetoed)),
-            proc_model=proc_model,
+            input_sources=input_sources,
+            contributed_by=contributed_by.get(file_path),
+            shadowed_by=sb,
+            proc_model="overlay",
         )
-        procs_stamped = []
-        for proc_cn in sorted(union_keep):
-            winner_src, winner_contrib = proc_source_winner[proc_cn]
-            procs_stamped.append(
+        file_decisions[file_path] = treatment
+        provenance[file_path] = pv
+        for cn in sorted(signal.keep):
+            layer_field = proc_winner.get((file_path, cn))
+            if layer_field is None:
+                layer_field = (contributed_by.get(file_path, "base"), "procedures.include")
+            proc_decisions.setdefault(
+                cn,
                 ProcDecision(
-                    canonical_name=proc_cn,
+                    canonical_name=cn,
                     source_file=file_path,
-                    selection_source=f"{winner_src.key}:{winner_contrib.json_field}",
-                )
+                    selection_source=f"{layer_field[0]}:{layer_field[1]}",
+                ),
             )
-        return treatment, pv, procs_stamped
 
-    # ---- Case C: no contribution → REMOVE ------------------------------------
-    # (GENERATED is a Stage 2d concern — no flow_actions here.)
-    treatment = FileTreatment.REMOVE
-    pv = FileProvenance(
-        path=file_path,
-        treatment=treatment,
-        reason="default-exclude",
-        input_sources=(),
-        vetoed_entries=(),
-        proc_model=None,
-    )
-    return treatment, pv, []
-
-
-def _stamp_input_sources(
-    whole_sources: list[_SourceRef],
-    trim_contribs: list[tuple[_SourceRef, _Contribution]],
-    contribs_by_source: dict[_SourceRef, dict[Path, _Contribution]],
-    file_path: Path,
-) -> list[str]:
-    out: list[str] = []
-    for src in whole_sources:
-        out.append(f"{src.key}:{contribs_by_source[src][file_path].json_field}")
-    for src, contrib in trim_contribs:
-        out.append(f"{src.key}:{contrib.json_field}")
-    return out
-
-
-def _stamp_procs_full_copy(
-    parsed: ParseResult,
-    file_path: Path,
-    winner: _SourceRef,
-    winner_contrib: _Contribution,
-) -> list[ProcDecision]:
-    pf = parsed.files.get(file_path)
-    if pf is None:
-        return []  # non-parsed literal file (e.g. config): no procs
-    return [
-        ProcDecision(
-            canonical_name=p.canonical_name,
-            source_file=file_path,
-            selection_source=f"{winner.key}:{winner_contrib.json_field}",
-        )
-        for p in pf.procs
-    ]
+    sorted_proc_decisions = {k: proc_decisions[k] for k in sorted(proc_decisions)}
+    return file_decisions, sorted_proc_decisions, provenance
 
 
 # ---------------------------------------------------------------------------
@@ -808,7 +757,7 @@ def _emit_vw12(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
                 f"procedures.include and procedures.exclude; PI takes precedence, PE ignored"
             ),
             path=file_path,
-            hint="Choose one model per file: additive (PI) or subtractive (PE), not both",
+            hint="Choose one model per file at this layer: procedures.include or procedures.exclude, not both",
         )
     )
 
@@ -828,32 +777,19 @@ def _emit_vw13(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
     )
 
 
-def _emit_vw18(ctx: ChopperContext, vetoed: _SourceRef, file_path: Path, proc_cn: str, blocker: _SourceRef) -> None:
+def _emit_vw21(ctx: ChopperContext, file_path: Path, layer: str, prior_layer: str, action: str) -> None:
     ctx.diag.emit(
         Diagnostic.build(
-            "VW-18",
+            "VW-21",
             phase=Phase.P3_COMPILE,
             message=(
-                f"Source {vetoed.key!r}: procedures.exclude of {proc_cn!r} vetoed because "
-                f"source {blocker.key!r} contributes this proc via include"
+                f"Layer {layer!r} shadowed prior layer {prior_layer!r} for {file_path.as_posix()!r} (action={action})"
             ),
             path=file_path,
-            hint=("Remove the redundant procedures.exclude entry, or align with the other source's include intent"),
-        )
-    )
-
-
-def _emit_vw19(ctx: ChopperContext, vetoed: _SourceRef, file_path: Path, blocker: _SourceRef) -> None:
-    ctx.diag.emit(
-        Diagnostic.build(
-            "VW-19",
-            phase=Phase.P3_COMPILE,
-            message=(
-                f"Source {vetoed.key!r}: files.exclude of {file_path.as_posix()!r} vetoed "
-                f"because source {blocker.key!r} contributes this file"
+            hint=(
+                "No action required if the layer order in project.features[] is intentional; "
+                "verify the order if the shadow is unexpected"
             ),
-            path=file_path,
-            hint=("Remove the redundant files.exclude entry, or verify the other source's inclusion is intentional"),
         )
     )
 
@@ -872,18 +808,7 @@ def _is_glob(entry: str) -> bool:
 
 
 def _match_glob(pattern: str, paths: frozenset[Path]) -> set[Path]:
-    """Match ``pattern`` against every path in ``paths`` using POSIX
-    semantics. Supports ``*``, ``?``, ``[...]``, and ``**`` (recursive,
-    matching zero or more path components).
-
-    ``PurePath.full_match`` (Python 3.13+) handles ``**`` natively; on
-    older interpreters we translate the pattern into a regex so ``**/``
-    correctly collapses to zero or more intermediate directories
-    (``rules/**/*.fm.tcl`` matches ``rules/r1.fm.tcl`` and
-    ``rules/sub/r2.fm.tcl`` alike). ``fnmatch.fnmatchcase`` does not
-    honour the zero-directory case for ``**`` and is therefore used
-    only as a final fallback for patterns that contain no ``**``.
-    """
+    """Match ``pattern`` against every path in ``paths`` using POSIX semantics."""
     regex = _glob_to_regex(pattern)
     hits: set[Path] = set()
     for path in paths:
@@ -905,15 +830,7 @@ def _match_glob(pattern: str, paths: frozenset[Path]) -> set[Path]:
 
 
 def _glob_to_regex(pattern: str) -> Pattern[str] | None:
-    """Thin re-export of :func:`chopper.core.globs.glob_to_regex`.
-
-    The canonical implementation lives in :mod:`chopper.core.globs` so
-    P1 surface-file collection (:mod:`chopper.config.service`) and P3
-    conflict resolution (this module) and P1 / P3 validation
-    (:mod:`chopper.validator.functions`) all share identical semantics
-    without cross-service imports. Module-level alias kept so existing
-    P3 call sites remain unchanged.
-    """
+    """Thin re-export of :func:`chopper.core.globs.glob_to_regex`."""
 
     from chopper.core.globs import glob_to_regex  # noqa: PLC0415
 

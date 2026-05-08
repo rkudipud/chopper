@@ -1,0 +1,10 @@
+{
+  "$schema": "base-v1",
+  "domain": "overlay_no_op_exclude",
+  "description": "Base includes real.tcl; feature_typo's exclude targets a path that does not exist.",
+  "files": {
+    "include": [
+      "real.tcl"
+    ]
+  }
+}

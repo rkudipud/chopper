@@ -84,7 +84,7 @@
             "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
           },
           "minItems": 1,
-          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include. Excludes only prune wildcard-expanded candidates; literal include paths survive. MUST NOT be empty if files.exclude is present."
+          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include. Within this layer, excludes only prune wildcard-expanded include candidates; literal include paths in the same layer survive. Across layers, this exclude is part of an R1 ordered overlay — if this feature appears after the layer that contributed the file (base or an earlier feature), the file is removed and `VW-21 layer-shadowed` is emitted. MUST NOT be empty if files.exclude is present."
         }
       }
     },
@@ -107,7 +107,7 @@
             "$ref": "#/$defs/procEntry"
           },
           "minItems": 1,
-          "description": "Proc-level excludes from this feature. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE). Does not remove explicit procedures.include entries from any source, and does not remove procs from files that are whole-file included by another source (emits VW-18 cross-source-pe-vetoed when vetoed). Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
+          "description": "Proc-level excludes from this feature. Within this layer, prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE) and does not remove same-layer explicit procedures.include entries (same-layer include wins). Across layers, this exclude is part of an R1 ordered overlay — if this feature appears after the layer that contributed the proc (base or an earlier feature), the proc is dropped and `VW-21 layer-shadowed` is emitted. Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
         }
       }
     },

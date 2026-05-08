@@ -1,0 +1,10 @@
+{
+  "$schema": "base-v1",
+  "domain": "overlay_replace",
+  "description": "Base layer contributes legacy.tcl; feature_a replaces it with new.tcl.",
+  "files": {
+    "include": [
+      "legacy.tcl"
+    ]
+  }
+}

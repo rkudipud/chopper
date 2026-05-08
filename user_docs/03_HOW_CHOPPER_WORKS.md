@@ -102,7 +102,7 @@ Or:
 | Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only listed procs survive. |
 | Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except excluded procs survive. |
 | File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
-| Feature tries to remove a base file | Base includes file, feature excludes file | Base include wins; feature exclude is vetoed with `VW-19`. |
+| Feature tries to remove a base file | Base includes file, a later feature excludes file | Feature is the later layer under R1 ordered overlay; the file is removed and `VW-21 layer-shadowed` records the transition. |
 
 ---
 
@@ -222,11 +222,11 @@ Narrow port surface keeps the architecture useful without speculative abstractio
 
 ### Why did my feature's `files.exclude` do nothing?
 
-Another source is including that file. Feature excludes cannot remove what another source included. Look for `VW-19` in diagnostics.
+Your feature is **earlier** than the layer that includes the file (or the file isn't named anywhere). Under R1 ordered overlay, only the *last* layer that mentions the file wins — a base or later-feature `files.include` after your `files.exclude` will re-include it. Reorder `project.features[]` so your feature appears after the layer you intend to override; check `VW-21 layer-shadowed` events in the audit bundle to verify the transition fired.
 
 ### Why did my proc survive even though I excluded it?
 
-Either it appears in another source's `procedures.include`, or it lives in a file another source includes whole. Look for `VW-18`.
+A later layer re-included it: another feature's `procedures.include`, or a whole-file `files.include` in the base or a later feature. Look for `VW-21 layer-shadowed` events involving the proc to see which layer last touched it.
 
 ### Why is my traced callee not in the output?
 

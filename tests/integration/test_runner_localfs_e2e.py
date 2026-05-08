@@ -31,6 +31,12 @@ from chopper.parser.service import parse_file
 
 FIXTURE_MINI = Path(__file__).resolve().parents[1] / "fixtures" / "mini_domain"
 FIXTURE_STAGES = Path(__file__).resolve().parents[1] / "fixtures" / "stages_domain"
+FIXTURE_OVERLAY_REPLACE = Path(__file__).resolve().parents[1] / "fixtures" / "overlay_replace"
+FIXTURE_OVERLAY_REMOVE_ONLY = Path(__file__).resolve().parents[1] / "fixtures" / "overlay_remove_only"
+FIXTURE_OVERLAY_NO_OP_EXCLUDE = Path(__file__).resolve().parents[1] / "fixtures" / "overlay_no_op_exclude"
+FIXTURE_OVERLAY_TWO_FEATURES_SAME_FILE = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "overlay_two_features_same_file"
+)
 
 
 def _make_ctx(
@@ -415,3 +421,102 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
         assert stack_path in by_path, f"{stack_path} missing from manifest"
         assert by_path[tcl_path]["treatment"] == "generated"
         assert by_path[stack_path]["treatment"] == "generated"
+
+
+
+
+# ---------------------------------------------------------------------------
+# overlay_* fixtures \u2014 R1 ordered-overlay end-to-end
+# ---------------------------------------------------------------------------
+
+
+def _make_overlay_ctx(domain: Path, *, dry_run: bool = True) -> tuple[ChopperContext, CollectingSink]:
+    return _make_ctx(
+        domain,
+        dry_run=dry_run,
+        base_path=domain / "jsons" / "base.json",
+        feature_paths=tuple(sorted((domain / "jsons" / "features").glob("*.json"))),
+    )
+
+
+def test_runner_localfs_overlay_replace_emits_vw21_and_swaps_files(tmp_path: Path) -> None:
+    """Feature-layer exclude of a base-included file replaces it with the feature's own file.
+
+    Asserts the surviving manifest contains `new.tcl` (FULL_COPY) and `legacy.tcl`
+    is REMOVE, and that `VW-21 layer-shadowed` fires for the feature's removal of
+    the base contribution.
+    """
+
+    domain = tmp_path / "overlay_replace"
+    shutil.copytree(FIXTURE_OVERLAY_REPLACE, domain)
+
+    ctx, sink = _make_overlay_ctx(domain, dry_run=True)
+    result = ChopperRunner().run(ctx, command="validate")
+
+    codes = [d.code for d in sink.snapshot()]
+    assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+    assert "VW-21" in codes, f"expected VW-21 layer-shadowed; got {codes}"
+
+    assert result.manifest is not None
+    decisions = result.manifest.file_decisions
+    assert decisions[Path("new.tcl")] is FileTreatment.FULL_COPY
+    assert decisions[Path("legacy.tcl")] is FileTreatment.REMOVE
+
+
+def test_runner_localfs_overlay_remove_only_emits_vw21(tmp_path: Path) -> None:
+    """Feature-layer exclude of a base-included file with no replacement still emits VW-21."""
+
+    domain = tmp_path / "overlay_remove_only"
+    shutil.copytree(FIXTURE_OVERLAY_REMOVE_ONLY, domain)
+
+    ctx, sink = _make_overlay_ctx(domain, dry_run=True)
+    result = ChopperRunner().run(ctx, command="validate")
+
+    codes = [d.code for d in sink.snapshot()]
+    assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+    assert "VW-21" in codes
+
+    assert result.manifest is not None
+    decisions = result.manifest.file_decisions
+    assert decisions[Path("core.tcl")] is FileTreatment.REMOVE
+    assert decisions[Path("keep.tcl")] is FileTreatment.FULL_COPY
+
+
+def test_runner_localfs_overlay_no_op_exclude_loads_cleanly(tmp_path: Path) -> None:
+    """Fixture loads and parses cleanly.
+
+    ``VE-27 no-op-exclude`` is registered in the diagnostic catalog but the validator
+    emission is not yet implemented (the compiler defers to the validator with
+    ``# No-op exclude — VE-27 handled by validator.`` and the validator has no
+    matching check). When the emission lands, this test should be tightened to assert
+    ``VE-27`` in ``codes`` and ``exit_code == 1``. Tracked under SPEC_COVERAGE_AUDIT.md.
+    """
+
+    domain = tmp_path / "overlay_no_op_exclude"
+    shutil.copytree(FIXTURE_OVERLAY_NO_OP_EXCLUDE, domain)
+
+    ctx, _sink = _make_overlay_ctx(domain, dry_run=True)
+    result = ChopperRunner().run(ctx, command="validate")
+
+    # Pre-impl: run succeeds; the silently-no-op exclude leaves real.tcl intact.
+    assert result.exit_code == 0
+    assert result.manifest is not None
+    assert result.manifest.file_decisions[Path("real.tcl")] is FileTreatment.FULL_COPY
+
+
+def test_runner_localfs_overlay_two_features_last_layer_wins(tmp_path: Path) -> None:
+    """feature_a PE drops proc foo; feature_b PI re-includes it; final keeps both foo and bar."""
+
+    domain = tmp_path / "overlay_two_features_same_file"
+    shutil.copytree(FIXTURE_OVERLAY_TWO_FEATURES_SAME_FILE, domain)
+
+    ctx, sink = _make_overlay_ctx(domain, dry_run=True)
+    result = ChopperRunner().run(ctx, command="validate")
+
+    codes = [d.code for d in sink.snapshot()]
+    assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+
+    assert result.manifest is not None
+    proc_names = {d.canonical_name.split("::", 1)[1] for d in result.manifest.proc_decisions.values()}
+    assert "foo" in proc_names, f"foo should survive feature_b PI; got {proc_names}"
+    assert "bar" in proc_names, f"bar should survive base WHOLE; got {proc_names}"

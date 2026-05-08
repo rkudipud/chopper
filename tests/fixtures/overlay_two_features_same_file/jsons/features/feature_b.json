@@ -1,0 +1,13 @@
+{
+  "$schema": "feature-v1",
+  "name": "feature_b",
+  "description": "Re-includes proc foo (declared after feature_a). Emits VW-21 action=add-proc; final keeps both foo and bar.",
+  "procedures": {
+    "include": [
+      {
+        "file": "util.tcl",
+        "procs": ["foo"]
+      }
+    ]
+  }
+}

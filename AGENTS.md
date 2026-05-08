@@ -1,43 +1,43 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **chopper** (5161 nodes, 9006 edges, 86 flows as of 2026-05-01). GitNexus MCP is configured for stdio through `.vscode/mcp.json` and `npx gitnexus setup`, but graph tools/resources are available only when the current client exposes them.
+This project is indexed by GitNexus as **chopper** (5830 symbols, 10073 relationships, 91 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> Official setup: MCP starts with `npx -y gitnexus@latest mcp`. If `gitnexus://repo/chopper/context` or `npx gitnexus status` reports a stale index, run `npx gitnexus analyze --skip-agents-md` from the repo root so custom AGENTS/CLAUDE guidance is preserved.
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** If GitNexus MCP tools/resources are exposed, use GitNexus `impact`/`context` plus `gitnexus://repo/chopper/processes`; otherwise read the relevant `.github/agent_memory/*.md` file, then use `search/usages` and `search/textSearch` to report the blast radius.
-- **MUST review changes before committing.** If GitNexus MCP is exposed, use `detect_changes`; otherwise use `search/changes`, targeted reference searches, memory notes, and tests to verify changes only affect expected symbols and flows.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, prefer GitNexus `query`/`context` when MCP is available. If it is not available, start from memory files and use `search/codebase`, `search/textSearch`, and `read/readFile`.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first mapping usages and text references.
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with blind find-and-replace; map references first and use language-aware rename tooling when available.
-- NEVER treat a successful `npx gitnexus status` as proof that MCP tools are exposed in the current editor session.
-- NEVER commit changes without reviewing the changed-file scope.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
-## Optional Resources
+## Resources
 
 | Resource | Use for |
-| -------- | ------- |
-| `gitnexus://repos` | Discover indexed repos when MCP resources are exposed |
-| `gitnexus://repo/chopper/context` | Codebase overview, check index freshness when MCP is available |
+|----------|---------|
+| `gitnexus://repo/chopper/context` | Codebase overview, check index freshness |
 | `gitnexus://repo/chopper/clusters` | All functional areas |
 | `gitnexus://repo/chopper/processes` | All execution flows |
 | `gitnexus://repo/chopper/process/{name}` | Step-by-step execution trace |
 
-## CLI / Local Fallbacks
+## CLI
 
-| Task | GitNexus available | Fallback when MCP is unavailable |
-| ---- | ------------------ | -------------------------------- |
-| Understand architecture / "How does X work?" | `query` + `context` + process resources | memory file + `search/codebase` + `read/readFile` |
-| Blast radius / "What breaks if I change X?" | `impact` + `context` | memory file + `search/usages` + `search/textSearch` |
-| Trace bugs / "Why is X failing?" | `query` + `context` + process trace | memory file + `search/textSearch` + `read/readFile` |
-| Rename / extract / split / refactor | `rename` dry run where exposed, then `detect_changes` | memory file + usage-mapped patches + `search/changes` |
-| Index, status, clean, wiki CLI commands | `npx gitnexus ...` | local memory and repo docs |
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->

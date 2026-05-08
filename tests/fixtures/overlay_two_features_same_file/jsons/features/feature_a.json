@@ -1,0 +1,13 @@
+{
+  "$schema": "feature-v1",
+  "name": "feature_a",
+  "description": "Excludes proc foo from util.tcl. Downgrades base WHOLE to PROC_TRIM (VW-21 action=downgrade-whole-to-trim).",
+  "procedures": {
+    "exclude": [
+      {
+        "file": "util.tcl",
+        "procs": ["foo"]
+      }
+    ]
+  }
+}

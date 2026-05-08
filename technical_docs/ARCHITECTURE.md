@@ -442,10 +442,14 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 | `procedures.exclude` | No | Proc-level excludes |
 | `flow_actions` | No | Stage modifications: add/remove/replace steps or stages (F3) |
 
-**Features are purely additive.** A feature's `files.exclude` and `procedures.exclude` only prune that *same feature's own* include contributions; they cannot remove content contributed by the base or by another feature. Explicit include from any source always wins over exclude from any other source. In detail:
+**Features are layered, not additive.** Sources (base + each selected feature in declared order) are applied as an ordered overlay: each layer can include and exclude freely, and the **last layer that says something about a file or proc wins**. A feature can therefore add new content, remove base content, or replace base content with its own. In detail:
 
-- `files.exclude` prunes glob expansions of the *same JSON's* `files.include` patterns. A feature's FE has no effect on a file contributed by the base or by another feature; when it would, the FE is discarded and `VW-19 cross-source-fe-vetoed` is emitted.
-- `procedures.exclude` means "keep the file but remove these procs" — the file survives as `PROC_TRIM` with the excluded procs dropped from *that source's* contribution. If another source (base or any feature) whole-file-includes the same file, or explicitly includes any of the PE'd procs via `procedures.include`, the PE is vetoed and `VW-18 cross-source-pe-vetoed` is emitted. Base content is never stripped by a feature. **An empty `procs` array in any `procEntry` fires `VE-03`** — both `procedures.include` and `procedures.exclude` require at least one proc name per entry; an entry with no procs is an authoring error (likely incomplete edits). If you have nothing to exclude for a file, omit the entry entirely.
+- `files.include` adds the file to the running set at this layer.
+- `files.exclude` removes the file from the running set at this layer, regardless of which earlier layer (base or another feature) put it there. If no earlier layer or glob match contributes the file, `VE-27 no-op-exclude` is emitted at validation time — almost always a typo.
+- `procedures.include` adds the proc (and forces its file to survive as `PROC_TRIM` if no whole-file include is in effect).
+- `procedures.exclude` removes the proc from the running set at this layer, regardless of source. If the proc is not present in the running set when this layer runs, `VE-27` is emitted.
+- When a later layer actually changes an earlier layer's decision (cancels an include, replaces a file, removes a proc that an earlier layer contributed), `VW-21 layer-shadowed` is emitted — informational, exit 0, audit trail only.
+- **An empty `procs` array in any `procEntry` fires `VE-03`** — both `procedures.include` and `procedures.exclude` require at least one proc name per entry.
 - Within a single JSON, mixing `procedures.include` and `procedures.exclude` on the same file is an authoring conflict: PI wins, PE is ignored for that file, and `VW-12` is emitted.
 - Within a single JSON, mixing `files.exclude` and `procedures.exclude` on the same file with no PI is redundant: both are removal-within-this-source signals, the file is not contributed by this JSON, and `VW-11` is emitted.
 - The full conflict-resolution, file-treatment, and interaction-warning rules are defined in R1.
@@ -489,7 +493,7 @@ Schema: `schemas/project-v1.schema.json`
 | `base` | Yes | Domain-relative path to the base JSON file |
 | `owner` | No | Domain deployment owner for this project |
 | `release_branch` | No | Git branch name for this project trim |
-| `features` | No | List of feature JSON paths (order is authoritative for F3 `flow_actions` sequencing only; F1/F2 merges are order-independent) |
+| `features` | No | List of feature JSON paths in declared application order. **Order is authoritative for everything** — F1, F2, and F3. Layers are applied left-to-right; the last layer that mentions a file/proc/step wins. |
 | `notes` | No | Human-readable notes explaining feature ordering or selection rationale |
 
 ### 3.4 F1 — File Chopping
@@ -665,8 +669,8 @@ All examples below assume Chopper is invoked from the domain root (or with an ex
 - `dependency_graph.json` — full proc trace results including `source`/`iproc_source` and proc call edges
 - `trim_report.json` — what would be trimmed, and why each file/proc survives or is removed
 - `trim_report.txt` — human-readable projection of `trim_report.json`
-- `files_removed.txt` — sorted list of domain-relative paths physically removed from the rebuilt domain, computed as `set(walk(source_root)) − set(kept_paths)` where `source_root` is `<domain>_backup/` after a live trim and `<domain>/` for first-trim `--dry-run`. Each line is `<path>\t<provenance>` where `<provenance>` is either `vetoed-by:<source_key>:<json_field>,...` (when authoring intents were vetoed cross-source — see `FileProvenance.vetoed_entries`) or `default-exclude` (the file was either named by a losing authoring intent or never named by any JSON at all — typical of helper `.pl` / `.csh` / `.py` files in EDA domains). Files that no `files.include` pattern named are still listed; this artifact is the user-facing answer to *what did this trim physically delete?*. The leading `#` lines document the format.
-- `files_kept.txt` — sorted list of domain-relative paths that survive trimming. Each line is `<path>\t<sources>` where `<sources>` is a comma-separated list of `<source_key>:<json_field>` provenance tags (from `FileProvenance.input_sources`) identifying every JSON authoring intent that pulled the file in, or `-` if no JSON named the file directly. The leading `#` lines document the format.
+- `files_removed.txt` — sorted list of domain-relative paths physically removed from the rebuilt domain, computed as `set(walk(source_root)) − set(kept_paths)` where `source_root` is `<domain>_backup/` after a live trim and `<domain>/` for first-trim `--dry-run`. Each line is `<path>\t<provenance>` where `<provenance>` is one of: `removed-by:<layer_key>:<json_field>` (a later layer's `files.exclude` removed a file that an earlier layer contributed — see `FileProvenance.shadowed_by`), `shadowed-by:<layer_key>:<json_field>` (a later layer downgraded the file out of the kept set via PE/PI overlay), or `default-exclude` (no layer ever named the file — typical of helper `.pl` / `.csh` / `.py` files in EDA domains). Files that no `files.include` pattern named are still listed; this artifact is the user-facing answer to *what did this trim physically delete and why?*. The leading `#` lines document the format.
+- `files_kept.txt` — sorted list of domain-relative paths that survive trimming. Each line is `<path>\t<contributor>` where `<contributor>` is `<layer_key>:<json_field>` identifying the **last layer** whose signal won (`FileProvenance.contributed_by`), or `-` if no JSON named the file directly (e.g., F3-`GENERATED` outputs). The leading `#` lines document the format.
 - log with all diagnostics emitted with severity, code, location, and hint fields
 
 ### 3.8 Valid Capability Combinations
@@ -746,87 +750,84 @@ This covers the two shapes EDA tool commands appear in (bare and namespace-quali
 
 ### R1 — Conflict Resolution and File Treatment
 
-This is the single authoritative rule for all include/exclude resolution and file-treatment derivation. R1 is **provenance-aware**: it treats the base JSON and each selected feature JSON as distinct contributing *sources*, not as a merged anonymous set.
+This is the single authoritative rule for all include/exclude resolution and file-treatment derivation. R1 is an **ordered overlay**: the base JSON and each selected feature JSON are applied in declared order as successive layers, and the last layer that says something about an item wins. Earlier-layer contributions can be added to, replaced, or removed by later layers.
 
-#### Rule L1 — The Law of Explicit Include (cross-source)
+#### The single rule (R1)
 
-> **L1.** If **any** selected source contributes an include signal for a file or a proc, that item survives. Include signals are:
+> **R1.** Sources are evaluated in declared order: `base` first, then each entry of `project.features[]` (or `--features`) left-to-right. For each file `F` and each proc `p`, walk the layers in order and apply that layer's signals to a running set:
 >
-> 1. `files.include` literal path (the source's FI_literal),
-> 2. `files.include` glob pattern that matched the file, after the *same source's own* `files.exclude` pruning (the source's FI_glob_surviving),
-> 3. `procedures.include` entry for the proc (the source's PI),
-> 4. `procedures.exclude` entry on the file (the source's PE) — PE implies "keep the file," so it counts as a weak file-level include signal.
+> 1. **`files.include`** — literal path adds `F` to the running set as a `WHOLE` signal at this layer; glob pattern expands against the surface and adds matched files (after the *same layer's own* `files.exclude` glob pruning) as `WHOLE` signals.
+> 2. **`files.exclude`** — removes `F` from the running set at this layer, regardless of which earlier layer contributed it. If no earlier layer contributes `F` and no glob match exists at this layer, emit `VE-27 no-op-exclude` (validator-side; almost always a typo).
+> 3. **`procedures.include`** — adds `p` (in file `F`) to the running set. If no earlier layer kept `F` whole, this layer contributes `F` as `TRIM(keep += {p})`.
+> 4. **`procedures.exclude`** — removes `p` from the running set; if no earlier layer kept `F` whole, this layer contributes `F` as `TRIM(keep = all_procs(F) − PE)`. If `p` is not present in the running set when this layer runs, emit `VE-27`.
+> 5. **Same-layer authoring conveniences** still apply (`VW-09 fi-pi-overlap`, `VW-11 fe-pe-same-source-conflict`, `VW-12 pi-pe-same-file`, `VW-13 pe-removes-all-procs`).
+> 6. **Shadowing diagnostic** — when a layer actually changes a previous layer's decision (cancels a contribution, removes a proc that was in the running set, replaces a file), emit `VW-21 layer-shadowed` (info-class, exit 0). This is audit-trail only; the layer's intent stands.
 >
-> An exclude signal from a different source can never remove an item that L1 keeps alive. Same-source exclude signals follow L2.
-
-#### Rule L2 — Same-source authoring conveniences
-
-> **L2.** Within a single JSON, these subtractive patterns are allowed and mean what they look like:
+> After the last layer is applied, the final `treatment` per file is read off the running set:
 >
-> 1. `files.exclude` prunes this source's own `files.include` glob expansions. Literal FI in the same source always survives.
-> 2. `procedures.exclude` on a file where the same source also has `files.include` whole-file entry qualifies this source's contribution: this source contributes the file as `PROC_TRIM` with PE procs removed (not as `FULL_COPY`).
-> 3. `procedures.exclude` on a file where the same source has no `files.include` for the file means this source contributes the file as `PROC_TRIM` with all procs except PE. This is itself an include signal under L1.
-> 4. Same file has both PI and PE in the same source → PI wins, PE is ignored for that file (`VW-12`).
-> 5. Same file has both FI (any form) and PI in the same source → PI is redundant (`VW-09`); the file's treatment is decided by whether the same source also has PE on it (L2.2).
-
-#### Rule L3 — Cross-source additivity (base inviolable)
-
-> **L3.** Across sources, contributions union. Concretely:
+> - `WHOLE` signal still present at end → `FULL_COPY`, all procs survive.
+> - `TRIM(keep)` signal still present at end → `PROC_TRIM`, surviving procs = `keep`.
+> - No signal present → `REMOVE` (or `GENERATED` if the F3 generator emits the file).
 >
-> 1. If **any** source's contribution treats file F as a full include with no same-source PE qualification (call this a `WHOLE` signal), F is `FULL_COPY` in the output. Any other source's PE or FE on F is vetoed and reported.
-> 2. Otherwise, if any source contributes F at all (via PI or via same-source FI+PE or same-source PE-only), F is `PROC_TRIM`. Surviving procs are the union of every contributing source's per-source kept set. A PE from one source never removes a proc that another source includes.
-> 3. If no source contributes F and F is not F3-`GENERATED`, F is `REMOVE`.
-> 4. Consequence: a feature can never remove a file or proc that the base (or any other feature) contributed. The base is inviolable; features are additive.
+> **`provenance.contributed_by`** records the *last* layer whose signal survived. **`provenance.shadowed_by`** records each `(layer, prior_layer)` pair where a `VW-21` fired. Together they form the full overlay timeline.
+
+#### Worked example
+
+Given `base.json` + `feat_a.json` + `feat_b.json` selected in that order:
+
+| File / proc | Base | feat_a | feat_b | Final |
+|---|---|---|---|---|
+| `core/init.tcl` | FI | — | — | `FULL_COPY` (kept by base) |
+| `legacy/old.tcl` | FI | FE | — | `REMOVE` (feat_a shadows base; `VW-21`) |
+| `legacy/old.tcl` (alt run) | FI | FE | FI | `FULL_COPY` (feat_b re-includes; `VW-21` for feat_a's veto being overridden) |
+| `procs/util.tcl::foo` | PI | — | PE | proc removed; file becomes `TRIM(keep = ...) − {foo}` (`VW-21`) |
+| `procs/util.tcl::bar` | — | PI | — | survives (added by feat_a) |
+| `optional/x.tcl` | — | FE | — | `VE-27 no-op-exclude` (nothing to remove) |
 
 #### Terminology
 
 | Term | Meaning |
 |---|---|
-| **Source** | One JSON: the base, or any one selected feature. |
-| **FI_literal(s)** | Literal file paths in source `s`'s `files.include` |
-| **FI_glob(s)** | Files matched by wildcard patterns in source `s`'s `files.include` |
-| **FI_glob_surviving(s)** | `FI_glob(s) − FE(s)` — within-source glob pruning |
-| **FI(s)** | `FI_literal(s) ∪ FI_glob_surviving(s)` |
-| **FE(s)** | `files.exclude` patterns in source `s` |
-| **PI(s)** | `procedures.include` entries in source `s` |
-| **PE(s)** | `procedures.exclude` entries in source `s` — implies file survival per L1/L2 |
-| **Global FI** | `⋃ₛ FI(s)` — any file included by any source |
-| **Global PI** | `⋃ₛ PI(s)` — any proc included by any source |
+| **Layer** | One JSON applied at one position in the overlay sequence: `base`, then each selected feature in declared order. |
+| **Running set** | The mutable `{file → treatment}` and `{proc → kept?}` map carried left-to-right through the layers. |
+| **FI_literal(L)** | Literal file paths in layer `L`'s `files.include` |
+| **FI_glob(L)** | Files matched by wildcard patterns in layer `L`'s `files.include`, after `L`'s own `files.exclude` glob pruning |
+| **FE(L)** | `files.exclude` patterns in layer `L` |
+| **PI(L)** | `procedures.include` entries in layer `L` |
+| **PE(L)** | `procedures.exclude` entries in layer `L` |
+| **Global PI** | The set of procs in the running set at end of fold (used to seed P4 trace) |
 | **PI+** | Transitive trace expansion of Global PI — **reporting-only; no survival effect** |
 | **PT** | Traced-only procs: PI+ − Global PI — **reporting-only** |
 
-#### Per-source per-file contribution model
+#### Per-layer signal classification (within one JSON)
 
-For each source `s` and each file `F` in the domain, classify `s`'s contribution to `F`:
+Within one layer `L` and one file `F`, the layer's authored signals classify into a single contribution to the running set:
 
-| Inputs in source `s` for file `F` | `s`'s contribution to `F` | Note |
+| Inputs in layer `L` for file `F` | `L`'s effect on the running set | Note |
 |---|---|---|
-| Nothing | `NONE(s, F)` | — |
-| Only FI (literal or surviving glob), no PE, no PI | `WHOLE(s, F)` | Source wants whole file. |
-| Only PI entries, no FI, no PE | `TRIM(s, F, keep = PI(s, F))` | Additive per-proc include. |
-| FI **and** PE (any combination of PI) | `TRIM(s, F, keep = all_procs(F) − PE(s, F))` | L2.2. Same-source PE qualifies same-source FI. If PI is also present, emit `VW-09` and ignore PI here (redundant with FI minus PE). |
-| PE only, no FI | `TRIM(s, F, keep = all_procs(F) − PE(s, F))` | L2.3. Source wants file survival as PROC_TRIM. |
-| FI **and** PI (no PE) | `WHOLE(s, F)` | L2.5. Emit `VW-09` (PI redundant on WHOLE). |
-| Only FE (no FI, no PI, no PE) | `NONE(s, F)`, plus candidate veto if another source contributes `F` | See cross-source aggregation below. |
-| FE **and** PE, no FI, no PI | `NONE(s, F)` (same-source contradiction) | Emit `VW-11`. Source contributes nothing for F. |
+| Nothing | no change | — |
+| Only FI (literal or surviving glob), no PE, no PI | set `F → WHOLE` | Layer claims whole file. |
+| Only PI entries, no FI, no PE | set `F → TRIM(keep = running_keep(F) ∪ PI(L, F))` | Per-proc include adds to the running keep set. |
+| FI **and** PE (any combination of PI) | set `F → TRIM(keep = all_procs(F) − PE(L, F))` | Same-layer PE qualifies same-layer FI. If PI is also present, emit `VW-09` and ignore PI here. |
+| PE only, no FI | set `F → TRIM(keep = (running_keep(F) or all_procs(F)) − PE(L, F))` | If `F` was already kept whole by an earlier layer, this layer demotes it to `TRIM` and removes PE procs (`VW-21` fires). |
+| FI **and** PI (no PE) | set `F → WHOLE` | Emit `VW-09` (PI redundant on WHOLE). |
+| Only FE (no FI, no PI, no PE) | remove `F` from running set | If `F` was contributed by an earlier layer, emit `VW-21`. If no earlier layer contributes `F` and no glob match at this layer, emit `VE-27`. |
+| FE **and** PE, no FI, no PI | no change for this layer (same-layer contradiction) | Emit `VW-11`. |
 
-#### Cross-source aggregation (file treatment)
+#### End-of-fold treatment derivation
 
-Let `Signals(F) = { c(s, F) : s ∈ sources, c(s, F) ≠ NONE }` and `FE_Sources(F) = { s : F ∈ FE(s) }`.
+After all layers are applied, for each file `F`:
 
-1. If **any** `c(s, F)` is `WHOLE(s, F)` → **treatment = `FULL_COPY`**, all procs survive.
-   - For every `s' ≠ s` where `c(s', F) = TRIM(s', F, keep)` and `keep ⊊ all_procs(F)`: emit `VW-18` (the excluded procs from `s'` are vetoed by `s`'s WHOLE include).
-   - For every `s'' ∈ FE_Sources(F)`: emit `VW-19` (FE from `s''` vetoed by WHOLE from `s`).
-2. Else if every non-NONE signal is `TRIM` → **treatment = `PROC_TRIM`**, surviving procs = `⋃ₛ keep(s)` over every `TRIM(s, F, keep)`.
-   - For every `s'' ∈ FE_Sources(F)`: emit `VW-19` (FE vetoed by another source's PROC_TRIM contribution).
-   - For every `TRIM(s', F, keep)` where some proc `p ∈ all_procs(F) − keep(s', F)` appears in `keep(s)` for some `s ≠ s'`: emit `VW-18` (PE of `p` by `s'` vetoed by include from `s`).
-3. Else (no signals on F) → if `F` is F3-`GENERATED`, treatment is `GENERATED`; otherwise **treatment = `REMOVE`**.
+1. If running set has `F → WHOLE` → **treatment = `FULL_COPY`**, all procs survive.
+2. Else if running set has `F → TRIM(keep)` → **treatment = `PROC_TRIM`**, surviving procs = `keep`.
+3. Else → if `F` is F3-`GENERATED`, treatment is `GENERATED`; otherwise **treatment = `REMOVE`**.
 
-**Key invariants implied by the aggregation:**
-- Any source's literal or glob-surviving FI forces `FULL_COPY`.
-- Any source's explicit PI of a proc forces that proc to survive regardless of any PE from any other source.
-- A feature's FE can only remove files that *no other source contributes*.
-- Same-source subtractive authoring (base-internal "keep file minus X procs") is preserved and behaves exactly as before, provided no other source separately includes the file whole-file or PIs the removed procs.
+**Key invariants implied by the overlay:**
+- The final state of any file or proc is determined by the **last layer** that mentioned it.
+- A feature can remove or replace anything an earlier layer contributed, including base content. Order of features is therefore semantically authoritative — not just for F3.
+- Same-layer authoring conveniences (`VW-09`, `VW-11`, `VW-12`, `VW-13`) are unchanged: those rules are local invariants within one JSON.
+- Every layer transition that actually changes a prior decision emits `VW-21 layer-shadowed` so the audit bundle records the overlay history.
+- Excludes that match nothing in the running set and nothing on disk via glob fire `VE-27 no-op-exclude` — the typo safety net.
 
 #### Interaction warnings
 
@@ -834,45 +835,47 @@ These warnings are non-fatal (exit 0) and escalate to errors in `--strict`.
 
 | Code | Slug | Scope | Condition |
 |---|---|---|---|
-| `VW-09` | `fi-pi-overlap` | Same-source | Source `s` has file `F` in FI and also has procs of `F` in PI (no PE in `s`). PI is redundant. |
-| `VW-19` | `cross-source-fe-vetoed` | Cross-source | Source `s` has `F` in `files.exclude`, but `F` survives because another source `s' ≠ s` contributes `F` (via FI, PI, or PE). `s`'s FE entry is discarded. |
-| `VW-11` | `fe-pe-same-source-conflict` | Same-source | Source `s` has `F` in both `files.exclude` and has PE entries for `F`, with no PI in `s`. Both are removal-within-`s` signals; `s` contributes nothing for `F`. |
-| `VW-12` | `pi-pe-same-file` | Same-source | Source `s` has PI and PE entries for the same file `F`. PI wins; PE is ignored for `F` within `s`. |
-| `VW-13` | `pe-removes-all-procs` | Same-source | A source's PE set covers every proc in `F` and no PI restores any. File survives as comment/blank-only. |
-| `VW-18` | `cross-source-pe-vetoed` | Cross-source | Source `s'` has proc `p` in file `F` in PE, but `p` survives because another source `s ≠ s'` includes `F` whole-file or includes `p` via PI. `s'`'s PE entry for `p` is discarded. |
+| `VW-09` | `fi-pi-overlap` | Same-layer | Layer `L` has file `F` in FI and also has procs of `F` in PI (no PE in `L`). PI is redundant. |
+| `VW-11` | `fe-pe-same-source-conflict` | Same-layer | Layer `L` has `F` in both `files.exclude` and has PE entries for `F`, with no PI in `L`. Both are removal-within-`L` signals; `L` makes no change for `F`. |
+| `VW-12` | `pi-pe-same-file` | Same-layer | Layer `L` has PI and PE entries for the same file `F`. PI wins; PE is ignored for `F` within `L`. |
+| `VW-13` | `pe-removes-all-procs` | Same-layer | Layer `L`'s PE set covers every proc in `F` and no PI restores any. File survives as comment/blank-only. |
+| `VW-21` | `layer-shadowed` | Cross-layer | Layer `L` actually changed a decision made by an earlier layer (cancelled an include, replaced a file, removed a proc that was in the running set). Informational; audit trail only. |
+| `VE-27` | `no-op-exclude` | Validation error | A layer's `files.exclude` or `procedures.exclude` entry does not match anything in the running set and (for FE) does not match any file via glob. Almost always a typo. |
 
-#### Per-file interaction matrix (single source)
+> **Retired codes.** `VW-18 cross-source-pe-vetoed` and `VW-19 cross-source-fe-vetoed` were the cross-source veto warnings under the prior additive-only model. Under the ordered-overlay R1 they cannot fire (a later layer's PE/FE *actually removes* the proc/file rather than being vetoed). Both slots are marked `RETIRED` in the diagnostic registry.
 
-Retained for authoring reference. Columns describe what **one** source contributes. Cross-source vetoes (`VW-19`, `VW-18`) are applied after per-source classification and do not appear in this table.
+#### Per-file interaction matrix (single layer)
 
-| # | FI | FE | PI | PE | Source's contribution | Surviving procs in source's contribution | Diagnostic |
-|---|---|---|---|---|---|---|---|
-| 1 | — | — | — | — | `NONE` | — | — |
-| 2 | ✓ | — | — | — | `WHOLE` | all | — |
-| 3 | — | ✓ | — | — | `NONE` (FE alone contributes nothing; see VW-19 at aggregation) | — | — |
-| 4 | ✓ | ✓ | — | — | `WHOLE` (literal FI) or `NONE` (glob-only pruned by same-source FE) | all or — | — |
-| 5 | — | — | ✓ | — | `TRIM(keep = PI)` | PI only | — |
-| 6 | — | — | — | ✓ | `TRIM(keep = all − PE)` | all − PE | — |
-| 7 | — | — | ✓ | ✓ | `TRIM(keep = PI)` (PE ignored) | PI only | `VW-12` |
-| 8 | ✓ | — | ✓ | — | `WHOLE` (PI redundant) | all | `VW-09` |
-| 9 | ✓ | — | — | ✓ | `TRIM(keep = all − PE)` | all − PE | — |
-| 10 | ✓ | — | ✓ | ✓ | `TRIM(keep = all − PE)` (PI redundant with FI; PE qualifies it) | all − PE | `VW-09` |
-| 11 | — | ✓ | ✓ | — | `TRIM(keep = PI)` (FE is moot — PI contributes F directly) | PI only | — |
-| 12 | — | ✓ | — | ✓ | `NONE` (same-source FE+PE conflict) | — | `VW-11` |
-| 13 | — | ✓ | ✓ | ✓ | `TRIM(keep = PI)` | PI only | `VW-12` |
-| 14 | ✓ | ✓ | ✓ | — | `WHOLE` (literal FI beats same-source FE) or `NONE` (glob-only, pruned) | all or — | `VW-09` |
-| 15 | ✓ | ✓ | — | ✓ | `TRIM(keep = all − PE)` (literal FI) or `NONE` (glob-only, pruned) | all − PE or — | — |
-| 16 | ✓ | ✓ | ✓ | ✓ | `TRIM(keep = all − PE)` (literal FI) or `TRIM(keep = PI)` (glob-only) | all − PE / PI only | `VW-09` or `VW-12` |
+Retained for authoring reference. Columns describe what **one** layer's authored signals do to the running set when the layer is applied.
 
-**Reading the matrix under the additive model:**
+| # | FI | FE | PI | PE | Effect on running set | Diagnostic |
+|---|---|---|---|---|---|---|
+| 1 | — | — | — | — | no change | — |
+| 2 | ✓ | — | — | — | set `F → WHOLE` | `VW-21` if earlier layer had different state |
+| 3 | — | ✓ | — | — | remove `F` from running set | `VW-21` if `F` was present; `VE-27` if not present and no glob match |
+| 4 | ✓ | ✓ | — | — | literal FI: `F → WHOLE`; glob-only pruned by same-layer FE: no change | — |
+| 5 | — | — | ✓ | — | union PI into `F`'s `keep` (or downgrade `WHOLE` → `TRIM(keep = running_keep ∪ PI)`) | `VW-21` if downgrading WHOLE |
+| 6 | — | — | — | ✓ | `F → TRIM(keep = (running_keep or all_procs(F)) − PE)` | `VW-21` if removing procs that were kept |
+| 7 | — | — | ✓ | ✓ | union PI; PE ignored | `VW-12` |
+| 8 | ✓ | — | ✓ | — | `F → WHOLE` (PI redundant) | `VW-09` |
+| 9 | ✓ | — | — | ✓ | `F → TRIM(keep = all − PE)` | — |
+| 10 | ✓ | — | ✓ | ✓ | `F → TRIM(keep = all − PE)` (PI redundant with FI; PE qualifies it) | `VW-09` |
+| 11 | — | ✓ | ✓ | — | union PI into `keep`; layer's FE on `F` is overridden by same-layer PI | — |
+| 12 | — | ✓ | — | ✓ | no change (same-layer FE+PE contradiction) | `VW-11` |
+| 13 | — | ✓ | ✓ | ✓ | union PI into `keep`; FE+PE both overridden by PI | `VW-12` |
+| 14 | ✓ | ✓ | ✓ | — | literal FI: `F → WHOLE`; glob-only pruned by FE: no change | `VW-09` |
+| 15 | ✓ | ✓ | — | ✓ | literal FI: `F → TRIM(keep = all − PE)`; glob-only pruned: no change | — |
+| 16 | ✓ | ✓ | ✓ | ✓ | literal FI: `F → TRIM(keep = all − PE)`; glob-only: union PI into `keep` | `VW-09` or `VW-12` |
 
-- Row 9 (FI+PE, one source): that source contributes the file as `PROC_TRIM` minus PE procs. If another source has a `WHOLE` signal on the same file, L3.1 lifts treatment to `FULL_COPY` and row 9's PE is vetoed with `VW-18`.
-- Row 11 (FE+PI, one source): the source contributes via PI; its own FE has no effect on its own PI contribution. If another source also FE's the same file, aggregation still keeps the file (PI wins).
-- Rows 3 and 12 (FE alone, FE+PE): these contribute nothing from this source. If another source contributes the file, the file survives and this source's FE is surfaced as `VW-19`.
+**Reading the matrix under the overlay model:**
 
-#### Feature safety statement
+- Each row describes what *this layer alone* does. The final treatment is read off the running set after all layers are applied.
+- Row 3 (FE alone): under the new model, FE *actually removes* the file if an earlier layer contributed it. There is no veto — the layer wins.
+- Row 6 (PE alone): if no earlier layer touched `F`, this layer establishes `F` as `PROC_TRIM` with all procs except PE. If an earlier layer kept `F` whole, this layer downgrades it to `TRIM` and emits `VW-21`.
 
-Selected features cannot remove anything that the base or another selected feature contributes. A feature's `files.exclude` and `procedures.exclude` only prune that feature's own include contributions. Every cross-source veto — FE against another source's include, or PE against another source's PI or whole-file include — is reported via `VW-19` or `VW-18` so the domain owner can see which feature authoring intent was discarded and why.
+#### Layered authority statement
+
+Later layers win over earlier layers. The base is the first layer; selected features are subsequent layers in declared order. A feature can add new content, remove base content, replace base content, or strip individual procs from base files — and the audit bundle records every such change as a `VW-21 layer-shadowed` event with `(layer, prior_layer)` provenance. Order is semantically authoritative for F1, F2, **and** F3.
 
 ### R2 — Default Action Is Exclude
 
@@ -1285,12 +1288,12 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 #### P3 — Compile selections
 
 - Consumes the JSON bundle from P1 and the proc index from P2.
-- Treats the base JSON and each selected feature JSON as a distinct *source*, and applies the three-step provenance-aware algorithm from §5.3:
-  1. Per-source partition: expand `files.include` into `FI_literal` + `FI_glob`, subtract `FE`, and compile `PI` / `PE`.
-  2. Per-source per-file classification into `NONE` / `WHOLE` / `TRIM(keep_set)` under the same-source L2 rules (emits `VW-09`, `VW-11`, `VW-12`, `VW-13`).
-  3. Cross-source aggregation under L1 + L3: any `WHOLE` wins (→ `FULL_COPY`); otherwise union of `TRIM` keep sets (→ `PROC_TRIM`); else `REMOVE` (or `GENERATED` for F3 outputs). Emits cross-source `VW-19` / `VW-18` for vetoed `FE` / `PE`.
-- Record provenance on every manifest entry: `input_sources[]`, `treatment`, `surviving_procs[]`, `vetoed_entries[]`.
-- Ordering: F1 and F2 aggregation is set-union and therefore order-independent; feature order is authoritative only in the F3 `flow_actions` pass and in P4's BFS.
+- Treats the base JSON and each selected feature JSON as successive *layers* in an ordered overlay, and applies the single-rule R1 fold from §5.3:
+  1. Initialize an empty running set.
+  2. For each layer in declared order (`base` first, then features left-to-right): apply the layer's `files.include` / `files.exclude` / `procedures.include` / `procedures.exclude` to the running set under R1. Emit same-layer warnings (`VW-09`, `VW-11`, `VW-12`, `VW-13`), cross-layer shadow events (`VW-21`), and no-op-exclude errors (`VE-27`) as encountered.
+  3. After the last layer, derive each file's `treatment` from the final running set: `WHOLE → FULL_COPY`; `TRIM(keep) → PROC_TRIM`; absent → `REMOVE` (or `GENERATED` for F3 outputs).
+- Record provenance on every manifest entry: `contributed_by` (the last layer whose signal survived), `treatment`, `surviving_procs[]`, and `shadowed_by[]` (layer transitions that fired `VW-21`).
+- Ordering: F1, F2, **and** F3 are order-sensitive; later layers win over earlier ones. Feature order is authoritative throughout.
 - Owner: `compiler/`.
 - Output: `CompiledManifest` (frozen in-memory object) and `.chopper/compiled_manifest.json` (identical on disk). The manifest is immutable after P3 returns.
 
@@ -1336,107 +1339,93 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 
 ### 5.3 Compilation Model (P3 Detail)
 
-P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules and the proc index from P2 and produces frozen sets that drive every subsequent phase. P3 is **provenance-aware**: the base JSON and each selected feature JSON are treated as distinct contributing *sources*, and every manifest entry records which sources contributed to it.
+P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules and the proc index from P2 and produces frozen sets that drive every subsequent phase. P3 is an **ordered overlay fold**: the base JSON and each selected feature JSON are applied in declared order as successive layers, and every manifest entry records the layer that last contributed it plus the chain of layer transitions that shadowed earlier decisions.
 
 ```
   Inputs from P1 + P2:
-    base JSON + selected feature JSONs (each = one source s)
+    base JSON + selected feature JSONs (in declared order)
     proc index (all procs in domain, from P2)
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  1. For each source s (base + each feature):    │
-  │     Partition files.include(s) →                │
-  │       FI_literal(s)   (exact paths)             │
-  │       FI_glob(s)      (wildcard matches)        │
-  │     FI_glob_surviving(s) = FI_glob(s) − FE(s)   │
-  │     FI(s) = FI_literal(s) ∪ FI_glob_surviving(s)│
-  │     Compile FE(s), PI(s), PE(s)                 │
+  │  Initialize:                                    │
+  │    running_files: dict[Path, FileSignal] = {}   │
+  │    layers = [base, *features_in_order]          │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  2. Per-source per-file contribution (L2):      │
-  │     For each (s, F), classify c(s, F) as:       │
-  │       NONE(s, F)                                │
-  │       WHOLE(s, F)                               │
-  │       TRIM(s, F, keep_set)                      │
-  │     Apply same-source authoring rules:          │
-  │       • FI + PI (no PE)      → WHOLE (VW-09)    │
-  │       • FI + PE (any PI)     → TRIM(all − PE)   │
-  │                                   (VW-09 if PI) │
-  │       • PI only              → TRIM(keep = PI)  │
-  │       • PE only              → TRIM(all − PE)   │
-  │       • PI + PE (no FI)      → TRIM(PI), VW-12  │
-  │       • FE + PE only         → NONE, VW-11      │
-  │       • FE only              → NONE (candidate  │
-  │                                  cross-source   │
-  │                                  veto target)   │
+  │  For each layer L in layers:                    │
+  │    1. Expand L.files.include:                   │
+  │       FI_literal(L) = exact paths               │
+  │       FI_glob(L) = wildcard matches             │
+  │           − L.files.exclude glob pruning        │
+  │    2. For each F in (FI_literal ∪ FI_glob):     │
+  │       prior = running_files.get(F)              │
+  │       new = WHOLE  (or TRIM if same-layer PE)   │
+  │       running_files[F] = new                    │
+  │       if prior and prior != new: emit VW-21     │
+  │           (record (L, prior_layer) shadow)      │
+  │    3. For each F in L.files.exclude (literal):  │
+  │       if F in running_files:                    │
+  │           remove F; emit VW-21                  │
+  │       elif F not matched by any glob and not    │
+  │            in running_files:                    │
+  │           emit VE-27                            │
+  │    4. For each (F, p) in L.procedures.include:  │
+  │       same-layer rules (VW-09 / VW-12)          │
+  │       union p into running_files[F].keep        │
+  │       emit VW-21 if downgrading prior WHOLE     │
+  │    5. For each (F, p) in L.procedures.exclude:  │
+  │       same-layer rules (VW-11 / VW-12 / VW-13)  │
+  │       remove p from running_files[F].keep       │
+  │       if p was kept by an earlier layer:        │
+  │           emit VW-21                            │
+  │       elif p not in running_files[F].keep and   │
+  │            not in all_procs(F):                 │
+  │           emit VE-27                            │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  3. Cross-source aggregation (L1 + L3):         │
-  │     For each file F:                            │
-  │       Signals(F) = {c(s, F) : c(s, F) ≠ NONE}   │
-  │       FE_Sources(F) = {s : F ∈ FE(s)}           │
-  │                                                 │
-  │       if any c(s, F) = WHOLE:                   │
-  │         treatment(F) = FULL_COPY                │
-  │         surviving_procs(F) = all procs in F     │
-  │         for s' in FE_Sources(F): emit VW-19     │
-  │         for every TRIM(s', F, keep') where      │
-  │             keep' ⊊ all_procs(F): emit VW-18    │
-  │                                                 │
-  │       elif every non-NONE signal is TRIM:       │
-  │         treatment(F) = PROC_TRIM                │
-  │         surviving_procs(F) = ⋃ keep(s')         │
-  │                           over all TRIM(s',F,·) │
-  │         for s' in FE_Sources(F): emit VW-19     │
-  │         for each TRIM(s', F, keep') with some   │
-  │             p ∈ all_procs(F) − keep' that is in │
-  │             keep(s) for some s ≠ s':            │
-  │             emit VW-18                          │
-  │                                                 │
-  │       else (Signals(F) empty):                  │
-  │         if F is F3 generator output:            │
-  │             treatment(F) = GENERATED            │
-  │         else: treatment(F) = REMOVE             │
-  │                                                 │
-  │       input_sources(F) = sources whose          │
-  │         contribution to F was non-NONE and      │
-  │         not fully vetoed                        │
+  │  Derive treatment per file F:                   │
+  │    if running_files[F] == WHOLE:                │
+  │        treatment(F) = FULL_COPY                 │
+  │        surviving_procs(F) = all                 │
+  │    elif running_files[F] == TRIM(keep):         │
+  │        treatment(F) = PROC_TRIM                 │
+  │        surviving_procs(F) = keep                │
+  │    else:                                        │
+  │        if F is F3 generator output:             │
+  │            treatment(F) = GENERATED             │
+  │        else: treatment(F) = REMOVE              │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
   ┌─────────────────────────────────────────────────┐
-  │  4. Emit same-source warnings VW-09, VW-11,     │
-  │     VW-12, VW-13 from step 2; cross-source      │
-  │     warnings VW-19, VW-18 from step 3.          │
-  └─────────────────────────────────────────────────┘
-                    │
-                    ▼
-  ┌─────────────────────────────────────────────────┐
-  │  5. Record provenance on every manifest entry:  │
-  │     input_sources[]   (which JSONs contributed) │
-  │     treatment         (FULL_COPY / PROC_TRIM /  │
-  │                        GENERATED / REMOVE)      │
-  │     surviving_procs[] (for PROC_TRIM only)      │
-  │     vetoed_entries[]  (FE/PE discarded here)    │
+  │  Record provenance on every manifest entry:     │
+  │    contributed_by   (last layer whose signal    │
+  │                       survived)                 │
+  │    treatment        (FULL_COPY / PROC_TRIM /    │
+  │                      GENERATED / REMOVE)        │
+  │    surviving_procs[]                            │
+  │    shadowed_by[]    ((layer, prior_layer)       │
+  │                      pairs that fired VW-21)    │
   └─────────────────────────────────────────────────┘
                     │
                     ▼
             compiled_manifest.json
 ```
 
-**Ordering:** F1 and F2 aggregation (steps 2–3) is set-union over sources and is **order-independent** — the same base and feature selections in any order produce the same surviving files and procs. Feature order is authoritative only in P3's F3 pass (`flow_actions` sequencing) and in P4's deterministic BFS traversal.
+**Ordering:** R1 is order-sensitive end-to-end. Feature order in `project.features[]` (or `--features`) is authoritative for F1, F2, and F3.
 
-**Iteration order (emission determinism).** During P3 cross-source aggregation, the compiler iterates in this fixed order so every diagnostic (`VW-09`..`VW-13`, `VW-19`, `VW-18`, etc.) is emitted in a reproducible sequence:
+**Iteration order (emission determinism).** Within a single layer, the compiler iterates in this fixed order so every diagnostic (`VW-09`..`VW-13`, `VW-21`, `VE-27`, etc.) is emitted in a reproducible sequence:
 
-1. **Sources:** `base` first; then each entry of `project.features[]` in the order given (or the CLI `--features` order when no project JSON is used). Topological sort of `depends_on` runs before P3; by the time L3 aggregation starts, the sequence is fixed.
-2. **Files within a source:** lexicographic POSIX order (`sorted()` on the domain-relative path string).
-3. **Procs within a file:** lexicographic order on `qualified_name`.
-4. **Emission:** every per-file and cross-source warning is emitted in the traversal order above, at the point the conflict is first detected. Later traversal steps never reorder earlier emissions.
+1. **Layers:** `base` first; then each entry of `project.features[]` in the order given (or the CLI `--features` order when no project JSON is used). Topological sort of `depends_on` runs before P3; by the time the fold starts, the sequence is fixed.
+2. **Within a layer:** `files.include` (literals first, then globs in lex order); then `files.exclude` (lex order); then `procedures.include` (lex by file then proc); then `procedures.exclude` (lex by file then proc).
+3. **Files within a step:** lexicographic POSIX order.
+4. **Procs within a file:** lexicographic order on `qualified_name`.
+5. **Emission:** every warning is emitted at the point it is detected during the fold. Later fold steps never reorder earlier emissions.
 
 Golden tests in `tests/unit/compiler/` snapshot this ordering; any change to the iteration rule is a breaking change to the diagnostic sequence.
 
@@ -1735,11 +1724,13 @@ This is the P3 output. It is the single source of truth for what Chopper decided
 |---|---|---|
 | `path` | string | Domain-relative file path |
 | `treatment` | string | `full-copy`, `proc-trim`, `generated`, `remove` |
-| `reason` | string | Why this treatment was chosen (e.g., `fi-literal`, `pi-additive`, `pe-subtractive`, `fe-glob-pruned`, `default-exclude`) |
-| `input_sources` | string[] | Which inputs referenced this file, keyed by source (base or feature `name`). For features, the key is the feature's `name` field, not the filename (e.g., `["base:files.include", "dft:procedures.include"]`) |
+| `reason` | string | Why this treatment was chosen (e.g., `fi-literal`, `pi-overlay`, `pe-overlay`, `fe-glob-pruned`, `fe-shadow`, `default-exclude`) |
+| `contributed_by` | string \| null | The single last layer (`base` or feature `name`) whose signal produced the surviving treatment. `null` for `REMOVE` and `GENERATED`. |
+| `input_sources` | string[] | Every layer that referenced this file at any point during the fold, keyed by `base` or feature `name` (e.g., `["base:files.include", "dft:procedures.include"]`). Used by P5 to copy the input JSONs into the rebuilt domain. |
+| `shadowed_by` | object[] | Layer transitions that fired `VW-21` for this file. Each entry: `{ layer, prior_layer, action }` where `action ∈ {"replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"}`. Empty array if no shadowing occurred. |
 | `surviving_procs` | string[] \| null | For `proc-trim` files: canonical names of procs that survive. Null for other treatments. |
 | `excluded_procs` | string[] \| null | For `proc-trim` files using PE model: canonical names of procs removed. Null otherwise. |
-| `proc_model` | string \| null | `additive` (PI), `subtractive` (PE), or null if not proc-trimmed |
+| `proc_model` | string \| null | `overlay` (the file's surviving proc set comes from the R1 fold), or null if not proc-trimmed |
 
 **Per-proc entry in `procedures.surviving`:**
 
@@ -2039,7 +2030,7 @@ Chopper has two validation phases that run within the pipeline:
 
 | Phase | When | Service | Input | What it checks |
 |---|---|---|---|---|
-| **Phase 1** (within P1) | Pre-trim | `validate_pre(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, cross-source veto detection |
+| **Phase 1** (within P1) | Pre-trim | `validate_pre(ctx, loaded)` | `LoadedConfig` + manifest draft | Schema, missing files/procs, empty procs arrays, invalid actions, path rules, `@n` targeting, depends-on resolution, no-op-exclude detection (`VE-27`) |
 | **Phase 2** (within P6) | Post-trim | `validate_post(ctx, manifest, graph, rewritten_paths, trim_report=None)` | `CompiledManifest` + `DependencyGraph` + sequence of final `.tcl` paths rewritten or indentation-normalized during P5 + optional live `TrimReport` | Re-tokenizes only the files listed in `rewritten_paths` to check brace balance (`VE-16` — internal-consistency assertion, exit 3); when a live `TrimReport` is present, first reconciles `CompiledManifest` vs `TrimReport` path/treatment/proc-set expectations, then verifies rebuilt-domain filesystem reality (removed files absent; surviving outputs present, file-typed, and byte-count aligned), then re-parses each rewritten `PROC_TRIM` file to confirm its surviving canonical proc set matches the expected set (`VW-10`); reads the P4 dependency graph to find surviving procs whose resolved calls or `source`/`iproc_source` edges point into trimmed-away targets (`VW-05`, `VW-06`); classifies F3 step tokens against the manifest for cross-validate (`VW-14`–`VW-17`) |
 
 Phase 2 input contract: `rewritten_paths` contains every emitted `.tcl` path whose final contents were changed by P5 (`PROC_TRIM`, generated stage `.tcl`, and `FULL_COPY` `.tcl` after P5c indentation normalization). Non-Tcl files copied verbatim from `<domain>_backup/` are **not** re-tokenized. When `trim_report` is supplied on the live path, P6 uses `CompiledManifest` as the dry-run-equivalent expectation source and enforces live conformance via `VW-10`; size reconciliation uses logical UTF-8 text bytes for normalized `.tcl` outcomes so Windows CRLF persistence does not false-positive, while non-Tcl `FULL_COPY` outputs still use raw metadata size. Only `PROC_TRIM` files participate in the re-parse proc-set reconciliation step.
@@ -2696,7 +2687,7 @@ Equivalent resolved selections must produce the same trimmed output whether they
 |---|---|---|
 | `owner` | string | Domain deployment owner for this project |
 | `release_branch` | string | Git branch name for this project trim |
-| `features` | array of strings | List of feature JSON paths (resolved relative to the current working directory / domain root). Default expected location pattern: `jsons/features/*.feature.json`. Order is authoritative for F3 `flow_actions` sequencing only; F1/F2 merges are order-independent. |
+| `features` | array of strings | List of feature JSON paths (resolved relative to the current working directory / domain root). Default expected location pattern: `jsons/features/*.feature.json`. **Order is authoritative for everything** — F1, F2, and F3. Layers are applied left-to-right; the last layer that mentions a file/proc/step wins (R1). |
 | `notes` | array of strings | Human-readable notes explaining feature ordering or selection rationale |
 
 **Path resolution rules:**
@@ -2806,7 +2797,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-05 | Produce trimmed output containing only needed files and procs. |
 | FR-06 | Copy only needed files from backup into the rebuilt domain. |
 | FR-07 | Delete only unwanted Tcl proc definitions from copied files. |
-| FR-08 | Apply additive include/exclude semantics across sources (base + features): explicit include from any source always wins; a source's excludes prune only that source's own include contributions. |
+| FR-08 | Apply ordered-overlay include/exclude semantics across layers (base + features in declared order): later layers win over earlier layers. A feature can add, remove, or replace anything an earlier layer contributed. Same-layer authoring conventions (`VW-09` / `VW-11` / `VW-12` / `VW-13`) still apply. |
 | FR-09 | Apply R1 (conflict resolution) consistently across all selected inputs. |
 | FR-10 | Deduplicate output so each surviving proc appears once. |
 | FR-11 | Validate syntax and obvious dangling references after trimming. |
@@ -2829,7 +2820,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-28 | Provide pre-trim JSON validation (Phase 1) that catches schema errors, empty procs arrays, missing files/procs, and invalid actions before any files are modified. |
 | FR-29 | Provide standalone `chopper validate` command that runs Phase 1 checks without requiring domain source files. Its a structural only check. |
 | FR-30 | Build a per-run proc index before tracing and serialize the resolved trace outcome into audit artifacts. |
-| FR-31 | Apply feature order deterministically and apply `flow_actions` top-to-bottom within each feature. |
+| FR-31 | Apply feature order deterministically as the R1 overlay sequence, and apply `flow_actions` top-to-bottom within each feature. |
 | FR-32 | Perform live trim through the backup-and-rebuild model: write directly into the rebuilt domain tree, preserve `<domain>_backup/` as the recovery source, and rely on re-trim to recover from partial failures. |
 | FR-33 | Emit stable machine-readable diagnostics with severity, code, location, and hint fields. |
 | FR-34 | Provide explicit `chopper cleanup` support for last-day backup deletion. |
@@ -2992,13 +2983,13 @@ The GUI-readiness surface is defined in §5.11 above. At the architecture level 
 | Q10 | How are procs identified? | **Resolved** | File + canonical proc name. |
 | Q11 | How is top-level Tcl outside procs handled? | **Resolved** | Copy-and-delete model. |
 | Q12 | How are hook files handled? | **Resolved** | Hook files discovered through `-use_hooks` during the trim pipeline are reported in diagnostics; they are copied only if explicitly included in selected JSON; otherwise they are ignored during trim. |
-| Q13 | What does "override" mean in Chopper? | **Resolved** | There is no override in F1/F2 — features are purely additive and include-wins is the sole conflict rule. "Override"-style behavior exists only in F3 via `replace_step` and `replace_stage` action keywords. Proc-level control uses `procedures.include` / `procedures.exclude` with tracing. |
+| Q13 | What does "override" mean in Chopper? | **Resolved** | F1/F2/F3 use a single ordered-overlay model (R1): later layers win over earlier layers. A feature can add, remove, or replace anything an earlier layer contributed. The audit bundle records every overlay shadow event as `VW-21 layer-shadowed`. F3 keeps its explicit `replace_step` / `replace_stage` action keywords for stage-level changes; F1/F2 do not need separate "override" syntax — `files.exclude` / `procedures.exclude` *are* the override surface. |
 | Q14 | Are backups deleted? | **Resolved** | Yes, on the last day during cleanup. |
 | Q15 | Is scan a Chopper subcommand? | **Resolved** | No. Scan mode has been removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
 | Q16 | Is default action configurable? | **Resolved** | No. Default exclude is fixed. |
 | Q17 | Is product implemented already? | **Resolved** | No. It is currently framework/scaffold plus architecture work. |
 | Q18 | How is live trim made write-safe? | **Resolved** | Backup-and-rebuild. Chopper writes directly into `domain/`, keeps `<domain>_backup/` intact, and recovers by re-running from backup rather than staging or locking. |
-| Q19 | How is feature ordering interpreted? | **Resolved** | Feature order is authoritative for F3 `flow_actions` sequencing only (earlier features' stage/step insertions are visible to later features). F1 and F2 merges (files and procedures) are purely additive and order-independent. Within a feature, `flow_actions` apply top-to-bottom. |
+| Q19 | How is feature ordering interpreted? | **Resolved** | Feature order is authoritative end-to-end (F1, F2, and F3). Layers are applied left-to-right; later layers win over earlier ones for files, procs, and stages. Within a feature, `flow_actions` apply top-to-bottom. |
 | Q20 | How are warnings and errors represented? | **Resolved** | Stable machine-readable diagnostics with severity, code, location, and hint. |
 
 ### 10.2 Open Questions
@@ -3095,25 +3086,28 @@ On the last day during final cleanup.
 ### 11.6 Corner Case FAQ
 
 **Q: What if two features disagree about a proc?**  
-If one includes it and another excludes it, the proc survives.
+The later-listed feature wins. If `feat_a` includes `foo` and `feat_b` (later in the list) excludes `foo`, the proc is removed and `VW-21 layer-shadowed` is emitted in the audit bundle.
 
 **Q: What if two features replace the same step differently?**  
-Selected input ordering governs explicit `replace_step` and `replace_stage` conflicts.
+Later-listed feature wins. F3 follows the same overlay rule as F1/F2.
 
 **Q: What if a file ends up with no procs left after trimming?**  
-The file is kept. If only blank lines and comments remain after proc deletion, Chopper writes that remaining stub, emits `VW-08`, and leaves owner review in the workflow. If the same file was also explicitly requested in `files.include`, the full-file copy rule still applies and the file survives as a whole file.
+The file is kept. If only blank lines and comments remain after proc deletion, Chopper writes that remaining stub, emits `VW-08`, and leaves owner review in the workflow. If a later layer separately whole-file-includes the same file, the full-file copy rule applies and the file survives as a whole file (with `VW-21` recording the shadow).
 
 **Q: What if a hook file exists but is not needed?**  
-Hook discovery is not permission for silent bloat. Hook files stay out unless they are explicitly included in selected JSON.
+Hook discovery is not permission for silent bloat. Hook files stay out unless they are explicitly included in some selected layer.
 
 **Q: What if a feature excludes a base item?**  
-It does not win. The selected base still includes it, so the item survives.
+The feature wins. The base layer ran first and contributed the item; the feature layer ran later and removed it. The audit bundle records this as `VW-21 layer-shadowed` with `(layer = feature_name, prior_layer = base)`.
 
-**Q: What if feature A includes a file and feature B excludes it?**  
-The file survives. Explicit include from any source wins over exclude from any other source. Feature B's `files.exclude` entry is surfaced as `VW-19 cross-source-fe-vetoed` so the authoring conflict is visible in the audit trail.
+**Q: What if feature A includes a file and feature B (later) excludes it?**  
+The file is removed. Feature B is the later layer and wins. `VW-21` is emitted with `(layer = feat_b, prior_layer = feat_a)`. To keep the file, list the includer after the excluder.
 
 **Q: What if the base includes a whole file and a feature excludes a proc inside it via `procedures.exclude`?**  
-The file survives as `FULL_COPY`, including the proc the feature tried to exclude. The feature's PE entry is surfaced as `VW-18 cross-source-pe-vetoed`. Features cannot strip procs from a file that the base contributed whole.
+The file is downgraded from `FULL_COPY` to `PROC_TRIM` with the named procs removed. The feature's PE entry actually fires; `VW-21` records that the prior whole-file decision was shadowed by a later proc-level intervention.
+
+**Q: What if a feature excludes a file or proc that no earlier layer contributed?**  
+That is `VE-27 no-op-exclude` — almost always a typo. Validation fails so the authoring error is caught before trim.
 
 **Q: What if a proc is defined twice in one file?**  
 The last definition wins, matching Tcl runtime behavior.
@@ -3203,7 +3197,8 @@ This log records the conscious design decisions that shaped the current document
 |---|---|
 | 2024-06-01 | Initial draft. |
  | 2026-04 | Consolidated review pass: removed `common/` infrastructure references; removed `template_script` execution contract (schema field retained for forward compatibility, not executed at that point); replaced archived forward-references with links to the live `technical_docs/*.md`; promoted Trim Workflow to §3.7; added Rule L1 (The Law of Explicit Include) and the treatment-token vocabulary to §4; added backup edge-case matrix to §2.8 with `VE-23` and `VI-03`; added GUI-readiness sections §8.3–8.5; added FR-38–FR-41 (service layer, JSON serialization, ProgressSink, diagnostic stability); rewrote FR-23 to name concrete audit artifacts; registered `VE-19`–`VE-23`, `VW-14`–`VW-17`, `VI-03`, `PE-03` in the diagnostic registry. |
-| 2026-04-19 | Locked in purely additive feature semantics. R1 rewritten around provenance-aware cross-source aggregation with rules L1 (explicit include wins cross-source), L2 (same-source authoring conveniences), L3 (base inviolable, features additive-only). P3 algorithm in §5.3 rewritten to classify per-source contributions (WHOLE / TRIM / NONE) and then aggregate across sources with full provenance recorded on every manifest entry. Feature ordering scoped to F3 `flow_actions` sequencing only; F1/F2 merges declared order-independent. FR-08 rewritten. Q13 and Q19 updated. New §11.6 FAQ entries for cross-source include/exclude disagreements. Diagnostic registry: `VW-10` un-retired and re-assigned to `cross-source-fe-vetoed`; `VW-11` scoped to same-source as `fe-pe-same-source-conflict`; new `VW-18 cross-source-pe-vetoed` added; VW active count 15 → 17. Project-v1 schema `features` description rewritten to reflect additive-only semantics and F3-only ordering authority. |
+| 2026-05-08 | **2.0.0-alpha — R1 ordered-overlay model.** Replaced the additive-only feature model (2026-04-19) with an ordered overlay. R1 collapses to a single rule: layers are applied in declared order; the last layer that mentions a file/proc wins. Rules L1/L2/L3 deleted. P3 algorithm in §5.3 rewritten as an ordered fold over (base, features in order). Feature ordering is authoritative for F1, F2, and F3 (was F3-only). FR-08 rewritten; FR-31 reworded; Q13 / Q19 rewritten; §11.6 FAQ rewritten. Diagnostic registry: `VW-18 cross-source-pe-vetoed` and `VW-19 cross-source-fe-vetoed` retired (cannot fire under overlay); new `VW-21 layer-shadowed` (info-class, exit 0) records every layer transition that changes a prior decision; new `VE-27 no-op-exclude` (error, exit 1) catches typo-class excludes that match nothing in the running set or via glob. VW band ceiling extended to VW-30 to accommodate VW-21 and future overlay diagnostics. `FileProvenance.vetoed_entries` removed; replaced with `contributed_by` (last surviving layer) and `shadowed_by[]` (transition log). Project-v1 schema `features` description rewritten to reflect ordered-overlay semantics. Compiler `merge_service.py` rewritten as ordered fold (drops per-source `WHOLE/TRIM/NONE` classification + cross-source aggregation cases A/B/C). Validator gains VE-27 no-op-exclude check. Audit `writers.py` provenance lines change from `vetoed-by:` to `removed-by:` / `shadowed-by:`. `IMPLEMENTATION.md` `FD-14 Feature Replacement Semantics` closed (adopted as design baseline). No backward compatibility — alpha release. |
+| 2026-04-19 | Locked in purely additive feature semantics. R1 rewritten around provenance-aware cross-source aggregation with rules L1 (explicit include wins cross-source), L2 (same-source authoring conveniences), L3 (base inviolable, features additive-only). P3 algorithm in §5.3 rewritten to classify per-source contributions (WHOLE / TRIM / NONE) and then aggregate across sources with full provenance recorded on every manifest entry. Feature ordering scoped to F3 `flow_actions` sequencing only; F1/F2 merges declared order-independent. FR-08 rewritten. Q13 and Q19 updated. New §11.6 FAQ entries for cross-source include/exclude disagreements. Diagnostic registry: `VW-10` un-retired and re-assigned to `cross-source-fe-vetoed`; `VW-11` scoped to same-source as `fe-pe-same-source-conflict`; new `VW-18 cross-source-pe-vetoed` added; VW active count 15 → 17. Project-v1 schema `features` description rewritten to reflect additive-only semantics and F3-only ordering authority. **Superseded by the 2026-05-08 R1 rewrite.** |
  | 2026-04-19 | Public-surface cleanup to eliminate schema/doc contradictions. Removed `_draft` field entirely from `schemas/base-v1.schema.json` and `technical_docs/JSON_AUTHORING_GUIDE.md`: scan mode and draft-JSON generation were considered and explicitly rejected (see OOS-04) — domain owners author JSONs manually and `--dry-run` is the authoring feedback loop. Rewrote `options.template_script` schema description to state the field is reserved at that point and not executed; narrowed `VE-18 template-script-path-escapes` to Phase 1 static path validation (symlink/containment only). Updated IMPLEMENTATION.md (pitfalls) TC-09 to match. Corrected stale non-registry diagnostic codes in schemas and authoring guide: feature-v1 `V-19` → `VW-04 feature-domain-mismatch`; authoring-guide `V-19 family` → `VE-15`/`VE-16`. |
 | 2026-04-19 | Scan-mode artifact purge across the live surface. Rewrote `tests/TESTING_STRATEGY.md` Scenario 14 to cite registered `TW-04 cycle-in-call-graph` instead of a fictional code, and Scenario 21 to assert the dry-run artifact set (`compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`) rather than the removed `diff_report.json`. Extended the scenario table with six additive-model scenarios (23–28) covering cross-source FE/PE vetoes (`VW-10`, `VW-18`), same-source FE/PE conflict (`VW-11`), F3 `flow_actions` ordering authority, F1/F2 merge order-independence, and per-entry provenance in the compiled manifest. Replaced remaining ad-hoc parser diagnostic code strings with authoritative registry codes across `tests/FIXTURE_CATALOG.md`, `technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md`, and `tests/fixtures/tracing_domain/dynamic.tcl`. OOS-04 in §2.1 and Q15 in §11 remain as the definitional statements of record for the scan-mode rejection. |
 | 2026-04-20 | Propagated the "trace is reporting-only" contract so the PI+/PT semantics are unmistakable at every authoring and implementation surface. Added a concrete worked example to §5.4 showing `foo` (listed in `procedures.include`) is copied while `bar` (reached only via trace) appears in `dependency_graph.json` and `trim_report.json` but is not copied. Promoted Scenario 14 in `tests/TESTING_STRATEGY.md` from a "no diagnostic" assertion to a real `TW-04 cycle-in-call-graph` assertion that also pins the no-auto-copy rule. Rewrote `technical_docs/IMPLEMENTATION.md` (pitfalls) Pitfall P-09 to strike the stale "`procedures.exclude` filters trace-derived proc candidates" mental model — under the additive L1/L2/L3 model, trace never adds survivors and PE is a same-source proc-trimming instruction governed by VW-09/VW-10/VW-11/VW-12/VW-18. Added Critical Principle #7 ("Trace Is Reporting-Only (Never Copies)") to `AGENTS.md`. Added a pull-quote callout to `technical_docs/JSON_AUTHORING_GUIDE.md` merge-semantics section. No diagnostic-registry changes were required. |
@@ -3259,11 +3254,13 @@ This log records the conscious design decisions that shaped the current document
 | **F3** | Stage-level capability: generated `<stage>.tcl` run files driven by the `stages` array and `flow_actions`. |
 | **FI** | `files.include` set (literal paths + expanded globs). |
 | **FE** | `files.exclude` set (literal paths + patterns). |
-| **PI** | `procedures.include` — additive proc-selection model. |
-| **PE** | `procedures.exclude` — subtractive proc-selection model. |
+| **PI** | `procedures.include` — additive proc-selection model (within a single layer). |
+| **PE** | `procedures.exclude` — subtractive proc-selection model (within a single layer). |
 | **PI+** | Transitive trace expansion of PI; reporting-only, never affects survival. |
 | **PT** | Traced-only procs (PI+ minus PI); reporting-only. |
-| **Rule L1** | The Law of Explicit Include: an explicit include always wins over any exclude. See §4 R1. |
+| **Layer** | One JSON applied at one position in the R1 overlay sequence (`base`, then each selected feature in declared order). |
+| **Running set** | The mutable `{file → treatment}` and `{proc → kept?}` map carried left-to-right through the layers during the P3 fold. |
+| **R1 (ordered overlay)** | The single conflict-resolution rule: layers are applied in declared order; the last layer that mentions a file/proc wins. See §4. |
 | **FULL_COPY** / `full-copy` | File survives unchanged; all procs retained. |
 | **PROC_TRIM** / `proc-trim` | File survives with only the surviving procs retained; other proc bodies deleted. |
 | **GENERATED** / `generated` | File is produced by F3 run-file generation, not copied from source. |

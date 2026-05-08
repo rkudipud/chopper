@@ -1,0 +1,8 @@
+{
+  "$schema": "project-v1",
+  "domain": "overlay_no_op_exclude",
+  "base": "jsons/base.json",
+  "features": [
+    "jsons/features/feature_typo.json"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "base-v1",
+  "domain": "overlay_two_features_same_file",
+  "description": "Base includes util.tcl whole; later layers reshape its proc set.",
+  "files": {
+    "include": [
+      "util.tcl"
+    ]
+  }
+}

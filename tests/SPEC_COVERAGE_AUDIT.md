@@ -49,9 +49,8 @@ Generated 2026-05-07. Refresh this file when spec sections move or new tests lan
 | BFS frontier sort determinism under input shuffling | §5.4 | [tests/property/test_determinism.py](property/test_determinism.py#L154) |
 | `--strict` + warning escalates to exit 1 | §5.2 | [tests/unit/orchestrator/test_runner.py](unit/orchestrator/test_runner.py#L169) |
 | Cleanup without `--confirm` exits 2 | §2.8 / cleanup | [tests/integration/test_cli_e2e.py](integration/test_cli_e2e.py) `TestCleanupSubcommand` |
-| Cross-source FE veto emits `VW-19` | §4 R1 | [tests/unit/compiler/test_aggregate.py](unit/compiler/test_aggregate.py#L41) |
-| Cross-source PE veto emits `VW-18` | §4 R1 | [tests/unit/compiler/test_aggregate.py](unit/compiler/test_aggregate.py#L57) |
-| Same-source FE/PE conflict emits `VW-11` | §4 R1 | [tests/unit/compiler/test_per_source.py](unit/compiler/test_per_source.py#L341) |
+| Layer-shadow transition emits `VW-21` | §4 R1 (ordered overlay) | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) `test_vw21_emitted_when_feature_pi_overrides_base_pe` |
+| Same-source FE/PE conflict emits `VW-11` | §4 R1 (same-layer rules) | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) `test_vw13_with_pi_redundant_emits_vw09_too` and adjacent VW-11/12/13 cases |
 | Tool-command pool downgrades `TW-02` → `TI-01` | §3.10 | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L286) |
 
 ### Gap
@@ -124,9 +123,11 @@ The registry has 72 active codes. Per code-family parity is enforced by `schemas
 | `VE-21` | covered above |
 | `VE-22` | [tests/unit/config/test_loaders.py](unit/config/test_loaders.py#L405) |
 | `VE-23` / `VE-24` / `VE-25` / `VE-26` | [tests/unit/trimmer/test_service.py](unit/trimmer/test_service.py) |
-| `VW-09` / `VW-11` / `VW-12` / `VW-13` | [tests/unit/compiler/test_per_source.py](unit/compiler/test_per_source.py) |
+| `VW-09` / `VW-11` / `VW-12` / `VW-13` | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) |
 | `VW-14` / `VW-15` / `VW-16` / `VW-17` | [tests/unit/validator/test_validator.py](unit/validator/test_validator.py#L740) |
-| `VW-18` / `VW-19` | [tests/unit/compiler/test_aggregate.py](unit/compiler/test_aggregate.py) |
+| `VW-18` / `VW-19` | RETIRED in 2.0.0-alpha (cannot fire under R1 ordered overlay; rows preserved per registry policy) |
+| `VW-21` | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) `test_vw21_emitted_when_feature_pi_overrides_base_pe` |
+| `VE-27` | Registry slot allocated; emission not yet implemented (validator has no check; `merge_service.py` defers via `# No-op exclude — VE-27 handled by validator.`). Pre-impl smoke fixture: [tests/fixtures/overlay_no_op_exclude/](fixtures/overlay_no_op_exclude/), exercised by `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_overlay_no_op_exclude_loads_cleanly`. |
 | `VW-20` | [tests/unit/test_coverage_98.py](unit/test_coverage_98.py#L1078) |
 | `TW-01` / `TW-02` / `TW-03` / `TW-04` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L623) |
 | `TI-01` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L286) |

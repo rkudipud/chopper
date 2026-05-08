@@ -1,0 +1,9 @@
+{
+  "$schema": "project-v1",
+  "domain": "overlay_two_features_same_file",
+  "base": "jsons/base.json",
+  "features": [
+    "jsons/features/feature_a.json",
+    "jsons/features/feature_b.json"
+  ]
+}

@@ -1,20 +1,24 @@
 chopper_version: <chopper_version:string>
 domain: mini
 files:
-- excluded_procs: null
+- contributed_by: base
+  excluded_procs: null
   input_sources:
   - base:files.include
   path: helper.tcl
   proc_model: null
   reason: fi-literal
+  shadowed_by: []
   surviving_procs: null
   treatment: full-copy
-- excluded_procs: null
+- contributed_by: base
+  excluded_procs: null
   input_sources:
   - base:files.include
   path: vars.tcl
   proc_model: null
   reason: fi-literal
+  shadowed_by: []
   surviving_procs: null
   treatment: full-copy
 flow_actions: []

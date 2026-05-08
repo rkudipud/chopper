@@ -81,7 +81,6 @@ def _manifest_with_seeds(*canonical_names: str) -> CompiledManifest:
                 treatment=FileTreatment.FULL_COPY,
                 reason="fi-literal",
                 input_sources=("base:files.include",),
-                vetoed_entries=(),
                 proc_model=None,
             )
     sorted_files = {k: file_decisions[k] for k in sorted(file_decisions)}

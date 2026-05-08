@@ -1,0 +1,10 @@
+{
+  "$schema": "feature-v1",
+  "name": "feature_typo",
+  "description": "Excludes unrelated.tcl — the file exists on disk so VE-06 does not fire, but no earlier layer included it, so VE-27 (no-op-exclude) is the relevant diagnostic.",
+  "files": {
+    "exclude": [
+      "unrelated.tcl"
+    ]
+  }
+}

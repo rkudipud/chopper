@@ -14,9 +14,9 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 73 active codes.
-        # 72 pre-1.2.0 + VI-03 domain-suffix-strip-applied.
-        assert len(all_codes()) == 73
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 73 active +
+        # 2 retired (VW-18, VW-19) = 75 registered entries in 2.0.0-alpha.
+        assert len(all_codes()) == 75
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")
@@ -37,10 +37,10 @@ class TestRegistry:
         assert families == {"VE", "VW", "VI", "TW", "TI", "PE", "PW", "PI"}
 
     def test_no_retired_codes(self) -> None:
-        # Registry declares no RETIRED slots in v1.
-        for _ in all_codes():
-            # every code must have an entry; lookup raises if not
-            pass
+        # 2.0.0-alpha: VW-18 / VW-19 are retired (slot policy preserves rows).
+        codes = all_codes()
+        assert "VW-18" in codes and lookup("VW-18").slug == "RETIRED"
+        assert "VW-19" in codes and lookup("VW-19").slug == "RETIRED"
 
 
 class TestPhase:

@@ -93,7 +93,7 @@ def test_feature_flow_action_appears_in_stage_input_sources() -> None:
     manifest = CompilerService().run(ctx, loaded, parsed)
     pv = manifest.provenance[Path("compile.tcl")]
     assert "base:stages" in pv.input_sources
-    assert "post_compile:flow_actions" in pv.input_sources
+    assert "feature:post_compile:flow_actions" in pv.input_sources
 
 
 # ---------------------------------------------------------------------------
@@ -213,13 +213,14 @@ def test_pe_on_unparsed_file_does_not_crash_aggregation() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VW-18 — PE in source-A vetoed by include in source-B
+# VW-21 — layer-shadowed: a later layer overrides an earlier layer's decision
 # ---------------------------------------------------------------------------
 
 
-def test_vw18_emitted_when_feature_pi_blocks_base_pe() -> None:
-    """Base wants to exclude proc ``foo``; feature explicitly includes
-    ``foo`` → VW-18 (cross-source veto)."""
+def test_vw21_emitted_when_feature_pi_overrides_base_pe() -> None:
+    """Base wants to exclude proc ``foo``; a later feature explicitly includes
+    ``foo`` again. Under the ordered-overlay R1 the feature wins and ``foo``
+    is kept. The transition emits ``VW-21 layer-shadowed`` (warning)."""
     ctx, sink = make_ctx()
     parsed = make_parsed({"a.tcl": ["foo", "bar"]})
     base = make_base(
@@ -232,4 +233,4 @@ def test_vw18_emitted_when_feature_pi_blocks_base_pe() -> None:
     )
     loaded = make_loaded(base, feat)
     CompilerService().run(ctx, loaded, parsed)
-    assert "VW-18" in sink.codes()
+    assert "VW-21" in sink.codes()

@@ -155,6 +155,7 @@ class TestRealisticScenario:
 
         pv = manifest.provenance[Path("a.tcl")]
         assert "base:files.include" in pv.input_sources
-        # Note: dft's PI is a TRIM signal but the file is FULL_COPY because of base.
-        # The contribution still gets a tag in input_sources.
-        assert "dft:procedures.include" in pv.input_sources
+        # Note: dft's PI is a TRIM signal; under the R1 ordered overlay it
+        # downgrades the WHOLE to PROC_TRIM. The contribution still gets a tag
+        # in input_sources, prefixed with the layer key.
+        assert "feature:dft:procedures.include" in pv.input_sources

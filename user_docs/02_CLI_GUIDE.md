@@ -236,7 +236,7 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | `trim_stats.json` | File and SLOC counts before/after |
 | `diagnostics.json` | Every diagnostic emitted (code, severity, location, hint) |
 | `files_kept.txt` | Sorted list of paths that survived, with per-line provenance (`<path>\t<source>:<field>,...`) |
-| `files_removed.txt` | Sorted list of paths physically removed, with `default-exclude` or `vetoed-by:<sources>` |
+| `files_removed.txt` | Sorted list of paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
 | `input_features/NN_name.json` | Verbatim copies of feature JSONs, prefixed by feature order |

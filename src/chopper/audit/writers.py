@@ -142,6 +142,10 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
             "treatment": _treatment_slug(treatment),
             "reason": prov.reason,
             "input_sources": list(prov.input_sources),
+            "contributed_by": prov.contributed_by,
+            "shadowed_by": [
+                {"layer": ev.layer, "prior_layer": ev.prior_layer, "action": ev.action} for ev in prov.shadowed_by
+            ],
             "proc_model": prov.proc_model,
         }
         if treatment is FileTreatment.PROC_TRIM:
@@ -413,41 +417,37 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
     """Sorted list of domain-relative paths physically removed by the trim.
 
     One entry per line, alphabetically sorted by path. Each line is
-    tab-separated as ``<path>\\t<provenance>`` where ``<provenance>`` is:
+    tab-separated as ``<path>\\t<provenance>`` where ``<provenance>`` is
+    one of:
 
-    * ``vetoed-by:<src1>,<src2>,...`` — at least one authoring intent named
-      this file but every contribution was vetoed cross-source (L3); the
-      tags come from ``FileProvenance.vetoed_entries``.
-    * ``default-exclude`` — either the file was named by a JSON authoring
-      intent that lost (no surviving contribution and no veto recorded),
-      or no JSON named the file at all (most common case for non-``.tcl``
-      companion files like helper ``.pl`` / ``.csh`` / ``.py`` scripts).
+    * ``removed-by:<layer_key>:files.exclude`` — a later layer's
+      ``files.exclude`` actually removed the file from the running
+      overlay (last :class:`ShadowEvent` with ``action == 'remove'``).
+    * ``shadowed-by:<layer_key>:procedures.exclude`` — a later layer's
+      ``procedures.exclude`` was the last shadow event recorded against
+      the file (rare for fully-removed files; included for symmetry).
+    * ``default-exclude`` — the file was never positively contributed
+      to by any layer (the common case for non-``.tcl`` companion files
+      that no JSON named).
 
     The list is computed as ``set(walk(source_root)) - set(kept_paths)``:
-    everything that exists in the original domain (``backup_root`` after a
-    live trim, ``domain_root`` for first-trim ``--dry-run``) but not in
-    the manifest's surviving file set. This covers files the compiled
-    manifest never reasoned over — files matched by no ``files.include``
-    pattern are still listed, which is the user-facing answer to *what
-    did this trim physically delete?*
+    everything that exists in the original domain (``backup_root`` after
+    a live trim, ``domain_root`` for first-trim ``--dry-run``) but not
+    in the manifest's surviving file set.
 
     Falls back to a manifest-only view (explicit ``REMOVE`` entries with
-    their ``FileProvenance.vetoed_entries`` tags) when the source root is
-    absent — e.g. during a unit test that stages no filesystem state, or
-    when audit runs after a P0/P1 abort. The fallback keeps the audit
-    bundle valid even when no physical comparison is possible.
-
-    Useful during ``--dry-run`` to review the removal set in regression
-    scripts without parsing ``trim_report.json``.
+    their :attr:`FileProvenance.shadowed_by` events) when the source
+    root is absent.
     """
 
     manifest = record.manifest
     lines: list[str] = [
         "# files_removed.txt — paths physically removed from the rebuilt domain",
         "# Format: <path>\\t<provenance>",
-        "# <provenance>: 'vetoed-by:<source_key>:<json_field>,...' when an",
-        "# authoring intent was vetoed cross-source, otherwise 'default-exclude'",
-        "# (the file was either named by a losing intent or never named at all).",
+        "# <provenance>: 'removed-by:<layer_key>:files.exclude' when a later layer's",
+        "# files.exclude removed the file; 'shadowed-by:<layer_key>:procedures.exclude'",
+        "# when the last shadow event was a PE-driven removal; otherwise 'default-exclude'",
+        "# (the file was never positively contributed to by any layer).",
     ]
 
     source_root = _physical_source_root(ctx)
@@ -484,37 +484,45 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
 def _format_removed_provenance(prov) -> str:  # type: ignore[no-untyped-def]
     """Render a ``FileProvenance`` entry as the per-line provenance column.
 
-    ``vetoed-by:<src1>,<src2>,...`` when ``vetoed_entries`` is populated,
-    ``default-exclude`` otherwise (including the common case of no
-    provenance entry at all, i.e. the file was never named by any JSON).
+    Picks the LAST :class:`ShadowEvent` recorded against the file (the
+    one that actually removed it) and renders it as either
+    ``removed-by:<layer_key>:files.exclude`` (action ``remove``) or
+    ``shadowed-by:<layer_key>:procedures.exclude`` (any other action
+    that ended in removal). When no shadow events exist, returns
+    ``default-exclude``.
     """
 
-    if prov is not None and prov.vetoed_entries:
-        return "vetoed-by:" + ",".join(prov.vetoed_entries)
-    return "default-exclude"
+    if prov is None or not prov.shadowed_by:
+        return "default-exclude"
+    last = prov.shadowed_by[-1]
+    if last.action == "remove":
+        return f"removed-by:{last.layer}:files.exclude"
+    return f"shadowed-by:{last.layer}:procedures.exclude"
 
 
 def render_files_kept(record: RunRecord) -> tuple[str, str]:
     """Sorted list of domain-relative paths that will be kept, with provenance.
 
-    One entry per line, alphabetically sorted by path. Includes files with
-    ``FULL_COPY``, ``PROC_TRIM``, and ``GENERATED`` treatments. Each line
-    is tab-separated as ``<path>\\t<sources>`` where ``<sources>`` is a
-    comma-separated list of ``<source_key>:<json_field>`` provenance tags
-    (from ``FileProvenance.input_sources``) that pulled the file in. When
-    no provenance entry exists for the file the field is ``-``.
+    One entry per line, alphabetically sorted by path. Includes files
+    with ``FULL_COPY``, ``PROC_TRIM``, and ``GENERATED`` treatments.
+    Each line is tab-separated as ``<path>\\t<contributed_by>`` where
+    ``<contributed_by>`` is the single layer key recorded in
+    :attr:`FileProvenance.contributed_by` — the last layer that
+    positively contributed to the file under the R1 ordered overlay.
+    When no provenance entry exists, the field is ``-``.
 
     The file is empty (header only) when the manifest is absent. Useful
-    during ``--dry-run`` to verify the survival set in regression scripts
-    without parsing the compiled manifest.
+    during ``--dry-run`` to verify the survival set in regression
+    scripts without parsing the compiled manifest.
     """
 
     manifest = record.manifest
     lines: list[str] = [
         "# files_kept.txt — paths that survive trimming",
-        "# Format: <path>\\t<sources>",
-        "# <sources>: comma-separated '<source_key>:<json_field>' provenance",
-        "# tags from CompiledManifest.provenance[<path>].input_sources, or '-'",
+        "# Format: <path>\\t<contributed_by>",
+        "# <contributed_by>: the single layer key from",
+        "# CompiledManifest.provenance[<path>].contributed_by (the last layer",
+        "# that positively contributed to the file under the R1 overlay), or '-'",
         "# when no JSON names the file directly.",
     ]
     if manifest is not None:
@@ -522,11 +530,11 @@ def render_files_kept(record: RunRecord) -> tuple[str, str]:
             (p, manifest.provenance.get(p)) for p, t in manifest.file_decisions.items() if t in _KEPT_TREATMENTS
         )
         for path, prov in kept_entries:
-            if prov is not None and prov.input_sources:
-                sources = ",".join(prov.input_sources)
+            if prov is not None and prov.contributed_by:
+                contributed_by = prov.contributed_by
             else:
-                sources = "-"
-            lines.append(f"{path.as_posix()}\t{sources}")
+                contributed_by = "-"
+            lines.append(f"{path.as_posix()}\t{contributed_by}")
     lines.append("")
     return "files_kept.txt", "\n".join(lines)
 

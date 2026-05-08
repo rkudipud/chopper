@@ -7,8 +7,8 @@ Public surface:
 * :class:`TracerService` — consumes the manifest + parse index and
   returns a frozen :class:`DependencyGraph`.
 
-See :mod:`chopper.compiler.merge_service` for the two-pass R1 merge
-algorithm.
+See :mod:`chopper.compiler.merge_service` for the R1 ordered-overlay
+fold algorithm.
 """
 
 from __future__ import annotations

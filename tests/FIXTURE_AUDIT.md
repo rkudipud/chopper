@@ -20,6 +20,10 @@
 | [`fixtures/mini_domain/`](fixtures/mini_domain/) | Minimal valid multi-file domain (3 procs, 2 files, 1 feature) for end-to-end integration | **Populated** (see `FIXTURE_CATALOG.md`). |
 | [`fixtures/namespace_domain/`](fixtures/namespace_domain/) | Namespace resolution test cases across files | **Populated** (see `FIXTURE_CATALOG.md`). |
 | [`fixtures/tracing_domain/`](fixtures/tracing_domain/) | BFS trace fixtures (direct, cycle, ambiguous, dynamic) | **Populated** — 6 fixtures (see [§3](#3-tracing-domain-fixtures)). |
+| [`fixtures/overlay_replace/`](fixtures/overlay_replace/) | R1 ordered-overlay: feature replaces base file (excludes `legacy.tcl`, includes `new.tcl`) — VW-21 layer-shadowed | **Populated** (2.0.0-alpha). |
+| [`fixtures/overlay_remove_only/`](fixtures/overlay_remove_only/) | R1 ordered-overlay: feature removes a base file with no replacement — VW-21 layer-shadowed | **Populated** (2.0.0-alpha). |
+| [`fixtures/overlay_two_features_same_file/`](fixtures/overlay_two_features_same_file/) | R1 ordered-overlay: feature_a PE downgrades base WHOLE → PROC_TRIM, feature_b PI re-includes — last-layer-wins composition | **Populated** (2.0.0-alpha). |
+| [`fixtures/overlay_no_op_exclude/`](fixtures/overlay_no_op_exclude/) | R1 ordered-overlay: typo-class exclude that matches nothing — emits VE-27 no-op-exclude | **Populated** (2.0.0-alpha). |
 
 Real-world Tcl pathologies from production Synopsys Formality flows (CRLF line endings, ``define_proc_attributes`` backslash continuation, column-0 proc bodies, banner-comment preservation through trimming) are embedded inline in [`unit/parser/test_service.py::TestRealWorldScenarios`](unit/parser/test_service.py) and [`unit/trimmer/test_proc_dropper.py`](unit/trimmer/test_proc_dropper.py) rather than kept as a bulk corpus fixture — this keeps the regression guards co-located with the code that enforces them.
 

@@ -181,14 +181,19 @@ class TestFileProvenance:
                 input_sources=("b:x", "a:x"),
             )
 
-    def test_vetoed_entries_unsorted_rejected(self) -> None:
-        with pytest.raises(ValueError, match="vetoed_entries must be lex-sorted"):
-            FileProvenance(
-                path=Path("a.tcl"),
-                treatment=FileTreatment.FULL_COPY,
-                reason="fi-literal",
-                vetoed_entries=("b:x", "a:x"),
-            )
+    def test_shadowed_by_recorded(self) -> None:
+        from chopper.core.models_compiler import ShadowEvent
+
+        ev = ShadowEvent(layer="feature:x", prior_layer="base", action="replace")
+        prov = FileProvenance(
+            path=Path("a.tcl"),
+            treatment=FileTreatment.FULL_COPY,
+            reason="fi-literal",
+            contributed_by="feature:x",
+            shadowed_by=(ev,),
+        )
+        assert prov.shadowed_by == (ev,)
+        assert prov.contributed_by == "feature:x"
 
     def test_proc_model_on_non_proc_trim_rejected(self) -> None:
         with pytest.raises(ValueError, match="proc_model is only valid for PROC_TRIM"):
@@ -196,7 +201,7 @@ class TestFileProvenance:
                 path=Path("a.tcl"),
                 treatment=FileTreatment.FULL_COPY,
                 reason="fi-literal",
-                proc_model="additive",
+                proc_model="overlay",
             )
 
 

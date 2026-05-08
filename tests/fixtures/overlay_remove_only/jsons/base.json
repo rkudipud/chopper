@@ -1,0 +1,11 @@
+{
+  "$schema": "base-v1",
+  "domain": "overlay_remove_only",
+  "description": "Base contributes core.tcl + keep.tcl; feature_drop removes core.tcl.",
+  "files": {
+    "include": [
+      "core.tcl",
+      "keep.tcl"
+    ]
+  }
+}

@@ -262,9 +262,10 @@ def test_render_files_kept_lists_surviving_paths_sorted() -> None:
             p_trim: FileProvenance(
                 path=p_trim,
                 treatment=FileTreatment.PROC_TRIM,
-                reason="pi-additive",
+                reason="pi-overlay",
                 input_sources=("base:procedures.include",),
-                proc_model="additive",
+                contributed_by="base",
+                proc_model="overlay",
             ),
             p_rem: FileProvenance(path=p_rem, treatment=FileTreatment.REMOVE, reason="default-exclude"),
             p_gen: FileProvenance(
@@ -272,41 +273,52 @@ def test_render_files_kept_lists_surviving_paths_sorted() -> None:
                 treatment=FileTreatment.GENERATED,
                 reason="fi-literal",
                 input_sources=("base:stages",),
+                contributed_by="base",
             ),
             p_copy: FileProvenance(
                 path=p_copy,
                 treatment=FileTreatment.FULL_COPY,
                 reason="fi-literal",
                 input_sources=("base:files.include",),
+                contributed_by="base",
             ),
         },
     )
     _, content = render_files_kept(_record(manifest=manifest))
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == [
-        "a_trim.tcl\tbase:procedures.include",
-        "synth.tcl\tbase:stages",
-        "z_copy.tcl\tbase:files.include",
+        "a_trim.tcl\tbase",
+        "synth.tcl\tbase",
+        "z_copy.tcl\tbase",
     ]
     assert "drop.tcl" not in content
 
 
-def test_render_files_removed_reports_vetoed_provenance() -> None:
+def test_render_files_removed_reports_shadowed_provenance() -> None:
+    """Under the R1 ordered overlay, a file removed by a later layer's
+    ``files.exclude`` carries a ``ShadowEvent`` with action ``"remove"``.
+    The audit artifact surfaces this as ``removed-by:<layer>:files.exclude``.
+
+    Files with no shadow events (never positively contributed to by any
+    layer) are tagged ``default-exclude``.
+    """
+    from chopper.core.models_compiler import ShadowEvent  # noqa: PLC0415
+
     p_default = Path("orphan.tcl")
-    p_vetoed = Path("vetoed.tcl")
+    p_removed = Path("removed.tcl")
     manifest = CompiledManifest(
         file_decisions={
             p_default: FileTreatment.REMOVE,
-            p_vetoed: FileTreatment.REMOVE,
+            p_removed: FileTreatment.REMOVE,
         },
         proc_decisions={},
         provenance={
             p_default: FileProvenance(path=p_default, treatment=FileTreatment.REMOVE, reason="default-exclude"),
-            p_vetoed: FileProvenance(
-                path=p_vetoed,
+            p_removed: FileProvenance(
+                path=p_removed,
                 treatment=FileTreatment.REMOVE,
-                reason="default-exclude",
-                vetoed_entries=("base:procedures.exclude", "feature_a:files.exclude"),
+                reason="fe-shadow",
+                shadowed_by=(ShadowEvent(layer="feature:trim_x", prior_layer="base", action="remove"),),
             ),
         },
     )
@@ -314,7 +326,7 @@ def test_render_files_removed_reports_vetoed_provenance() -> None:
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == [
         "orphan.tcl\tdefault-exclude",
-        "vetoed.tcl\tvetoed-by:base:procedures.exclude,feature_a:files.exclude",
+        "removed.tcl\tremoved-by:feature:trim_x:files.exclude",
     ]
 
 
@@ -494,7 +506,10 @@ def test_render_files_removed_dry_run_and_live_byte_identical() -> None:
     ]
 
 
-def test_render_files_kept_reports_multi_source_provenance() -> None:
+def test_render_files_kept_reports_contributed_by() -> None:
+    """Under the R1 ordered overlay, ``files_kept.txt`` reports a single
+    ``contributed_by`` token — the last layer that positively contributed
+    to the file — not a comma-separated list of all touchers."""
     p = Path("shared/util.tcl")
     manifest = CompiledManifest(
         file_decisions={p: FileTreatment.PROC_TRIM},
@@ -503,19 +518,20 @@ def test_render_files_kept_reports_multi_source_provenance() -> None:
             p: FileProvenance(
                 path=p,
                 treatment=FileTreatment.PROC_TRIM,
-                reason="pi-additive",
+                reason="pi-overlay",
                 input_sources=(
                     "base:procedures.include",
-                    "feature_a:procedures.include",
+                    "feature:feature_a:procedures.include",
                 ),
-                proc_model="additive",
+                contributed_by="feature:feature_a",
+                proc_model="overlay",
             ),
         },
     )
     _, content = render_files_kept(_record(manifest=manifest))
     data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
     assert data_lines == [
-        "shared/util.tcl\tbase:procedures.include,feature_a:procedures.include",
+        "shared/util.tcl\tfeature:feature_a",
     ]
 
 
@@ -609,6 +625,8 @@ def test_audit_service_renders_manifest_files_section() -> None:
             "treatment": "full-copy",
             "reason": "fi-literal",
             "input_sources": ["base:files.include"],
+            "contributed_by": None,
+            "shadowed_by": [],
             "proc_model": None,
             "surviving_procs": None,
             "excluded_procs": None,
@@ -680,9 +698,10 @@ def _build_rich_record() -> RunRecord:
         p_trim: FileProvenance(
             path=p_trim,
             treatment=FileTreatment.PROC_TRIM,
-            reason="pi-additive",
+            reason="pi-overlay",
             input_sources=("base:procedures.include",),
-            proc_model="additive",
+            contributed_by="base",
+            proc_model="overlay",
         ),
         p_rem: FileProvenance(
             path=p_rem,

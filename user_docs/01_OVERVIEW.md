@@ -21,7 +21,7 @@ All three approaches fail the same way: there is no machine-checkable record of 
 
 ## 2. The solution
 
-**Chopper is a static, additive trimmer.** You write JSON that declares the slice of the domain a project needs. Chopper parses your domain, compiles your JSON into per-file and per-proc decisions, traces the call graph for visibility, rebuilds the trimmed domain on disk, optionally generates run scripts, and writes a complete audit bundle.
+**Chopper is a static, ordered-overlay trimmer.** You write JSON that declares the slice of the domain a project needs. Chopper parses your domain, compiles your JSON into per-file and per-proc decisions, traces the call graph for visibility, rebuilds the trimmed domain on disk, optionally generates run scripts, and writes a complete audit bundle.
 
 ```text
         +------------------+
@@ -181,29 +181,29 @@ Always one of: `"base-v1"`, `"feature-v1"`, `"project-v1"`. These are short iden
 > **Three rules. Memorise these. Every result follows from them.**
 
 1. **Default is exclude.** If no JSON keeps a file, it is removed. There is no "keep everything unless I say otherwise" mode.
-2. **Explicit include always wins.** If any JSON says "keep `foo.tcl`", nothing else can remove it. Features cannot override base inclusions.
+2. **Within a layer, explicit include wins; across layers, the later layer wins.** Within a single JSON (base or one feature), an explicit `include` always overrides an `exclude` at the same granularity. Across layers, base + features are folded as an ordered overlay — the **last layer that mentions a file or proc wins**, so a later feature can add, remove, or replace what an earlier layer contributed. Reordering features in `project.features[]` can change the trimmed output.
 3. **Tracing is reporting-only.** The call-graph trace produces `dependency_graph.json` and `TW-*` warnings so you understand coupling. It **never auto-copies** procs into the output — only procs you listed explicitly survive.
 
-### Cross-source aggregation (when JSONs disagree)
+### Layer ordering (when JSONs disagree)
 
-A **source** is one JSON file: the base, or any one selected feature. The project JSON is *not* a source — it is a list of sources.
+A **source** is one JSON file: the base, or any one selected feature. The project JSON is *not* a source — it is a list of sources. Layers are applied in order: base first, then `project.features[]` left-to-right. The last layer that mentions a file or proc wins.
 
 | Situation | Result |
 |---|---|
-| Any source says "whole file" (`files.include`) | File survives as `FULL_COPY`. All procs kept. |
-| No whole-file signal, some source has proc includes | File survives as `PROC_TRIM`. Surviving procs = union of every source's kept set. |
-| No source includes anything for the file | File is removed (or `GENERATED` if it is an F3 stage output). |
+| Only the latest layer that mentions the file says "whole file" (`files.include`) | File survives as `FULL_COPY`. All procs kept. |
+| Latest layer with anything to say is a proc-level include/exclude | File survives as `PROC_TRIM`. Surviving procs = the kept set as last modified. |
+| The latest layer that mentions the file says exclude (`files.exclude`) | File is removed (or `GENERATED` if it is an F3 stage output). |
+| No layer mentions the file at all | File is removed (default-exclude). |
 
-### Veto warnings (when features try to remove base content)
+### Layer-shadow audit (when later layers change earlier decisions)
 
-Features are **additive only**. A feature's exclude cannot remove what another source included. When it tries, Chopper still trims correctly and warns you:
+Features are **layered, not additive**. A later layer's exclude can remove what an earlier layer included, and a later layer's include can re-add what an earlier layer removed. Every transition that actually changes a prior decision is recorded:
 
 | Code | When it fires |
 |---|---|
-| `VW-18` cross-source-pe-vetoed | Feature excludes proc `p`, but another source includes the file whole or lists `p` |
-| `VW-19` cross-source-fe-vetoed | Feature excludes file `F`, but another source includes `F` |
+| `VW-21` layer-shadowed | A later layer cancelled an include, removed a proc that was kept, or downgraded a whole-file include to PROC_TRIM. The audit bundle records each event with `(layer, prior_layer, action)`. |
 
-These are warnings, not errors. Run with `--strict` if CI should fail on them.
+`VW-21` is informational (exit 0). It is the audit trail for ordered-overlay merges — use it to verify the layer order in `project.features[]` reflects your intent. Run with `--strict` if CI should fail on any warning.
 
 ### Same-source authoring conflicts
 
@@ -239,7 +239,7 @@ These are warnings, not errors. Run with `--strict` if CI should fail on them.
 | Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only listed procs survive. |
 | Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except excluded procs survive. |
 | File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
-| Feature tries to remove a base file | Base includes file, feature excludes file | Base include wins; feature exclude is vetoed with `VW-19`. |
+| Feature tries to remove a base file | Base includes file, a later feature excludes file | Feature is the later layer under R1 ordered overlay; the file is removed and `VW-21 layer-shadowed` records the transition. |
 
 For each pattern, copy from the matching folder in [../examples/](../examples/) — see the example map at the end of this document.
 
