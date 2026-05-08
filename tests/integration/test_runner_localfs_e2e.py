@@ -423,8 +423,6 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
         assert by_path[stack_path]["treatment"] == "generated"
 
 
-
-
 # ---------------------------------------------------------------------------
 # overlay_* fixtures \u2014 R1 ordered-overlay end-to-end
 # ---------------------------------------------------------------------------
@@ -482,26 +480,23 @@ def test_runner_localfs_overlay_remove_only_emits_vw21(tmp_path: Path) -> None:
     assert decisions[Path("keep.tcl")] is FileTreatment.FULL_COPY
 
 
-def test_runner_localfs_overlay_no_op_exclude_loads_cleanly(tmp_path: Path) -> None:
-    """Fixture loads and parses cleanly.
+def test_runner_localfs_overlay_no_op_exclude_emits_ve27(tmp_path: Path) -> None:
+    """Feature excludes a file no earlier layer included → ``VE-27`` + exit 1.
 
-    ``VE-27 no-op-exclude`` is registered in the diagnostic catalog but the validator
-    emission is not yet implemented (the compiler defers to the validator with
-    ``# No-op exclude — VE-27 handled by validator.`` and the validator has no
-    matching check). When the emission lands, this test should be tightened to assert
-    ``VE-27`` in ``codes`` and ``exit_code == 1``. Tracked under SPEC_COVERAGE_AUDIT.md.
+    Implements the ``files.exclude`` no-op detection per ARCHITECTURE.md §3.2 and
+    DIAGNOSTIC_CODES.md ``VE-27``. The compiler emits at P3 (the natural detection
+    point); the validator does not re-derive.
     """
 
     domain = tmp_path / "overlay_no_op_exclude"
     shutil.copytree(FIXTURE_OVERLAY_NO_OP_EXCLUDE, domain)
 
-    ctx, _sink = _make_overlay_ctx(domain, dry_run=True)
+    ctx, sink = _make_overlay_ctx(domain, dry_run=True)
     result = ChopperRunner().run(ctx, command="validate")
 
-    # Pre-impl: run succeeds; the silently-no-op exclude leaves real.tcl intact.
-    assert result.exit_code == 0
-    assert result.manifest is not None
-    assert result.manifest.file_decisions[Path("real.tcl")] is FileTreatment.FULL_COPY
+    codes = [d.code for d in sink.snapshot()]
+    assert "VE-27" in codes, f"VE-27 not emitted; codes: {codes}"
+    assert result.exit_code == 1, f"expected exit 1 (validation error); got {result.exit_code}"
 
 
 def test_runner_localfs_overlay_two_features_last_layer_wins(tmp_path: Path) -> None:

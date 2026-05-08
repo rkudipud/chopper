@@ -129,6 +129,7 @@ def test_glob_matched_non_tcl_file_receives_full_copy_treatment() -> None:
         fe_literal=frozenset(),
         pi_by_file={},
         pe_by_file={},
+        fe_glob_unmatched=(),
     )
 
     universe = _collect_universe(parsed, [fake_facts])
@@ -234,3 +235,43 @@ def test_vw21_emitted_when_feature_pi_overrides_base_pe() -> None:
     loaded = make_loaded(base, feat)
     CompilerService().run(ctx, loaded, parsed)
     assert "VW-21" in sink.codes()
+
+
+# ---------------------------------------------------------------------------
+# VE-27 — no-op excludes
+# ---------------------------------------------------------------------------
+
+
+def test_ve27_emitted_for_literal_fe_no_match_in_running_set() -> None:
+    """Feature ``files.exclude`` lists a path that no earlier layer included."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo"], "b.tcl": ["bar"]})
+    base = make_base(files=files_section(include=("a.tcl",)))
+    feat = make_feature("typo", files=files_section(exclude=("b.tcl",)))
+    loaded = make_loaded(base, feat)
+    CompilerService().run(ctx, loaded, parsed)
+    assert "VE-27" in sink.codes()
+
+
+def test_ve27_emitted_for_glob_fe_with_zero_matches() -> None:
+    """A glob ``files.exclude`` pattern that matches no surface file → VE-27."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo"]})
+    base = make_base(files=files_section(include=("a.tcl",)))
+    feat = make_feature("typo", files=files_section(exclude=("zzz_*.tcl",)))
+    loaded = make_loaded(base, feat)
+    CompilerService().run(ctx, loaded, parsed)
+    assert "VE-27" in sink.codes()
+
+
+def test_ve27_emitted_for_pe_proc_name_typo() -> None:
+    """PE proc-name that doesn't match any proc in the file → VE-27."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "no_such_proc"),)),
+    )
+    loaded = make_loaded(base)
+    CompilerService().run(ctx, loaded, parsed)
+    assert "VE-27" in sink.codes()

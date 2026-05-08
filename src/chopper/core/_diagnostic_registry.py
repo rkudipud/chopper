@@ -95,7 +95,7 @@ _REGISTRY: dict[str, _Entry] = {
     "VE-24": _Entry(slug="backup-contents-missing", severity=Severity.ERROR, phase=5, source="trimmer", exit_code=1),
     "VE-25": _Entry(slug="domain-write-failed", severity=Severity.ERROR, phase=5, source="trimmer", exit_code=1),
     "VE-26": _Entry(slug="proc-atomic-drop-failed", severity=Severity.ERROR, phase=5, source="trimmer", exit_code=1),
-    "VE-27": _Entry(slug="no-op-exclude", severity=Severity.ERROR, phase=1, source="validator", exit_code=1),
+    "VE-27": _Entry(slug="no-op-exclude", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1),
     "VW-01": _Entry(
         slug="file-in-both-include-lists", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0
     ),

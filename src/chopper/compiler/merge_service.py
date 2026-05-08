@@ -15,8 +15,10 @@ Per-layer apply step (one file at a time):
   events are recorded structurally on
   :attr:`FileProvenance.shadowed_by`.
 * No-op excludes (FE/PE entries that match nothing in the running set or
-  via glob expansion at this layer) are surfaced by the validator as
-  ``VE-27 no-op-exclude``; the compiler does not emit it.
+  via glob expansion at this layer) are emitted as ``VE-27
+  no-op-exclude`` directly from this service — the typo cases live
+  inline with the fold so the message can name the offending layer and
+  entry exactly.
 
 Not this service's job:
 
@@ -68,6 +70,7 @@ class _SourceFacts:
     fe_literal: frozenset[Path]
     pi_by_file: dict[Path, frozenset[str]]
     pe_by_file: dict[Path, frozenset[str]]
+    fe_glob_unmatched: tuple[str, ...]
 
 
 # ---------------------------------------------------------------------------
@@ -297,8 +300,13 @@ def _extract_facts(
             fe_literal_set.add(Path(entry))
 
     fe_hits: set[Path] = {p for p in fe_literal_set if p in surface_paths}
+    fe_glob_unmatched: list[str] = []
     for pattern in fe_glob_patterns:
-        fe_hits.update(_match_glob(pattern, surface_paths))
+        matches = _match_glob(pattern, surface_paths)
+        if matches:
+            fe_hits.update(matches)
+        else:
+            fe_glob_unmatched.append(pattern)
 
     fi_glob_matches: set[Path] = set()
     for pattern in fi_glob_patterns:
@@ -320,6 +328,7 @@ def _extract_facts(
         fe_literal=frozenset(fe_hits),
         pi_by_file={k: frozenset(v) for k, v in pi_by_file.items()},
         pe_by_file={k: frozenset(v) for k, v in pe_by_file.items()},
+        fe_glob_unmatched=tuple(fe_glob_unmatched),
     )
 
 
@@ -351,9 +360,14 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
     short_to_canonical_by_file: dict[Path, dict[str, str]],
 ) -> None:
     """Apply layer ``src``'s signals to the running set, emitting same-layer
-    warnings (VW-09/11/12/13) and layer-transition warnings (VW-21).
+    warnings (VW-09/11/12/13), layer-transition warnings (VW-21), and
+    no-op exclude errors (VE-27).
     """
     layer_key = src.key
+
+    # Glob FE patterns that matched zero surface paths at this layer.
+    for pattern in facts.fe_glob_unmatched:
+        _emit_ve27_glob(ctx, src, pattern)
 
     files_touched: set[Path] = set()
     files_touched |= facts.fi_literal | facts.fi_glob_surviving | facts.fe_literal
@@ -371,6 +385,11 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
         s2c = short_to_canonical_by_file.get(file_path, {})
         pi_cn = frozenset(s2c[s] for s in pi_short if s in s2c)
         pe_cn = frozenset(s2c[s] for s in pe_short if s in s2c)
+
+        # PE short-names that don't resolve to any canonical proc in the file
+        # are typo no-ops (VE-27). File presence is verified by VE-06 at P1.
+        for unmapped in sorted(pe_short - set(s2c.keys())):
+            _emit_ve27_pe_proc(ctx, src, file_path, unmapped)
 
         # ---- Same-layer authoring warnings (unchanged from prior model) --
         if fi_any and pi_short:
@@ -397,7 +416,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
 
         if intent[0] == "remove":
             if prev is None:
-                # No-op exclude — VE-27 handled by validator.
+                # Literal FE that no earlier layer (or same-layer FI) contributed.
+                _emit_ve27_fe_literal(ctx, src, file_path)
                 continue
             shadow_events.setdefault(file_path, []).append(
                 ShadowEvent(layer=layer_key, prior_layer=prior_layer or layer_key, action="remove")
@@ -790,6 +810,50 @@ def _emit_vw21(ctx: ChopperContext, file_path: Path, layer: str, prior_layer: st
                 "No action required if the layer order in project.features[] is intentional; "
                 "verify the order if the shadow is unexpected"
             ),
+        )
+    )
+
+
+def _emit_ve27_fe_literal(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-27",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"Layer {ref.key!r}: files.exclude entry {file_path.as_posix()!r} matches nothing "
+                f"in the running set established by earlier layers (no-op)"
+            ),
+            path=file_path,
+            hint=(
+                "Verify the path; remove the entry if no earlier layer (base or preceding feature) "
+                "contributes this file"
+            ),
+        )
+    )
+
+
+def _emit_ve27_glob(ctx: ChopperContext, ref: _SourceRef, pattern: str) -> None:
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-27",
+            phase=Phase.P3_COMPILE,
+            message=(f"Layer {ref.key!r}: files.exclude glob {pattern!r} matched zero files at this layer (no-op)"),
+            hint="Verify the glob; remove it if it cannot match any file in the domain surface",
+        )
+    )
+
+
+def _emit_ve27_pe_proc(ctx: ChopperContext, ref: _SourceRef, file_path: Path, proc_name: str) -> None:
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-27",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"Layer {ref.key!r}: procedures.exclude proc {proc_name!r} in "
+                f"{file_path.as_posix()!r} does not match any proc in the file (no-op)"
+            ),
+            path=file_path,
+            hint="Verify the proc name (short or qualified); remove the entry if the proc no longer exists",
         )
     )
 

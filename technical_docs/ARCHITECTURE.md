@@ -445,7 +445,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 **Features are layered, not additive.** Sources (base + each selected feature in declared order) are applied as an ordered overlay: each layer can include and exclude freely, and the **last layer that says something about a file or proc wins**. A feature can therefore add new content, remove base content, or replace base content with its own. In detail:
 
 - `files.include` adds the file to the running set at this layer.
-- `files.exclude` removes the file from the running set at this layer, regardless of which earlier layer (base or another feature) put it there. If no earlier layer or glob match contributes the file, `VE-27 no-op-exclude` is emitted at validation time — almost always a typo.
+- `files.exclude` removes the file from the running set at this layer, regardless of which earlier layer (base or another feature) put it there. If no earlier layer or glob match contributes the file, `VE-27 no-op-exclude` is emitted at compile time (P3) — almost always a typo.
 - `procedures.include` adds the proc (and forces its file to survive as `PROC_TRIM` if no whole-file include is in effect).
 - `procedures.exclude` removes the proc from the running set at this layer, regardless of source. If the proc is not present in the running set when this layer runs, `VE-27` is emitted.
 - When a later layer actually changes an earlier layer's decision (cancels an include, replaces a file, removes a proc that an earlier layer contributed), `VW-21 layer-shadowed` is emitted — informational, exit 0, audit trail only.

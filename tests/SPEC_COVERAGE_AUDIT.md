@@ -127,7 +127,7 @@ The registry has 72 active codes. Per code-family parity is enforced by `schemas
 | `VW-14` / `VW-15` / `VW-16` / `VW-17` | [tests/unit/validator/test_validator.py](unit/validator/test_validator.py#L740) |
 | `VW-18` / `VW-19` | RETIRED in 2.0.0-alpha (cannot fire under R1 ordered overlay; rows preserved per registry policy) |
 | `VW-21` | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) `test_vw21_emitted_when_feature_pi_overrides_base_pe` |
-| `VE-27` | Registry slot allocated; emission not yet implemented (validator has no check; `merge_service.py` defers via `# No-op exclude — VE-27 handled by validator.`). Pre-impl smoke fixture: [tests/fixtures/overlay_no_op_exclude/](fixtures/overlay_no_op_exclude/), exercised by `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_overlay_no_op_exclude_loads_cleanly`. |
+| `VE-27` | [tests/integration/test_runner_localfs_e2e.py](integration/test_runner_localfs_e2e.py) `test_runner_localfs_overlay_no_op_exclude_emits_ve27`; emitted from `compiler/merge_service.py` at three sites (literal FE no-op, glob FE zero-match, PE proc-name typo). |
 | `VW-20` | [tests/unit/test_coverage_98.py](unit/test_coverage_98.py#L1078) |
 | `TW-01` / `TW-02` / `TW-03` / `TW-04` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L623) |
 | `TI-01` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L286) |
