@@ -24,7 +24,7 @@ def test_package_version_falls_back_to_pyproject(monkeypatch: pytest.MonkeyPatch
 
     namespace = runpy.run_path("src/chopper/__init__.py")
 
-    assert namespace["__version__"] == "2.0.0a0"
+    assert namespace["__version__"] == "2.0.0a1"
 
 
 def test_package_version_uses_unknown_when_pyproject_unreadable(monkeypatch: pytest.MonkeyPatch) -> None:

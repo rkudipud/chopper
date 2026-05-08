@@ -59,7 +59,12 @@ def test_format_tcl_indentation_ports_legacy_brace_logic() -> None:
     )
 
 
-def test_service_formats_all_surviving_tcl_outputs_and_updates_report() -> None:
+def test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl() -> None:
+    """P5c rewrites PROC_TRIM and GENERATED ``.tcl`` only.
+
+    FULL_COPY ``.tcl`` outputs (and any non-Tcl outputs) must reach disk
+    byte-for-byte identical to their source — see issue #22.
+    """
     full_text = "proc copied {} {\nputs copied\n}\n"
     trim_text = "proc kept {} {\nputs kept\n}\n"
     generated_text = "# Chopper-generated stage: stage\nif {$ready} {\nputs ready\n}\n"
@@ -91,8 +96,10 @@ def test_service_formats_all_surviving_tcl_outputs_and_updates_report() -> None:
     updated_report, updated_artifacts, rewritten = TclIndentationService().run(ctx, manifest, report, artifacts)
 
     assert sink.codes() == []
-    assert rewritten == (DOMAIN / "full.tcl", DOMAIN / "stage.tcl", DOMAIN / "trim.tcl")
-    assert fs.read_text(DOMAIN / "full.tcl") == "proc copied {} {\n    puts copied\n}\n"
+    # FULL_COPY ``.tcl`` is not in the rewritten path tuple.
+    assert rewritten == (DOMAIN / "stage.tcl", DOMAIN / "trim.tcl")
+    # FULL_COPY contents on disk are unchanged.
+    assert fs.read_text(DOMAIN / "full.tcl") == full_text
     assert fs.read_text(DOMAIN / "trim.tcl") == "proc kept {} {\n    puts kept\n}\n"
     assert fs.read_text(DOMAIN / "stage.tcl") == (
         "# Chopper-generated stage: stage\nif {$ready} {\n    puts ready\n}\n"
@@ -100,7 +107,8 @@ def test_service_formats_all_surviving_tcl_outputs_and_updates_report() -> None:
     assert fs.read_text(DOMAIN / "note.txt") == note_text
 
     outcomes = {outcome.path.as_posix(): outcome for outcome in updated_report.outcomes}
-    assert outcomes["full.tcl"].bytes_out == len(fs.read_text(DOMAIN / "full.tcl").encode("utf-8"))
+    # FULL_COPY bytes_out unchanged from the pre-P5c value.
+    assert outcomes["full.tcl"].bytes_out == len(full_text.encode("utf-8"))
     assert outcomes["trim.tcl"].bytes_out == len(fs.read_text(DOMAIN / "trim.tcl").encode("utf-8"))
     assert outcomes["note.txt"].bytes_out == len(note_text.encode("utf-8"))
     assert updated_artifacts[0].content == fs.read_text(DOMAIN / "stage.tcl")

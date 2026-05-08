@@ -244,12 +244,13 @@ def test_runner_localfs_dry_live_dry_sequence_keeps_domain_payload_stable(tmp_pa
     assert _domain_payload_hashes(domain) == after_live_hashes
 
 
-def test_runner_localfs_live_trim_formats_full_copy_proc_trim_and_generated_tcl(tmp_path: Path) -> None:
-    """P5c formats every emitted Tcl output before P6 validates byte counts."""
+def test_runner_localfs_live_trim_formats_proc_trim_and_generated_tcl_only(tmp_path: Path) -> None:
+    """P5c formats PROC_TRIM and GENERATED Tcl; FULL_COPY stays verbatim (issue #22)."""
 
     domain = tmp_path / "format_domain"
     (domain / "jsons").mkdir(parents=True)
-    (domain / "full.tcl").write_text("proc copied {} {\nputs copied\n}\n", encoding="utf-8")
+    full_source = "proc copied {} {\nputs copied\n}\n"
+    (domain / "full.tcl").write_text(full_source, encoding="utf-8")
     (domain / "trim.tcl").write_text(
         "proc keep {} {\nputs keep\n}\n\nproc drop {} {\nputs drop\n}\n",
         encoding="utf-8",
@@ -279,12 +280,14 @@ def test_runner_localfs_live_trim_formats_full_copy_proc_trim_and_generated_tcl(
     codes = [d.code for d in sink.snapshot()]
     assert result.exit_code == 0, f"live trim failed; diagnostics: {codes}"
     assert "VW-10" not in codes, f"formatting byte counts drifted from P6 expectations: {codes}"
+    assert "VE-16" not in codes, f"FULL_COPY must not trip post-trim brace checks: {codes}"
     assert result.trim_report is not None
 
     full_text = (domain / "full.tcl").read_text(encoding="utf-8")
     trim_text = (domain / "trim.tcl").read_text(encoding="utf-8")
     stage_text = (domain / "stage.tcl").read_text(encoding="utf-8")
-    assert full_text == "proc copied {} {\n    puts copied\n}\n"
+    # FULL_COPY is byte-for-byte identical to the source.
+    assert full_text == full_source
     assert "proc keep" in trim_text
     assert "    puts keep\n" in trim_text
     assert "proc drop" not in trim_text
@@ -423,6 +426,8 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
         assert by_path[stack_path]["treatment"] == "generated"
 
 
+
+
 # ---------------------------------------------------------------------------
 # overlay_* fixtures \u2014 R1 ordered-overlay end-to-end
 # ---------------------------------------------------------------------------
@@ -481,11 +486,13 @@ def test_runner_localfs_overlay_remove_only_emits_vw21(tmp_path: Path) -> None:
 
 
 def test_runner_localfs_overlay_no_op_exclude_emits_ve27(tmp_path: Path) -> None:
-    """Feature excludes a file no earlier layer included → ``VE-27`` + exit 1.
+    """Feature-layer ``files.exclude`` entry that matches nothing emits ``VE-27``.
 
-    Implements the ``files.exclude`` no-op detection per ARCHITECTURE.md §3.2 and
-    DIAGNOSTIC_CODES.md ``VE-27``. The compiler emits at P3 (the natural detection
-    point); the validator does not re-derive.
+    The fixture's feature layer (``feature_typo``) declares a ``files.exclude``
+    of ``unrelated.tcl`` — a path that the running set established by earlier
+    layers does not contain. Per the 2.0.0-alpha overlay contract, the compiler
+    emits ``VE-27 no-op-exclude`` directly at this site (typo-class guard) and
+    the run exits with code 1.
     """
 
     domain = tmp_path / "overlay_no_op_exclude"
@@ -495,8 +502,12 @@ def test_runner_localfs_overlay_no_op_exclude_emits_ve27(tmp_path: Path) -> None
     result = ChopperRunner().run(ctx, command="validate")
 
     codes = [d.code for d in sink.snapshot()]
-    assert "VE-27" in codes, f"VE-27 not emitted; codes: {codes}"
-    assert result.exit_code == 1, f"expected exit 1 (validation error); got {result.exit_code}"
+    assert "VE-27" in codes, f"expected VE-27 no-op-exclude; got {codes}"
+    assert result.exit_code == 1
+    # The no-op exclude is reported but does not mutate the running set:
+    # ``real.tcl`` (kept by base) remains FULL_COPY in the manifest.
+    assert result.manifest is not None
+    assert result.manifest.file_decisions[Path("real.tcl")] is FileTreatment.FULL_COPY
 
 
 def test_runner_localfs_overlay_two_features_last_layer_wins(tmp_path: Path) -> None:

@@ -1552,7 +1552,7 @@ fs.write_text(domain_root / rel, text)
 
 That works for ordinary Tcl and simple text files, but it explodes on domain artifacts such as `.sn.gz`, compressed reports, binary sidecars, and other opaque payloads that are legitimately included by F1. The immediate symptom is a `UnicodeDecodeError` during P5 `FULL_COPY`, after the rebuild has already started. Chopper then leaves a half-rebuilt `domain/` in place by design (P-13), so a bad full-copy path turns one file-handling bug into a visible mid-run failure.
 
-**Correct Behavior:** `FULL_COPY` is an opaque file-copy operation for non-Tcl files. Chopper must preserve non-Tcl bytes exactly and carry those files forward without attempting to interpret encoding, normalize line endings, or otherwise reserialize content. Surviving `.tcl` files are the explicit exception: they are copied first, then P5c applies the deterministic Tcl indentation-normalization pass before P6 validation.
+**Correct Behavior:** `FULL_COPY` is an opaque, byte-preserving file-copy operation for **every** file type, including `.tcl`. Chopper must preserve source bytes exactly and carry the file forward without attempting to interpret encoding, normalize line endings, reformat indentation, or otherwise reserialize content. The P5c indentation-normalization pass applies only to files Chopper itself rewrote (`PROC_TRIM`) or synthesized (`GENERATED`). See also Pitfall **P-45** for the `FULL_COPY` indentation-normalization regression that motivated this scoping (issue #22).
 
 **Implementation Requirement:**
 - `FULL_COPY` must use a filesystem-level single-file copy operation from `<domain>_backup/` to `domain/`.
@@ -1560,15 +1560,44 @@ That works for ordinary Tcl and simple text files, but it explodes on domain art
 - The live filesystem adapter must preserve source mode bits on the copied file.
 - `REMOVE` byte-accounting must come from metadata (`stat().size` or equivalent), not by reading file contents.
 - `PROC_TRIM` is the only P5a path that may read file contents for proc-body deletion, and only for `.tcl` files selected for proc trimming.
-- P5c may read and rewrite every surviving/generated `.tcl` output for indentation normalization, including `.tcl` files whose manifest treatment is `FULL_COPY` or `GENERATED`. It must update `TrimReport.bytes_out` for `FULL_COPY` and `PROC_TRIM` `.tcl` outcomes so P6 compares against final normalized bytes.
+- P5c may read and rewrite every emitted `PROC_TRIM` or `GENERATED` `.tcl` output for indentation normalization. It must not read or rewrite any `FULL_COPY` output. It must update `TrimReport.bytes_out` for `PROC_TRIM` `.tcl` outcomes so P6 compares against final normalized bytes; `FULL_COPY` byte counts are never re-stamped because the source bytes already match the on-disk output.
 
-**Why It Matters:** F1 is intentionally file-type agnostic. Real EDA domains contain Tcl next to Perl, Python, gzip-compressed artifacts, scheduler payloads, reports, and tool-generated sidecars. If `FULL_COPY` assumes "surviving file == decodable text" for every extension, trims fail on legitimate inputs and the user gets a broken rebuild from an avoidable implementation mistake. Tcl is handled as a deliberate, extension-scoped readability pass after the opaque copy has already succeeded.
+**Why It Matters:** F1 is intentionally file-type agnostic. Real EDA domains contain Tcl next to Perl, Python, gzip-compressed artifacts, scheduler payloads, reports, and tool-generated sidecars. If `FULL_COPY` assumes "surviving file == decodable text" for every extension, trims fail on legitimate inputs and the user gets a broken rebuild from an avoidable implementation mistake. Tcl readability is handled inside P5c, scoped to files Chopper itself produced (`PROC_TRIM`, `GENERATED`); see P-45 for the regression that introduced and then scoped this pass.
 
 **Tests:**
 - `tests/unit/adapters/test_fs_local.py::test_copy_file_preserves_opaque_bytes`
 - `tests/unit/adapters/test_fs_memory.py::test_copy_file_copies_stored_content`
 - `tests/unit/trimmer/test_file_writer_modes.py::test_full_copy_file_copies_binary_payload_without_text_decode`
 - `tests/integration/test_cli_e2e.py::TestGlobFilesIncludeRegression::test_trim_full_copy_binary_file_survives_without_unicode_decode_error`
+
+---
+
+### Pitfall P-45: P5c Must Never Rewrite `FULL_COPY` Outputs
+
+**THE TRAP (bug report: GitHub #22):**
+```python
+# WRONG: full-copy .tcl files are read off disk, reformatted, and rewritten
+_NORMALIZED_TREATMENTS = frozenset({
+    FileTreatment.FULL_COPY,
+    FileTreatment.PROC_TRIM,
+    FileTreatment.GENERATED,
+})
+```
+
+When P5c was first introduced (0.8.4) it normalized indentation for **every** emitted `.tcl` file, including `FULL_COPY` outputs. That violates the F1 `FULL_COPY` contract: a full-copy file is supposed to land on disk byte-for-byte identical to the source. The 1.2.6 regression in `power/onepower/basic.tcl` was a textbook symptom — a base-included `.tcl` file with mixed tab/space indentation and a missing trailing `}` was reformatted **and** had a synthetic closing brace appended by the running brace counter, then the post-trim brace check (`VE-16`) fired against the *rewritten* file even though the proc set was untouched.
+
+**Correct Behavior:** P5c reads and rewrites only files that Chopper itself produced — `PROC_TRIM` outputs (whose contents Chopper already changed when it deleted dropped procs) and `GENERATED` `.tcl` artifacts (whose contents Chopper authored from scratch). `FULL_COPY` outputs are never touched by P5c regardless of extension. If a `FULL_COPY` source already has a brace imbalance or odd indentation, that is a property of the input domain and surfaces as the same property in the output domain — Chopper does not mutate user-authored bytes silently to make them pretty.
+
+**Implementation Requirement:**
+- `_NORMALIZED_TREATMENTS` in `src/chopper/trimmer/indentation.py` must equal `frozenset({FileTreatment.PROC_TRIM, FileTreatment.GENERATED})`. Adding `FULL_COPY` reopens issue #22.
+- `_with_updated_bytes` in P5c must update `TrimReport.bytes_out` only for `PROC_TRIM` outcomes. `FULL_COPY` byte counts are pinned at the source byte size during P5a and never re-stamped.
+- The `rewritten_paths` tuple returned by `TclIndentationService.run` must contain only `PROC_TRIM` and `GENERATED` `.tcl` paths. P6 `validate_post` re-tokenizes exactly that set; `FULL_COPY` outputs are excluded from re-tokenization because they are byte-identical copies of the source.
+
+**Why It Matters:** Domain owners list legacy Tcl files in `files.include` precisely because they want those files preserved as-is. Reformatting them silently — even cosmetically — destroys diff-ability against the original source, can introduce real bugs (the appended `}` in basic.tcl was syntactically wrong relative to the source), and turns a "kept file" decision into an unannounced rewrite. P5c is a readability pass for files Chopper *had* to produce; it is not a global Tcl beautifier.
+
+**Tests:**
+- `tests/unit/trimmer/test_indentation.py::test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl`
+- `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_live_trim_formats_proc_trim_and_generated_tcl_only`
 
 ---
 
@@ -2068,6 +2097,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Trimmer** | Crash leaves domain half-rebuilt | Backup-and-rebuild model with deterministic safe re-run from `domain_backup/` (P-13) |
 | **Trimmer** | Lost work on re-trim | Detect existing backup and rebuild from it (P-20) |
 | **Trimmer** | `FULL_COPY` decodes opaque files as text | Use filesystem-level opaque copy; reserve content reads to Tcl `PROC_TRIM` only (P-44) |
+| **Trimmer** | P5c rewrites `FULL_COPY` `.tcl` and breaks the verbatim contract | Scope `_NORMALIZED_TREATMENTS` to `{PROC_TRIM, GENERATED}`; `FULL_COPY` `.tcl` outputs are byte-for-byte copies and must never reach the indentation pass (P-45) |
 | **Validator** | Typos in JSON go unnoticed | Validate JSON references exist (P-16) |
 | **Audit** | Diagnostics lack context | Include location in every diagnostic (P-18) |
 | **Config** | Paths break on different OS | Always use forward slashes (P-21) |

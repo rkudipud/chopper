@@ -344,6 +344,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 2.0.0a1 — 2026-05-08
+
+- **Bug fix (GitHub #22 / Pitfall P-45): `FULL_COPY` outputs are now byte-for-byte verbatim again.** Scoped P5c indentation normalization to `PROC_TRIM` and `GENERATED` `.tcl` outputs only. `FULL_COPY` `.tcl` files are never read or rewritten by P5c; they reach disk byte-identical to their source regardless of indentation style or trailing-brace balance. Fixes the 1.2.6 regression where `onepower/basic.tcl` was reformatted (tab/space normalization) and had a stray closing `}` synthesized by the brace counter, falsely tripping `VE-16` post-trim. `TrimReport.bytes_out` for `FULL_COPY` is now pinned at the source byte size during P5a and never re-stamped. P6 `validate_post` re-tokenizes only `PROC_TRIM` and `GENERATED` `.tcl` outputs (not `FULL_COPY`). Architecture doc §3.4 (F1), §3.5 (F2), §5.2.1 (P5 walkthrough), and §5.2.2 (P6 validate_post contract) updated in place; ENGINEERING.md `TclIndentationService.run` row updated; IMPLEMENTATION.md P-44 narrowed and new P-45 added.
+
 ### 2.0.0-alpha — 2026-05-08
 
 - **R1 collapses to a single rule: ordered overlay, last layer wins.** Features are no longer additive — they are **layered**. Layers (`base` first, then each selected feature in declared order) are applied left-to-right; for each file/proc, the last layer that mentions it wins. A feature can now add new content, remove base content, or replace base content with its own. Same-layer authoring conveniences (`VW-09`, `VW-11`, `VW-12`, `VW-13`) are unchanged. `project.json` `features` ordering is now authoritative for **F1, F2, and F3** (was F3-only). Mental model: kustomize / Docker layers / CSS cascade. Full spec in [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) §4 (R1) and §5.3 (P3 algorithm).

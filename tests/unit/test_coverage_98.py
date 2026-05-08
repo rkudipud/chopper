@@ -250,10 +250,10 @@ def test_indentation_service_emits_ve25_on_read_failure() -> None:
     fs.write_text(DOMAIN / rel, "proc x {} {}\n")
     ctx = _ctx(fs=fs)
     manifest = CompiledManifest(
-        file_decisions={rel: FileTreatment.FULL_COPY},
+        file_decisions={rel: FileTreatment.PROC_TRIM},
         proc_decisions={},
         provenance={
-            rel: FileProvenance(path=rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal"),
+            rel: FileProvenance(path=rel, treatment=FileTreatment.PROC_TRIM, reason="fi-literal"),
         },
         stages=(),
     )
