@@ -1,31 +1,31 @@
 #!/usr/bin/env tcsh
-# setup.csh — Bootstrap the chopper development environment (PRIMARY setup for Unix/Linux/macOS).
-# Platform: Unix/Linux/macOS
-# Shell: tcsh/csh (PRIMARY - bash is NOT available on this system)
-# Auto-activate: source this script at startup (add to ~/.tcshrc or ~/.cshrc)
-#   echo "source ~/.chopper_venv.csh" >> ~/.tcshrc
+# setup.csh - Bootstrap the chopper dev environment (PRIMARY Unix shell).
 # Usage: source setup.csh
 
-set script_dir = `pwd`
+# Must be sourced, not executed: venv activation only persists in the parent
+# shell when this script is sourced. When executed (./setup.csh), activation
+# happens in a dying subshell and disappears the moment the script returns.
+if ( ! $?prompt ) then
+    echo "ERROR: setup.csh must be SOURCED from an interactive tcsh, not executed."
+    echo "  Wrong : ./setup.csh    or    setup.csh"
+    echo "  Right : source setup.csh"
+    exit 1
+endif
 
+set script_dir = `pwd`
 if ( ! -f "$script_dir/pyproject.toml" ) then
-    echo "setup.csh expects to be sourced from the repository root."
-    echo "Either cd into the repo first or source .venv/bin/activate.csh directly."
+    echo "ERROR: Run 'source setup.csh' from the repository root."
     return 1
 endif
 
 set venv_dir = "$script_dir/.venv"
-# Project runtime floor is Python 3.11 (pyproject.toml `requires-python`).
-# Dev venv is pinned to 3.13 so contributors share one toolchain. Prefer
-# python3.13 explicitly; fall back to python3 only if 3.13 is not on PATH.
-which python3.13 >& /dev/null
-if ( $status == 0 ) then
-    set python_cmd = "python3.13"
-else
-    set python_cmd = "python3"
-    echo "WARN: python3.13 not found on PATH; falling back to `python3 --version`."
-    echo "      Contributors are expected to install Python 3.13 for the dev venv."
-endif
+# Python resolution strategy (in order):
+#   1. PATH python (python3.13 / python3 / python) if version >= 3.13
+#   2. EC system Python at /usr/intel/bin/python3.13.2
+#   3. Local install of Python 3.13.4 under $script_dir/.local-python/3.13/
+set ec_py313 = "/usr/intel/bin/python3.13.2"
+set local_py313_root = "$script_dir/.local-python/3.13"
+set local_py313 = "$local_py313_root/bin/python3.13"
 set default_proxy = "http://proxy-chain.intel.com:912"
 if ( $?CHOPPER_PROXY ) then
     set proxy = "$CHOPPER_PROXY"
@@ -37,100 +37,136 @@ if ( $?CHOPPER_NO_PROXY ) then
     if ( "$CHOPPER_NO_PROXY" == "1" ) set use_proxy = 0
 endif
 
-echo "=== Chopper Dev Environment Setup ==="
-echo "Platform: Unix/Linux/macOS (PRIMARY: tcsh - bash/zsh NOT available)"
+echo "=== Chopper Setup (tcsh primary) ==="
 
-# Apply proxy to the current shell environment now so that every network
-# operation in this script (git pull, pip install, ...) already sees the proxy
-# without waiting for step [4/6].  Step [4/6] still writes pip config and
-# git global config so the settings persist beyond this shell session.
+echo "[1/7] Resolving Python 3.13+ interpreter..."
+unset python_cmd
+# Strategy step 1: probe PATH for a Python whose version is >= 3.13.
+foreach candidate ( python3.13 python3 python )
+    which $candidate >& /dev/null
+    if ( $status == 0 ) then
+        $candidate -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" >& /dev/null
+        if ( $status == 0 ) then
+            set python_cmd = "$candidate"
+            echo "  Using PATH Python: $candidate (>= 3.13)"
+            break
+        endif
+    endif
+end
+# Strategy step 2: EC system Python.
+if ( ! $?python_cmd && -x "$ec_py313" ) then
+    set python_cmd = "$ec_py313"
+    echo "  Using EC Python: $ec_py313"
+endif
+# Strategy step 3: local install of Python 3.13.4 under $script_dir/.local-python.
+if ( ! $?python_cmd ) then
+    if ( ! -x "$local_py313" ) then
+        which uv >& /dev/null
+        if ( $status == 0 ) then
+            echo "  Installing Python 3.13.4 via uv into $local_py313_root..."
+            uv python install 3.13.4 --install-dir "$local_py313_root" >& /dev/null
+        endif
+    endif
+    if ( -x "$local_py313" ) then
+        set python_cmd = "$local_py313"
+        echo "  Using local Python: $local_py313"
+    endif
+endif
+
+if ( ! $?python_cmd ) then
+    echo "ERROR: Python 3.13+ could not be resolved."
+    echo "Strategy: PATH (>= 3.13) -> $ec_py313 -> local install at $local_py313."
+    echo "Install 'uv' (https://docs.astral.sh/uv/) or place a Python 3.13.4 build at $local_py313."
+    return 1
+endif
+
 if ( $use_proxy == 1 ) then
-    setenv HTTP_PROXY  "$proxy"
+    setenv HTTP_PROXY "$proxy"
     setenv HTTPS_PROXY "$proxy"
-    setenv http_proxy  "$proxy"
+    setenv http_proxy "$proxy"
     setenv https_proxy "$proxy"
 endif
 
-echo "[1/6] Updating repository (git pull)..."
+echo "[2/7] Running git pull..."
 which git >& /dev/null
 if ( $status == 0 ) then
     git -C "$script_dir" pull
     if ( $status != 0 ) then
-        echo "WARN: git pull failed (network issue or local changes). Continuing with current code."
+        echo "ERROR: git pull failed. Resolve git/network issue and rerun setup."
+        return 1
     endif
 else
-    echo "WARN: git not found on PATH; skipping update."
+    echo "ERROR: git not found on PATH."
+    return 1
 endif
 
-if ( ! -d "$venv_dir" ) then
-    echo "[2/6] Creating virtual environment..."
-    $python_cmd -m venv "$venv_dir"
-else
-    # Detect a stale/relocated venv (e.g. copied from another repo): the
-    # venv's python should report sys.prefix == $venv_dir. If it doesn't —
-    # or won't launch at all — wipe and rebuild, otherwise pip-generated
-    # console scripts (chopper) will carry the old shebang forever.
-    set venv_healthy = 0
-    if ( -x "$venv_dir/bin/python" ) then
-        set reported = `"$venv_dir/bin/python" -c "import sys; print(sys.prefix)"`
-        if ( "$reported" == "$venv_dir" ) then
-            set venv_healthy = 1
-        endif
-    endif
-    if ( $venv_healthy == 1 ) then
-        echo "[2/6] Virtual environment exists and is healthy, reusing."
+echo "[3/7] Ensuring virtual environment..."
+set venv_python = "$venv_dir/bin/python"
+set fresh = 0
+if ( $?CHOPPER_FRESH ) then
+    if ( "$CHOPPER_FRESH" == "1" ) set fresh = 1
+endif
+if ( $fresh == 1 && -d "$venv_dir" ) then
+    echo "  CHOPPER_FRESH=1 set; removing existing venv at $venv_dir"
+    rm -rf "$venv_dir"
+endif
+if ( -x "$venv_python" ) then
+    "$venv_python" -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" >& /dev/null
+    if ( $status == 0 ) then
+        echo "  Reusing existing venv at $venv_dir"
     else
-        echo "[2/6] Existing .venv is stale or relocated — recreating..."
+        echo "  Existing venv has wrong Python; recreating."
         rm -rf "$venv_dir"
-        $python_cmd -m venv "$venv_dir"
+    endif
+endif
+if ( ! -x "$venv_python" ) then
+    "$python_cmd" -m venv "$venv_dir"
+    if ( $status != 0 ) then
+        echo "ERROR: Failed to create venv with Python 3.13."
+        return 1
     endif
 endif
 
-echo "[3/6] Activating venv..."
+echo "[4/7] Activating venv..."
+# activate.csh references $prompt; ensure it's set so non-interactive contexts
+# (e.g. nested sourcing) don't trip 'prompt: Undefined variable.'
+if ( ! $?prompt ) set prompt = ''
 source "$venv_dir/bin/activate.csh"
+if ( $status != 0 ) then
+    echo "ERROR: Failed to activate venv."
+    return 1
+endif
 
+echo "[5/7] Configuring proxy for pip and npm..."
 if ( $use_proxy == 1 ) then
-    echo "[4/6] Updating pip and Git proxy..."
-    echo "  Proxy: $proxy"
     setenv HTTP_PROXY "$proxy"
     setenv HTTPS_PROXY "$proxy"
     setenv http_proxy "$proxy"
     setenv https_proxy "$proxy"
     python -m pip config set global.proxy "$proxy" --quiet >& /dev/null
     python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet >& /dev/null
-    which git >& /dev/null
+    which npm >& /dev/null
     if ( $status == 0 ) then
-        git config --global http.proxy "$proxy"
-        git config --global https.proxy "$proxy"
+        npm config set proxy "$proxy" --location=user >& /dev/null
+        npm config set https-proxy "$proxy" --location=user >& /dev/null
     endif
 else
-    echo "[4/6] Skipping proxy configuration (CHOPPER_NO_PROXY=1)."
+    echo "  Proxy disabled (CHOPPER_NO_PROXY=1)."
 endif
 
-
-# Install dependencies only when the installed chopper version differs from
-# the source version in this checkout (or if chopper is not installed yet).
-echo "[5/6] Syncing Chopper install with repo version..."
-python -m pip install --upgrade pip --quiet
-set repo_version = `python -c "import pathlib, tomllib; p=pathlib.Path('pyproject.toml'); print(tomllib.loads(p.read_text(encoding='utf-8'))['project']['version'])"`
-set installed_version = `python -c "import importlib.metadata as m; print(next((d.version for d in m.distributions() if d.metadata.get('Name', '').lower() == 'chopper'), '__MISSING__'))"`
-if ( "$installed_version" != "$repo_version" ) then
-    if ( "$installed_version" == "__MISSING__" ) then
-        echo "  chopper is not installed in this venv. Installing version $repo_version..."
-    else
-        echo "  Installed chopper version $installed_version differs from repo version $repo_version. Reinstalling..."
-        python -m pip uninstall -y chopper --quiet
-    endif
-    python -m pip install -e ".[dev]" --quiet
-    python -m pip install -e . --force-reinstall --no-deps --quiet
-else
-    echo "  Installed chopper version matches repo version ($repo_version). Skipping reinstall."
+echo "[6/7] Ensuring chopper package is installed..."
+python -m pip install --quiet --upgrade pip
+if ( $status != 0 ) then
+    echo "ERROR: pip upgrade failed."
+    return 1
+endif
+python -m pip install --quiet -e ".[dev]"
+if ( $status != 0 ) then
+    echo "ERROR: pip install -e .[dev] failed."
+    return 1
 endif
 
-echo "[6/6] Validating venv and Chopper launchers (installed + source-mode)..."
-# Source-mode fallback: prepend <repo>/src to PYTHONPATH so `python -m chopper`
-# always resolves to the checkout, even if the editable install ever gets
-# stale. Idempotent: skip if already present.
+echo "[7/7] Validating environment..."
 if ( $?PYTHONPATH ) then
     echo "$PYTHONPATH" | grep -q "$script_dir/src"
     if ( $status != 0 ) then
@@ -142,51 +178,35 @@ endif
 
 set active_prefix = `python -c "import sys; print(sys.prefix)"`
 if ( "$active_prefix" != "$venv_dir" ) then
-    echo "ERROR: Active Python is not using the expected venv."
+    echo "ERROR: Active Python prefix mismatch."
     echo "  Expected: $venv_dir"
     echo "  Actual  : $active_prefix"
     return 1
 endif
 
-set chopper_version = `python -c "import chopper; print(chopper.__version__)"`
-chopper --help >& /dev/null
-set installed_ok = $status
+rehash
+set chopper_cmd = "$venv_dir/bin/chopper"
+"$chopper_cmd" --help >& /dev/null
+if ( $status != 0 ) then
+    echo "ERROR: chopper launcher validation failed."
+    return 1
+endif
 python -m chopper --help >& /dev/null
-set module_ok = $status
-if ( $installed_ok == 0 && $module_ok == 0 ) then
-    set chopper_line = "$chopper_version (chopper + python -m chopper OK)"
-else if ( $module_ok == 0 ) then
-    set chopper_line = "$chopper_version (python -m chopper OK; installed launcher FAILED)"
-    echo "WARN: 'chopper' console script failed but 'python -m chopper' works."
-    echo "      You can use either — to repair the installed launcher run:"
-    echo "        python -m pip install -e . --force-reinstall --no-deps"
-else
-    echo "ERROR: Both 'chopper' and 'python -m chopper' failed."
+if ( $status != 0 ) then
+    echo "ERROR: python -m chopper validation failed."
     return 1
 endif
 
 echo ""
 echo "=== Setup complete ==="
-echo "  Platform : Unix/Linux/macOS (PRIMARY: tcsh)"
-echo "  Python   : `python --version`"
-echo "  Chopper  : $chopper_line"
-echo "  Venv     : $venv_dir"
+echo "  Python : `python --version`"
+echo "  Venv   : $venv_dir"
 if ( $use_proxy == 1 ) then
-    echo "  Proxy    : $proxy"
+    echo "  Proxy  : $proxy"
 else
-    echo "  Proxy    : disabled for this run"
+    echo "  Proxy  : disabled"
 endif
-echo "  Shell    : tcsh/csh (PRIMARY - bash/zsh NOT available)"
-echo ""
-echo "To auto-activate on terminal startup:"
-echo "  echo 'source $script_dir/setup.csh' >> ~/.tcshrc"
-echo ""
-echo "For other platforms:"
-echo "  Windows PowerShell : . setup.ps1"
-echo "  Windows cmd.exe    : setup.bat"
-echo "  bash/zsh (if available - fallback only) : source setup.sh"
+echo "  Chopper launchers: OK"
 echo ""
 echo "Run: chopper --help"
 echo "Test: pytest"
-echo "Venv is active; handing control back to you."
-

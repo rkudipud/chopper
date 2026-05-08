@@ -1,203 +1,192 @@
 @echo off
-REM setup.bat — Bootstrap the chopper development environment (Windows with cmd.exe).
-REM Platform: Windows (cmd.exe / Command Prompt)
-REM Auto-activate: Add to system startup or create a batch file in Startup folder
+REM setup.bat - Bootstrap the chopper dev environment (Windows cmd.exe).
 REM Usage: setup.bat
-
-setlocal enabledelayedexpansion
+REM
+REM NOTE: cmd.exe batch files modify the current shell's environment only when
+REM run directly in an interactive cmd window. If you launch this as
+REM 'cmd /c setup.bat' or from a non-interactive context, the venv activation
+REM will not persist. Always run from an open cmd.exe prompt.
+REM
+REM We intentionally do NOT use 'setlocal' here -- it would scope the venv
+REM environment changes to this script and discard them on exit.
 
 set "scriptDir=%~dp0"
 set "scriptDir=%scriptDir:~0,-1%"
 set "venvDir=%scriptDir%\.venv"
-REM Project runtime floor is Python 3.11 (pyproject.toml `requires-python`).
-REM Dev venv is pinned to 3.13. Prefer the `py` launcher at 3.13; fall back
-REM to bare `python` only if the launcher cannot find 3.13.
-set "pythonCmd=python"
-py -3.13 -c "import sys" >nul 2>&1
-if %ERRORLEVEL% EQU 0 set "pythonCmd=py -3.13"
+set "localPy313=%scriptDir%\.local-python\3.13\python.exe"
 set "defaultProxy=http://proxy-chain.intel.com:912"
 set "proxy=%CHOPPER_PROXY%"
 if "%proxy%"=="" set "proxy=%defaultProxy%"
+set "useProxy=1"
+if /i "%CHOPPER_NO_PROXY%"=="1" set "useProxy=0"
 
 if not exist "%scriptDir%\pyproject.toml" (
-    echo setup.bat expects to be run from the repository root.
-    echo Please cd into the repo first.
+    echo ERROR: Run setup.bat from the repository root.
     exit /b 1
 )
 
-echo.
-echo === Chopper Dev Environment Setup ===
-echo Platform: Windows (cmd.exe / Command Prompt)
+echo === Chopper Setup (cmd.exe) ===
 
-REM Apply proxy to the current shell environment now so that every network
-REM operation in this script (git pull, pip install, ...) already sees the
-REM proxy without waiting for step [4/6].  Step [4/6] writes pip/git config
-REM so the settings persist beyond this shell session.
-if /i not "%CHOPPER_NO_PROXY%"=="1" (
-    set "HTTP_PROXY=%proxy%"
-    set "HTTPS_PROXY=%proxy%"
-    set "http_proxy=%proxy%"
-    set "https_proxy=%proxy%"
-)
+echo [1/7] Resolving Python 3.13+ interpreter...
+set "pythonCmd="
 
-echo [1/6] Updating repository (git pull)...
-where git >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    git -C "%scriptDir%" pull
-    if !ERRORLEVEL! NEQ 0 echo WARN: git pull failed ^(network issue or local changes^). Continuing with current code.
-) else (
-    echo WARN: git not found on PATH; skipping update.
-)
-
-if not exist "%venvDir%" (
-    echo [2/6] Creating virtual environment...
-    call %pythonCmd% -m venv "%venvDir%"
-) else (
-    REM Detect a stale/relocated venv (e.g. copied from another repo): the
-    REM venv's python should report sys.prefix == %venvDir%. If it doesn't,
-    REM wipe and rebuild, otherwise pip-generated console scripts
-    REM chopper.exe will carry the old launcher path forever.
-    set "venvHealthy=0"
-    if exist "%venvDir%\Scripts\python.exe" (
-        call :check_venv_health
-    )
-    if "!venvHealthy!"=="1" (
-        echo [2/6] Virtual environment exists and is healthy, reusing.
-    ) else (
-        echo [2/6] Existing .venv is stale or relocated - recreating...
-        rmdir /s /q "%venvDir%"
-        if exist "%venvDir%" (
-            echo ERROR: Could not remove stale .venv. Close terminals using it and rerun setup.bat.
-            exit /b 1
+REM Strategy step 1: probe PATH for any python whose version is >= 3.13.
+for %%C in (python3.13 python python3) do (
+    if not defined pythonCmd (
+        where %%C >nul 2>&1
+        if not errorlevel 1 (
+            %%C -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" >nul 2>&1
+            if not errorlevel 1 set "pythonCmd=%%C"
         )
-        call %pythonCmd% -m venv "%venvDir%"
+    )
+)
+if not defined pythonCmd (
+    where py >nul 2>&1
+    if not errorlevel 1 (
+        py -3.13 -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" >nul 2>&1
+        if not errorlevel 1 set "pythonCmd=py -3.13"
     )
 )
 
-echo [3/6] Activating venv...
-call "%venvDir%\Scripts\activate.bat"
+REM Strategy step 2 (Windows has no EC mount): local install under .local-python.
+if not defined pythonCmd if exist "%localPy313%" set "pythonCmd=%localPy313%"
 
-if /i "%CHOPPER_NO_PROXY%"=="1" (
-    echo [4/6] Skipping proxy configuration ^(CHOPPER_NO_PROXY=1^).
-) else (
-    echo [4/6] Updating pip and Git proxy...
-    echo   Proxy: %proxy%
+REM Strategy step 3: best-effort winget install, then re-resolve via py -3.13.
+if not defined pythonCmd (
+    where winget >nul 2>&1
+    if not errorlevel 1 (
+        echo   Python 3.13 not found; attempting winget install...
+        winget install -e --id Python.Python.3.13 --accept-package-agreements --accept-source-agreements --silent
+        py -3.13 -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" >nul 2>&1
+        if not errorlevel 1 set "pythonCmd=py -3.13"
+    )
+)
+
+if not defined pythonCmd (
+    echo ERROR: Python 3.13+ could not be resolved.
+    echo Strategy: PATH ^(^>= 3.13^) -^> %localPy313% -^> winget install Python.Python.3.13.
+    exit /b 1
+)
+
+if "%useProxy%"=="1" (
     set "HTTP_PROXY=%proxy%"
     set "HTTPS_PROXY=%proxy%"
     set "http_proxy=%proxy%"
     set "https_proxy=%proxy%"
 )
-REM Always invoke pip as `python -m pip`. pip's own shim (pip.exe) can be
-REM stale when a venv is copied, and `python -m pip` bypasses the shim.
-if /i not "%CHOPPER_NO_PROXY%"=="1" (
+
+echo [2/7] Running git pull...
+where git >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: git not found on PATH.
+    exit /b 1
+)
+git -C "%scriptDir%" pull
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: git pull failed. Resolve git/network issue and rerun setup.
+    exit /b 1
+)
+
+echo [3/7] Ensuring virtual environment...
+set "venvPython=%venvDir%\Scripts\python.exe"
+set "fresh=0"
+if /i "%CHOPPER_FRESH%"=="1" set "fresh=1"
+if "%fresh%"=="1" if exist "%venvDir%" (
+    echo   CHOPPER_FRESH=1 set; removing existing venv at %venvDir%
+    rmdir /s /q "%venvDir%"
+)
+if exist "%venvPython%" (
+    "%venvPython%" -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" >nul 2>&1
+    if errorlevel 1 (
+        echo   Existing venv has wrong Python; recreating.
+        rmdir /s /q "%venvDir%"
+    ) else (
+        echo   Reusing existing venv at %venvDir%
+    )
+)
+if not exist "%venvPython%" (
+    call %pythonCmd% -m venv "%venvDir%"
+    if errorlevel 1 (
+        echo ERROR: Failed to create venv with Python 3.13.
+        exit /b 1
+    )
+)
+
+echo [4/7] Activating venv...
+call "%venvDir%\Scripts\activate.bat"
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Failed to activate venv.
+    exit /b 1
+)
+
+echo [5/7] Configuring proxy for pip and npm...
+if "%useProxy%"=="1" (
+    set "HTTP_PROXY=%proxy%"
+    set "HTTPS_PROXY=%proxy%"
+    set "http_proxy=%proxy%"
+    set "https_proxy=%proxy%"
     python -m pip config set global.proxy "%proxy%" --quiet 2>nul
     python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>nul
-    where git >nul 2>&1
-    if !ERRORLEVEL! EQU 0 (
-        git config --global http.proxy "%proxy%"
-        git config --global https.proxy "%proxy%"
+    where npm >nul 2>&1
+    if %ERRORLEVEL% EQU 0 (
+        npm config set proxy "%proxy%" --location=user >nul 2>&1
+        npm config set https-proxy "%proxy%" --location=user >nul 2>&1
     )
-)
-
-
-REM Install dependencies only when installed chopper version differs from
-REM the source version in this checkout (or if chopper is not installed yet).
-echo [5/6] Syncing Chopper install with repo version...
-python -m pip install --upgrade pip --quiet
-for /f "usebackq delims=" %%V in (`python -c "import pathlib, tomllib; p=pathlib.Path('pyproject.toml'); print(tomllib.loads(p.read_text(encoding='utf-8'))['project']['version'])" 2^>nul`) do set "repoVersion=%%V"
-for /f "usebackq delims=" %%V in (`python -c "import importlib.metadata as m; print(next((d.version for d in m.distributions() if d.metadata.get('Name', '').lower() == 'chopper'), '__MISSING__'))" 2^>nul`) do set "installedVersion=%%V"
-if /i "!installedVersion!"=="!repoVersion!" (
-    echo   Installed chopper version matches repo version ^(!repoVersion!^). Skipping reinstall.
 ) else (
-    if /i "!installedVersion!"=="__MISSING__" (
-        echo   chopper is not installed in this venv. Installing version !repoVersion!...
-    ) else (
-        echo   Installed chopper version !installedVersion! differs from repo version !repoVersion!. Reinstalling...
-        python -m pip uninstall -y chopper --quiet
-    )
-    python -m pip install -e ".[dev]" --quiet
-    python -m pip install -e . --force-reinstall --no-deps --quiet
+    echo   Proxy disabled ^(CHOPPER_NO_PROXY=1^).
 )
 
-echo [6/6] Validating venv and Chopper launchers (installed + source-mode)...
+echo [6/7] Ensuring chopper package is installed...
+python -m pip install --quiet --upgrade pip
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: pip upgrade failed.
+    exit /b 1
+)
+python -m pip install --quiet -e ".[dev]"
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: pip install -e .[dev] failed.
+    exit /b 1
+)
 
-REM Source-mode fallback: prepend <repo>\src to PYTHONPATH so `python -m chopper`
-REM always resolves to the checkout, even if the editable install ever gets
-REM stale. Idempotent: skip if already present.
+echo [7/7] Validating environment...
 set "srcDir=%scriptDir%\src"
-echo ;%PYTHONPATH%; | findstr /i /c:";%srcDir%;" >nul
-if !ERRORLEVEL! NEQ 0 (
-    if "%PYTHONPATH%"=="" (
-        set "PYTHONPATH=%srcDir%"
-    ) else (
-        set "PYTHONPATH=%srcDir%;%PYTHONPATH%"
-    )
+if "%PYTHONPATH%"=="" (
+    set "PYTHONPATH=%srcDir%"
+) else (
+    echo ;%PYTHONPATH%; | findstr /i /c:";%srcDir%;" >nul
+    if %ERRORLEVEL% NEQ 0 set "PYTHONPATH=%srcDir%;%PYTHONPATH%"
 )
 
 for /f "usebackq delims=" %%P in (`python -c "import sys; print(sys.prefix)" 2^>nul`) do set "activePrefix=%%P"
-if /i not "!activePrefix!"=="%venvDir%" (
-    echo ERROR: Active Python is not using the expected venv.
+if /i not "%activePrefix%"=="%venvDir%" (
+    echo ERROR: Active Python prefix mismatch.
     echo   Expected: %venvDir%
-    echo   Actual  : !activePrefix!
+    echo   Actual  : %activePrefix%
     exit /b 1
 )
 
-for /f "usebackq delims=" %%V in (`python -c "import chopper; print(chopper.__version__)" 2^>nul`) do set "chopperVersion=%%V"
-chopper --help >nul 2>&1
-set "installedOk=!ERRORLEVEL!"
+"%venvDir%\Scripts\chopper.exe" --help >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: chopper launcher validation failed.
+    exit /b 1
+)
 python -m chopper --help >nul 2>&1
-set "moduleOk=!ERRORLEVEL!"
-if "!installedOk!"=="0" if "!moduleOk!"=="0" (
-    set "chopperLine=!chopperVersion! ^(chopper + python -m chopper OK^)"
-    goto :validation_done
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: python -m chopper validation failed.
+    exit /b 1
 )
-if "!moduleOk!"=="0" (
-    set "chopperLine=!chopperVersion! ^(python -m chopper OK; installed launcher FAILED^)"
-    echo WARN: 'chopper' console script failed but 'python -m chopper' works.
-    echo       To repair the installed launcher run:
-    echo         python -m pip install -e . --force-reinstall --no-deps
-    goto :validation_done
-)
-echo ERROR: Both 'chopper' and 'python -m chopper' failed.
-echo   Chopper  : !chopperVersion!
-exit /b 1
-:validation_done
 
 echo.
 echo === Setup complete ===
 for /f "tokens=*" %%i in ('python --version 2^>^&1') do set "pythonVersion=%%i"
-echo   Platform : Windows (cmd.exe)
-echo   Python   : %pythonVersion%
-echo   Chopper  : %chopperLine%
-echo   Venv     : %venvDir%
-if /i "%CHOPPER_NO_PROXY%"=="1" (
-    echo   Proxy    : disabled for this run
+echo   Python : %pythonVersion%
+echo   Venv   : %venvDir%
+if "%useProxy%"=="1" (
+    echo   Proxy  : %proxy%
 ) else (
-    echo   Proxy    : %proxy%
+    echo   Proxy  : disabled
 )
-echo   Shell    : cmd.exe / Command Prompt
-echo.
-echo To auto-activate on cmd startup:
-echo   1. Create setup_auto.bat with: setup.bat
-echo   2. Add setup_auto.bat to Windows Startup folder
-echo      (C:\Users\[YourUsername]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup)
-echo   OR
-echo   3. Create a shortcut to cmd.exe with target:
-echo      %%comspec%% /k "cd /d %scriptDir% ^&^& setup.bat"
-echo.
-echo For other platforms/shells:
-echo   Windows PowerShell : . setup.ps1
-echo   Unix/Linux/macOS (bash/zsh) : . setup.sh
-echo   Unix/Linux/macOS (tcsh)     : source setup.csh
+echo   Chopper launchers: OK
 echo.
 echo Run: chopper --help
 echo Test: pytest
-echo.
-echo Venv is active; handing control back to you.
-endlocal & set "PYTHONPATH=%srcDir%;%PYTHONPATH%" & call "%venvDir%\Scripts\activate.bat"
-goto :eof
-
-:check_venv_health
-"%venvDir%\Scripts\python.exe" -c "from pathlib import Path; import sys; raise SystemExit(0 if Path(sys.prefix).resolve() == Path(r'%venvDir%').resolve() else 1)" >nul 2>&1
-if %ERRORLEVEL% EQU 0 set "venvHealthy=1"
-exit /b 0

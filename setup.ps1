@@ -1,8 +1,5 @@
-# setup.ps1 — Bootstrap the chopper development environment (Windows with PowerShell).
-# Platform: Windows (PowerShell 5.1+)
-# Auto-activate: Source this script at startup (add to $PROFILE)
-#   Add-Content -Path $PROFILE -Value "& '$PSScriptRoot\setup.ps1'"
-# Usage: . .\setup.ps1 (or . setup.ps1)
+# setup.ps1 - Bootstrap the chopper dev environment (Windows PowerShell).
+# Usage: . .\setup.ps1
 
 param(
     [switch]$NoProxy = $false
@@ -10,231 +7,196 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Get the script directory
-$scriptDir = Split-Path -Parent (Get-Item $PSCommandPath).FullName
+# Must be dot-sourced, not executed: venv activation only persists in the
+# parent shell when this script is dot-sourced. When executed (.\setup.ps1),
+# activation happens in a child scope and disappears the moment the script
+# returns.
+if ($MyInvocation.InvocationName -ne '.') {
+    Write-Host "ERROR: setup.ps1 must be DOT-SOURCED, not executed." -ForegroundColor Red
+    Write-Host "  Wrong : .\setup.ps1" -ForegroundColor Red
+    Write-Host "  Right : . .\setup.ps1     (note the leading dot + space)" -ForegroundColor Red
+    exit 1
+}
 
-if (-not (Test-Path "$scriptDir/pyproject.toml")) {
-    Write-Host "setup.ps1 expects to be sourced from the repository root." -ForegroundColor Red
-    Write-Host "Either cd into the repo first or activate .venv directly." -ForegroundColor Red
+$scriptDir = Split-Path -Parent (Get-Item $PSCommandPath).FullName
+if (-not (Test-Path (Join-Path $scriptDir "pyproject.toml"))) {
+    Write-Host "ERROR: Run '. .\setup.ps1' from the repository root." -ForegroundColor Red
     return
 }
 
 $venvDir = Join-Path $scriptDir ".venv"
-# Project runtime floor is Python 3.11 (pyproject.toml `requires-python`).
-# Dev venv is pinned to 3.13 so contributors share one toolchain. Prefer the
-# Windows `py` launcher targeted at 3.13; fall back to bare `python` only if
-# the launcher cannot find a 3.13 install.
-$pythonCmd = "python"
-if (Get-Command py -ErrorAction SilentlyContinue) {
-    & py -3.13 -c "import sys" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        $pythonCmd = "py -3.13"
-    }
-}
+$localPy313 = Join-Path $scriptDir ".local-python\3.13\python.exe"
 $defaultProxy = "http://proxy-chain.intel.com:912"
-$proxy = $env:CHOPPER_PROXY
-if ([string]::IsNullOrWhiteSpace($proxy)) { $proxy = $defaultProxy }
+$proxy = if ([string]::IsNullOrWhiteSpace($env:CHOPPER_PROXY)) { $defaultProxy } else { $env:CHOPPER_PROXY }
+$useProxy = -not $NoProxy -and ($env:CHOPPER_NO_PROXY -ne "1")
 
-Write-Host "=== Chopper Dev Environment Setup ===" -ForegroundColor Cyan
-Write-Host "Platform: Windows (PowerShell)" -ForegroundColor Cyan
+Write-Host "=== Chopper Setup (PowerShell) ===" -ForegroundColor Cyan
 
-# Apply proxy to the current shell environment now so that every network
-# operation in this script (git pull, pip install, …) already sees the proxy
-# without waiting for step [4/6].  Step [4/6] still writes pip config and
-# git global config so the settings persist beyond this shell session.
-if (-not $NoProxy) {
-    $env:HTTP_PROXY  = $proxy
-    $env:HTTPS_PROXY = $proxy
-    $env:http_proxy  = $proxy
-    $env:https_proxy = $proxy
-}
+Write-Host "[1/7] Resolving Python 3.13+ interpreter..." -ForegroundColor Yellow
+$pythonCommand = $null
 
-Write-Host "[1/6] Updating repository (git pull)..." -ForegroundColor Yellow
-if (Get-Command git -ErrorAction SilentlyContinue) {
-    try {
-        git -C $scriptDir pull
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "WARN: git pull failed (network issue or local changes). Continuing with current code." -ForegroundColor Yellow
-        }
-    } catch {
-        Write-Host "WARN: git pull failed. Continuing with current code." -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "WARN: git not found on PATH; skipping update." -ForegroundColor Yellow
-}
-
-# Check if venv exists
-if (Test-Path $venvDir) {
-    # Detect a stale/relocated venv (e.g. copied from another repo): the venv's
-    # python.exe should report sys.prefix == $venvDir. If it doesn't — or if it
-    # refuses to launch at all — wipe and rebuild, otherwise pip-generated
-    # console-script shims (chopper.exe) will carry the old path forever.
-    $venvPython = Join-Path $venvDir "Scripts\python.exe"
-    $venvHealthy = $false
-    if (Test-Path $venvPython) {
-        try {
-            $reportedPrefix = & $venvPython -c "import sys; print(sys.prefix)" 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                $resolvedVenv = (Resolve-Path $venvDir).Path.TrimEnd('\')
-                $resolvedPrefix = $reportedPrefix.Trim().TrimEnd('\')
-                if ($resolvedPrefix -ieq $resolvedVenv) {
-                    $venvHealthy = $true
-                }
-            }
-        } catch {
-            $venvHealthy = $false
+# Strategy step 1: probe PATH for any python whose version is >= 3.13.
+foreach ($candidate in @("python3.13", "python", "python3")) {
+    if (Get-Command $candidate -ErrorAction SilentlyContinue) {
+        & $candidate -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $pythonCommand = $candidate
+            Write-Host "  Using PATH Python: $candidate (>= 3.13)" -ForegroundColor Gray
+            break
         }
     }
-    if (-not $venvHealthy) {
-        Write-Host "[2/6] Existing .venv is stale or relocated — recreating..." -ForegroundColor Yellow
-        Remove-Item -Recurse -Force $venvDir
-        Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
-    } else {
-        Write-Host "[2/6] Virtual environment exists and is healthy, reusing." -ForegroundColor Yellow
+}
+if (-not $pythonCommand -and (Get-Command py -ErrorAction SilentlyContinue)) {
+    & py -3.13 -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $pythonCommand = "py -3.13"
+        Write-Host "  Using PATH Python: py -3.13 (>= 3.13)" -ForegroundColor Gray
     }
-} else {
-    Write-Host "[2/6] Creating virtual environment (prefers Python 3.13)..." -ForegroundColor Yellow
-    Invoke-Expression "& $pythonCmd -m venv `"$venvDir`""
 }
 
-# Activate venv
-Write-Host "[3/6] Activating venv..." -ForegroundColor Yellow
-$activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
-if (Test-Path $activateScript) {
-    & $activateScript
-} else {
-    Write-Host "ERROR: Activation script not found at $activateScript" -ForegroundColor Red
+# Strategy step 2 (Windows has no EC mount): local install under .local-python.
+if (-not $pythonCommand -and (Test-Path $localPy313)) {
+    $pythonCommand = $localPy313
+    Write-Host "  Using local Python: $localPy313" -ForegroundColor Gray
+}
+
+# Strategy step 3: best-effort winget install, then re-resolve via py -3.13.
+if (-not $pythonCommand -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "  Python 3.13 not found; attempting winget install..." -ForegroundColor Gray
+    winget install -e --id Python.Python.3.13 --accept-package-agreements --accept-source-agreements --silent
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        & py -3.13 -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $pythonCommand = "py -3.13"
+            Write-Host "  Using winget-installed Python: py -3.13" -ForegroundColor Gray
+        }
+    }
+}
+
+if (-not $pythonCommand) {
+    Write-Host "ERROR: Python 3.13+ could not be resolved." -ForegroundColor Red
+    Write-Host "Strategy: PATH (>= 3.13) -> $localPy313 -> winget install Python.Python.3.13." -ForegroundColor Red
+    Write-Host "Install Python 3.13 manually, place it under $localPy313, or run 'winget install Python.Python.3.13'." -ForegroundColor Red
     return
 }
 
-# Always invoke pip through the venv's python (`python -m pip`). pip's own
-# console-script shim (pip.exe) can itself be stale when a venv is copied,
-# and calling the shim fails before we ever get a chance to regenerate it.
-# `python -m pip` bypasses the shim entirely.
-
-# Configure proxy for this process plus pip/Git (optional, skip if -NoProxy).
-if (-not $NoProxy) {
-    Write-Host "[4/6] Updating pip and Git proxy..." -ForegroundColor Yellow
-    Write-Host "  Proxy: $proxy" -ForegroundColor Gray
+if ($useProxy) {
     $env:HTTP_PROXY = $proxy
     $env:HTTPS_PROXY = $proxy
     $env:http_proxy = $proxy
     $env:https_proxy = $proxy
-    try {
-        python -m pip config set global.proxy "$proxy" --quiet 2>$null
-        python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>$null
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            git config --global http.proxy "$proxy"
-            git config --global https.proxy "$proxy"
-        }
-    } catch {
-        Write-Host "  (Proxy config skipped)" -ForegroundColor Gray
-    }
-} else {
-    Write-Host "[4/6] Skipping proxy configuration (-NoProxy)" -ForegroundColor Yellow
 }
 
-# Install dependencies only when the installed chopper version differs from
-# the source version in this checkout (or if chopper is not installed yet).
-Write-Host "[5/6] Syncing Chopper install with repo version..." -ForegroundColor Yellow
-python -m pip install --upgrade pip --quiet
-$repoVersion = python -c "import pathlib, tomllib; p=pathlib.Path('pyproject.toml'); print(tomllib.loads(p.read_text(encoding='utf-8'))['project']['version'])"
-$installedVersion = python -c "import importlib.metadata as m; print(next((d.version for d in m.distributions() if d.metadata.get('Name', '').lower() == 'chopper'), '__MISSING__'))"
-if ($installedVersion.Trim() -ne $repoVersion.Trim()) {
-    if ($installedVersion.Trim() -eq "__MISSING__") {
-        Write-Host "  chopper is not installed in this venv. Installing version $repoVersion..." -ForegroundColor Gray
+Write-Host "[2/7] Running git pull..." -ForegroundColor Yellow
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "ERROR: git not found on PATH." -ForegroundColor Red
+    return
+}
+git -C $scriptDir pull
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: git pull failed. Resolve git/network issue and rerun setup." -ForegroundColor Red
+    return
+}
+
+Write-Host "[3/7] Ensuring virtual environment..." -ForegroundColor Yellow
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
+$fresh = ($env:CHOPPER_FRESH -eq "1")
+if ($fresh -and (Test-Path $venvDir)) {
+    Write-Host "  CHOPPER_FRESH=1 set; removing existing venv at $venvDir" -ForegroundColor Gray
+    Remove-Item -Recurse -Force $venvDir
+}
+if (Test-Path $venvPython) {
+    & $venvPython -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Reusing existing venv at $venvDir" -ForegroundColor Gray
     } else {
-        Write-Host "  Installed chopper version $installedVersion differs from repo version $repoVersion. Reinstalling..." -ForegroundColor Gray
-        python -m pip uninstall -y chopper --quiet
+        Write-Host "  Existing venv has wrong Python; recreating." -ForegroundColor Gray
+        Remove-Item -Recurse -Force $venvDir
     }
-    python -m pip install -e ".[dev]" --quiet
-    python -m pip install -e . --force-reinstall --no-deps --quiet
+}
+if (-not (Test-Path $venvPython)) {
+    Invoke-Expression "& $pythonCommand -m venv `"$venvDir`""
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to create venv with Python 3.13." -ForegroundColor Red
+        return
+    }
+}
+
+Write-Host "[4/7] Activating venv..." -ForegroundColor Yellow
+$activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
+if (-not (Test-Path $activateScript)) {
+    Write-Host "ERROR: Activation script missing: $activateScript" -ForegroundColor Red
+    return
+}
+& $activateScript
+
+Write-Host "[5/7] Configuring proxy for pip and npm..." -ForegroundColor Yellow
+if ($useProxy) {
+    $env:HTTP_PROXY = $proxy
+    $env:HTTPS_PROXY = $proxy
+    $env:http_proxy = $proxy
+    $env:https_proxy = $proxy
+    python -m pip config set global.proxy "$proxy" --quiet 2>$null
+    python -m pip config set global.trusted-host "pypi.org files.pythonhosted.org" --quiet 2>$null
+    if (Get-Command npm -ErrorAction SilentlyContinue) {
+        npm config set proxy "$proxy" --location=user *> $null
+        npm config set https-proxy "$proxy" --location=user *> $null
+    }
 } else {
-    Write-Host "  Installed chopper version matches repo version ($repoVersion). Skipping reinstall." -ForegroundColor Gray
+    Write-Host "  Proxy disabled (NoProxy switch or CHOPPER_NO_PROXY=1)." -ForegroundColor Gray
 }
 
-Write-Host "[6/6] Validating venv and Chopper launchers (installed + source-mode)..." -ForegroundColor Yellow
+Write-Host "[6/7] Ensuring chopper package is installed..." -ForegroundColor Yellow
+python -m pip install --quiet --upgrade pip
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: pip upgrade failed." -ForegroundColor Red
+    return
+}
+python -m pip install --quiet -e ".[dev]"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: pip install -e .[dev] failed." -ForegroundColor Red
+    return
+}
 
-# Source-mode fallback: prepend <repo>/src to PYTHONPATH so `python -m chopper`
-# always resolves to the checkout, even if the editable install ever gets
-# stale. Idempotent: skip if already present.
+Write-Host "[7/7] Validating environment..." -ForegroundColor Yellow
 $srcDir = Join-Path $scriptDir "src"
-$existingPP = $env:PYTHONPATH
-if ([string]::IsNullOrEmpty($existingPP)) {
+if ([string]::IsNullOrEmpty($env:PYTHONPATH)) {
     $env:PYTHONPATH = $srcDir
-} elseif (-not ($existingPP.Split([IO.Path]::PathSeparator) -contains $srcDir)) {
-    $env:PYTHONPATH = "$srcDir$([IO.Path]::PathSeparator)$existingPP"
+} elseif (-not ($env:PYTHONPATH.Split([IO.Path]::PathSeparator) -contains $srcDir)) {
+    $env:PYTHONPATH = "$srcDir$([IO.Path]::PathSeparator)$($env:PYTHONPATH)"
 }
 
-$activePrefix = (python -c "import sys; print(sys.prefix)" 2>&1)
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Could not inspect active Python sys.prefix." -ForegroundColor Red
-    return
-}
-$resolvedVenv = (Resolve-Path $venvDir).Path.TrimEnd('\')
-$resolvedActivePrefix = $activePrefix.Trim().TrimEnd('\')
-if ($resolvedActivePrefix -ine $resolvedVenv) {
-    Write-Host "ERROR: Active Python is not using the expected venv." -ForegroundColor Red
-    Write-Host "  Expected: $resolvedVenv" -ForegroundColor Red
-    Write-Host "  Actual  : $resolvedActivePrefix" -ForegroundColor Red
+$activePrefix = (python -c "import sys; print(sys.prefix)").TrimEnd('\\')
+$expectedPrefix = (Resolve-Path $venvDir).Path.TrimEnd('\\')
+if ($activePrefix -ine $expectedPrefix) {
+    Write-Host "ERROR: Active Python prefix mismatch." -ForegroundColor Red
+    Write-Host "  Expected: $expectedPrefix" -ForegroundColor Red
+    Write-Host "  Actual  : $activePrefix" -ForegroundColor Red
     return
 }
 
-$chopperPkgVersion = (python -c "import chopper; print(chopper.__version__)" 2>&1)
+$chopperExe = Join-Path $venvDir "Scripts\chopper.exe"
+& $chopperExe --help *> $null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Could not import chopper from the active venv." -ForegroundColor Red
-    Write-Host "$chopperPkgVersion" -ForegroundColor Red
+    Write-Host "ERROR: chopper launcher validation failed." -ForegroundColor Red
+    return
+}
+python -m chopper --help *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: python -m chopper validation failed." -ForegroundColor Red
     return
 }
 
 Write-Host ""
 Write-Host "=== Setup complete ===" -ForegroundColor Green
-Write-Host "  Platform : Windows (PowerShell)" -ForegroundColor Green
-Write-Host "  Python   : $(python --version)" -ForegroundColor Green
-$chopperOk = $false
-try {
-    & chopper --help *> $null
-    if ($LASTEXITCODE -eq 0) { $chopperOk = $true }
-} catch {
-    $chopperOk = $false
-}
-$moduleOk = $false
-try {
-    & python -m chopper --help *> $null
-    if ($LASTEXITCODE -eq 0) { $moduleOk = $true }
-} catch {
-    $moduleOk = $false
-}
-if ($chopperOk -and $moduleOk) {
-    Write-Host "  Chopper  : $chopperPkgVersion (chopper + python -m chopper OK)" -ForegroundColor Green
-} elseif ($moduleOk) {
-    Write-Host "  Chopper  : $chopperPkgVersion (python -m chopper OK; installed launcher FAILED)" -ForegroundColor Yellow
-    Write-Host "  WARN: 'chopper' console script failed but 'python -m chopper' works." -ForegroundColor Yellow
-    Write-Host "        To repair the installed launcher run:" -ForegroundColor Yellow
-    Write-Host "          python -m pip install -e . --force-reinstall --no-deps" -ForegroundColor Yellow
+Write-Host "  Python : $(python --version)" -ForegroundColor Green
+Write-Host "  Venv   : $venvDir" -ForegroundColor Green
+if ($useProxy) {
+    Write-Host "  Proxy  : $proxy" -ForegroundColor Green
 } else {
-    Write-Host "ERROR: Both 'chopper' and 'python -m chopper' failed." -ForegroundColor Red
-    Write-Host "  Chopper  : $chopperPkgVersion" -ForegroundColor Red
-    return
+    Write-Host "  Proxy  : disabled" -ForegroundColor Green
 }
-Write-Host "  Venv     : $venvDir" -ForegroundColor Green
-if (-not $NoProxy) {
-    Write-Host "  Proxy    : $proxy" -ForegroundColor Green
-} else {
-    Write-Host "  Proxy    : disabled for this run" -ForegroundColor Green
-}
-Write-Host "  Shell    : PowerShell 5.1+"
-Write-Host ""
-Write-Host "To auto-activate on PowerShell startup:" -ForegroundColor Cyan
-Write-Host "  Add-Content -Path `$PROFILE -Value `"& '$scriptDir\setup.ps1'`""
-Write-Host ""
-Write-Host "To view your PowerShell profile:"
-Write-Host "  echo `$PROFILE"
-Write-Host ""
-Write-Host "For other platforms/shells:" -ForegroundColor Cyan
-Write-Host "  Unix/Linux/macOS (bash/zsh) : . setup.sh"
-Write-Host "  Unix/Linux/macOS (tcsh)     : source setup.csh"
+Write-Host "  Chopper launchers: OK" -ForegroundColor Green
 Write-Host ""
 Write-Host "Run: chopper --help" -ForegroundColor Gray
 Write-Host "Test: pytest" -ForegroundColor Gray
-Write-Host "Venv is active; handing control back to you." -ForegroundColor Green
