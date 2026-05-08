@@ -551,20 +551,34 @@ Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`)
 | 7 | — | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
 | 8 | ✓ | — | ✓ | — | `FULL_COPY` | all (PI redundant) | `VW-09` |
 | 9 | ✓ | — | — | ✓ | `PROC_TRIM` | all − PE | — |
-| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | all − PE (PI redundant with FI) | `VW-09` |
 | 11 | — | ✓ | ✓ | — | `PROC_TRIM` | PI only (FE overridden) | — |
 | 12 | — | ✓ | — | ✓ | `REMOVE` | — | `VW-11` |
 | 13 | — | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
 | 14 | ✓ | ✓ | ✓ | — | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
 | 15 | ✓ | ✓ | — | ✓ | `PROC_TRIM` (literal) / `REMOVE` (glob) | all − PE / — | — |
-| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only | `VW-12` |
+| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` (literal FI) / `PROC_TRIM` (glob-only) | all − PE / PI only | `VW-09` / `VW-12` |
 
 **Key rules:**
-- **PE downgrades FULL_COPY:** FI + PE → `PROC_TRIM` (case 9). 100 procs minus 4 PE = 96 survive.
+- **PE downgrades FULL_COPY:** FI + PE → `PROC_TRIM` (cases 9 and 10; literal side of 15 and 16). 100 procs minus 4 PE = 96 survive.
 - **FE + PE = both remove:** neither says "keep" → file removed (case 12). Use PE alone to keep the file.
-- **PI wins over PE:** same file in both → PI takes precedence (cases 7, 10, 13, 16).
+- **PI wins over PE only without a whole-file FI signal:** same file in PI and PE with no FI keeps PI and ignores PE (cases 7 and 13). With FI + PI + PE, PI is redundant and PE qualifies the FI contribution.
 - **PI overrides FE:** PI forces file survival regardless of FE (cases 11, 13).
 - **FI + PI (no PE) stays FULL_COPY:** PI is additive and redundant on a fully included file (cases 8, 14).
+
+**Behavior quick-reference:**
+
+| Author intent | JSON shape | Result |
+|---|---|---|
+| Keep only listed files | `files.include: ["a.tcl"]` | `a.tcl` survives; unnamed files are removed. |
+| Keep all files except a list | `files.include: ["**"]`, `files.exclude: [...]` | Chopper starts from every file under the domain, then removes paths matched by `files.exclude`. |
+| Exclude-only file list | `files.exclude: [...]` | No file-level keep signal exists; under default-exclude, live trim can rebuild an almost empty domain. Add `files.include: ["**"]` for a negative-list trim. |
+| Literal include plus matching exclude | `files.include: ["debug_old.tcl"]`, `files.exclude: ["debug*.tcl"]` | `debug_old.tcl` survives; literal FI always wins. |
+| Glob include plus matching exclude | `files.include: ["*.tcl"]`, `files.exclude: ["debug*.tcl"]` | The glob-expanded include list is pruned; `debug*.tcl` matches are removed from that list. |
+| Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only PI procs survive from that file. |
+| Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except PE procs survive. |
+| File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing for the file and emits `VW-11`. |
+| Feature tries to remove a base file | Base includes file, feature excludes file | Base include wins; feature FE is vetoed with `VW-19`. |
 
 ### Proc call tracing workflow for JSON curation
 

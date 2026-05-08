@@ -161,6 +161,20 @@ Copy the nearest example into your domain root, replace every placeholder, then 
 
 Use the **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agents/chopper-agent.agent.md)) to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
 
+#### Include/exclude behavior quick-reference
+
+| Author intent | JSON shape | Result |
+| --- | --- | --- |
+| Keep only listed files | `files.include: ["a.tcl"]` | `a.tcl` survives; unnamed files are removed. |
+| Keep all files except a list | `files.include: ["**"]`, `files.exclude: [...]` | Chopper starts from every file under the domain, then removes paths matched by `files.exclude`. |
+| Exclude-only file list | `files.exclude: [...]` | No file-level keep signal exists; under default-exclude, live trim can rebuild an almost empty domain. Add `files.include: ["**"]` for a negative-list trim. |
+| Literal include plus matching exclude | `files.include: ["debug_old.tcl"]`, `files.exclude: ["debug*.tcl"]` | `debug_old.tcl` survives; literal include wins. |
+| Glob include plus matching exclude | `files.include: ["*.tcl"]`, `files.exclude: ["debug*.tcl"]` | The glob-expanded include list is pruned; `debug*.tcl` matches are removed from that list. |
+| Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only listed procs survive. |
+| Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except excluded procs survive. |
+| File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
+| Feature tries to remove a base file | Base includes file, feature excludes file | Base include wins; feature exclude is vetoed with `VW-19`. |
+
 ### Step 3 — Validate first, always
 
 ```text

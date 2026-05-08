@@ -209,9 +209,9 @@ These are warnings, not errors. Run with `--strict` if CI should fail on them.
 
 | Code | Meaning | Fix |
 |---|---|---|
-| `VW-09` fi-pi-overlap | Same JSON has both `files.include` and `procedures.include` for the same file | Drop the PI — FI alone keeps everything |
+| `VW-09` fi-pi-overlap | Same JSON has both `files.include` and `procedures.include` for the same file | Drop the PI. FI alone keeps everything unless PE is also present; then PE qualifies the FI contribution. |
 | `VW-11` fe-pe-same-source-conflict | Same JSON has `files.exclude` and `procedures.exclude` for the same file, no `files.include` | Pick one |
-| `VW-12` pi-pe-same-file | Same JSON includes and excludes procs in the same file | PI wins, PE ignored |
+| `VW-12` pi-pe-same-file | Same JSON has `procedures.include` and `procedures.exclude` for the same file, with no whole-file include signal | PI wins, PE ignored |
 | `VW-13` pe-removes-all-procs | The PE set covers every proc in the file | File survives as comment-only — consider `files.exclude` |
 
 ---
@@ -221,11 +221,25 @@ These are warnings, not errors. Run with `--strict` if CI should fail on them.
 | You want to... | Snippet |
 |---|---|
 | Keep a directory tree of Tcl files | `{"files": {"include": ["procs/**/*.tcl"]}}` |
-| Keep everything except legacy | `{"files": {"include": ["**/*.tcl"], "exclude": ["procs/legacy/**"]}}` |
+| Keep every domain file except a negative list | `{"files": {"include": ["**"], "exclude": ["legacy/**", "debug*.tcl"]}}` |
 | Keep a file, drop a few procs | `{"files": {"include": ["procs/shared.tcl"]}, "procedures": {"exclude": [{"file": "procs/shared.tcl", "procs": ["debug_dump"]}]}}` |
 | Keep only a few procs from a big file | `{"procedures": {"include": [{"file": "procs/core.tcl", "procs": ["run_setup"]}]}}` (do **not** also list the file in `files.include` — emits `VW-09`) |
 | Layer a feature on top of base | Feature JSON with its own `files.include` / `procedures.include` / `flow_actions`, selected via `--features` or in `project.json`'s `features` array |
 | Express feature dependency | `{"$schema": "feature-v1", "name": "scan_eco", "depends_on": ["dft"]}` |
+
+### Behavior quick-reference
+
+| Author intent | JSON shape | Result |
+|---|---|---|
+| Keep only listed files | `files.include: ["a.tcl"]` | `a.tcl` survives; unnamed files are removed. |
+| Keep all files except a list | `files.include: ["**"]`, `files.exclude: [...]` | Chopper starts from every file under the domain, then removes paths matched by `files.exclude`. |
+| Exclude-only file list | `files.exclude: [...]` | No file-level keep signal exists; under default-exclude, live trim can rebuild an almost empty domain. Add `files.include: ["**"]` for a negative-list trim. |
+| Literal include plus matching exclude | `files.include: ["debug_old.tcl"]`, `files.exclude: ["debug*.tcl"]` | `debug_old.tcl` survives; literal include wins. |
+| Glob include plus matching exclude | `files.include: ["*.tcl"]`, `files.exclude: ["debug*.tcl"]` | The glob-expanded include list is pruned; `debug*.tcl` matches are removed from that list. |
+| Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only listed procs survive. |
+| Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except excluded procs survive. |
+| File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
+| Feature tries to remove a base file | Base includes file, feature excludes file | Base include wins; feature exclude is vetoed with `VW-19`. |
 
 For each pattern, copy from the matching folder in [../examples/](../examples/) — see the example map at the end of this document.
 

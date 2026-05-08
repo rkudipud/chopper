@@ -7,7 +7,7 @@
 > - The Tcl parser engineering spec
 > - The technical-risks and implementation-pitfalls ledger (P-01 … P-44 + TC-01 … TC-10)
 > - The parser implementation decision log (D-1b-01 … D-1e-03)
-> - The future-planned-developments ledger (OOS-01 … OOS-04 + FD-01 … FD-13)
+> - The future-planned-developments ledger (OOS-01 … OOS-04 + FD-01 … FD-14)
 >
 > All content is preserved, but it is now organised **by module** rather than by document type, so the spec for a behaviour, the pitfalls that motivated it, and the decisions taken when implementing it sit next to each other. References that previously pointed at one of the four sources have been rewritten to point at the corresponding section of this doc.
 
@@ -27,7 +27,7 @@
 12. [Quick Reference](#12-quick-reference-common-mistakes-by-module) — One-table-per-mistake summary
 13. [Standalone Risk Items](#13-standalone-risk-items) — TC-06, TC-09 (no dedicated pitfall)
 - [Appendix A: Out of Scope (OOS-01 … OOS-04)](#appendix-a-permanently-out-of-scope)
-- [Appendix B: Deferred Work (FD-01 … FD-13)](#appendix-b-deferred-work-items)
+- [Appendix B: Deferred Work (FD-01 … FD-14)](#appendix-b-deferred-work-items)
 
 ---
 
@@ -2146,6 +2146,16 @@ v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-0
 
 **Source:** `technical_docs/ARCHITECTURE.md` §2.2, Q1
 
+### FD-14: Feature Replacement Semantics
+
+Some domains want a selected feature to replace base-contributed implementation content: for example, the base includes `old.tcl`, while feature `new_flow` wants to remove `old.tcl` or drop `legacy_proc` and add `new.tcl` / `new_proc`. The current architecture rejects that model for F1/F2. R1 L3 makes the base inviolable, so feature `files.exclude` / `procedures.exclude` entries only prune the feature's own contributions; cross-source attempts to remove base or sibling-feature content are vetoed with `VW-19` / `VW-18`.
+
+**Considered because:** variant flows often start from a broad base and then need replacement behavior, not merely additive layering. Requiring domain owners to split every removable base item into its own feature can be awkward when the existing domain already has a common baseline plus a few mutually exclusive variants.
+
+**Deferred because:** allowing feature-side removal would change Chopper's core safety model. The architecture would need to specify an explicit opt-in replacement contract, conflict rules when multiple selected features remove or replace the same file/proc, whether F1/F2 feature ordering becomes meaningful, how provenance and audit artifacts explain removed base content, what diagnostics are emitted, and how `--strict` treats replacement conflicts. Silent removal by ordinary `files.exclude` / `procedures.exclude` would be too dangerous because it would make today's veto warnings destructive.
+
+**If adopted:** `technical_docs/ARCHITECTURE.md` §4 would need a new R1 branch that narrows L3 for an explicit replacement/removal surface; P3 aggregation would need ordered or priority-aware conflict resolution; `schemas/base-v1.schema.json`, `schemas/feature-v1.schema.json`, `technical_docs/DIAGNOSTIC_CODES.md`, compiler tests, integration scenarios, and user-facing docs would need to be updated in the same cascade. No schema field, diagnostic code, or namespace is reserved by this FD.
+
 ---
 
 ### B.3 CLI / UX Enhancements
@@ -2236,6 +2246,7 @@ Per the scope-lock policy in [`.github/instructions/project.instructions.md`](..
 |---|---|---|---|
 | FD-01 | Parser | Advanced namespace resolution | Out of scope for v1 |
 | FD-02 | Pipeline | Cross-domain dependency awareness | Out of scope for v1 |
+| FD-14 | Pipeline | Feature replacement semantics | Deferred; would require an explicit architecture change to R1/L3 |
 | FD-03 | CLI/UX | Interactive feature selection TUI | Architecturally enabled, deferred |
 | FD-04 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred (§1.5.11) |
 | FD-05 | Docs | Quick-start guide | Deferred until spec final |
