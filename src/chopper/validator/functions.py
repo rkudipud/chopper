@@ -661,7 +661,19 @@ def _brace_delta(text: str) -> int:
             continue
 
         # Quoted string: skip its contents (with backslash escapes).
+        # Literal-data-word exception (Tcl Endekas rule 6, mirrors the
+        # tokenizer's P-01a fix in src/chopper/parser/tokenizer.py): if
+        # the previous byte is an unescaped structural ``{``, the ``"``
+        # is the literal first content byte of a braced data word
+        # (e.g. ``set q {"}``), NOT the opening of a quoted string.
+        # Treating it as a quote-open would silently consume the
+        # matching ``}`` and produce a false-positive VE-16.
         if ch == '"':
+            prev_is_open_brace = i > 0 and text[i - 1] == "{" and (i < 2 or text[i - 2] != "\\")
+            if prev_is_open_brace:
+                i += 1
+                line_start = False
+                continue
             i += 1
             while i < n:
                 qc = text[i]
