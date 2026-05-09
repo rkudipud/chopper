@@ -603,6 +603,11 @@ F3 generates stage-based run files from JSON stage definitions. Users who want g
 **Stack-file auto-generation (`options.generate_stack`).** When the base JSON sets `options.generate_stack: true`, F3 also emits one `<stage>.stack` per resolved stage. The file contains one record per stage rendered as:
 
 ```
+####################################################################################################
+# INTEL CONFIDENTIAL
+# Copyright (c) <YEAR> Intel Corporation
+# ... (full Intel notice; see §6.6.1)
+####################################################################################################
 # Chopper-generated stack: <name>
 N <name>
 J <command>         (omitted when command is empty)
@@ -2720,6 +2725,35 @@ This project example intentionally shows:
 - One selected base and an ordered feature list
 - Lightweight notes explaining why the chosen feature order matters
 
+#### 6.6.1 Generated File Header
+
+Every artifact emitted by Chopper's F3 generators (`<stage>.tcl` and, when `options.generate_stack: true`, `<stage>.stack`) is prefixed with the verbatim Intel-standard copyright header. The header is hard-coded in the generator (`chopper.core.header`) and is not configurable per domain — Chopper is domain-agnostic but every domain in scope is an Intel asset, so a single canonical header applies uniformly.
+
+Header content (rendered with `#` comment style for both `.tcl` and `.stack` outputs):
+
+```
+####################################################################################################
+#Intel Legal compliant copyright header
+####################################################################################################
+#
+#-- INTEL CONFIDENTIAL
+#-- Copyright (c) <YEAR> Intel Corporation
+#
+# This software and the related documents are Intel copyrighted materials, and your use of them
+# is governed by the express license under which they were provided to you ("License"). Unless the
+# License provides otherwise,you may not use,modify, copy, publish, distribute, disclose or transmit
+# this software or the related documents without Intel's prior written permission.
+#
+# This software and the related documents are provided as is, with no express or implied warranties,
+# other than those that are expressly stated in the License.
+#
+####################################################################################################
+```
+
+The wording and whitespace (including the trailing spaces preserved on a few lines and the `--` prefix on the `INTEL CONFIDENTIAL` / `Copyright` lines) match the canonical Intel-owned EDA file header byte-for-byte. `<YEAR>` is substituted at emission time using `datetime.now().year`, so generated files always carry the current calendar year without manual edits.
+
+The provenance line (`# Chopper-generated stage: <name>` or `# Chopper-generated stack: <name>`) and the optional `# load_from: <name>` line follow immediately after the closing rule of the header. The header is **not** prepended to F1 `FULL_COPY` or F2 `PROC_TRIM` files: those originate on disk and already carry their own headers; rewriting them would be a destructive content edit outside the trimmer's contract.
+
 ### 6.7 Action Vocabulary
 
 Chopper adopts FlowBuilder's 7-action vocabulary for stage/step modification, and adds two Chopper-specific action keywords for step and stage replacement:
@@ -2762,6 +2796,25 @@ Action application contract:
 - If a stage contains the same step string multiple times, `replace_step` and `remove_step` use `@n` targeting to resolve ambiguity. Without `@n`, duplicate step strings are a validation error.
 - `replace_stage` removes the target stage, inserts the replacement stage at the same position, and rewrites existing `load_from` references to the new stage name before later actions run.
 - Removing a stage or step that is still referenced elsewhere is a validation error until repaired by subsequent actions in the same ordered compile pass.
+
+#### Order Preservation for `add_*_after` Actions
+
+When two or more features each carry an `add_step_after` (or `add_stage_after`) action that targets the **same anchor**, the resolver preserves the **selected feature order** in the emitted output. "Selected feature order" is whatever order `LoadedConfig.features` carries, and that order is the same regardless of selection source:
+
+- **`--project <p>.json`** — the order declared in `project.json` `features[]`, after the loader's depends-on topo-sort (which is stable within equal-rank groups, so authored order is preserved when no `depends_on` constraints reorder it).
+- **`--features f1.feature.json,f2.feature.json,...`** — the left-to-right order of the comma-separated CLI list, after the same topo-sort.
+
+The two surfaces are equivalent: the same R1 ordered-overlay contract that governs F1 (file decisions) and F2 (proc decisions) in `merge_service.py` governs F3 (stage / step decisions) here.
+
+Concretely, given anchor `X` in stage `S` and selection `features = [F1, F2, F3]` where each feature contributes `add_step_after S:X items=[...]`, the resolved step sequence around the anchor is:
+
+```
+..., X, <items from F1>, <items from F2>, <items from F3>, ...
+```
+
+The same contract holds for `add_stage_after` keyed on the `reference` stage name. The resolver tracks a per-resolve cumulative insertion offset for each `(stage, anchor)` pair so each subsequent same-anchor `add_*_after` lands *after* the prior feature's items, not directly adjacent to the anchor.
+
+`add_step_before` and `add_stage_before` already preserve selected feature order naturally — each insertion sits immediately before a (now-shifted) anchor — so no offset bookkeeping is required for the `_before` family. The order-independent F3 actions (`replace_step`, `replace_stage`, `remove_step`, `remove_stage`, `load_from`) follow last-layer-wins semantics, which is consistent with R1 across F1, F2, and F3.
 
 ### 6.8 Dry-Run Output Model
 
@@ -3196,7 +3249,8 @@ This log records the conscious design decisions that shaped the current document
 | Date | Change |
 |---|---|
 | 2024-06-01 | Initial draft. |
-| 2026-05-08 | **2.0.0a1 \u2014 P5c scoped to PROC_TRIM and GENERATED only (issue #22, P-45).** Fixed a regression where P5c indentation normalization rewrote `FULL_COPY` `.tcl` outputs, breaking the F1 byte-for-byte verbatim contract. The 1.2.6 symptom was `power/onepower/basic.tcl` being reformatted (tab/space normalization) and having a synthetic closing `}` appended by the brace counter, then falsely tripping `VE-16` post-trim. `_NORMALIZED_TREATMENTS` in `src/chopper/trimmer/indentation.py` now equals `{PROC_TRIM, GENERATED}`; `FULL_COPY` outputs are never read or rewritten by P5c regardless of extension. `TrimReport.bytes_out` for `FULL_COPY` is pinned at source bytes during P5a. P6 `validate_post` re-tokenizes only `PROC_TRIM` and `GENERATED` `.tcl` outputs. \u00a73.4 (F1 write semantics + opacity callout), \u00a73.5 (F2 file-type scope), \u00a75.2.1 (P5 walkthrough), and \u00a75.2.2 (P6 input contract) updated in place. ENGINEERING.md `TclIndentationService.run` row updated. IMPLEMENTATION.md P-44 narrowed and new **P-45** added. No diagnostic-registry, schema, or CLI surface changes. |
+| 2026-05-08 | **2.0.0a2 — Intel header on every generated artifact + `add_*_after` order-preservation bug fix.** Two changes shipped together. (1) F3 emitters (`stage_emitter.py`, `stack_emitter.py`) now prepend the canonical Intel legal-compliant copyright header (verbatim from the reference Intel-owned EDA file, including the `--`-prefixed `INTEL CONFIDENTIAL` / `Copyright (c) <YEAR> Intel Corporation` lines, the trailing-whitespace lines, and the `Intel Legal compliant copyright header` title line) to every `<stage>.tcl` and (when `options.generate_stack: true`) every `<stage>.stack`. The `<YEAR>` token is computed at emission time from `datetime.now().year`. New helper module `src/chopper/core/header.py` exposes `intel_header_text` / `intel_header_lines`. Header is **not** prepended to F1 `FULL_COPY` or F2 `PROC_TRIM` outputs (those originate on disk and already carry their own headers). New §6.6.1 "Generated File Header" added; §6.6 and JSON_AUTHORING_GUIDE §2.1 stack-format snippets updated in place. (2) Fixed a real spec-vs-implementation drift in `compiler/flow_resolver.py`: `add_step_after` and `add_stage_after` re-resolved the anchor on every call, so when N features each ran the same action against the same anchor, the emitted order was REVERSED relative to the **selected feature order** (the order in which `LoadedConfig.features` carries the features, which is the same for `--project` and `--features` selection). The resolver now carries per-resolve cumulative insertion offsets keyed on `(stage, anchor)` and `<reference_stage>` respectively, so each subsequent same-anchor `add_*_after` lands after the prior feature's items. New §6.7 "Order Preservation for `add_*_after` Actions" added, calling out that the contract holds across F1/F2/F3 (R1 already governs F1+F2 in `merge_service.py`, this fix brings F3 into parity for `add_*_after`). Two regression tests added to `tests/unit/compiler/test_flow_resolver.py`. `add_step_before` / `add_stage_before` and the order-independent actions (`replace_*`, `remove_*`, `load_from`) are unchanged (already correct by construction). No diagnostic-registry, schema, or CLI surface changes. |
+| 2026-05-08 | **2.0.0a1 — P5c scoped to PROC_TRIM and GENERATED only (issue #22, P-45).** Fixed a regression where P5c indentation normalization rewrote `FULL_COPY` `.tcl` outputs, breaking the F1 byte-for-byte verbatim contract. The 1.2.6 symptom was `power/onepower/basic.tcl` being reformatted (tab/space normalization) and having a synthetic closing `}` appended by the brace counter, then falsely tripping `VE-16` post-trim. `_NORMALIZED_TREATMENTS` in `src/chopper/trimmer/indentation.py` now equals `{PROC_TRIM, GENERATED}`; `FULL_COPY` outputs are never read or rewritten by P5c regardless of extension. `TrimReport.bytes_out` for `FULL_COPY` is pinned at source bytes during P5a. P6 `validate_post` re-tokenizes only `PROC_TRIM` and `GENERATED` `.tcl` outputs. \u00a73.4 (F1 write semantics + opacity callout), \u00a73.5 (F2 file-type scope), \u00a75.2.1 (P5 walkthrough), and \u00a75.2.2 (P6 input contract) updated in place. ENGINEERING.md `TclIndentationService.run` row updated. IMPLEMENTATION.md P-44 narrowed and new **P-45** added. No diagnostic-registry, schema, or CLI surface changes. |
  | 2026-04 | Consolidated review pass: removed `common/` infrastructure references; removed `template_script` execution contract (schema field retained for forward compatibility, not executed at that point); replaced archived forward-references with links to the live `technical_docs/*.md`; promoted Trim Workflow to §3.7; added Rule L1 (The Law of Explicit Include) and the treatment-token vocabulary to §4; added backup edge-case matrix to §2.8 with `VE-23` and `VI-03`; added GUI-readiness sections §8.3–8.5; added FR-38–FR-41 (service layer, JSON serialization, ProgressSink, diagnostic stability); rewrote FR-23 to name concrete audit artifacts; registered `VE-19`–`VE-23`, `VW-14`–`VW-17`, `VI-03`, `PE-03` in the diagnostic registry. |
 | 2026-05-08 | **2.0.0-alpha — R1 ordered-overlay model.** Replaced the additive-only feature model (2026-04-19) with an ordered overlay. R1 collapses to a single rule: layers are applied in declared order; the last layer that mentions a file/proc wins. Rules L1/L2/L3 deleted. P3 algorithm in §5.3 rewritten as an ordered fold over (base, features in order). Feature ordering is authoritative for F1, F2, and F3 (was F3-only). FR-08 rewritten; FR-31 reworded; Q13 / Q19 rewritten; §11.6 FAQ rewritten. Diagnostic registry: `VW-18 cross-source-pe-vetoed` and `VW-19 cross-source-fe-vetoed` retired (cannot fire under overlay); new `VW-21 layer-shadowed` (info-class, exit 0) records every layer transition that changes a prior decision; new `VE-27 no-op-exclude` (error, exit 1) catches typo-class excludes that match nothing in the running set or via glob. VW band ceiling extended to VW-30 to accommodate VW-21 and future overlay diagnostics. `FileProvenance.vetoed_entries` removed; replaced with `contributed_by` (last surviving layer) and `shadowed_by[]` (transition log). Project-v1 schema `features` description rewritten to reflect ordered-overlay semantics. Compiler `merge_service.py` rewritten as ordered fold (drops per-source `WHOLE/TRIM/NONE` classification + cross-source aggregation cases A/B/C). Validator gains VE-27 no-op-exclude check. Audit `writers.py` provenance lines change from `vetoed-by:` to `removed-by:` / `shadowed-by:`. `IMPLEMENTATION.md` `FD-14 Feature Replacement Semantics` closed (adopted as design baseline). No backward compatibility — alpha release. |
 | 2026-04-19 | Locked in purely additive feature semantics. R1 rewritten around provenance-aware cross-source aggregation with rules L1 (explicit include wins cross-source), L2 (same-source authoring conveniences), L3 (base inviolable, features additive-only). P3 algorithm in §5.3 rewritten to classify per-source contributions (WHOLE / TRIM / NONE) and then aggregate across sources with full provenance recorded on every manifest entry. Feature ordering scoped to F3 `flow_actions` sequencing only; F1/F2 merges declared order-independent. FR-08 rewritten. Q13 and Q19 updated. New §11.6 FAQ entries for cross-source include/exclude disagreements. Diagnostic registry: `VW-10` un-retired and re-assigned to `cross-source-fe-vetoed`; `VW-11` scoped to same-source as `fe-pe-same-source-conflict`; new `VW-18 cross-source-pe-vetoed` added; VW active count 15 → 17. Project-v1 schema `features` description rewritten to reflect additive-only semantics and F3-only ordering authority. **Superseded by the 2026-05-08 R1 rewrite.** |

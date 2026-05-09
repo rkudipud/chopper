@@ -25,6 +25,7 @@ from pathlib import Path
 
 from chopper.adapters import CollectingSink, LocalFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
+from chopper.core.header import intel_header_text
 from chopper.core.models_common import FileTreatment
 from chopper.orchestrator import ChopperRunner
 from chopper.parser.service import parse_file
@@ -291,7 +292,7 @@ def test_runner_localfs_live_trim_formats_proc_trim_and_generated_tcl_only(tmp_p
     assert "proc keep" in trim_text
     assert "    puts keep\n" in trim_text
     assert "proc drop" not in trim_text
-    assert stage_text == "# Chopper-generated stage: stage\nif {$ready} {\n    puts ready\n}\n"
+    assert stage_text == (intel_header_text() + "# Chopper-generated stage: stage\nif {$ready} {\n    puts ready\n}\n")
     assert result.generated_artifacts[0].content == stage_text
 
     outcomes = {outcome.path.as_posix(): outcome for outcome in result.trim_report.outcomes}
@@ -378,7 +379,7 @@ def test_runner_localfs_live_trim_stages_domain_generates_stack_files(tmp_path: 
 
     # Spot-check setup.stack content — N/J/L/D/R lines.
     setup_stack = (domain / "setup.stack").read_text()
-    assert setup_stack.startswith("# Chopper-generated stack: setup\n")
+    assert setup_stack.startswith(intel_header_text() + "# Chopper-generated stack: setup\n")
     assert "N setup\n" in setup_stack
     assert "J -xt vw my_shell -B BLOCK -T setup\n" in setup_stack
     assert "L 0\n" in setup_stack
@@ -424,8 +425,6 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
         assert stack_path in by_path, f"{stack_path} missing from manifest"
         assert by_path[tcl_path]["treatment"] == "generated"
         assert by_path[stack_path]["treatment"] == "generated"
-
-
 
 
 # ---------------------------------------------------------------------------

@@ -1158,7 +1158,7 @@ def test_flow_resolver_apply_add_step_silent_when_reference_unresolved() -> None
     s = _MutableStage.from_definition(StageDefinition(name="syn", load_from="base", steps=("step1",)))
     action = AddStepAction(action="add_step_after", stage="syn", reference="step1@0", items=("new",))
     ctx = _ctx()
-    _apply_add_step(ctx, [s], action, feature_name="feat")
+    _apply_add_step(ctx, [s], action, feature_name="feat", step_after_offsets={})
     # Stage steps unchanged (still just step1).
     assert list(s.steps) == ["step1"]
     assert "VE-19" in _codes(ctx)

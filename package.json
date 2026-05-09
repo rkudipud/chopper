@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@ladybugdb/core": "^0.16.0"
+    "@ladybugdb/core": "^0.16.0",
+    "gitnexus": "^1.6.3"
   }
 }

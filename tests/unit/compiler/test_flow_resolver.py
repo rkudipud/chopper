@@ -157,6 +157,46 @@ def test_actions_within_feature_applied_top_to_bottom() -> None:
     assert out[0].steps == ("a", "b", "c")
 
 
+def test_add_step_after_preserves_project_order_for_shared_anchor() -> None:
+    """Three features sharing one anchor must emit in selected feature order.
+
+    Per architecture doc §6.7 (Order Preservation for ``add_*_after`` actions),
+    when N features each ``add_step_after`` on the same anchor, the resolver
+    must preserve the **selected feature order** — i.e. the order in which
+    ``LoadedConfig.features`` carries them, which is the same whether the
+    selection comes from ``project.json`` ``features[]`` (``--project``) or
+    from a comma-separated ``--features`` CLI list. ``f1`` items first, then
+    ``f2``, then ``f3``. The naive implementation re-resolves the anchor each
+    call and silently REVERSES that order — this test guards against the
+    regression.
+    """
+
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "anchor"),)
+    f1 = _make_feature("f1", AddStepAction(action="add_step_after", stage="setup", reference="anchor", items=("a1",)))
+    f2 = _make_feature(
+        "f2", AddStepAction(action="add_step_after", stage="setup", reference="anchor", items=("b1", "b2"))
+    )
+    f3 = _make_feature("f3", AddStepAction(action="add_step_after", stage="setup", reference="anchor", items=("c1",)))
+    out = resolve_stages(ctx, base, (f1, f2, f3))
+    assert out[0].steps == ("anchor", "a1", "b1", "b2", "c1")
+
+
+def test_add_stage_after_preserves_project_order_for_shared_anchor() -> None:
+    """Three features each adding a new stage after the same reference must
+    emit in selected feature order (architecture doc §6.7). The selection
+    source (``--project`` vs ``--features``) is irrelevant: both surfaces
+    populate ``LoadedConfig.features`` with the same ordering contract."""
+
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "s"), _sd("anchor", "x"), _sd("end", "z"))
+    f1 = _make_feature("f1", AddStageAction(action="add_stage_after", reference="anchor", stage=_sd("st1", "s1")))
+    f2 = _make_feature("f2", AddStageAction(action="add_stage_after", reference="anchor", stage=_sd("st2", "s2")))
+    f3 = _make_feature("f3", AddStageAction(action="add_stage_after", reference="anchor", stage=_sd("st3", "s3")))
+    out = resolve_stages(ctx, base, (f1, f2, f3))
+    assert tuple(s.name for s in out) == ("setup", "anchor", "st1", "st2", "st3", "end")
+
+
 # ---------------------------------------------------------------------------
 # @n resolution + diagnostics
 # ---------------------------------------------------------------------------

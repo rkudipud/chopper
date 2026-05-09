@@ -535,7 +535,9 @@ class TestGenerateStackPipeline:
         ChopperRunner().run(ctx, command="trim")
 
         content = fs.read_text(DOMAIN / "setup.stack")
-        assert content.startswith("# Chopper-generated stack: setup\n")
+        from chopper.core.header import intel_header_text
+
+        assert content.startswith(intel_header_text() + "# Chopper-generated stack: setup\n")
         assert "N setup\n" in content
         assert "J shell -T setup\n" in content
         assert "L 0\n" in content

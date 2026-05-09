@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from chopper.core.header import intel_header_lines, intel_header_text
 from chopper.core.models_compiler import StageSpec
 from chopper.generators.stack_emitter import emit_stage_stack, stack_output_path
 
@@ -22,6 +23,7 @@ def test_minimal_stage_emits_only_required_lines() -> None:
     assert art.content.endswith("\n")
     lines = art.content.rstrip("\n").split("\n")
     assert lines == [
+        *intel_header_lines(),
         "# Chopper-generated stack: setup",
         "N setup",
         "D",
@@ -99,7 +101,7 @@ def test_full_field_stage_golden_layout() -> None:
         run_mode="serial",
     )
     assert emit_stage_stack(stage).content == (
-        "# Chopper-generated stack: run_verify\n"
+        intel_header_text() + "# Chopper-generated stack: run_verify\n"
         "N run_verify\n"
         "J -tool fm -B BLOCK -T run_verify\n"
         "L 0 3 5\n"

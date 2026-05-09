@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from chopper.core.header import intel_header_lines
 from chopper.core.models_compiler import StageSpec
 from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -47,7 +48,9 @@ def stack_output_path(stage: StageSpec) -> Path:
 def emit_stage_stack(stage: StageSpec) -> GeneratedArtifact:
     """Render ``stage`` as a ``GeneratedArtifact`` of kind ``"stack"``."""
 
-    lines: list[str] = [f"# Chopper-generated stack: {stage.name}", f"N {stage.name}"]
+    lines: list[str] = list(intel_header_lines())
+    lines.append(f"# Chopper-generated stack: {stage.name}")
+    lines.append(f"N {stage.name}")
 
     if stage.command:
         lines.append(f"J {stage.command}")

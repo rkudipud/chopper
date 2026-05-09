@@ -12,6 +12,37 @@ ordering:
 * ``@n`` instance targeting on step-level actions follows 1-based
   indexing; ``@0`` is an error.
 
+**Order-preservation contract (R1 ordered overlay for F3):**
+
+When multiple features share the same anchor for an ``add_step_after``
+or ``add_stage_after`` action, the **selected feature order** is
+preserved verbatim in the emitted output. "Selected feature order"
+is whatever order :attr:`LoadedConfig.features` carries — i.e. the
+order declared in ``project.json`` ``features[]`` when invoked with
+``--project``, or the order passed on the command line via
+``--features f1.feature.json,f2.feature.json,...``. The two surfaces
+are equivalent: the same overlay contract that R1 already enforces
+for F1 (file decisions) and F2 (proc decisions) in
+``merge_service.py`` is enforced here for F3 (stage / step
+decisions).
+
+Concretely, given anchor ``X`` in stage ``S`` and selected
+``features = [F1, F2, F3]`` each with ``add_step_after S:X``, the
+resolved step sequence around the anchor is::
+
+    ..., X, <items from F1>, <items from F2>, <items from F3>, ...
+
+The resolver tracks a cumulative insertion offset per ``(stage, anchor)``
+pair so each subsequent same-anchor ``add_step_after`` lands *after* the
+prior feature's items, not directly after the anchor. The same
+contract holds for ``add_stage_after`` keyed on ``reference`` stage
+name. ``add_step_before`` and ``add_stage_before`` already preserve
+selected feature order naturally because each insertion sits
+immediately before a shifted anchor, so no offset tracking is required
+for them. Order-independent F3 actions (``replace_step``,
+``replace_stage``, ``remove_step``, ``remove_stage``, ``load_from``)
+follow last-layer-wins semantics, which is consistent with R1.
+
 Diagnostics emitted:
 
 * ``VE-10 occurrence-suffix-overflow`` — ``@n`` with *n* exceeding the
@@ -81,9 +112,22 @@ def resolve_stages(
 
     _assert_unique_stage_names(working)
 
+    # Per-resolve cumulative-offset trackers used to preserve
+    # project-declared feature order for ``add_*_after`` actions when
+    # multiple features share the same anchor. See module docstring.
+    step_after_offsets: dict[tuple[str, str, int | None], int] = {}
+    stage_after_offsets: dict[str, int] = {}
+
     for feature in features:
         for action in feature.flow_actions:
-            _apply_action(ctx, working, action, feature_name=feature.name)
+            _apply_action(
+                ctx,
+                working,
+                action,
+                feature_name=feature.name,
+                step_after_offsets=step_after_offsets,
+                stage_after_offsets=stage_after_offsets,
+            )
 
     return tuple(ms.freeze() for ms in working)
 
@@ -174,15 +218,23 @@ def _apply_action(
     action: FlowAction,
     *,
     feature_name: str,
+    step_after_offsets: dict[tuple[str, str, int | None], int],
+    stage_after_offsets: dict[str, int],
 ) -> None:
     if isinstance(action, AddStepAction):
-        _apply_add_step(ctx, working, action, feature_name=feature_name)
+        _apply_add_step(
+            ctx,
+            working,
+            action,
+            feature_name=feature_name,
+            step_after_offsets=step_after_offsets,
+        )
     elif isinstance(action, RemoveStepAction):
         _apply_remove_step(ctx, working, action, feature_name=feature_name)
     elif isinstance(action, ReplaceStepAction):
         _apply_replace_step(ctx, working, action, feature_name=feature_name)
     elif isinstance(action, AddStageAction):
-        _apply_add_stage(working, action)
+        _apply_add_stage(working, action, stage_after_offsets=stage_after_offsets)
     elif isinstance(action, RemoveStageAction):
         _apply_remove_stage(working, action)
     elif isinstance(action, ReplaceStageAction):
@@ -269,12 +321,32 @@ def _apply_add_step(
     action: AddStepAction,
     *,
     feature_name: str,
+    step_after_offsets: dict[tuple[str, str, int | None], int],
 ) -> None:
     stage = _find_stage(working, action.stage)
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind=action.action)
     if idx is None:
         return
-    insertion = idx if action.action == "add_step_before" else idx + 1
+    if action.action == "add_step_before":
+        # Anchor index is re-resolved each call; previous insertions
+        # before the anchor have already shifted the anchor down, so
+        # this insertion lands immediately before the (shifted) anchor
+        # and naturally preserves selected feature order.
+        insertion = idx
+    else:
+        # add_step_after: preserve selected feature order by walking
+        # past prior same-anchor insertions from earlier features. The
+        # reference string plus its ``@n`` suffix (if any) uniquely
+        # identifies the anchor occurrence, so we key the offset on
+        # it. "Selected feature order" = order of
+        # :attr:`LoadedConfig.features`, whether it came from
+        # ``project.json`` ``features[]`` or the ``--features`` CLI
+        # flag.
+        _step_value, suffix = _split_reference(action.reference)
+        offset_key = (stage.name, _step_value, suffix)
+        prior = step_after_offsets.get(offset_key, 0)
+        insertion = idx + 1 + prior
+        step_after_offsets[offset_key] = prior + len(action.items)
     stage.steps[insertion:insertion] = list(action.items)
 
 
@@ -309,13 +381,29 @@ def _apply_replace_step(
 # ---- stage-level actions ---------------------------------------------------
 
 
-def _apply_add_stage(working: list[_MutableStage], action: AddStageAction) -> None:
+def _apply_add_stage(
+    working: list[_MutableStage],
+    action: AddStageAction,
+    *,
+    stage_after_offsets: dict[str, int],
+) -> None:
     ref_idx = _find_stage_index(working, action.reference)
     new_stage = _MutableStage.from_definition(action.stage)
     # Disallow duplicate stage name.
     if any(s.name == new_stage.name for s in working):
         raise ChopperError(f"flow_action {action.action} would create duplicate stage {new_stage.name!r}")
-    insertion = ref_idx if action.action == "add_stage_before" else ref_idx + 1
+    if action.action == "add_stage_before":
+        # Mirrors ``add_step_before``: each insertion shifts the
+        # reference stage down, so subsequent same-anchor inserts land
+        # immediately before it in selected feature order.
+        insertion = ref_idx
+    else:
+        # ``add_stage_after``: preserve selected feature order by
+        # walking past prior same-anchor insertions from earlier
+        # features.
+        prior = stage_after_offsets.get(action.reference, 0)
+        insertion = ref_idx + 1 + prior
+        stage_after_offsets[action.reference] = prior + 1
     working.insert(insertion, new_stage)
 
 

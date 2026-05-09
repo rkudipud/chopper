@@ -7,6 +7,7 @@ from pathlib import Path
 from chopper.adapters import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
+from chopper.core.header import intel_header_text
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, StageSpec
 from chopper.generators import GeneratorService
@@ -109,9 +110,10 @@ def test_emit_stage_tcl_preserves_steps_verbatim() -> None:
     assert art.path == Path("setup.tcl")
     assert art.kind == "tcl"
     assert art.source_stage == "setup"
-    # Banner then steps, trailing newline.
+    # Intel header, banner, then steps, trailing newline.
+    assert art.content.startswith(intel_header_text())
     lines = art.content.splitlines()
-    assert lines[0].startswith("# Chopper-generated")
+    assert any(line.startswith("# Chopper-generated") for line in lines)
     assert lines[-2:] == ["puts hi", "puts {world}"]
     assert art.content.endswith("\n")
 
@@ -210,7 +212,7 @@ def test_service_emits_stack_pair_per_stage_when_flag_on() -> None:
     )
     assert fs.exists(DOMAIN / "setup.stack")
     assert fs.exists(DOMAIN / "run.stack")
-    assert fs.read_text(DOMAIN / "setup.stack").startswith("# Chopper-generated stack: setup\n")
+    assert fs.read_text(DOMAIN / "setup.stack").startswith(intel_header_text() + "# Chopper-generated stack: setup\n")
 
 
 def test_service_dry_run_builds_stack_artifacts_but_writes_nothing() -> None:

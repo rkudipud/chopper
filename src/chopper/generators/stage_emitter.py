@@ -7,8 +7,10 @@ Tcl (or the target language).
 
 The only interpretation performed:
 
-* a single-line provenance banner prefix so audit consumers can
-  correlate a generated file back to its source stage without opening
+* the Intel-standard copyright header (see :mod:`chopper.core.header`)
+  is prepended to every emitted file with the current calendar year;
+* a single-line provenance banner so audit consumers can correlate a
+  generated file back to its source stage without opening
   ``compiled_manifest.json``;
 * steps joined with ``"\n"`` and file terminated with a trailing newline.
 """
@@ -17,6 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from chopper.core.header import intel_header_lines
 from chopper.core.models_compiler import StageSpec
 from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -37,7 +40,7 @@ def emit_stage_tcl(stage: StageSpec) -> GeneratedArtifact:
     writes the content via :attr:`ChopperContext.fs`.
     """
 
-    lines: list[str] = []
+    lines: list[str] = list(intel_header_lines())
     lines.append(f"# Chopper-generated stage: {stage.name}")
     if stage.load_from:
         lines.append(f"# load_from: {stage.load_from}")

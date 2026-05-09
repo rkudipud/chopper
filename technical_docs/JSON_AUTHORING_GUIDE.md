@@ -133,6 +133,11 @@ Set `"generate_stack": true` in the base JSON `options` block to have Chopper em
 **Emitted format (one file per stage):**
 
 ```
+####################################################################################################
+# INTEL CONFIDENTIAL
+# Copyright (c) <YEAR> Intel Corporation
+# ... (full Intel notice; see ARCHITECTURE.md §6.6.1)
+####################################################################################################
 # Chopper-generated stack: <name>
 N <name>
 J <command>            # omitted when command is empty
@@ -142,6 +147,8 @@ I <input>              # one line per entry; block omitted when empty
 O <output>             # one line per entry; block omitted when empty
 R <run_mode>           # always emitted ("serial" or "parallel")
 ```
+
+Every Chopper-generated artifact (`<stage>.tcl` and `<stage>.stack`) is prefixed with the verbatim Intel-standard copyright header. The `<YEAR>` token is substituted with `datetime.now().year` at emission time so generated files always carry the current calendar year. The provenance line (`# Chopper-generated stack: <name>`) immediately follows the closing rule of the header.
 
 **`D`-line derivation (in order):**
 
