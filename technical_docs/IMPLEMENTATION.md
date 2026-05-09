@@ -187,6 +187,8 @@ Double-quoted strings `"..."` group content into a single word and enable substi
 3. The quoted word ends at the next unescaped `"` encountered while `quoted_bracket_depth == 0`.
 4. A genuine unbalanced `{` *inside a string literal* is still a Tcl error, but the file-level brace-depth check at EOF catches it via `PE-02`. The tokenizer does not need to inspect string contents for brace balance.
 
+**Literal-data-word exception (Endekas rule 6):** if the byte immediately preceding a candidate `"` is an unescaped structural `{`, the `{` opened a literal data word and the `"` is its first content byte — NOT a quoted-word opener. Without this exception, idioms like `set q {"}` or `regexp {".*"} $line` would consume the matching `}` as part of a phantom quoted word and desync brace counting (false `PE-02`). See Pitfall P-01a and the regression fixture [`tests/fixtures/edge_cases/parser_literal_quote_in_braced_word.tcl`](../tests/fixtures/edge_cases/parser_literal_quote_in_braced_word.tcl). Detection is a one-byte peek-back at quote-open time; closing `}` handling is unchanged.
+
 ##### 1.3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)
 
 While the parser is at `brace_depth == 0` scanning the proc name or args specification before the proc body `{` opens, the rules above apply unchanged:
@@ -2076,6 +2078,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | Module | Mistake | Prevention |
 |--------|---------|-----------|
 | **Parser** | Quotes treated as inert inside braced bodies (old, incorrect rule) | Apply Tcl Endekas rule 5: `"` opens a quoted word at any brace depth; track `quoted_bracket_depth` (P-01) |
+| **Parser** | `"` immediately after `{` opens phantom quoted word; matching `}` is silently swallowed and brace counting desyncs (false `PE-02`) — e.g. `set q {"}`, `regexp {".*"} $line` | At quote-open time, peek-back: if `text[i-1]` is an unescaped `{`, do NOT open a quoted word — Endekas rule 6 says contents of `{...}` are literal bytes (P-01a) |
 | **Parser** | Line continuation corrupts line numbers | Don't physically join lines (P-02) |
 | **Parser** | Namespace context resets incorrectly | LIFO stack management (P-03) |
 | **Parser** | Computed proc names not skipped | Log `PW-01`, skip proc (P-04) |

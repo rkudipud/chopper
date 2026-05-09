@@ -64,9 +64,7 @@ class TclIndentationService:
         """
 
         if not enabled:
-            rewritten_paths = tuple(
-                ctx.config.domain_root / rel_path for rel_path in tcl_output_paths(manifest)
-            )
+            rewritten_paths = tuple(ctx.config.domain_root / rel_path for rel_path in tcl_output_paths(manifest))
             return trim_report, artifacts, rewritten_paths
 
         normalized: dict[Path, str] = {}

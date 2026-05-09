@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from re import Pattern
+from typing import Literal
 
 from chopper.compiler.flow_resolver import resolve_stages
 from chopper.core.context import ChopperContext
@@ -618,6 +619,7 @@ def _record_replace_transition(
     """Record a ShadowEvent + emit VW-21 when a layer wholesale-replaces a prior decision."""
     if prev is None or not prior_layer or prior_layer == layer_key:
         return
+    action: Literal["replace", "downgrade-whole-to-trim"]
     if isinstance(prev, _Whole) and new_kind == "trim":
         action = "downgrade-whole-to-trim"
     else:

@@ -146,6 +146,40 @@ class TestQuotedWords:
         word_values = [t.value for t in r.tokens if t.kind == TokenKind.WORD]
         assert '"text { more"' in word_values
 
+    def test_literal_quote_in_braced_data_word_self_recovers(self) -> None:
+        # Real-world idiom from Synopsys Formality default_fm_procs.tcl:
+        # ``set q {"}`` is a single-character data word containing the
+        # literal ``"``. Tcl Endekas rule 6: contents of ``{...}`` are
+        # literal bytes. The opening ``"`` must NOT be treated as a
+        # quoted-word opener; otherwise the matching ``}`` is consumed
+        # as part of the phantom quote and the brace counter desyncs.
+        # Self-recovery: the in-quoted-word ``}``-handler detects that
+        # the close would drop below the depth at which the quote
+        # opened, abandons quoted-word state, and lets the structural
+        # branch process the ``}`` normally.
+        r = tokenize('set q {"}')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_literal_quote_in_braced_word_inside_proc_body(self) -> None:
+        # Same idiom embedded in a proc body (depth 1 enclosing scope).
+        # The fix must work at every depth, not just at depth 0.
+        src = 'proc foo {} {\n    set q {"}\n    set x ""\n}'
+        r = tokenize(src)
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_braced_regex_with_balanced_quotes(self) -> None:
+        # ``{".*"}`` is a literal data word containing the bytes ``".*"``.
+        # The opening ``"`` is the first byte inside ``{`` so the
+        # quoted-word opener is suppressed (literal-data-word exception).
+        # The matching ``"`` then accumulates as part of a regular WORD
+        # and the ``}`` closes the brace structurally. Brace count stays
+        # balanced.
+        r = tokenize('regexp {".*"} $line')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
 
 class TestComments:
     def test_simple_comment(self) -> None:

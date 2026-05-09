@@ -16,8 +16,17 @@ State precedence: ``in_comment`` > ``in_quote`` > brace tracking.
 Backslash escape: a structural character preceded by an odd number of
 backslashes is escaped; even (including zero) is not.
 
-Quote behavior: pre-body (depth 0, word start) ``"`` opens a quoted
-word until the next unescaped ``"``. Inside braces ``"`` is literal.
+Quote behavior: an unescaped ``"`` at a word boundary opens a quoted
+word that runs until the next unescaped ``"``; whitespace, ``;``, ``\n``
+and ``}`` inside the quoted word are LITERAL. Quoting works at every
+brace depth so re-tokenized proc-body content (depth ≥ 1) honours
+``"..."`` correctly. **Literal-data-word exception**: a ``"`` whose
+immediately preceding byte is an unescaped ``{`` does NOT open a
+quoted word — the ``{`` opened a literal data word (Tcl Endekas
+rule 6: contents of ``{...}`` are literal bytes), so the ``"`` is the
+first literal character of that word, e.g. ``set q {"}``. Without this
+exception the matching ``}`` would be silently consumed as part of a
+phantom quoted word and brace counting would desync.
 
 Comment behavior: ``#`` at command position runs to end of line;
 braces inside comments are inert.
@@ -365,7 +374,22 @@ def tokenize(text: str) -> TokenizerResult:
         # ``TW-02_quoted_string_semicolon_misparse.md``). Quoting must
         # work at every depth — Chopper re-tokenizes proc bodies as Tcl
         # source and Tcl source honors ``"..."`` regardless of nesting.
-        if ch == '"' and word_start == -1 and not _is_escaped(text, i):
+        #
+        # Literal-data-word exception (Endekas rule 6): if the byte
+        # immediately preceding this ``"`` is an unescaped structural
+        # ``{``, the ``{`` opened a literal data word (e.g. ``set q
+        # {"}``, ``regexp {".*"} ...``). Inside such a word ALL bytes
+        # are literal until the matching ``}``, so ``"`` is just a
+        # literal character, NOT a quoted-word opener. Falling through
+        # to the generic-character branch below lets the ``"`` and any
+        # following bytes accumulate as a regular literal WORD that the
+        # close-brace branch will flush.
+        if (
+            ch == '"'
+            and word_start == -1
+            and not _is_escaped(text, i)
+            and not (i > 0 and text[i - 1] == "{" and not _is_escaped(text, i - 1))
+        ):
             word_start = i  # include opening `"` in value
             word_line = line_no
             word_at_cmd_pos = at_cmd_pos
