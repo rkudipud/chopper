@@ -37,7 +37,7 @@ P7  Audit  ←  P6  Post-validate  ←  P5  Build output  ←  P4  Trace (BFS, r
 | **P2** | `parser/` | Tokenize each `.tcl` file, extract `ProcEntry` records (definitions, calls, namespaces). Phase 2a parses surface files with diagnostics; Phase 2b silently parses every other `.tcl` under `domain_root` so the proc index is **full-domain**. | `ParseResult` |
 | **P3** | `compiler/merge_service.py` | Apply R1 merge rules across base + features; produce per-file treatments | `CompiledManifest` |
 | **P4** | `compiler/trace_service.py` | BFS from explicit proc includes; emit `dependency_graph.json` and `TW-*` warnings. **Reporting only — no auto-copy.** | `DependencyGraph` |
-| **P5** | `trimmer/`, `generators/` | Execute file copies, proc-level rewrites, generated stage files, P5c indentation normalisation | `TrimReport` |
+| **P5** | `trimmer/`, `generators/` | Execute file copies, proc-level rewrites, generated stage files, optional P5c indentation pass (`base.options.indent`, default off) | `TrimReport` |
 | **P6** | `validator/functions.py` | Re-parse trimmed output; brace balance, dangling refs, namespace consistency, stage-step references | post-validation diagnostics |
 | **P7** | `audit/service.py` | Write `.chopper/` bundle. Always runs in `finally`, even after upstream failure. | `AuditManifest` |
 
@@ -182,7 +182,7 @@ src/chopper/
 ├── config/       JSON loading, schema validation, depends_on topo-sort       (P1)
 ├── parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
 ├── compiler/     R1 merge algorithm, BFS trace, F3 flow-actions              (P3, P4)
-├── trimmer/      File copier, proc dropper, indentation normaliser           (P5a, P5c)
+├── trimmer/      File copier, proc dropper, opt-in indentation normaliser  (P5a, P5c)
 ├── generators/   F3 stage + stack file emitter                               (P5b)
 ├── validator/    Pre- and post-trim validation                               (P1, P6)
 ├── audit/        .chopper/ writers, SLOC counter, hashing, internal-error log (P7)

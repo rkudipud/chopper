@@ -22,7 +22,7 @@ from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, TrimReport
 
-__all__ = ["TclIndentationService", "format_tcl_indentation"]
+__all__ = ["TclIndentationService", "format_tcl_indentation", "tcl_output_paths"]
 
 
 _TCL_SUFFIX = ".tcl"
@@ -45,6 +45,8 @@ class TclIndentationService:
         manifest: CompiledManifest,
         trim_report: TrimReport,
         artifacts: tuple[GeneratedArtifact, ...],
+        *,
+        enabled: bool = True,
     ) -> tuple[TrimReport, tuple[GeneratedArtifact, ...], tuple[Path, ...]]:
         """Format final ``.tcl`` outputs and return updated P6 inputs.
 
@@ -53,7 +55,19 @@ class TclIndentationService:
         in memory so callers see the same content that was written to disk.
         The path tuple is absolute and is intended for ``validate_post``'s
         ``rewritten`` argument.
+
+        When ``enabled`` is ``False`` (the default for ``base.options.indent``
+        is ``false``), the formatter is skipped entirely: ``trim_report`` and
+        ``artifacts`` pass through unchanged, but the rewritten-path tuple is
+        still computed so P6's brace-balance check runs over every PROC_TRIM
+        and GENERATED ``.tcl`` output that P5a/P5b wrote.
         """
+
+        if not enabled:
+            rewritten_paths = tuple(
+                ctx.config.domain_root / rel_path for rel_path in tcl_output_paths(manifest)
+            )
+            return trim_report, artifacts, rewritten_paths
 
         normalized: dict[Path, str] = {}
         rewritten: list[Path] = []
@@ -131,6 +145,16 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
 
 
 def _tcl_output_paths(manifest: CompiledManifest) -> tuple[Path, ...]:
+    return tcl_output_paths(manifest)
+
+
+def tcl_output_paths(manifest: CompiledManifest) -> tuple[Path, ...]:
+    """Return the sorted ``.tcl`` outputs eligible for P5c indentation.
+
+    Only ``PROC_TRIM`` and ``GENERATED`` outputs are returned; ``FULL_COPY``
+    is byte-preserved and never normalized (issue #22). Public so the
+    runner can reuse the same set when indentation is disabled.
+    """
     return tuple(
         sorted(
             (

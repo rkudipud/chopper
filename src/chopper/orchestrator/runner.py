@@ -118,7 +118,18 @@ class ChopperRunner:
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
                 # P5b — Generators.
                 artifacts = GeneratorService().run(ctx, manifest)
-                trim_report, artifacts, rewritten = TclIndentationService().run(ctx, manifest, trim_report, artifacts)
+                # P5c — Tcl indentation normalization. Off by default; opt
+                # in via ``base.options.indent: true``. When disabled, the
+                # service is a no-op pass-through but still returns the
+                # rewritten-path set so P6's brace-balance check covers
+                # every PROC_TRIM and GENERATED ``.tcl`` output.
+                trim_report, artifacts, rewritten = TclIndentationService().run(
+                    ctx,
+                    manifest,
+                    trim_report,
+                    artifacts,
+                    enabled=loaded.base.options.indent,
+                )
                 if has_errors(ctx, Phase.P5_TRIM):
                     ctx.progress.phase_done(Phase.P5_TRIM)
                     exit_code = 1

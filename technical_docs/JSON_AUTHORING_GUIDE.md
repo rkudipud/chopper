@@ -190,6 +190,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 | `tool` | string | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | string | No | Human-readable summary |
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
+| `options.indent` | boolean | No | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Default: `false` (skip indentation entirely). |
 | `options.generate_stack` | boolean | No | Emit one `<stage>.stack` per resolved stage (see §2.1). Default: `false` |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |

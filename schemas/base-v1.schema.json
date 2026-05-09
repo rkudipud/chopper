@@ -45,6 +45,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true and the base declares at least one stage, Chopper emits one <stage>.stack file per resolved stage alongside the <stage>.tcl run script. The .stack format uses N/J/L/D/I/O/R records derived directly from the authored stage fields; see the JSON authoring guide for details. No effect when stages is empty."
+        },
+        "indent": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, P5c re-indents every PROC_TRIM and GENERATED .tcl output before P6 validation runs. Default false: Chopper writes PROC_TRIM and GENERATED outputs verbatim and skips the indentation pass entirely. The current implementation has known limitations (no quote/comment awareness, no line-continuation handling); leave this off unless you have explicitly verified the formatter on your domain."
         }
       },
       "additionalProperties": false

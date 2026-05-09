@@ -218,6 +218,7 @@ def load_base(
     options = BaseOptions(
         cross_validate=options_raw.get("cross_validate", True),
         generate_stack=options_raw.get("generate_stack", False),
+        indent=options_raw.get("indent", False),
     )
 
     stages = tuple(_load_stage_def(s) for s in (raw.get("stages") or []))

@@ -250,6 +250,7 @@ For each pattern, copy from the matching folder in [../examples/](../examples/) 
 | Field | Where | Default | Effect |
 |---|---|---|---|
 | `options.generate_stack` | `base.json` | `false` | When `stages` are defined, emit `<stage>.stack` alongside `<stage>.tcl` |
+| `options.indent` | `base.json` | `false` | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Off by default — the current formatter has known limitations; only opt in after verifying it on your domain. |
 | `depends_on` | feature JSON | `[]` | Topologically order this feature after the named features |
 | `flow_actions` | feature JSON | none | Append/insert/replace stage entries from the base or earlier features |
 

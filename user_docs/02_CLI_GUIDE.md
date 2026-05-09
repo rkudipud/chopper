@@ -141,7 +141,7 @@ Both are read-only. The difference is reporting context: `trim --dry-run` writes
    - **`PROC_TRIM`** — Tcl file rewritten in place: kept procs survive, the rest are removed.
    - **`REMOVE`** — file is not copied across.
    - **`GENERATED`** — `<stage>.tcl` (and `<stage>.stack` if `options.generate_stack: true`) written into the rebuilt domain.
-3. P5c — every emitted Tcl file is normalised by a deterministic indentation pass.
+3. P5c — if `base.options.indent: true`, every emitted PROC_TRIM/GENERATED Tcl file is normalised by a deterministic indentation pass. Default: skipped (Chopper writes those outputs verbatim).
 4. P6 — the rebuilt output is re-parsed; brace-balance, dangling proc references, and stage-step references are checked. Issues become `VW-*` warnings.
 5. P7 — `.chopper/` is written.
 
