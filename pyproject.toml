@@ -50,6 +50,9 @@ where = ["src"]
 # pool (architecture doc §3.10) is populated out-of-the-box without any
 # post-install steps.
 "chopper.data.tool_commands" = ["*.commands"]
+# Ship the vendored cloc.pl (GPL-2; see src/chopper/audit/vendor/README.md)
+# so the SLOC backend can locate it after a wheel install.
+"chopper.audit.vendor" = ["cloc.pl", "LICENSE", "README.md"]
 
 [tool.ruff]
 target-version = "py311"

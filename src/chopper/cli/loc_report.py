@@ -34,7 +34,13 @@ from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParseResult, ProcEntry
 from chopper.core.models_trimmer import GeneratedArtifact
 
-__all__ = ["LocReport", "TreatmentBucket", "build_loc_report", "render_loc_report"]
+__all__ = [
+    "LocReport",
+    "TreatmentBucket",
+    "build_loc_report",
+    "build_loc_report_baseline_only",
+    "render_loc_report",
+]
 
 
 _SLOC_EXTENSIONS = frozenset(
@@ -320,6 +326,62 @@ def build_loc_report(
 # ---------------------------------------------------------------------------
 # Renderer
 # ---------------------------------------------------------------------------
+
+
+def build_loc_report_baseline_only(ctx: ChopperContext) -> LocReport:
+    """Compute a *baseline-only* LOC report by walking the source root.
+
+    Used by ``chopper loc`` as a fallback when the dry-run pipeline
+    aborted before producing a :class:`CompiledManifest` (e.g. P2/P3
+    surfaced ``PE-01`` duplicate procs or ``PE-02`` unbalanced braces).
+    In that case we still want the caller to see the SLOC baseline of
+    the domain — the LOC subcommand is purely read-only and the
+    on-disk source is unaffected by the pipeline halt.
+
+    The returned report has ``after == before`` for every metric and a
+    single ``FULL_COPY`` bucket holding all source files. Per-treatment
+    accounting is unavailable without the manifest, so we deliberately
+    do not synthesize ``PROC_TRIM`` / ``REMOVE`` / ``GENERATED``
+    counts; consumers must rely on diagnostics (rendered separately
+    by ``cmd_loc``) to understand why downstream treatment buckets are
+    empty.
+    """
+    source_files = _enumerate_source_files(ctx)
+
+    total_lines = 0
+    total_sloc = 0
+    file_count = 0
+    for rel in source_files:
+        text = _read(ctx, rel)
+        if text is None:
+            continue
+        file_count += 1
+        total_lines += len(text.splitlines())
+        total_sloc += count_sloc(rel, text)
+
+    buckets = (
+        TreatmentBucket(
+            "FULL_COPY",
+            file_count,
+            total_lines,
+            total_lines,
+            total_sloc,
+            total_sloc,
+        ),
+        TreatmentBucket("PROC_TRIM", 0, 0, 0, 0, 0),
+        TreatmentBucket("REMOVE", 0, 0, 0, 0, 0),
+        TreatmentBucket("GENERATED", 0, 0, 0, 0, 0),
+    )
+
+    return LocReport(
+        files_before=file_count,
+        files_after=file_count,
+        lines_before=total_lines,
+        lines_after=total_lines,
+        sloc_before=total_sloc,
+        sloc_after=total_sloc,
+        buckets=buckets,
+    )
 
 
 def _fmt_pct(value: float) -> str:

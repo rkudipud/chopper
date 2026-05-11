@@ -289,9 +289,13 @@ def cmd_loc(args: argparse.Namespace) -> int:
     # Always render diagnostics (so users see VE-/VW- before the table).
     render_result(result, sink.snapshot())
 
-    # Only render the LOC table when the dry-run pipeline reached at
-    # least P3 (we need ``manifest`` and ``parsed``). Earlier failures
-    # already surfaced via ``render_result`` above.
+    # Render the LOC table. Preferred path: dry-run pipeline reached
+    # P3 and produced a manifest, so we can attribute per-treatment
+    # buckets. Fallback path: pipeline aborted early (e.g. ``PE-01``
+    # duplicate procs or ``PE-02`` unbalanced braces in P2). ``chopper
+    # loc`` is read-only, so we still emit a baseline-only SLOC report
+    # — users get the on-disk numbers even when their domain has
+    # quality issues that block trim planning.
     if result.manifest is not None and result.parsed is not None and result.loaded is not None:
         from chopper.cli.loc_report import build_loc_report, render_loc_report
 
@@ -302,6 +306,11 @@ def cmd_loc(args: argparse.Namespace) -> int:
             manifest=result.manifest,
             generated_artifacts=result.generated_artifacts,
         )
+        render_loc_report(report)
+    else:
+        from chopper.cli.loc_report import build_loc_report_baseline_only, render_loc_report
+
+        report = build_loc_report_baseline_only(ctx)
         render_loc_report(report)
 
     return result.exit_code

@@ -109,7 +109,11 @@ def test_count_sloc_shell_preserves_shebang() -> None:
     assert count_sloc(Path("s.sh"), text) == 2
 
 
-def test_count_sloc_csv_ignores_comma_only_lines() -> None:
+def test_count_sloc_csv_ignores_comma_only_lines(monkeypatch) -> None:
+    # The python fallback treats lines containing only commas/whitespace as
+    # blank. The cloc backend uses cloc's CSV profile, which counts them as
+    # code rows. Force the fallback here to lock in the legacy convention.
+    monkeypatch.setenv("CHOPPER_SLOC_BACKEND", "python")
     text = "a,b,c\n,,,\nx,y,z\n\n"
     assert count_sloc(Path("d.csv"), text) == 2
 
@@ -121,6 +125,39 @@ def test_count_sloc_unknown_extension_counts_all_nonblank() -> None:
 
 def test_count_raw_is_nonblank_count() -> None:
     assert count_raw("a\n\nb\n   \nc\n") == 3
+
+
+# Cloc-backend-specific regressions: behaviors the pure-Python fallback
+# cannot detect. Skip when the cloc backend isn't available so CI on
+# perl-less hosts still passes.
+
+import pytest  # noqa: E402
+
+from chopper.audit import cloc_backend as _cloc_backend  # noqa: E402
+
+_cloc_skip = pytest.mark.skipif(not _cloc_backend.is_available(), reason="cloc backend unavailable")
+
+
+@_cloc_skip
+def test_count_sloc_c_block_comment_excluded() -> None:
+    # Multi-line /* ... */ block comments are billed as comments by cloc
+    # but counted as code by the python fallback.
+    text = "int main(void) {\n/*\n * banner\n * banner\n */\nreturn 0;\n}\n"
+    assert count_sloc(Path("m.c"), text) == 3
+
+
+@_cloc_skip
+def test_count_sloc_python_module_docstring_excluded() -> None:
+    text = '"""module banner\n\nlong description\n"""\n\nimport os\n\nos.getcwd()\n'
+    # cloc treats the triple-quoted docstring as a comment; only `import os`
+    # and `os.getcwd()` remain.
+    assert count_sloc(Path("m.py"), text) == 2
+
+
+@_cloc_skip
+def test_count_sloc_perl_pod_block_excluded() -> None:
+    text = "use strict;\n\n=pod\n\nlong POD doc\n\n=cut\n\nprint 1;\n"
+    assert count_sloc(Path("m.pl"), text) == 2
 
 
 # ---------------------------------------------------------------------------

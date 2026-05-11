@@ -1,31 +1,53 @@
 """Logical source-line counter for audit reports.
 
 Powers the ``sloc_before`` / ``sloc_after`` fields in
-:file:`trim_report.json` and :file:`trim_stats.json`.
+:file:`trim_report.json`, :file:`trim_stats.json`, and the ``chopper
+loc`` report.
 
-Language detection is extension-based only. Unknown extensions fall
-back to counting every non-blank line.
+Counting strategy
+-----------------
+This module is a thin dispatcher with two backends:
 
-Supported hash-comment languages (``#`` introduces a full-line
-comment): Tcl (``.tcl``), Perl (``.pl``, ``.pm``), Python (``.py``),
-and Unix shells (``.sh``, ``.bash``, ``.csh``, ``.tcsh``, ``.zsh``,
-``.ksh``). Python triple-quoted module docstrings are *not* skipped —
-they are valid Python expressions and SLOC counters historically
-disagree on whether to elide them, so we count them as code for
-predictability.
+1. **cloc backend** (:mod:`chopper.audit.cloc_backend`) — preferred.
+   Shells out to the vendored ``cloc.pl`` for industry-standard,
+   language-aware counting that understands block comments
+   (``/* … */``, ``<!-- … -->``), Perl POD, Python module docstrings,
+   HEREDOCs, and the long tail of language quirks. Used automatically
+   when perl + ``cloc.pl`` are available.
+2. **Pure-Python fallback** — original implementation kept below as a
+   safety net for environments without perl or where the vendored
+   ``cloc.pl`` has been removed (e.g. to avoid bundling GPL-2 code).
+   Handles hash-comment languages (Tcl, shell, Python, Perl), CSV,
+   and JSON only; **does not** see block comments, POD, docstrings,
+   or HEREDOCs — those are billed as code.
 
-Public helpers: :func:`count_sloc` (language-aware) and :func:`count_raw`
-(non-blank line count).
+Override
+--------
+Set ``CHOPPER_SLOC_BACKEND=python`` in the environment to force the
+fallback even when cloc is available. Useful for reproducing legacy
+SLOC numbers or for unit-test determinism.
+
+Public helpers
+--------------
+* :func:`count_sloc` — logical-line count (cloc when available; fallback
+  otherwise).
+* :func:`count_raw` — non-blank line count, language-agnostic.
 """
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+from chopper.audit import cloc_backend
 
 __all__ = ["count_raw", "count_sloc"]
 
 
-# Language detection table (extension -> comment/blank rules).
+_BACKEND_ENV_VAR = "CHOPPER_SLOC_BACKEND"
+
+
+# Language detection table for the pure-Python fallback.
 _HASH_COMMENT_EXTENSIONS = frozenset(
     {
         ".tcl",
@@ -59,13 +81,26 @@ def count_raw(text: str) -> int:
 def count_sloc(path: Path, text: str) -> int:
     """Return logical source-line count for ``text``.
 
-    Language is derived from ``path.suffix`` lowercased. For Tcl /
-    Perl / Python / Shell, full-line comments (first non-whitespace
-    char is ``#``, except a ``#!`` shebang on line 1 of an executable
-    script) and blank lines do not count. For CSV, a line containing
-    only commas/whitespace does not count. JSON has no comment syntax;
-    every non-blank line counts. Unknown extensions use the fallback
-    (same as JSON).
+    Prefers the cloc backend when available; otherwise applies the
+    pure-Python fallback rules documented at module level. Language
+    is derived from ``path.suffix`` lowercased in either backend.
+    """
+
+    if os.environ.get(_BACKEND_ENV_VAR, "").lower() != "python":
+        cloc_result = cloc_backend.count_sloc_via_cloc(path, text)
+        if cloc_result is not None:
+            return cloc_result
+
+    return _count_sloc_python(path, text)
+
+
+def _count_sloc_python(path: Path, text: str) -> int:
+    """Pure-Python fallback counter (see module docstring).
+
+    Tcl / Perl / Python / Shell: full-line ``#`` comments (except a
+    ``#!`` shebang on line 1 of an executable script) and blank lines
+    do not count. CSV: lines containing only commas/whitespace do not
+    count. JSON and unknown extensions: every non-blank line counts.
     """
 
     suffix = path.suffix.lower()

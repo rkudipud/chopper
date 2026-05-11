@@ -97,9 +97,12 @@ def test_proc_dropper_includes_leading_comment_in_drop_range() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_sloc_csv_branch_counts_only_data_rows() -> None:
+def test_sloc_csv_branch_counts_only_data_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     from chopper.audit.sloc import count_sloc
 
+    # Targets the pure-Python CSV branch; cloc's CSV profile counts the
+    # ``,,`` row as code, so force the fallback for deterministic coverage.
+    monkeypatch.setenv("CHOPPER_SLOC_BACKEND", "python")
     text = "a,b,c\n,,\n1,2,3\n"
     n = count_sloc(Path("data.csv"), text)
     assert n == 2  # header + one data row; the empty-comma row is skipped
