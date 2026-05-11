@@ -28,6 +28,7 @@ is a no-op for in-memory filesystem adapters used by unit tests, and the
 from __future__ import annotations
 
 import shutil
+import stat
 from pathlib import Path
 
 from chopper.core.context import ChopperContext
@@ -37,6 +38,9 @@ from chopper.core.models_trimmer import FileOutcome
 from chopper.trimmer.proc_dropper import drop_procs
 
 __all__ = ["full_copy_file", "proc_trim_file", "remove_file"]
+
+
+_EXEC_BITS = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
 
 
 def _backup_path(ctx: ChopperContext, rel: Path) -> Path:
@@ -54,13 +58,35 @@ def _mirror_mode(src: Path, dst: Path) -> None:
     in-memory adapter never materializes paths on disk) or when the platform
     rejects ``chmod`` for any reason. Errors here must never break a trim:
     the destination content is already correct; only the perms are at risk.
+
+    Additionally adds the executable bit for user/group/other (``a+x``) so
+    every rebuilt file in the domain is runnable regardless of the source's
+    mode. Per user request: all final files in the rebuilt domain receive
+    exec perms.
     """
 
     try:
         if src.is_file() and dst.is_file():
             shutil.copymode(src, dst)
+            ensure_executable(dst)
     except OSError:
         # Defensive: keep the trim alive on filesystems that reject chmod.
+        pass
+
+
+def ensure_executable(dst: Path) -> None:
+    """Set ``a+x`` on ``dst`` if it is a real on-disk file.
+
+    Shared with :class:`~chopper.generators.GeneratorService` so emitted
+    ``.stack`` / ``.tcl`` artifacts also pick up exec perms. Errors are
+    swallowed for the same reason as :func:`_mirror_mode`.
+    """
+
+    try:
+        if dst.is_file():
+            current = dst.stat().st_mode
+            dst.chmod(current | _EXEC_BITS)
+    except OSError:
         pass
 
 

@@ -102,7 +102,14 @@ def _resolve_audit_root(ctx: ChopperContext | None, override: Path | None) -> Pa
         return override
     if ctx is not None:
         return ctx.config.audit_root
-    return Path.cwd() / ".chopper"
+    try:
+        return Path.cwd() / ".chopper"
+    except (FileNotFoundError, OSError):
+        # CWD is gone (deleted, NFS inode replaced). Fall back to a
+        # tempdir so the crash log can still be written somewhere.
+        import tempfile
+
+        return Path(tempfile.gettempdir()) / "chopper"
 
 
 def _render(ctx: ChopperContext | None, *, run_id: str, exc: BaseException) -> str:

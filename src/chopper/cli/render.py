@@ -11,14 +11,25 @@ to the provided text stream.
 
 from __future__ import annotations
 
+import shutil as _shutil
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TextIO
 
+from chopper.audit.sloc import count_sloc
+from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
 from chopper.core.models_audit import RunResult
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_trimmer import TrimReport
 
-__all__ = ["render_cleanup_message", "render_diagnostics", "render_result"]
+__all__ = [
+    "render_cleanup_message",
+    "render_diagnostics",
+    "render_result",
+    "render_trim_stats",
+]
 
 
 _SEVERITY_LABEL = {
@@ -26,6 +37,17 @@ _SEVERITY_LABEL = {
     Severity.WARNING: "WARN ",
     Severity.INFO: "INFO ",
 }
+
+
+# Diagnostic codes that are intentionally suppressed from CLI stderr
+# output. They are still recorded in the audit bundle, so debugging is
+# unaffected; we just keep the terminal scrollback signal-to-noise high.
+#
+# TI-01 (known-tool-command): emitted once per proc-call site that
+# resolves to the tool-command pool (e.g. `get_cells`, `set_top`, `memory`).
+# On a real flow this fires hundreds of times and drowns out the
+# warnings/errors users actually need to act on.
+_SUPPRESSED_STDERR_CODES: frozenset[str] = frozenset({"TI-01"})
 
 
 def render_diagnostics(
@@ -36,6 +58,8 @@ def render_diagnostics(
 
     out = stream if stream is not None else sys.stderr
     for d in diagnostics:
+        if d.code in _SUPPRESSED_STDERR_CODES:
+            continue
         label = _SEVERITY_LABEL[d.severity]
         location = ""
         if d.path is not None:
@@ -71,3 +95,227 @@ def render_cleanup_message(message: str, stream: TextIO | None = None) -> None:
 
     out = stream if stream is not None else sys.stdout
     out.write(f"{message}\n")
+
+
+# ---------------------------------------------------------------------------
+# Trim stats table (rendered after ``chopper trim`` completes)
+# ---------------------------------------------------------------------------
+
+
+def render_trim_stats(
+    ctx: ChopperContext,
+    result: RunResult,
+    stream: TextIO | None = None,
+) -> None:
+    """Render a console-width-aware before/after stats table.
+
+    No-op when ``result.trim_report`` is absent (dry-run, validate-only,
+    early abort) or when the rebuilt domain has not been written to disk
+    yet. SLOC is computed by reading the backup (before) and domain
+    (after) files via the local filesystem; failures fall back to ``-``.
+    """
+
+    report = result.trim_report
+    if report is None or not report.outcomes:
+        return
+
+    out = stream if stream is not None else sys.stderr
+    width = max(60, _shutil.get_terminal_size(fallback=(100, 24)).columns)
+
+    rows = _collect_rows(ctx, report)
+    rows.extend(_collect_generated_rows(ctx, result.generated_artifacts))
+    rows.sort(key=lambda r: r["path"])  # type: ignore[arg-type]
+    if not rows:
+        return
+
+    totals = _totals_row(rows)
+    _render_table(out, rows, totals, width=width)
+
+
+def _collect_rows(ctx: ChopperContext, report: TrimReport) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    backup_root: Path = ctx.config.backup_root
+    domain_root: Path = ctx.config.domain_root
+
+    for outcome in report.outcomes:
+        sloc_in = _safe_sloc(backup_root / outcome.path, outcome.path)
+        if outcome.treatment is FileTreatment.REMOVE:
+            sloc_out: int | None = 0
+        else:
+            sloc_out = _safe_sloc(domain_root / outcome.path, outcome.path)
+
+        rows.append(
+            {
+                "path": outcome.path.as_posix(),
+                "treatment": _treatment_label(outcome.treatment),
+                "bytes_in": outcome.bytes_in,
+                "bytes_out": outcome.bytes_out,
+                "sloc_in": sloc_in,
+                "sloc_out": sloc_out,
+                "kept": len(outcome.procs_kept),
+                "removed": len(outcome.procs_removed),
+            }
+        )
+
+    rows.sort(key=lambda r: r["path"])  # type: ignore[arg-type]
+    return rows
+
+
+def _collect_generated_rows(
+    ctx: ChopperContext,
+    artifacts: "Sequence",
+) -> list[dict[str, object]]:
+    """Build rows for GENERATED artifacts (stage tcl / stack / csv).
+
+    GENERATED files have no backup source, so ``bytes_in`` / ``sloc_in``
+    are ``0``. ``bytes_out`` comes from the artifact content (or the
+    on-disk file once the indentation pass has rewritten it).
+    """
+
+    rows: list[dict[str, object]] = []
+    domain_root: Path = ctx.config.domain_root
+
+    for artifact in artifacts:
+        rel: Path = artifact.path
+        target = domain_root / rel
+        # Prefer the on-disk bytes (post-indentation rewrite); fall back
+        # to the artifact's in-memory content when the file is absent
+        # (dry-run path won't reach this function but be defensive).
+        try:
+            text = target.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = artifact.content
+        bytes_out = len(text.encode("utf-8"))
+        sloc_out = count_sloc(rel, text)
+
+        rows.append(
+            {
+                "path": rel.as_posix(),
+                "treatment": "GEN ",
+                "bytes_in": 0,
+                "bytes_out": bytes_out,
+                "sloc_in": 0,
+                "sloc_out": sloc_out,
+                "kept": 0,
+                "removed": 0,
+            }
+        )
+
+    return rows
+
+
+def _totals_row(rows: Sequence[dict[str, object]]) -> dict[str, object]:
+    def _isum(key: str) -> int:
+        return sum(int(r[key]) for r in rows if isinstance(r[key], int))
+
+    return {
+        "path": "TOTAL",
+        "treatment": f"{len(rows)} files",
+        "bytes_in": _isum("bytes_in"),
+        "bytes_out": _isum("bytes_out"),
+        "sloc_in": _isum("sloc_in"),
+        "sloc_out": _isum("sloc_out"),
+        "kept": _isum("kept"),
+        "removed": _isum("removed"),
+    }
+
+
+_TREATMENT_LABELS = {
+    FileTreatment.FULL_COPY: "COPY",
+    FileTreatment.PROC_TRIM: "TRIM",
+    FileTreatment.REMOVE: "DROP",
+    FileTreatment.GENERATED: "GEN ",
+}
+
+
+def _treatment_label(treatment: FileTreatment) -> str:
+    return _TREATMENT_LABELS.get(treatment, str(treatment))
+
+
+def _safe_sloc(path: Path, rel: Path) -> int | None:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return count_sloc(rel, text)
+
+
+def _fmt_int(n: int | None) -> str:
+    return "-" if n is None else f"{n:,}"
+
+
+def _fmt_pair(before: int | None, after: int | None) -> str:
+    """Format a ``before → after`` cell with delta tail."""
+
+    b = _fmt_int(before)
+    a = _fmt_int(after)
+    if before is None or after is None or before == after:
+        return f"{b} → {a}"
+    delta = after - before
+    sign = "+" if delta > 0 else ""
+    return f"{b} → {a} ({sign}{delta:,})"
+
+
+def _render_table(
+    out: TextIO,
+    rows: Sequence[dict[str, object]],
+    totals: dict[str, object],
+    *,
+    width: int,
+) -> None:
+    headers = ["File", "Op", "SLOC (in → out)", "Procs (kept/dropped)"]
+
+    body: list[list[str]] = []
+    for r in rows:
+        body.append(
+            [
+                str(r["path"]),
+                str(r["treatment"]),
+                _fmt_pair(r["sloc_in"], r["sloc_out"]),  # type: ignore[arg-type]
+                f"{r['kept']}/{r['removed']}",
+            ]
+        )
+    body.append(
+        [
+            str(totals["path"]),
+            str(totals["treatment"]),
+            _fmt_pair(totals["sloc_in"], totals["sloc_out"]),  # type: ignore[arg-type]
+            f"{totals['kept']}/{totals['removed']}",
+        ]
+    )
+
+    # Compute natural column widths.
+    col_w = [len(h) for h in headers]
+    for row in body:
+        for i, cell in enumerate(row):
+            col_w[i] = max(col_w[i], len(cell))
+
+    # Right-shrink the File column to fit terminal width.
+    separator = "  "
+    fixed = sum(col_w[1:]) + len(separator) * (len(headers) - 1)
+    file_w = max(12, width - fixed)
+    if col_w[0] > file_w:
+        col_w[0] = file_w
+
+    def _emit(row: Sequence[str]) -> None:
+        cells = []
+        for i, cell in enumerate(row):
+            text = cell
+            if i == 0 and len(text) > col_w[0]:
+                # Left-truncate the path so the basename stays visible.
+                text = "…" + text[-(col_w[0] - 1) :]
+            # Right-align numeric-ish columns; left-align file/op.
+            if i in (0, 1):
+                cells.append(text.ljust(col_w[i]))
+            else:
+                cells.append(text.rjust(col_w[i]))
+        out.write(separator.join(cells).rstrip() + "\n")
+
+    out.write("\n")
+    out.write("Trim stats:\n")
+    _emit(headers)
+    _emit(["-" * w for w in col_w])
+    for row in body[:-1]:
+        _emit(row)
+    _emit(["-" * w for w in col_w])
+    _emit(body[-1])

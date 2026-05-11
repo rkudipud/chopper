@@ -65,3 +65,9 @@ class GeneratorService:
             ctx.fs.write_text(target, artifact.content)
         except OSError as exc:
             raise ChopperError(f"failed to write generated file {target.as_posix()!r}: {exc}") from exc
+
+        # Match the trimmer's policy: every final file in the rebuilt
+        # domain gets ``a+x``.
+        from chopper.trimmer.file_writer import ensure_executable
+
+        ensure_executable(target)

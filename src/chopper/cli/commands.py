@@ -17,7 +17,7 @@ from chopper.adapters import (
     RichUnavailableError,
     SilentProgress,
 )
-from chopper.cli.render import render_cleanup_message, render_result
+from chopper.cli.render import render_cleanup_message, render_result, render_trim_stats
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.protocols import ProgressSink
 from chopper.orchestrator import ChopperRunner
@@ -55,7 +55,21 @@ def _resolve_domain_root(args: argparse.Namespace) -> tuple[Path, Path | None]:
     it is ``None`` otherwise.
     """
     raw = getattr(args, "domain", None)
-    candidate = Path(raw).resolve() if raw is not None else Path.cwd().resolve()
+    if raw is not None:
+        candidate = Path(raw).resolve()
+    else:
+        try:
+            candidate = Path.cwd().resolve()
+        except (FileNotFoundError, OSError) as exc:
+            # Current working directory was deleted or is otherwise
+            # inaccessible (common on NFS when a sibling process
+            # replaces the inode). We have no sensible fallback —
+            # ``--domain`` is the supported escape hatch.
+            raise SystemExit(
+                "[chopper] fatal: cannot determine current working directory "
+                f"({type(exc).__name__}: {exc}). "
+                "Pass --domain <path> or 'cd' into an existing directory."
+            ) from exc
     if candidate.name.endswith("_backup"):
         stripped = candidate.with_name(candidate.name[: -len("_backup")])
         if stripped.is_dir():
@@ -203,9 +217,53 @@ def cmd_trim(args: argparse.Namespace) -> int:
     """Execute the full trim pipeline."""
 
     ctx, sink = _make_context(args, dry_run=bool(getattr(args, "dry_run", False)))
+
+    # NFS/shell UX guard: if the user invoked us from inside the
+    # domain root (or anywhere under it) and the backup does not yet
+    # exist, the trimmer will rename ``domain -> domain_backup`` (case
+    # 1 of the workspace-prep state machine in
+    # ``trimmer/service.py::_prepare_workspace``). The shell's cwd
+    # then points at an inode now reachable under a different name,
+    # which on NFS surfaces as ``pwd: Stale file handle``. We cannot
+    # repair the parent shell's cwd from Python, so warn up front.
+    if not ctx.config.dry_run:
+        _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
+
     result = ChopperRunner().run(ctx, command="trim")
     render_result(result, sink.snapshot())
+    if not ctx.config.dry_run:
+        render_trim_stats(ctx, result)
     return result.exit_code
+
+
+def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
+    """Emit a stderr notice when cwd is inside a soon-to-be-renamed domain.
+
+    Only triggers when the backup does not yet exist (trim case 1 —
+    the only case that issues ``rename(domain, backup)``). Pure UX;
+    no diagnostic code, no audit-bundle entry.
+    """
+
+    import sys as _sys
+
+    try:
+        cwd = Path.cwd().resolve()
+    except OSError:
+        return
+    if backup_root.exists():
+        return
+    try:
+        cwd.relative_to(domain_root)
+    except ValueError:
+        return
+    _sys.stderr.write(
+        "[chopper] notice: your shell's current directory is inside "
+        f"{domain_root.as_posix()!r}, which will be renamed to "
+        f"{backup_root.name!r} during trim. After the run, the shell's "
+        "cwd will be stale (`pwd: Stale file handle` on NFS). Recover with:\n"
+        f"    cd {domain_root.parent.as_posix()} && cd {domain_root.name}\n"
+        "Tip: run `chopper trim` from the parent directory to avoid this.\n"
+    )
 
 
 def cmd_loc(args: argparse.Namespace) -> int:
