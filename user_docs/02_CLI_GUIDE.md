@@ -37,11 +37,12 @@ chopper --version
 
 ---
 
-## The four subcommands
+## The five subcommands
 
 ```text
 chopper validate      # read-only analysis
 chopper trim          # full pipeline; rebuilds the trimmed domain on disk
+chopper loc           # read-only LOC report (no .chopper/, no rewrites)
 chopper cleanup       # delete <domain>_backup/ permanently
 chopper mcp-serve     # stdio-only read-only Model Context Protocol server
 ```
@@ -51,6 +52,7 @@ chopper mcp-serve     # stdio-only read-only Model Context Protocol server
 | `validate` | yes | yes | yes | yes | **no** | yes |
 | `trim --dry-run` | yes | yes | yes | yes | **no** | yes |
 | `trim` (live) | yes | yes | yes | yes | **yes** | yes |
+| `loc` | yes | yes | yes | yes | **no** | **no** |
 | `cleanup --confirm` | no | no | no | no | yes (deletes backup) | no |
 | `mcp-serve` | on request | on request | on request | on request | **never** | on request |
 
@@ -152,6 +154,148 @@ Both are read-only. The difference is reporting context: `trim --dry-run` writes
 Just run `chopper trim` again. Chopper detects the existing backup, discards the current `<domain>/`, and rebuilds from backup using your latest JSONs.
 
 > **Hand-edits to `<domain>/` are lost on re-trim.** Move them into source files under `<domain>_backup/` (then re-trim picks them up) or commit the trimmed domain to git and re-apply after each trim.
+
+---
+
+## `chopper loc`
+
+Read-only LOC report. Runs the same front half as `validate` (P0–P4 + manifest-only P6) plus the F3 stage generator in no-write mode, then prints a line-oriented report comparing the source domain against what `chopper trim` *would* produce. **Writes nothing** — no `.chopper/`, no rename, no rewrites.
+
+```text
+chopper loc [--domain PATH]
+            (--base PATH [--features PATHS] | --project PATH)
+```
+
+Same input flags as `validate`. Use it to size a planned trim before committing to it, or to track LOC reduction over time as features are added.
+
+### Output format
+
+One `key: value` pair per line — easy to grep, pipe, or capture in CI:
+
+```text
+chopper loc: read-only LOC report
+files.before: 412
+files.after: 187
+files.delta: -225
+files.reduction_pct: 54.61%
+lines.before: 38214
+lines.after: 12907
+lines.delta: -25307
+lines.reduction_pct: 66.22%
+sloc.before: 28903
+sloc.after: 9651
+sloc.delta: -19252
+sloc.reduction_pct: 66.61%
+treatment.FULL_COPY.files: 92
+treatment.FULL_COPY.lines_before: 5104
+treatment.FULL_COPY.lines_after: 5104
+treatment.FULL_COPY.sloc_before: 4110
+treatment.FULL_COPY.sloc_after: 4110
+treatment.PROC_TRIM.files: 95
+treatment.PROC_TRIM.lines_before: 30901
+treatment.PROC_TRIM.lines_after: 7621
+treatment.PROC_TRIM.sloc_before: 23103
+treatment.PROC_TRIM.sloc_after: 5359
+treatment.REMOVE.files: 225
+treatment.REMOVE.lines_before: 2209
+treatment.REMOVE.lines_after: 0
+treatment.REMOVE.sloc_before: 1690
+treatment.REMOVE.sloc_after: 0
+treatment.GENERATED.files: 0
+treatment.GENERATED.lines_before: 0
+treatment.GENERATED.lines_after: 182
+treatment.GENERATED.sloc_before: 0
+treatment.GENERATED.sloc_after: 182
+```
+
+### How the metrics are computed
+
+| Treatment | Before | After |
+|---|---|---|
+| `FULL_COPY` | source file lines + SLOC | unchanged |
+| `PROC_TRIM` | source file lines + SLOC | source minus dropped-proc spans (incl. leading DPA + comment block) |
+| `REMOVE` | source file lines + SLOC | 0 |
+| `GENERATED` | 0 (no source) | rendered stage `.tcl` content |
+
+`SLOC` (Source Lines Of Code) excludes blank lines and pure-comment lines via [`audit/sloc.py`](../src/chopper/audit/sloc.py).
+
+### What file types are counted
+
+`chopper loc` walks `<domain>/` (or `<domain>_backup/` if that exists from a previous trim) and only counts files whose extension is in a fixed allow-list. Everything else is silently skipped — it does **not** show up in `files.before`, in any `treatment.*` bucket, or as a REMOVE candidate.
+
+| Counted | Extensions | How SLOC is counted |
+|---|---|---|
+| **yes** | `.tcl`, `.py`, `.pl`, `.pm`, `.sh`, `.bash`, `.csh`, `.tcsh`, `.zsh`, `.ksh` | non-blank lines, minus full-line `#` comments. A `#!` shebang on line 1 of a shell-family file *does* count as SLOC. |
+| **yes** | `.json` | every non-blank line (JSON has no comment syntax) |
+| **yes** | `.csv` | every line that has at least one non-comma, non-whitespace character |
+| **no** | everything else: `.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, images, binaries, … | not enumerated; invisible to the report |
+
+Generated `<stage>.tcl` artifacts are language-detected by their path suffix, so they follow the hash-comment SLOC rule above.
+
+> **If your trim acts on a Verilog or Liberty file, `chopper loc` will not show it.** The full trim still applies normally — `loc` is just a reporting view limited to script-language sources. Use `.chopper/trim_report.json` from a real `chopper trim` run for full-fidelity per-file outcomes.
+
+### Caveats & corner cases
+
+1. **`_backup` takes precedence as the "before" source.** If you have already run `chopper trim` once, `<domain>_backup/` exists. `chopper loc` will enumerate the **backup** (the original source) for its "before" totals — not the already-trimmed `<domain>/`. This is why running `chopper loc` immediately before and immediately after a `chopper trim` yields the same numbers.
+2. **PROC_TRIM "after" is a projection, not a measurement.** Because `loc` writes nothing, the post-trim line count for each `PROC_TRIM` file is reconstructed by masking out the dropped procs' line spans (proc body + leading `define_proc_attributes` (DPA) line + leading comment block when the parser captured one) from the source text and recounting. If two procs share a line (very rare), it is masked once. A real `chopper trim` produces the same numbers to within those captured spans.
+3. **All procs dropped → file shows up as REMOVE, not PROC_TRIM.** If a feature drops every proc in a file, the compiler downgrades the file to whole-file removal *before* `loc` sees the manifest. Such a file is counted under `treatment.REMOVE.*` with `after = 0`, not under `treatment.PROC_TRIM.*` with `after = 0`.
+4. **Indentation pass not modeled.** If your `base.json` sets `options.indent: true`, real `chopper trim` runs the P5c whitespace-only indentation pass. `loc` does not. P5c never adds or removes code lines, so SLOC is identical; physical-line counts may shift by a tiny margin in unusual layouts, but this is negligible.
+5. **Default-exclude under R2.** A counted-extension file in `<domain>/` that none of the selected features (or `base.files.include`) names is reported as REMOVE with `after = 0`. This is the same default-exclude rule that the trimmer applies.
+6. **`.chopper/` and decode failures.** The enumerator never descends into `.chopper/`. Files that fail both UTF-8 and latin-1 decode are silently dropped from the report (rare for Tcl/JSON/CSV).
+7. **No audit bundle.** `chopper loc` writes nothing to disk — there is no `.chopper/` and no `trim_report.json`. If you need a per-file ledger, run `chopper trim --dry-run` instead (same pipeline; full audit bundle; still no domain rewrite).
+
+### Worked examples
+
+**A `.tcl` file with one proc kept, two procs dropped**
+
+```text
+treatment.PROC_TRIM.files: 1
+treatment.PROC_TRIM.lines_before: 180    # full file
+treatment.PROC_TRIM.lines_after: 64      # 180 minus the two dropped procs' captured spans
+treatment.PROC_TRIM.sloc_before: 142
+treatment.PROC_TRIM.sloc_after: 51
+```
+
+**A `.tcl` file with every proc dropped**
+
+The compiler folds this into whole-file removal. You see it under REMOVE, not PROC_TRIM:
+
+```text
+treatment.REMOVE.files: 1                # this file
+treatment.REMOVE.lines_before: 180
+treatment.REMOVE.lines_after: 0
+```
+
+**A `.v` Verilog file in the domain**
+
+Silently skipped — not in the counted-extensions list:
+
+```text
+files.before: 411                        # would have been 412 if .v were counted
+```
+
+A real `chopper trim` may still copy or remove the `.v` file according to your JSON. `loc` just doesn't report on it.
+
+**A generated `<stage>.tcl` with 220 rendered lines**
+
+```text
+treatment.GENERATED.files: 1
+treatment.GENERATED.lines_before: 0      # nothing in source
+treatment.GENERATED.lines_after: 220
+treatment.GENERATED.sloc_before: 0
+treatment.GENERATED.sloc_after: 188      # 220 minus blanks/full-# lines (Intel header etc.)
+```
+
+**An empty domain (no counted-extension files)**
+
+```text
+chopper loc: read-only LOC report
+note: no countable source files in domain
+```
+
+### Exit codes
+
+Same as `validate`: `0` clean, `1` errors (or warnings under `--strict`), `2` CLI/environment, `3` internal.
 
 ---
 

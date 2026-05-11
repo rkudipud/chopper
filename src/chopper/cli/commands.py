@@ -22,7 +22,7 @@ from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.protocols import ProgressSink
 from chopper.orchestrator import ChopperRunner
 
-__all__ = ["cmd_cleanup", "cmd_mcp_serve", "cmd_trim", "cmd_validate"]
+__all__ = ["cmd_cleanup", "cmd_loc", "cmd_mcp_serve", "cmd_trim", "cmd_validate"]
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +205,47 @@ def cmd_trim(args: argparse.Namespace) -> int:
     ctx, sink = _make_context(args, dry_run=bool(getattr(args, "dry_run", False)))
     result = ChopperRunner().run(ctx, command="trim")
     render_result(result, sink.snapshot())
+    return result.exit_code
+
+
+def cmd_loc(args: argparse.Namespace) -> int:
+    """Run the read-only LOC report subcommand.
+
+    Per architecture doc §5.7 (and FR-46): runs the same P0–P4 +
+    dry-run-P6 pipeline as ``chopper trim --dry-run``, additionally
+    invokes ``GeneratorService`` in no-write mode, then renders a
+    stdout LOC table comparing the source domain against the planned
+    trimmed domain. Writes nothing — no domain modifications and no
+    ``.chopper/`` audit bundle (the runner suppresses P7 audit when
+    ``command == "loc"``).
+    """
+
+    # Same validate-only authoring convenience as ``chopper validate``:
+    # accept directory entries in ``--features`` for ad-hoc LOC sweeps.
+    if getattr(args, "project", None) is None:
+        args.features = _expand_feature_dirs(getattr(args, "features", None))
+
+    ctx, sink = _make_context(args, dry_run=True)
+    result = ChopperRunner().run(ctx, command="loc")
+
+    # Always render diagnostics (so users see VE-/VW- before the table).
+    render_result(result, sink.snapshot())
+
+    # Only render the LOC table when the dry-run pipeline reached at
+    # least P3 (we need ``manifest`` and ``parsed``). Earlier failures
+    # already surfaced via ``render_result`` above.
+    if result.manifest is not None and result.parsed is not None and result.loaded is not None:
+        from chopper.cli.loc_report import build_loc_report, render_loc_report
+
+        report = build_loc_report(
+            ctx=ctx,
+            loaded=result.loaded,
+            parsed=result.parsed,
+            manifest=result.manifest,
+            generated_artifacts=result.generated_artifacts,
+        )
+        render_loc_report(report)
+
     return result.exit_code
 
 

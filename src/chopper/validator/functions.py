@@ -485,7 +485,18 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
             )
             continue
 
-        if outcome.treatment is FileTreatment.PROC_TRIM or outcome.path.suffix.lower() == ".tcl":
+        if outcome.treatment is FileTreatment.PROC_TRIM:
+            # PROC_TRIM records bytes_out as len(text.encode("utf-8")) —
+            # i.e. the LF-normalized payload size. On Windows the
+            # rebuilt file may be persisted with CRLF line endings, so
+            # ``stat().size`` would over-count. Recompute logical size.
+            #
+            # FULL_COPY (incl. ``.tcl``) records bytes_out as
+            # ``stat(src).size`` (raw bytes, see issue #22 in
+            # trimmer/indentation.py). The destination is a verbatim
+            # binary copy, so ``stat(dst).size`` is the correct
+            # comparison — applying logical normalization here would
+            # false-positive on Windows-seeded CRLF sources.
             logical_size = _logical_text_size(ctx, target)
             actual_size = logical_size if logical_size is not None else st.size
         else:

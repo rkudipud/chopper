@@ -125,7 +125,7 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 |-----------|-----|
 | `LockPort`, `.chopper/.lock` | Rejected in ENGINEERING.md §16 Q3 |
 | `--preserve-hand-edits` | Rejected in ENGINEERING.md §16 Q2 |
-| `chopper scan` subcommand | Only `validate`, `trim`, `cleanup`, `mcp-serve` exist |
+| `chopper scan` subcommand | Only `validate`, `trim`, `loc`, `cleanup`, `mcp-serve` exist |
 | `PluginHost`, `EntryPointPluginHost` | No plugin system in the current design |
 | `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.trim` over MCP | The MCP surface is **read-only** (see project.instructions.md §1.1); destructive tools and diagnostic-sink/progress adapters are still closed |
 | Networked MCP transports (TCP / HTTP / WebSocket / daemon) | `mcp-serve` is **stdio only** |
@@ -389,7 +389,7 @@ pytest tests/unit/validator/ -v
 
 **Deliverables:**
 - `src/chopper/cli/main.py` — Entry point
-- `src/chopper/cli/commands.py` — `validate`, `trim`, `cleanup`
+- `src/chopper/cli/commands.py` — `validate`, `trim`, `loc`, `cleanup`
 - `src/chopper/cli/render.py` — Human-readable output
 
 **Subcommand Contract:**

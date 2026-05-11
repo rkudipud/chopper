@@ -49,7 +49,7 @@ class ChopperRunner:
         self,
         ctx: ChopperContext,
         *,
-        command: Literal["validate", "trim"] = "trim",
+        command: Literal["validate", "trim", "loc"] = "trim",
     ) -> RunResult:
         started_at = datetime.now(UTC)
         run_id = uuid.uuid4().hex
@@ -155,6 +155,15 @@ class ChopperRunner:
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
             else:
                 # Dry-run P6: manifest-derivable checks only.
+                #
+                # `chopper loc` runs through this branch (dry_run=True) but
+                # additionally invokes `GeneratorService` in no-write mode
+                # so the LOC reporter can count generated stage `.tcl`
+                # content. The generator already respects `dry_run` and
+                # performs no filesystem writes (see
+                # ARCHITECTURE.md §5.7).
+                if command == "loc":
+                    artifacts = GeneratorService().run(ctx, manifest)
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
                 validate_post(ctx, manifest, graph, rewritten=(), trim_report=None)
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
@@ -188,32 +197,42 @@ class ChopperRunner:
                 ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
             )
         finally:
-            # Audit always runs, even on failure.
-            try:
-                ended_at = datetime.now(UTC)
-                record = RunRecord(
-                    run_id=run_id,
-                    command=command,
-                    started_at=started_at,
-                    ended_at=ended_at if ended_at >= started_at else started_at,
-                    exit_code=exit_code,
-                    state=state,
-                    loaded=loaded,
-                    parsed=parsed,
-                    manifest=manifest,
-                    graph=graph,
-                    trim_report=trim_report,
-                    generated_artifacts=artifacts,
-                    internal_error=internal_error,
-                )
-                AuditService().run(ctx, record)
-            except Exception as audit_exc:
-                # Audit must never mask the primary failure. Best-effort:
-                # surface the bug to stderr so test harnesses see it
-                # instead of a silent swallow.
-                sys.stderr.write(
-                    f"[chopper] internal: audit bundle failed to write: {type(audit_exc).__name__}: {audit_exc}\n"
-                )
+            # Audit always runs, even on failure — except for
+            # `chopper loc`, which is a stdout-only read-only report
+            # and writes nothing to the filesystem (no `.chopper/`
+            # bundle). See ARCHITECTURE.md §5.7 and FR-46.
+            #
+            # Note: we deliberately do NOT `return` from this finally
+            # block — a bare `return` would clobber the RunResult that
+            # the `try` body already produced, replacing it with
+            # ``None``. Instead, gate the audit work behind a check
+            # and let the prior return value propagate normally.
+            if command != "loc":
+                try:
+                    ended_at = datetime.now(UTC)
+                    record = RunRecord(
+                        run_id=run_id,
+                        command=command,
+                        started_at=started_at,
+                        ended_at=ended_at if ended_at >= started_at else started_at,
+                        exit_code=exit_code,
+                        state=state,
+                        loaded=loaded,
+                        parsed=parsed,
+                        manifest=manifest,
+                        graph=graph,
+                        trim_report=trim_report,
+                        generated_artifacts=artifacts,
+                        internal_error=internal_error,
+                    )
+                    AuditService().run(ctx, record)
+                except Exception as audit_exc:
+                    # Audit must never mask the primary failure. Best-effort:
+                    # surface the bug to stderr so test harnesses see it
+                    # instead of a silent swallow.
+                    sys.stderr.write(
+                        f"[chopper] internal: audit bundle failed to write: {type(audit_exc).__name__}: {audit_exc}\n"
+                    )
 
     def _build(
         self,

@@ -20,7 +20,7 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 |---|---|---|
 | Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q3 |
 | Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q2 |
-| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `cleanup`, `mcp-serve` exist) |
+| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `loc`, `cleanup`, `mcp-serve` exist) |
 | Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §8.2 rule 4; `--strict` is exit-code policy only |
 | Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
 | MCP — destructive surface (closed) | `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code inside Chopper, HTTP/TCP/WebSocket MCP transports, MCP tool exposing `chopper.trim` or `chopper.cleanup`, MCP-driven filesystem mutation | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
@@ -199,7 +199,7 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 | `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place; P5c indentation normalization | `service.py`, `file_writer.py`, `proc_dropper.py`, `indentation.py` | P5 |
 | `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `functions.py` (validate_pre, validate_post) | P1, P6 |
 | `config/` | JSON schema loading, path resolution, feature `depends_on` topo-sort | `service.py`, `loaders.py`, `schema.py` | P1 |
-| `cli/` | Command-line interface layer (subcommands: `validate`, `trim`, `cleanup`, `mcp-serve`) | `main.py`, `commands.py`, `render.py` | User layer |
+| `cli/` | Command-line interface layer (subcommands: `validate`, `trim`, `loc`, `cleanup`, `mcp-serve`) | `main.py`, `commands.py`, `loc_report.py`, `render.py` | User layer |
 | `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization, glob helpers, tool-command index | `models_*.py`, `errors.py`, `diagnostics.py`, `_diagnostic_registry.py`, `protocols.py`, `context.py`, `serialization.py`, `globs.py`, `tool_commands.py` | All |
 | `audit/` | Write `.chopper/` bundle on every run (success and failure); SLOC accounting; internal-error log | `service.py`, `writers.py`, `hashing.py`, `sloc.py`, `internal_error.py` | P7 |
 | `generators/` | F3 run-file (`<stage>.tcl`) and optional stack-file emission | `service.py`, `stage_emitter.py`, `stack_emitter.py` | P5 |
@@ -297,7 +297,7 @@ All authoritative documentation lives under [technical_docs/](../../technical_do
 2. **[technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
 3. **[technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
 4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
-5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `cleanup`, `mcp-serve`, flags, examples.
+5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `loc`, `cleanup`, `mcp-serve`, flags, examples.
 
 Other key docs:
 

@@ -820,7 +820,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     customer-specific behavior tangled inside common files.
   </div>
 
-  <div class="foot"><span>chopper &middot; what is it</span><span>02 / 16</span></div>
+  <div class="foot"><span>chopper &middot; what is it</span><span>02 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -886,7 +886,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     <tr><td>Reproducible audit bundle</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--ink-mute)">&mdash;</td><td style="text-align:center;color:var(--good)">&#10003; <code>.chopper/</code></td></tr>
   </table>
 
-  <div class="foot"><span>chopper &middot; vs FlowBuilder + SNORT</span><span>03 / 16</span></div>
+  <div class="foot"><span>chopper &middot; vs FlowBuilder + SNORT</span><span>03 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -938,7 +938,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; problem</span><span>04 / 16</span></div>
+  <div class="foot"><span>chopper &middot; problem</span><span>04 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -973,7 +973,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     Same JSONs + same domain ⇒ <em>byte-identical</em> output every run.
   </div>
 
-  <div class="foot"><span>chopper &middot; pipeline</span><span>05 / 16</span></div>
+  <div class="foot"><span>chopper &middot; pipeline</span><span>05 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1052,7 +1052,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; F1 file trimming</span><span>06 / 16</span></div>
+  <div class="foot"><span>chopper &middot; F1 file trimming</span><span>06 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1119,7 +1119,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; F2 proc trimming</span><span>07 / 16</span></div>
+  <div class="foot"><span>chopper &middot; F2 proc trimming</span><span>07 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1197,7 +1197,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; proc tracing</span><span>08 / 16</span></div>
+  <div class="foot"><span>chopper &middot; proc tracing</span><span>08 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1285,7 +1285,7 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; F3 run-file generation</span><span>09 / 16</span></div>
+  <div class="foot"><span>chopper &middot; F3 run-file generation</span><span>09 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1644,7 +1644,7 @@ R serial</div>
 
   </div>
 
-  <div class="foot"><span>chopper &middot; at a glance</span><span>10 / 16</span></div>
+  <div class="foot"><span>chopper &middot; at a glance</span><span>10 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1687,7 +1687,7 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; combinations</span><span>11 / 16</span></div>
+  <div class="foot"><span>chopper &middot; combinations</span><span>11 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1750,7 +1750,7 @@ R serial</div>
     directly. The project JSON is just a committed, named recipe.
   </div>
 
-  <div class="foot"><span>chopper &middot; JSON structure</span><span>12 / 16</span></div>
+  <div class="foot"><span>chopper &middot; JSON structure</span><span>12 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1880,7 +1880,7 @@ R serial</div>
     Synopsys, and Mentor. Vendor and tool are just metadata + a command string.
   </div>
 
-  <div class="foot"><span>chopper &middot; real examples</span><span>13 / 16</span></div>
+  <div class="foot"><span>chopper &middot; real examples</span><span>13 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1897,6 +1897,9 @@ R serial</div>
 
 <span class="c"># trim — backs up &amp; rebuilds &lt;domain&gt;/ (--dry-run to simulate)</span>
 <span class="p">$</span> chopper trim --project project.json
+
+<span class="c"># loc — read-only LOC report; no .chopper/, no rewrites (2.6.0+)</span>
+<span class="p">$</span> chopper loc --project project.json
 
 <span class="c"># cleanup — remove &lt;domain&gt;_backup/ when happy</span>
 <span class="p">$</span> chopper cleanup --confirm
@@ -1941,7 +1944,76 @@ R serial</div>
     </div>
   </div>
 
-  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 16</span></div>
+  <div class="foot"><span>chopper &middot; CLI &amp; audit</span><span>14 / 17</span></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 15 — chopper loc (read-only LOC report)                -->
+<!-- ============================================================ -->
+<section class="slide" data-title="chopper loc">
+  <div class="slideHead"><h1><code>chopper loc</code> &mdash; size a trim before you commit to it <span class="tag good">2.6.0+</span></h1><span class="pg">15</span></div>
+
+  <div class="cards c2">
+    <div>
+      <h3>What it does</h3>
+      <ul>
+        <li>Runs the same front half as <code>validate</code> (<strong>P0&ndash;P4</strong> + manifest-only P6) plus the F3 stage generator in <strong>no-write</strong> mode.</li>
+        <li>Prints a line-oriented LOC report comparing the source domain against what <code>chopper trim</code> <em>would</em> produce.</li>
+        <li><strong>Writes nothing</strong> &mdash; no <code>.chopper/</code>, no rename, no rewrites. Safe to run on read-only checkouts.</li>
+        <li>Same exit codes as <code>validate</code>: <code>0</code> clean &middot; <code>1</code> errors (or warnings under <code>--strict</code>) &middot; <code>2</code> CLI &middot; <code>3</code> internal.</li>
+      </ul>
+
+      <h3 style="margin-top:14px">Invocation &amp; flags</h3>
+<pre class="code mono" style="font-size:13px;line-height:1.5"><span class="p">$</span> chopper loc [--domain PATH]
+              (--base PATH [--features PATHS] | --project PATH)</pre>
+      <table class="tbl" style="margin-top:4px;font-size:13px">
+        <tr><td><code>--domain PATH</code></td><td>domain root (defaults to cwd)</td></tr>
+        <tr><td><code>--base PATH</code></td><td>base JSON; required unless <code>--project</code></td></tr>
+        <tr><td><code>--features PATHS</code></td><td>comma-separated feature JSONs; order matters</td></tr>
+        <tr><td><code>--project PATH</code></td><td>project recipe (mutually exclusive)</td></tr>
+        <tr><td><code>--strict</code></td><td>any warning &rarr; exit <code>1</code></td></tr>
+        <tr><td><code>--tool-commands</code></td><td>vendor builtin pool (repeatable)</td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h3>Sample output</h3>
+<pre class="code mono" style="font-size:12px;line-height:1.45">chopper loc: read-only LOC report
+files.before: 412
+files.after: 187
+files.delta: -225
+files.reduction_pct: 54.61%
+lines.before: 38214
+lines.after: 12907
+lines.delta: -25307
+lines.reduction_pct: 66.22%
+sloc.before: 28903
+sloc.after: 9651
+sloc.delta: -19252
+sloc.reduction_pct: 66.61%
+treatment.FULL_COPY.files: 92
+treatment.PROC_TRIM.files: 95
+treatment.PROC_TRIM.lines_before: 30901
+treatment.PROC_TRIM.lines_after: 7621
+treatment.REMOVE.files: 225
+treatment.GENERATED.files: 0</pre>
+
+      <h3 style="margin-top:10px">How metrics are computed</h3>
+      <table class="tbl" style="font-size:13px">
+        <tr><th>Treatment</th><th>Before</th><th>After</th></tr>
+        <tr><td><code>FULL_COPY</code></td><td>source lines + SLOC</td><td>unchanged</td></tr>
+        <tr><td><code>PROC_TRIM</code></td><td>source lines + SLOC</td><td>minus dropped-proc spans (incl. DPA + comment block)</td></tr>
+        <tr><td><code>REMOVE</code></td><td>source lines + SLOC</td><td>0</td></tr>
+        <tr><td><code>GENERATED</code></td><td>0</td><td>rendered stage <code>.tcl</code></td></tr>
+      </table>
+
+      <div class="callout good" style="margin-top:8px">
+        <strong>Pipe-friendly.</strong> <code>key: value</code> per line &mdash; grep, awk, or capture in CI to track LOC reduction over time as features are added.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>chopper &middot; loc report</span><span>15 / 17</span></div>
 </section>
 
 <!-- ============================================================ -->
@@ -1950,7 +2022,7 @@ R serial</div>
 <section class="slide" data-title="Chopper Agent">
   <div class="slideHead">
     <h1><span style="background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent">CHOPPER AGENT</span> &nbsp;<span class="tag good">in-repo agent</span></h1>
-    <span class="pg">15</span>
+    <span class="pg">16</span>
   </div>
 
   <p style="font-size:18px;max-width:1100px;color:var(--ink-dim);margin:6px 0 14px;line-height:1.5">
@@ -2021,7 +2093,7 @@ R serial</div>
     Destructive tools (<code>trim</code>, <code>cleanup</code>) are CLI-only.
   </div>
 
-  <div class="foot"><span>chopper &middot; companion agent</span><span>15 / 16</span></div>
+  <div class="foot"><span>chopper &middot; companion agent</span><span>16 / 17</span></div>
 </section>
 
 
@@ -2029,7 +2101,7 @@ R serial</div>
 <!-- SLIDE 17 — NEXT STEPS (closing)                               -->
 <!-- ============================================================ -->
 <section class="slide" data-title="Next steps">
-  <div class="slideHead"><h1>Next steps</h1><span class="pg">16</span></div>
+  <div class="slideHead"><h1>Next steps</h1><span class="pg">17</span></div>
 
   <div class="cards c2">
     <div class="card f1">
@@ -2094,7 +2166,7 @@ R serial</div>
     Follow-up office hours will be scheduled after this kickoff.
   </div>
 
-  <div class="foot"><span>chopper &middot; thank you</span><span>16 / 16</span></div>
+  <div class="foot"><span>chopper &middot; thank you</span><span>17 / 17</span></div>
 </section>
 
 </div>
@@ -2116,7 +2188,7 @@ R serial</div>
       <span class="scaleVal" id="scaleVal" title="Click to reset (Ctrl+0)" onclick="resetScale()">100%</span>
       <button class="btn icon" id="btnScaleUp" onclick="scaleBy(0.1)" title="Increase text size (Ctrl+=)" aria-label="Increase text size">+</button>
     </div>
-    <span class="counter" id="counter">1 / 16</span>
+    <span class="counter" id="counter">1 / 17</span>
     <button class="btn" onclick="toggleFs()" title="Fullscreen (F)">⛶ Fullscreen</button>
   </div>
 </div>

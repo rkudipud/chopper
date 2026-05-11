@@ -230,7 +230,7 @@ You have read access to the entire Chopper specification surface. Always cite th
 | **Engineering / how it's built** | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) | Module layout, service catalog (§9.2), port surface, closed decisions (§16) |
 | **Implementation guide & pitfalls** | [`technical_docs/IMPLEMENTATION.md`](../../technical_docs/IMPLEMENTATION.md) | Parser internals (§1), risks & pitfalls (P-01…P-44, TC-xx), Appendix B `FD-xx` future-deferred ideas |
 | **Diagnostic registry** | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) | The only legal source for any `VE-/VW-/VI-/TW-/PE-/PW-/PI-` code — slug, phase, source, exit, recovery hint |
-| **CLI surface** | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) | `validate`, `trim`, `cleanup`, `mcp-serve` flags and exit codes |
+| **CLI surface** | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) | `validate`, `trim`, `loc`, `cleanup`, `mcp-serve` flags and exit codes |
 | **JSON authoring (user-facing)** | [`technical_docs/JSON_AUTHORING_GUIDE.md`](../../technical_docs/JSON_AUTHORING_GUIDE.md) + [`schemas/`](../../schemas/) | Domain owners writing `base.json`, `*.feature.json`, `project.json` |
 | **User docs — overview / thesis** | [`user_docs/01_OVERVIEW.md`](../../user_docs/01_OVERVIEW.md) | Problem, solution, F1/F2/F3, JSON structure, BKMs, ownership |
 | **User docs — CLI guide** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | Every subcommand, every flag, deep examples, troubleshooting |

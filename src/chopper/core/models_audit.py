@@ -78,7 +78,11 @@ class RunRecord:
     """Runtime snapshot handed to :class:`AuditService` at P7."""
 
     run_id: str
-    command: Literal["validate", "trim", "cleanup"]
+    # ``"loc"`` is included for type-system completeness only; the runner
+    # short-circuits the audit ``finally`` block when ``command == "loc"``
+    # so a ``RunRecord`` with that command value is never constructed in
+    # practice (and therefore never reaches the audit bundle / schema).
+    command: Literal["validate", "trim", "cleanup", "loc"]
     started_at: datetime
     ended_at: datetime
     exit_code: int

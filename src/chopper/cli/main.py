@@ -15,7 +15,7 @@ from collections.abc import Sequence
 
 from chopper import __version__
 from chopper.audit.internal_error import write_internal_error_log
-from chopper.cli.commands import cmd_cleanup, cmd_mcp_serve, cmd_trim, cmd_validate
+from chopper.cli.commands import cmd_cleanup, cmd_loc, cmd_mcp_serve, cmd_trim, cmd_validate
 
 __all__ = ["build_parser", "main"]
 
@@ -68,6 +68,17 @@ def build_parser() -> argparse.ArgumentParser:
         help=("Compile, trace, run synthetic post-trim validation, and emit reports without modifying domain files"),
     )
     p_trim.set_defaults(func=cmd_trim)
+
+    # --- loc ---------------------------------------------------------------
+    p_loc = subparsers.add_parser(
+        "loc",
+        help=(
+            "Print a read-only LOC report comparing the source domain against "
+            "the planned trimmed domain (no `.chopper/` written)"
+        ),
+    )
+    _add_input_args(p_loc)
+    p_loc.set_defaults(func=cmd_loc)
 
     # --- cleanup -----------------------------------------------------------
     p_cleanup = subparsers.add_parser("cleanup", help="Remove domain backup after the trim window")
