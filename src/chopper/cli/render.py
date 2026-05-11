@@ -167,13 +167,15 @@ def _collect_generated_rows(
 ) -> list[dict[str, object]]:
     """Build rows for GENERATED artifacts (stage tcl / stack / csv).
 
-    GENERATED files have no backup source, so ``bytes_in`` / ``sloc_in``
-    are ``0``. ``bytes_out`` comes from the artifact content (or the
-    on-disk file once the indentation pass has rewritten it).
+    If the same path existed in the source domain (now under
+    ``backup_root``), use its SLOC/bytes as the ``in`` value so the
+    regenerate-in-place case shows a real before→after delta. When the
+    artifact is brand-new, ``in`` is ``0``.
     """
 
     rows: list[dict[str, object]] = []
     domain_root: Path = ctx.config.domain_root
+    backup_root: Path = ctx.config.backup_root
 
     for artifact in artifacts:
         rel: Path = artifact.path
@@ -188,13 +190,26 @@ def _collect_generated_rows(
         bytes_out = len(text.encode("utf-8"))
         sloc_out = count_sloc(rel, text)
 
+        # Pre-existing source for this generated path? If yes, capture
+        # its bytes/SLOC as the "in" baseline.
+        backup_path = backup_root / rel
+        bytes_in = 0
+        sloc_in: int | None = 0
+        try:
+            src_text = backup_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            src_text = None
+        if src_text is not None:
+            bytes_in = len(src_text.encode("utf-8"))
+            sloc_in = count_sloc(rel, src_text)
+
         rows.append(
             {
                 "path": rel.as_posix(),
                 "treatment": "GEN ",
-                "bytes_in": 0,
+                "bytes_in": bytes_in,
                 "bytes_out": bytes_out,
-                "sloc_in": 0,
+                "sloc_in": sloc_in,
                 "sloc_out": sloc_out,
                 "kept": 0,
                 "removed": 0,
