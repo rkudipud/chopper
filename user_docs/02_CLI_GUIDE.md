@@ -149,6 +149,50 @@ Both are read-only. The difference is reporting context: `trim --dry-run` writes
 
 > **You always have a recoverable state.** If the run fails between phases, `<domain>_backup/` is untouched and the next invocation rebuilds cleanly from it.
 
+### Trim stats
+
+After a live `chopper trim` finishes, a console-width-aware table is printed to stderr summarising every output file:
+
+```
+Trim stats:
+File                       Op            SLOC (in → out)  Procs (kept/dropped)
+-------------------------  -------  --------------------  --------------------
+default_fm_procs.tcl       TRIM     2,210 → 1,730 (-480)                  29/7
+fev_fm_rtl2gate.tcl        GEN           268 → 258 (-10)                   0/0
+vars.tcl                   COPY                498 → 498                   0/0
+…
+TOTAL                      9 files  5,668 → 5,178 (-490)                  53/7
+```
+
+- **Op** is `COPY` (FULL_COPY), `TRIM` (PROC_TRIM), `DROP` (REMOVE), or `GEN` (GENERATED).
+- **SLOC** uses the same per-language rules as `chopper loc` (`.tcl`/`.pl`/`.py`/shell skip blank + `#`-comment lines; JSON counts non-blank; CSV skips comma-only rows). Long paths are left-truncated with `…` to fit the terminal width.
+- **GEN rows with a pre-existing source** (e.g. `fev_fm_rtl2gate.tcl` is both a domain source file *and* a stage emitter target) show a real `in → out` delta — the `in` baseline is read from `<domain>_backup/`, not pinned at 0.
+- Dry-run skips the table (there is nothing on disk to count). `chopper loc` is the dry-run equivalent.
+
+### File permissions
+
+Every file the trimmer writes to the rebuilt `<domain>/` receives executable permissions for user/group/other (`a+x`) — both PROC_TRIM/FULL_COPY outputs from P5a and `<stage>.tcl` / `<stage>.stack` artifacts from P5b. The intent: shell scripts and Tcl entrypoints in the trimmed domain stay runnable regardless of the source mode or your process umask. The trim does **not** fail if the underlying filesystem rejects `chmod` (rare on NFS); the content is correct either way.
+
+### Console output filters
+
+`INFO TI-01 known-tool-command` lines are intentionally **not** rendered to the terminal. On a real flow they fire hundreds of times (one per recognised tool-command-pool match — `get_cells`, `set_top`, `memory`, etc.) and drown out the `WARN`/`ERROR` lines you actually need to act on. The diagnostics are still recorded in `.chopper/` (audit bundle) unchanged, and `--strict` accounting is unaffected (TI-* are never escalated).
+
+### NFS / stale-cwd guard
+
+If you run `chopper trim` from **inside** the domain directory itself (e.g. `cd snps/ && chopper trim --base jsons/base.json`) and no `<domain>_backup/` exists yet, the case-1 prep renames `<domain>/` → `<domain>_backup/`. On NFS this invalidates your shell's open directory handle and the very next command shows:
+
+```
+pwd: failed to stat '.': Stale file handle
+```
+
+This is a parent-shell limitation — Python cannot repair the cwd of the calling tcsh/bash. Chopper prints a notice up front so you can plan for it. Recovery is one line:
+
+```tcsh
+cd .. && cd <domain>
+```
+
+Or simply run `chopper trim` from the parent directory in the first place; the rename is transparent to the shell when cwd is outside the renamed tree.
+
 ### Re-trim
 
 Just run `chopper trim` again. Chopper detects the existing backup, discards the current `<domain>/`, and rebuilds from backup using your latest JSONs.

@@ -258,10 +258,22 @@ def build_loc_report(
         # contributes only to "after" via generated_artifacts below.
 
     gen_files = gen_lines_a = gen_sloc_a = 0
+    gen_lines_b = gen_sloc_b = 0
+    gen_paths: set[Path] = set()
     for art in generated_artifacts:
         gen_files += 1
         gen_lines_a += len(art.content.splitlines())
         gen_sloc_a += count_sloc(art.path, art.content)
+        gen_paths.add(art.path)
+
+        # If the source domain already contained a file at the same
+        # path (the regenerate-in-place case, e.g. ``fev_fm_rtl2gate.tcl``
+        # both exists on disk and is emitted by GeneratorService), count
+        # its original size as the GENERATED bucket's "before" baseline.
+        src_text = _read(ctx, art.path)
+        if src_text is not None:
+            gen_lines_b += len(src_text.splitlines())
+            gen_sloc_b += count_sloc(art.path, src_text)
 
     buckets = (
         TreatmentBucket(
@@ -281,12 +293,15 @@ def build_loc_report(
             proc_trim_sloc_a,
         ),
         TreatmentBucket("REMOVE", remove_files, remove_lines_b, 0, remove_sloc_b, 0),
-        TreatmentBucket("GENERATED", gen_files, 0, gen_lines_a, 0, gen_sloc_a),
+        TreatmentBucket("GENERATED", gen_files, gen_lines_b, gen_lines_a, gen_sloc_b, gen_sloc_a),
     )
 
-    files_before = full_copy_files + proc_trim_files + remove_files
+    # Pre-existing source files that GENERATED replaced have already been
+    # accounted for in the GENERATED bucket's "before" — do *not* double
+    # count them under files_before.
+    files_before = full_copy_files + proc_trim_files + remove_files + len(gen_paths.intersection(set(source_files)))
     files_after = full_copy_files + proc_trim_files + gen_files
-    lines_before = full_copy_lines + proc_trim_lines_b + remove_lines_b
+    lines_before = full_copy_lines + proc_trim_lines_b + remove_lines_b + gen_lines_b
     lines_after = full_copy_lines + proc_trim_lines_a + gen_lines_a
     sloc_before = full_copy_sloc + proc_trim_sloc_b + remove_sloc_b
     sloc_after = full_copy_sloc + proc_trim_sloc_a + gen_sloc_a
