@@ -9,7 +9,6 @@ import pytest
 from chopper.adapters import InMemoryFS
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_parser import ParsedFile, ProcEntry
-from chopper.trimmer import file_writer
 from chopper.trimmer.file_writer import full_copy_file, proc_trim_file, remove_file
 from tests.unit.trimmer._helpers import BACKUP, DOMAIN, make_ctx
 
@@ -91,7 +90,9 @@ def test_proc_trim_file_dry_run_reports_without_writing() -> None:
     assert outcome.procs_removed == ("trimmed.tcl::drop",)
 
 
-def test_mirror_mode_swallows_chmod_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mirror_perms_plus_exec_swallows_chmod_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from chopper.core import file_perms
+
     src = tmp_path / "src.tcl"
     dst = tmp_path / "dst.tcl"
     src.write_text("src\n", encoding="utf-8")
@@ -100,6 +101,6 @@ def test_mirror_mode_swallows_chmod_failures(tmp_path: Path, monkeypatch: pytest
     def _raise_copymode(source: Path, target: Path) -> None:
         raise OSError("chmod rejected")
 
-    monkeypatch.setattr(file_writer.shutil, "copymode", _raise_copymode)
+    monkeypatch.setattr(file_perms.shutil, "copymode", _raise_copymode)
 
-    file_writer._mirror_mode(src, dst)
+    file_perms.mirror_perms_plus_exec(src, dst)

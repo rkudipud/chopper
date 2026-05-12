@@ -1,14 +1,12 @@
 [project]
 name = "chopper"
-version = "2.6.4"
+version = "2.9.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
-# Minimum supported runtime is Python 3.11 so the tool installs on EDA grid
-# nodes that lag behind HEAD. The development venv is created against 3.13
-# (see setup.{ps1,sh,csh,bat}) so contributors get the newest toolchain, but
-# no 3.12+-only syntax is permitted in src/ — ruff's `target-version` and
-# mypy's `python_version` below are both pinned to 3.11 so the lint/type
-# gates reject accidental uplevel features.
-requires-python = ">=3.11"
+# Minimum supported runtime is Python 3.13. ruff's `target-version` and
+# mypy's `python_version` below are both pinned to 3.13 so the lint /
+# type gates reject accidental downlevel features and enable the full
+# 3.13 syntax surface (PEP 695 generics, improved error messages, etc.).
+requires-python = ">=3.13"
 license = {text = "Intel Proprietary"}
 authors = [
     {name = "Rajesh Kudipudi, rajesh.Kudipudi@intel.com"},
@@ -55,7 +53,7 @@ where = ["src"]
 "chopper.audit.vendor" = ["cloc.pl", "LICENSE", "README.md"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 120
 src = ["src", "tests"]
 # Fixture directories hold user-authored input data (Tcl domains, JSON
@@ -81,7 +79,7 @@ max_examples = 500
 print_blob = true
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

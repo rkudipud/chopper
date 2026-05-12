@@ -1,13 +1,14 @@
 """P5c Tcl indentation normalization.
 
-This module ports the legacy Perl brace-driven formatter into Python and
-applies it to emitted ``.tcl`` outputs that Chopper itself rewrote
-(``PROC_TRIM``) or synthesized (``GENERATED``) after P5a trim and P5b
-generation have written files into the rebuilt domain.
+Applies a brace-driven indentation pass to emitted ``.tcl`` outputs
+that Chopper itself rewrote (``PROC_TRIM``) or synthesized
+(``GENERATED``) after P5a trim and P5b generation have written files
+into the rebuilt domain.
 
 ``FULL_COPY`` ``.tcl`` files are intentionally **not** normalized: a
-full-copy output is contractually a byte-for-byte copy of the source file
-(see issue #22 / `technical_docs/IMPLEMENTATION.md` Pitfall P-44 / P-45).
+full-copy output is contractually a byte-for-byte copy of the source
+file (see issue #22 / `technical_docs/IMPLEMENTATION.md` Pitfall P-44
+/ P-45).
 """
 
 from __future__ import annotations
@@ -96,13 +97,13 @@ class TclIndentationService:
 
 
 def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
-    """Return ``text`` with legacy Perl-style leading whitespace.
+    """Return ``text`` with brace-driven leading whitespace.
 
     The formatter strips leading whitespace from each line, tracks a
     running indentation level from unescaped Tcl braces, outdents lines
     that begin with a closing brace, and half-outdents selected domain
-    marker lines. It always emits LF line endings and terminates non-empty
-    files with a final newline, matching the Perl script's print loop.
+    marker lines. It always emits LF line endings and terminates
+    non-empty files with a final newline.
     """
 
     if text == "":

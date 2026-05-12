@@ -124,7 +124,7 @@ def render_trim_stats(
 
     rows = _collect_rows(ctx, report)
     rows.extend(_collect_generated_rows(ctx, result.generated_artifacts))
-    rows.sort(key=lambda r: r["path"])  # type: ignore[arg-type]
+    rows.sort(key=lambda r: str(r["path"]))
     if not rows:
         return
 
@@ -136,9 +136,16 @@ def _collect_rows(ctx: ChopperContext, report: TrimReport) -> list[dict[str, obj
     rows: list[dict[str, object]] = []
     backup_root: Path = ctx.config.backup_root
     domain_root: Path = ctx.config.domain_root
+    dry_run = ctx.config.dry_run
 
     for outcome in report.outcomes:
+        # In dry-run no backup is taken; the pre-trim source still
+        # lives at ``domain_root`` (the trimmer never wrote). Prefer
+        # the backup when present so both modes report the same
+        # baseline (A7).
         sloc_in = _safe_sloc(backup_root / outcome.path, outcome.path)
+        if sloc_in is None and dry_run:
+            sloc_in = _safe_sloc(domain_root / outcome.path, outcome.path)
         if outcome.treatment is FileTreatment.REMOVE:
             sloc_out: int | None = 0
         else:
@@ -157,48 +164,57 @@ def _collect_rows(ctx: ChopperContext, report: TrimReport) -> list[dict[str, obj
             }
         )
 
-    rows.sort(key=lambda r: r["path"])  # type: ignore[arg-type]
     return rows
 
 
 def _collect_generated_rows(
     ctx: ChopperContext,
-    artifacts: "Sequence",
+    artifacts: Sequence,
 ) -> list[dict[str, object]]:
     """Build rows for GENERATED artifacts (stage tcl / stack / csv).
 
-    If the same path existed in the source domain (now under
-    ``backup_root``), use its SLOC/bytes as the ``in`` value so the
-    regenerate-in-place case shows a real before→after delta. When the
-    artifact is brand-new, ``in`` is ``0``.
+    Under dry-run the rebuilt domain does not exist on disk, so the
+    ``out`` side comes from :attr:`GeneratedArtifact.content` directly.
+    Under live trim the on-disk file is read (it has already passed
+    through the optional P5c indentation pass). If the same path
+    existed in the source domain (now under ``backup_root``) its bytes
+    are captured as the ``in`` baseline so the regenerate-in-place
+    case shows a real before→after delta.
     """
 
     rows: list[dict[str, object]] = []
     domain_root: Path = ctx.config.domain_root
     backup_root: Path = ctx.config.backup_root
+    dry_run = ctx.config.dry_run
 
     for artifact in artifacts:
         rel: Path = artifact.path
-        target = domain_root / rel
-        # Prefer the on-disk bytes (post-indentation rewrite); fall back
-        # to the artifact's in-memory content when the file is absent
-        # (dry-run path won't reach this function but be defensive).
-        try:
-            text = target.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        if dry_run:
+            # No filesystem write happened — the artifact content is
+            # the authoritative "after" payload.
             text = artifact.content
+        else:
+            target = domain_root / rel
+            try:
+                text = target.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = artifact.content
         bytes_out = len(text.encode("utf-8"))
         sloc_out = count_sloc(rel, text)
 
-        # Pre-existing source for this generated path? If yes, capture
-        # its bytes/SLOC as the "in" baseline.
-        backup_path = backup_root / rel
+        # Pre-existing source for this generated path?  Under live trim
+        # it lives at ``backup_root``; under dry-run it is still at
+        # ``domain_root`` (the trimmer never wrote, so backup was never
+        # taken).  Try both, preferring backup when present.
         bytes_in = 0
         sloc_in: int | None = 0
-        try:
-            src_text = backup_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            src_text = None
+        src_text: str | None = None
+        for candidate in (backup_root / rel, domain_root / rel) if dry_run else (backup_root / rel,):
+            try:
+                src_text = candidate.read_text(encoding="utf-8", errors="replace")
+                break
+            except OSError:
+                continue
         if src_text is not None:
             bytes_in = len(src_text.encode("utf-8"))
             sloc_in = count_sloc(rel, src_text)
@@ -220,8 +236,22 @@ def _collect_generated_rows(
 
 
 def _totals_row(rows: Sequence[dict[str, object]]) -> dict[str, object]:
+    """Aggregate row across all touched / generated files.
+
+    The row sums only files the trimmer rewrote, removed, or generated —
+    *not* every file in the domain. Full-domain totals live in the
+    audit bundle's ``trim_stats.json``. The label and the values are
+    intentionally identical between live and dry-run modes so the two
+    tables can be diffed byte-for-byte (A7).
+    """
+
     def _isum(key: str) -> int:
-        return sum(int(r[key]) for r in rows if isinstance(r[key], int))
+        total = 0
+        for r in rows:
+            v = r[key]
+            if isinstance(v, int):
+                total += v
+        return total
 
     return {
         "path": "TOTAL",

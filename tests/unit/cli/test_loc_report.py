@@ -9,15 +9,24 @@ PROC_TRIM after-line accounting.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
+from chopper.adapters import InMemoryFS
 from chopper.cli.loc_report import (
     LocReport,
     TreatmentBucket,
     _proc_drop_span,
     _proc_trim_after,
+    build_loc_report,
     render_loc_report,
 )
-from chopper.core.models_parser import ProcEntry
+from chopper.core.context import ChopperContext, RunConfig
+from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
+from chopper.core.models_common import FileTreatment
+from chopper.core.models_compiler import CompiledManifest, FileProvenance
+from chopper.core.models_config import LoadedConfig
+from chopper.core.models_parser import ParseResult, ProcEntry
+from chopper.core.models_trimmer import GeneratedArtifact
 
 
 def _proc(
@@ -189,3 +198,70 @@ class TestRenderLocReport:
         render_loc_report(report)
         out = capsys.readouterr().out
         assert "no countable source files" in out
+
+
+class _Sink:
+    def emit(self, _d: Diagnostic) -> None:
+        return None
+
+    def snapshot(self) -> tuple[Diagnostic, ...]:
+        return ()
+
+    def finalize(self) -> DiagnosticSummary:
+        return DiagnosticSummary(errors=0, warnings=0, infos=0)
+
+
+class _Progress:
+    def phase_started(self, _phase: Phase) -> None:
+        return None
+
+    def phase_done(self, _phase: Phase) -> None:
+        return None
+
+    def step(self, _message: str) -> None:
+        return None
+
+
+def test_build_loc_report_generated_preexisting_contributes_before_sloc() -> None:
+    fs = InMemoryFS()
+    domain = Path("/tmp/domain")
+    backup = Path("/tmp/domain_backup")
+    audit = domain / ".chopper"
+    fs.write_text(domain / "gen.tcl", "# old\nproc old {} { return 1 }\n", encoding="utf-8")
+
+    ctx = ChopperContext(
+        config=RunConfig(domain_root=domain, backup_root=backup, audit_root=audit, strict=False, dry_run=True),
+        fs=fs,
+        diag=_Sink(),
+        progress=_Progress(),
+    )
+
+    rel = Path("gen.tcl")
+    manifest = CompiledManifest(
+        file_decisions={rel: FileTreatment.GENERATED},
+        proc_decisions={},
+        provenance={
+            rel: FileProvenance(
+                path=rel,
+                treatment=FileTreatment.GENERATED,
+                reason="generated-stage",
+            )
+        },
+    )
+    parsed = ParseResult(files={}, index={})
+    artifacts = (
+        GeneratedArtifact(path=rel, kind="tcl", content="# new\nproc new {} { return 2 }\n", source_stage="synth"),
+    )
+
+    report = build_loc_report(
+        ctx=ctx,
+        loaded=cast(LoadedConfig, None),
+        parsed=parsed,
+        manifest=manifest,
+        generated_artifacts=artifacts,
+    )
+
+    assert report.files_before == 1
+    assert report.sloc_before > 0
+    gen_bucket = next(bucket for bucket in report.buckets if bucket.treatment == "GENERATED")
+    assert gen_bucket.sloc_before > 0

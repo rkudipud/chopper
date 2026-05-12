@@ -17,9 +17,10 @@ from datetime import datetime
 from pathlib import Path
 
 from chopper import __version__
-from chopper.audit.sloc import count_raw, count_sloc
+from chopper.audit.sloc import count_raw, count_sloc_many
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
+from chopper.core.fs_walk import TEXT_LIKE_EXTENSIONS, walk_files
 from chopper.core.models_audit import RunRecord
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, Edge, ProcDecision
@@ -548,19 +549,15 @@ def render_trim_stats(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]
     parsed = record.parsed
     manifest = record.manifest
 
-    files_before = len(parsed.files) if parsed else 0
-    files_after = 0
-    if manifest is not None:
-        files_after = sum(
-            1
-            for t in manifest.file_decisions.values()
-            if t in (FileTreatment.FULL_COPY, FileTreatment.PROC_TRIM, FileTreatment.GENERATED)
-        )
+    before_files = _enumerate_before_files(ctx, record)
+    after_files = _enumerate_after_files(ctx)
+    files_before = len(before_files) if before_files else (len(parsed.files) if parsed else 0)
+    files_after = len(after_files) if after_files else 0
 
-    procs_before = sum(len(pf.procs) for pf in parsed.files.values()) if parsed else 0
+    procs_before = len(parsed.index) if parsed else 0
     procs_after = len(manifest.proc_decisions) if manifest else 0
 
-    sloc_before, sloc_after, raw_before, raw_after = _compute_line_counts(ctx, record)
+    sloc_before, sloc_after, raw_before, raw_after, skipped_before, skipped_after = _compute_line_counts(ctx, record)
 
     def _ratio(after: int, before: int) -> float:
         return (after / before) if before else 0.0
@@ -579,6 +576,7 @@ def render_trim_stats(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]
         "sloc_removed": max(sloc_before - sloc_after, 0),
         "raw_lines_before": raw_before,
         "raw_lines_after": raw_after,
+        "files_skipped_decode": skipped_before + skipped_after,
         "trim_ratio_files": _ratio(files_after, files_before),
         "trim_ratio_procs": _ratio(procs_after, procs_before),
         "trim_ratio_sloc": _ratio(sloc_after, sloc_before),
@@ -669,8 +667,9 @@ def _build_summary(ctx: ChopperContext, record: RunRecord) -> dict[str, object]:
     manifest = record.manifest
     trim_report = record.trim_report
 
-    total_files = len(parsed.files) if parsed else 0
-    total_procs = sum(len(pf.procs) for pf in parsed.files.values()) if parsed else 0
+    before_files = _enumerate_before_files(ctx, record)
+    total_files = len(before_files) if before_files else (len(parsed.files) if parsed else 0)
+    total_procs = len(parsed.index) if parsed else 0
     files_surviving = 0
     files_removed = 0
     if manifest is not None:
@@ -685,7 +684,7 @@ def _build_summary(ctx: ChopperContext, record: RunRecord) -> dict[str, object]:
     procs_removed = trim_report.procs_removed_total if trim_report else 0
     procs_traced = len(record.graph.pt) if record.graph else 0
 
-    sloc_before, sloc_after, raw_before, raw_after = _compute_line_counts(ctx, record)
+    sloc_before, sloc_after, raw_before, raw_after, skipped_before, skipped_after = _compute_line_counts(ctx, record)
 
     return {
         "total_domain_files": total_files,
@@ -700,6 +699,7 @@ def _build_summary(ctx: ChopperContext, record: RunRecord) -> dict[str, object]:
         "sloc_removed": max(sloc_before - sloc_after, 0),
         "raw_lines_before": raw_before,
         "raw_lines_after": raw_after,
+        "files_skipped_decode": skipped_before + skipped_after,
     }
 
 
@@ -736,61 +736,112 @@ def _proc_entry(d: ProcDecision) -> dict[str, object]:
     }
 
 
-def _compute_line_counts(ctx: ChopperContext, record: RunRecord) -> tuple[int, int, int, int]:
-    """Return ``(sloc_before, sloc_after, raw_before, raw_after)``.
+def _compute_line_counts(ctx: ChopperContext, record: RunRecord) -> tuple[int, int, int, int, int, int]:
+    """Return ``(sloc_before, sloc_after, raw_before, raw_after, skipped_before, skipped_after)``.
 
     "Before" reads from whichever tree held the pre-trim domain: the
     backup root (re-trim) or the domain root (first-trim, read before
     P5 rebuilds). "After" reads from the rebuilt domain root. Under
-    dry-run the domain is unchanged, so before==after. Files that
-    cannot be read contribute zero; we do not emit a diagnostic because
-    the audit writer is the last line of defence.
+    dry-run the domain is unchanged, so before==after.
+
+    Files that cannot be decoded contribute zero to the line counts
+    and are tallied in the ``skipped_*`` counters so the audit summary
+    can surface the count via ``files_skipped_decode`` (S6).
+
+    SLOC math is constrained to :data:`TEXT_LIKE_EXTENSIONS` so we
+    don't inflate the count with arbitrary binary-decodable files
+    (the file-count bucket continues to walk the full tree, but it is
+    not consumed by this function).
     """
 
-    parsed = record.parsed
     manifest = record.manifest
-    if parsed is None:
-        return 0, 0, 0, 0
+    parsed = record.parsed
+    before_files = _enumerate_before_files(ctx, record)
+    after_files = _enumerate_after_files(ctx)
 
-    # Before — iterate parsed files (the tree the parser saw).
-    sloc_before = 0
-    raw_before = 0
-    for rel_path, pf in parsed.files.items():
-        text = _safe_read(ctx, _resolve_before_path(ctx, record, rel_path))
-        if text is None:
-            continue
-        sloc_before += count_sloc(Path(rel_path), text)
-        raw_before += count_raw(text)
+    sloc_before, raw_before, skipped_before = _read_and_count(
+        ctx,
+        before_files if before_files else [Path(p) for p in (parsed.files if parsed is not None else ())],
+        _before_root(ctx, record),
+    )
 
     if manifest is None:
-        return sloc_before, 0, raw_before, 0
+        return sloc_before, 0, raw_before, 0, skipped_before, 0
 
-    # After — iterate surviving files in the manifest, read from domain.
-    sloc_after = 0
-    raw_after = 0
-    for rel_path, treatment in manifest.file_decisions.items():
-        if treatment is FileTreatment.REMOVE:
+    sloc_after, raw_after, skipped_after = _read_and_count(ctx, after_files, ctx.config.domain_root)
+    return sloc_before, sloc_after, raw_before, raw_after, skipped_before, skipped_after
+
+
+def _read_and_count(
+    ctx: ChopperContext,
+    relative_files: list[Path],
+    root: Path,
+) -> tuple[int, int, int]:
+    """Read every file once, then batch-count SLOC and raw lines.
+
+    Returns ``(sloc_total, raw_total, skipped_decode)``. Files outside
+    :data:`TEXT_LIKE_EXTENSIONS` are not eligible for SLOC and are not
+    counted as decode skips. SLOC-eligible files that fail to decode
+    (binary, bad encoding, OS error) are counted in ``skipped_decode``
+    so the audit summary can surface them (S6).
+
+    Calling :func:`count_sloc_many` once per tree (instead of once per
+    file) routes through the single-subprocess cloc batch path when
+    available (S1/L2 fix).
+    """
+
+    items: list[tuple[Path, str]] = []
+    raw_total = 0
+    skipped_decode = 0
+    for rel in relative_files:
+        if rel.suffix.lower() not in TEXT_LIKE_EXTENSIONS:
             continue
-        text = _safe_read(ctx, ctx.config.domain_root / rel_path)
+        text = _safe_read(ctx, root / rel)
         if text is None:
+            skipped_decode += 1
             continue
-        sloc_after += count_sloc(rel_path, text)
-        raw_after += count_raw(text)
-
-    return sloc_before, sloc_after, raw_before, raw_after
+        items.append((rel, text))
+        raw_total += count_raw(text)
+    if not items:
+        return 0, raw_total, skipped_decode
+    sloc_total = sum(count_sloc_many(items))
+    return sloc_total, raw_total, skipped_decode
 
 
 def _resolve_before_path(ctx: ChopperContext, record: RunRecord, rel_path: Path) -> Path:
-    """Pick the root the parser read from for ``rel_path``.
+    """Return absolute path under the pre-trim source root for ``rel_path``."""
+
+    return _before_root(ctx, record) / rel_path
+
+
+def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:
+    """Return the root the parser actually read from.
 
     On re-trim (Case 2) the backup is the pristine source; on first-trim
     (Case 1) the parser read the domain before the trimmer rebuilt it.
-    Absent state information, fall back to the domain root.
     """
 
     if record.state is not None and record.state.backup_exists:
-        return ctx.config.backup_root / rel_path
-    return ctx.config.domain_root / rel_path
+        return ctx.config.backup_root
+    return ctx.config.domain_root
+
+
+def _enumerate_before_files(ctx: ChopperContext, record: RunRecord) -> list[Path]:
+    """Return every regular file under the pre-trim source tree.
+
+    Paths are domain-relative and POSIX-sorted. Uses the shared
+    :func:`chopper.core.fs_walk.walk_files` helper so the audit and
+    the ``chopper loc`` reporter agree byte-for-byte on the set of
+    files the domain is composed of.
+    """
+
+    return walk_files(ctx.fs, _before_root(ctx, record))
+
+
+def _enumerate_after_files(ctx: ChopperContext) -> list[Path]:
+    """Return every regular file under the rebuilt domain tree."""
+
+    return walk_files(ctx.fs, ctx.config.domain_root)
 
 
 def _safe_read(ctx: ChopperContext, path: Path) -> str | None:

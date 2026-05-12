@@ -37,11 +37,12 @@ Public helpers
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 
 from chopper.audit import cloc_backend
 
-__all__ = ["count_raw", "count_sloc"]
+__all__ = ["count_raw", "count_sloc", "count_sloc_many"]
 
 
 _BACKEND_ENV_VAR = "CHOPPER_SLOC_BACKEND"
@@ -92,6 +93,34 @@ def count_sloc(path: Path, text: str) -> int:
             return cloc_result
 
     return _count_sloc_python(path, text)
+
+
+def count_sloc_many(items: Sequence[tuple[Path, str]]) -> list[int]:
+    """Batch SLOC count for many ``(path, text)`` pairs.
+
+    Equivalent to ``[count_sloc(p, t) for p, t in items]`` but uses a
+    single cloc subprocess invocation for the whole batch when the cloc
+    backend is available. Falls back per-slot to the pure-Python
+    counter when cloc cannot classify a particular input. The returned
+    list is the same length as ``items`` and aligned by index.
+
+    On a domain with thousands of files this turns an O(N)-subprocess
+    hot path into one subprocess fork — the perf fix called out by the
+    production-readiness review (S1/L2). Behaviour for any individual
+    item is identical to :func:`count_sloc`.
+    """
+
+    if not items:
+        return []
+
+    if os.environ.get(_BACKEND_ENV_VAR, "").lower() == "python":
+        return [_count_sloc_python(p, t) for p, t in items]
+
+    batch = cloc_backend.count_sloc_via_cloc_batch(list(items))
+    out: list[int] = []
+    for (path, text), c in zip(items, batch, strict=True):
+        out.append(c if c is not None else _count_sloc_python(path, text))
+    return out
 
 
 def _count_sloc_python(path: Path, text: str) -> int:

@@ -11,36 +11,36 @@ The helpers never emit diagnostics themselves — the owning
 
 File-mode preservation
 ----------------------
-After writing each rebuilt file (``FULL_COPY`` or ``PROC_TRIM``) we mirror
-the source file's mode bits from ``<domain>_backup/`` onto the freshly
-written destination via :func:`shutil.copymode`. ``Path.write_text`` (used
-by :class:`~chopper.adapters.fs_local.LocalFS`) creates the destination
-with the process umask, which silently drops the executable bit and
-collapses group/world permissions; without this step every rebuilt
-``.tcl`` / ``.pl`` / ``.csh`` / ``.py`` script that was executable in the
-input domain comes out non-executable in the rebuilt domain. The copy is
-gated on the destination actually existing on the real filesystem so it
-is a no-op for in-memory filesystem adapters used by unit tests, and the
-``OSError`` swallow keeps the trim resilient to unusual filesystems
-(e.g. NFS exports that reject ``chmod``).
+After writing each rebuilt file (``FULL_COPY`` or ``PROC_TRIM``) we
+delegate to :func:`chopper.core.file_perms.mirror_perms_plus_exec` to
+(a) copy the source file's mode bits from ``<domain>_backup/`` onto the
+freshly written destination via :func:`shutil.copymode`, and then
+(b) OR in ``a+x`` for user/group/other so every rebuilt file is
+runnable.
+
+``Path.write_text`` (used by :class:`~chopper.adapters.fs_local.LocalFS`)
+creates destinations with the process umask, which silently drops the
+executable bit and can collapse group/world permissions; without the
+mirror step every rebuilt ``.tcl`` / ``.pl`` / ``.csh`` / ``.py`` script
+that was executable in the input domain would come out non-executable.
+The helper is gated on both paths actually existing on the real
+filesystem (no-op on the in-memory adapter used by unit tests) and
+swallows ``OSError`` so unusual filesystems (e.g. NFS exports that
+reject ``chmod``) never break a trim.
 """
 
 from __future__ import annotations
 
-import shutil
-import stat
 from pathlib import Path
 
 from chopper.core.context import ChopperContext
+from chopper.core.file_perms import ensure_executable, mirror_perms_plus_exec
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_parser import ParsedFile, ProcEntry
 from chopper.core.models_trimmer import FileOutcome
 from chopper.trimmer.proc_dropper import drop_procs
 
-__all__ = ["full_copy_file", "proc_trim_file", "remove_file"]
-
-
-_EXEC_BITS = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+__all__ = ["ensure_executable", "full_copy_file", "proc_trim_file", "remove_file"]
 
 
 def _backup_path(ctx: ChopperContext, rel: Path) -> Path:
@@ -51,45 +51,6 @@ def _domain_path(ctx: ChopperContext, rel: Path) -> Path:
     return ctx.config.domain_root / rel
 
 
-def _mirror_mode(src: Path, dst: Path) -> None:
-    """Copy ``src``'s mode bits onto ``dst`` if both are real on-disk paths.
-
-    No-op when either path is absent from the real filesystem (the unit-test
-    in-memory adapter never materializes paths on disk) or when the platform
-    rejects ``chmod`` for any reason. Errors here must never break a trim:
-    the destination content is already correct; only the perms are at risk.
-
-    Additionally adds the executable bit for user/group/other (``a+x``) so
-    every rebuilt file in the domain is runnable regardless of the source's
-    mode. Per user request: all final files in the rebuilt domain receive
-    exec perms.
-    """
-
-    try:
-        if src.is_file() and dst.is_file():
-            shutil.copymode(src, dst)
-            ensure_executable(dst)
-    except OSError:
-        # Defensive: keep the trim alive on filesystems that reject chmod.
-        pass
-
-
-def ensure_executable(dst: Path) -> None:
-    """Set ``a+x`` on ``dst`` if it is a real on-disk file.
-
-    Shared with :class:`~chopper.generators.GeneratorService` so emitted
-    ``.stack`` / ``.tcl`` artifacts also pick up exec perms. Errors are
-    swallowed for the same reason as :func:`_mirror_mode`.
-    """
-
-    try:
-        if dst.is_file():
-            current = dst.stat().st_mode
-            dst.chmod(current | _EXEC_BITS)
-    except OSError:
-        pass
-
-
 def full_copy_file(ctx: ChopperContext, rel: Path, *, procs_in_file: tuple[str, ...]) -> FileOutcome:
     """Copy ``rel`` verbatim from backup to the rebuilt domain."""
 
@@ -98,7 +59,7 @@ def full_copy_file(ctx: ChopperContext, rel: Path, *, procs_in_file: tuple[str, 
     bytes_in = ctx.fs.stat(src).size
     if not ctx.config.dry_run:
         ctx.fs.copy_file(src, dst)
-        _mirror_mode(src, dst)
+        mirror_perms_plus_exec(src, dst)
     return FileOutcome(
         path=rel,
         treatment=FileTreatment.FULL_COPY,
@@ -135,7 +96,7 @@ def proc_trim_file(
     bytes_out = len(new_content.encode("utf-8"))
     if not ctx.config.dry_run:
         ctx.fs.write_text(dst, new_content)
-        _mirror_mode(src, dst)
+        mirror_perms_plus_exec(src, dst)
 
     return FileOutcome(
         path=rel,

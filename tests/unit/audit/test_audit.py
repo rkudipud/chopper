@@ -936,12 +936,30 @@ def test_trim_stats_reflects_rich_record_with_fs_reads() -> None:
     record = _build_rich_record()
     _name, content = render_trim_stats(ctx, record)
     payload = json.loads(content)
-    assert payload["files_before"] == 2
+    assert payload["files_before"] == 3
     # full, proc-trim, generated all count (REMOVE excluded).
     assert payload["files_after"] == 3
     assert payload["procs_before"] == 3
     assert payload["procs_after"] == 2
     assert payload["trim_ratio_files"] > 0
+
+
+def test_trim_stats_counts_full_post_domain_not_just_manifest() -> None:
+    fs = InMemoryFS()
+    # Domain after-tree includes one extra file that is not present in
+    # manifest.file_decisions (defensive/full-domain counting check).
+    fs.write_text(DOMAIN / "lib/full.tcl", "proc kept_a {} { return 1 }\n")
+    fs.write_text(DOMAIN / "lib/trim.tcl", "proc kept_b {} { return 2 }\n")
+    fs.write_text(DOMAIN / "synth.tcl", "# generated\n")
+    fs.write_text(DOMAIN / "orphan_post.tcl", "proc orphan {} { return 3 }\n")
+
+    ctx = _make_ctx(fs=fs)
+    record = _build_rich_record()
+    _name, content = render_trim_stats(ctx, record)
+    payload = json.loads(content)
+
+    # 3 manifest-surviving files + 1 extra file physically present.
+    assert payload["files_after"] == 4
 
 
 def test_audit_service_end_to_end_writes_full_bundle() -> None:

@@ -22,12 +22,13 @@ Files present in the source domain but absent from
 from __future__ import annotations
 
 import sys
-from collections import deque
+from collections import deque  # noqa: F401  (kept for backward-compat import path)
 from dataclasses import dataclass
 from pathlib import Path
 
-from chopper.audit.sloc import count_sloc
+from chopper.audit.sloc import count_sloc, count_sloc_many
 from chopper.core.context import ChopperContext
+from chopper.core.fs_walk import TEXT_LIKE_EXTENSIONS, walk_files
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_config import LoadedConfig
@@ -43,22 +44,7 @@ __all__ = [
 ]
 
 
-_SLOC_EXTENSIONS = frozenset(
-    {
-        ".tcl",
-        ".py",
-        ".pl",
-        ".pm",
-        ".sh",
-        ".csh",
-        ".tcsh",
-        ".bash",
-        ".zsh",
-        ".ksh",
-        ".json",
-        ".csv",
-    }
-)
+_SLOC_EXTENSIONS = TEXT_LIKE_EXTENSIONS
 
 
 @dataclass(frozen=True)
@@ -123,42 +109,26 @@ def _source_root(ctx: ChopperContext) -> Path:
 
 
 def _enumerate_source_files(ctx: ChopperContext) -> list[Path]:
-    """Return all SLOC-relevant files under the source root, lex-sorted.
+    """Return all SLOC-eligible files under the source root, lex-sorted.
 
-    Returns paths **relative** to the source root. ``.chopper/`` is
-    excluded. Returns an empty list when the source root does not exist
-    (covers in-memory unit-test fixtures with no real domain).
+    Backed by :func:`chopper.core.fs_walk.walk_files` so the audit and
+    LOC reporter agree on what counts as a file. Returns paths
+    **relative** to the source root; ``.chopper/`` is excluded.
     """
-    root = _source_root(ctx)
-    if not ctx.fs.exists(root):
-        return []
 
-    results: list[Path] = []
-    frontier: deque[Path] = deque([root])
-    while frontier:
-        current = frontier.popleft()
-        try:
-            children = ctx.fs.list(current)
-        except OSError:
-            continue
-        for child in children:
-            try:
-                rel = child.relative_to(root)
-            except ValueError:
-                continue
-            rel_posix = rel.as_posix()
-            if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
-                continue
-            try:
-                st = ctx.fs.stat(child)
-            except OSError:
-                continue
-            if st.is_dir:
-                frontier.append(child)
-            elif rel.suffix.lower() in _SLOC_EXTENSIONS:
-                results.append(rel)
-    results.sort(key=lambda p: p.as_posix())
-    return results
+    return walk_files(ctx.fs, _source_root(ctx), extensions=_SLOC_EXTENSIONS)
+
+
+def _enumerate_all_source_files(ctx: ChopperContext) -> list[Path]:
+    """Return every regular file under the source root, lex-sorted.
+
+    Unlike :func:`_enumerate_source_files`, this walker does *not*
+    filter by extension. The result drives ``files_before`` /
+    ``files_after`` counts so the LOC report's file totals match the
+    audit bundle's full-domain view (S3, production-readiness review).
+    """
+
+    return walk_files(ctx.fs, _source_root(ctx))
 
 
 def _read(ctx: ChopperContext, rel: Path) -> str | None:
@@ -216,10 +186,40 @@ def build_loc_report(
     """Compute the LOC report from a completed dry-run pipeline.
 
     See module docstring for the per-treatment accounting contract.
+
+    Implementation notes
+    --------------------
+    * **File counts walk the full domain** (no extension filter) so
+      ``files_before`` / ``files_after`` match the audit bundle's
+      ``total_domain_files`` field — S3/option-b fix from the
+      production-readiness review.
+    * **SLOC math is constrained to text-like extensions** (the
+      :data:`_SLOC_EXTENSIONS` set) and routed through
+      :func:`count_sloc_many` so the whole report is computed with a
+      single ``cloc`` subprocess invocation — S1/L2 fix.
     """
     del loaded  # surface_files not needed; we walk the disk for "before".
 
-    source_files = _enumerate_source_files(ctx)
+    all_files = _enumerate_all_source_files(ctx)
+    sloc_files = [p for p in all_files if p.suffix.lower() in _SLOC_EXTENSIONS]
+
+    # ---- single-batch SLOC for every text-like source file --------------
+    sloc_items: list[tuple[Path, str]] = []
+    text_by_rel: dict[Path, str] = {}
+    for rel in sloc_files:
+        text = _read(ctx, rel)
+        if text is None:
+            continue
+        text_by_rel[rel] = text
+        sloc_items.append((rel, text))
+    sloc_by_rel: dict[Path, int] = {}
+    if sloc_items:
+        for (rel, _), n in zip(sloc_items, count_sloc_many(sloc_items), strict=True):
+            sloc_by_rel[rel] = n
+
+    procs_kept_by_file: dict[Path, set[str]] = {}
+    for decision in manifest.proc_decisions.values():
+        procs_kept_by_file.setdefault(decision.source_file, set()).add(decision.canonical_name)
 
     full_copy_files = full_copy_lines = full_copy_sloc = 0
     proc_trim_files = 0
@@ -227,18 +227,12 @@ def build_loc_report(
     proc_trim_sloc_b = proc_trim_sloc_a = 0
     remove_files = remove_lines_b = remove_sloc_b = 0
 
-    procs_kept_by_file: dict[Path, set[str]] = {}
-    for decision in manifest.proc_decisions.values():
-        procs_kept_by_file.setdefault(decision.source_file, set()).add(decision.canonical_name)
-
-    for rel in source_files:
-        text = _read(ctx, rel)
-        if text is None:
-            continue
-        lines_b = len(text.splitlines())
-        sloc_b = count_sloc(rel, text)
-
+    for rel in all_files:
         treatment = manifest.file_decisions.get(rel)
+        text = text_by_rel.get(rel)
+        lines_b = len(text.splitlines()) if text is not None else 0
+        sloc_b = sloc_by_rel.get(rel, 0)
+
         if treatment is None or treatment is FileTreatment.REMOVE:
             remove_files += 1
             remove_lines_b += lines_b
@@ -254,32 +248,43 @@ def build_loc_report(
             dropped = [
                 p for p in (parsed_file.procs if parsed_file is not None else ()) if p.canonical_name not in kept
             ]
-            lines_a, sloc_a = _proc_trim_after(text, dropped, rel)
+            if text is not None:
+                lines_a, sloc_a = _proc_trim_after(text, dropped, rel)
+            else:
+                lines_a, sloc_a = 0, 0
             proc_trim_files += 1
             proc_trim_lines_b += lines_b
             proc_trim_lines_a += lines_a
             proc_trim_sloc_b += sloc_b
             proc_trim_sloc_a += sloc_a
-        # GENERATED: source-file-side has nothing to count; the artifact
-        # contributes only to "after" via generated_artifacts below.
+        # GENERATED: handled below via generated_artifacts.
 
     gen_files = gen_lines_a = gen_sloc_a = 0
     gen_lines_b = gen_sloc_b = 0
     gen_paths: set[Path] = set()
+    # Batch SLOC for generated artifact content too.
+    gen_after_items: list[tuple[Path, str]] = [
+        (art.path, art.content) for art in generated_artifacts if art.path.suffix.lower() in _SLOC_EXTENSIONS
+    ]
+    gen_after_sloc: dict[Path, int] = {}
+    if gen_after_items:
+        for (rel, _), n in zip(gen_after_items, count_sloc_many(gen_after_items), strict=True):
+            gen_after_sloc[rel] = n
     for art in generated_artifacts:
         gen_files += 1
         gen_lines_a += len(art.content.splitlines())
-        gen_sloc_a += count_sloc(art.path, art.content)
+        gen_sloc_a += gen_after_sloc.get(art.path, count_sloc(art.path, art.content))
         gen_paths.add(art.path)
 
-        # If the source domain already contained a file at the same
-        # path (the regenerate-in-place case, e.g. ``fev_fm_rtl2gate.tcl``
-        # both exists on disk and is emitted by GeneratorService), count
-        # its original size as the GENERATED bucket's "before" baseline.
-        src_text = _read(ctx, art.path)
+        # Regenerate-in-place: the source domain already contained a
+        # file at this path. Capture its pre-trim size as the GENERATED
+        # bucket's "before" baseline so the delta is real, not 0→N.
+        src_text = text_by_rel.get(art.path)
+        if src_text is None:
+            src_text = _read(ctx, art.path)
         if src_text is not None:
             gen_lines_b += len(src_text.splitlines())
-            gen_sloc_b += count_sloc(art.path, src_text)
+            gen_sloc_b += sloc_by_rel.get(art.path, count_sloc(art.path, src_text))
 
     buckets = (
         TreatmentBucket(
@@ -302,14 +307,15 @@ def build_loc_report(
         TreatmentBucket("GENERATED", gen_files, gen_lines_b, gen_lines_a, gen_sloc_b, gen_sloc_a),
     )
 
-    # Pre-existing source files that GENERATED replaced have already been
-    # accounted for in the GENERATED bucket's "before" — do *not* double
+    # Pre-existing source files that GENERATED replaced are already
+    # accounted for in the GENERATED bucket's "before" — do not double
     # count them under files_before.
-    files_before = full_copy_files + proc_trim_files + remove_files + len(gen_paths.intersection(set(source_files)))
+    regenerate_in_place = gen_paths.intersection(set(all_files))
+    files_before = full_copy_files + proc_trim_files + remove_files + len(regenerate_in_place)
     files_after = full_copy_files + proc_trim_files + gen_files
     lines_before = full_copy_lines + proc_trim_lines_b + remove_lines_b + gen_lines_b
     lines_after = full_copy_lines + proc_trim_lines_a + gen_lines_a
-    sloc_before = full_copy_sloc + proc_trim_sloc_b + remove_sloc_b
+    sloc_before = full_copy_sloc + proc_trim_sloc_b + remove_sloc_b + gen_sloc_b
     sloc_after = full_copy_sloc + proc_trim_sloc_a + gen_sloc_a
 
     return LocReport(
@@ -347,17 +353,18 @@ def build_loc_report_baseline_only(ctx: ChopperContext) -> LocReport:
     empty.
     """
     source_files = _enumerate_source_files(ctx)
+    all_files = _enumerate_all_source_files(ctx)
 
+    items: list[tuple[Path, str]] = []
     total_lines = 0
-    total_sloc = 0
-    file_count = 0
     for rel in source_files:
         text = _read(ctx, rel)
         if text is None:
             continue
-        file_count += 1
+        items.append((rel, text))
         total_lines += len(text.splitlines())
-        total_sloc += count_sloc(rel, text)
+    total_sloc = sum(count_sloc_many(items)) if items else 0
+    file_count = len(all_files)
 
     buckets = (
         TreatmentBucket(

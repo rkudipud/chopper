@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from chopper.core.context import ChopperContext
 from chopper.core.errors import ChopperError
+from chopper.core.file_perms import ensure_executable, mirror_perms_plus_exec
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_trimmer import GeneratedArtifact
 from chopper.generators.stack_emitter import emit_stage_stack
@@ -67,7 +68,13 @@ class GeneratorService:
             raise ChopperError(f"failed to write generated file {target.as_posix()!r}: {exc}") from exc
 
         # Match the trimmer's policy: every final file in the rebuilt
-        # domain gets ``a+x``.
-        from chopper.trimmer.file_writer import ensure_executable
-
-        ensure_executable(target)
+        # domain gets ``a+x``. For the regenerate-in-place case (a
+        # generated artifact whose path also existed in the source
+        # domain) we additionally mirror the source mode bits, so the
+        # rebuilt file carries the same read/write/setuid/sticky
+        # permissions as the original on top of guaranteed exec.
+        backup_src = ctx.config.backup_root / artifact.path
+        if backup_src.is_file():
+            mirror_perms_plus_exec(backup_src, target)
+        else:
+            ensure_executable(target)
