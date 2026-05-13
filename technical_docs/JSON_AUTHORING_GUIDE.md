@@ -526,7 +526,7 @@ Glob patterns support three special characters to match multiple files:
 ### Merge and conflict semantics (when Chopper runs)
 
 **F1/F2/F3 — Ordered Overlay (later layer wins):**
-1. Within a single layer, an explicit `include` always overrides an `exclude` at the same granularity (same-layer authoring rule).
+1. Within a single layer, literal `files.include` beats matching `files.exclude`; glob `files.include` is pruned by matching `files.exclude` (set subtraction). Same-layer FI+FE subtraction is intentional and does not raise `VE-27` by itself.
 2. Across layers, the **base is layer 0** and each entry of `project.features[]` is the next layer in declared order. Layers are folded left-to-right and the last layer that mentions a file/proc/step **wins**.
 3. A later layer's `files.exclude` / `procedures.exclude` can therefore remove content contributed by an earlier layer; a later layer's `files.include` / `procedures.include` can re-add content removed by an earlier layer; and a later layer's `flow_actions` see the cumulative result of all preceding layers.
 4. Every transition that actually changes a prior decision (cancelled include, removed proc, downgraded whole-file include) emits `VW-21 layer-shadowed` with `(layer, prior_layer, action)` provenance recorded in the audit bundle.
@@ -581,7 +581,7 @@ Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`)
 | Keep all files except a list | `files.include: ["**"]`, `files.exclude: [...]` | Chopper starts from every file under the domain, then removes paths matched by `files.exclude`. |
 | Exclude-only file list | `files.exclude: [...]` | No file-level keep signal exists; under default-exclude, live trim can rebuild an almost empty domain. Add `files.include: ["**"]` for a negative-list trim. |
 | Literal include plus matching exclude | `files.include: ["debug_old.tcl"]`, `files.exclude: ["debug*.tcl"]` | `debug_old.tcl` survives; literal FI always wins. |
-| Glob include plus matching exclude | `files.include: ["*.tcl"]`, `files.exclude: ["debug*.tcl"]` | The glob-expanded include list is pruned; `debug*.tcl` matches are removed from that list. |
+| Glob include plus matching exclude | `files.include: ["*.tcl"]`, `files.exclude: ["debug*.tcl"]` | The glob-expanded include list is pruned; `debug*.tcl` matches are removed from that list. This same-layer subtraction is valid and does not trigger `VE-27`. |
 | Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only PI procs survive from that file. |
 | Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except PE procs survive. |
 | File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing for the file and emits `VW-11`. |

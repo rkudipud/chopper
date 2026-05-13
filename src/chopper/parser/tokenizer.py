@@ -375,20 +375,41 @@ def tokenize(text: str) -> TokenizerResult:
         # work at every depth — Chopper re-tokenizes proc bodies as Tcl
         # source and Tcl source honors ``"..."`` regardless of nesting.
         #
-        # Literal-data-word exception (Endekas rule 6): if the byte
-        # immediately preceding this ``"`` is an unescaped structural
-        # ``{``, the ``{`` opened a literal data word (e.g. ``set q
-        # {"}``, ``regexp {".*"} ...``). Inside such a word ALL bytes
-        # are literal until the matching ``}``, so ``"`` is just a
-        # literal character, NOT a quoted-word opener. Falling through
-        # to the generic-character branch below lets the ``"`` and any
-        # following bytes accumulate as a regular literal WORD that the
-        # close-brace branch will flush.
+        # LRM-faithful opener condition (Tcl Dodekalogue rule 5):
+        # "If a word starts with double-quote then the word is
+        #  terminated by the next double-quote character. ... The word
+        #  must be followed immediately by white space or by a closing
+        #  bracket ``]`` or close-brace ``}``."
+        #
+        # The opener must therefore appear at a true word boundary. We
+        # admit only these prefixes (the inverse covers the literal-
+        # data-word case and rejects illegal back-to-back quoted words):
+        #
+        # * start-of-input (``i == 0``)
+        # * inter-token whitespace: ``space``, ``tab``, ``newline``
+        # * command terminator: ``;``
+        # * command-substitution opener: ``[``
+        #
+        # All other prefixes — notably ``{``, ``}``, ``]``, another
+        # ``"``, or any non-separator byte — suppress the opener so the
+        # ``"`` falls through to the generic-character branch and
+        # accumulates as a literal. This covers:
+        #
+        # * ``set q {"}`` — ``"`` after ``{`` (literal data word).
+        # * ``regexp {".*"} ...`` — same shape, no recursion needed.
+        # * ``string map {" " ""}`` — multi-quote-pair brace word: the
+        #   ``"`` right after the closing ``"`` of the prior empty pair
+        #   would previously open a phantom quoted word that swallowed
+        #   the ``}``; the post-``"`` prefix is now rejected.
+        # * Real-world: Intel Caliber ``run_caliber.tcl`` line 418
+        #   ``[string map {" " ""} ...]``; see
+        #   tests/fixtures/edge_cases/parser_braced_word_multi_quote_pairs.tcl.
+        _WORD_BOUNDARY_PREFIX = " \t\n;["
         if (
             ch == '"'
             and word_start == -1
             and not _is_escaped(text, i)
-            and not (i > 0 and text[i - 1] == "{" and not _is_escaped(text, i - 1))
+            and (i == 0 or text[i - 1] in _WORD_BOUNDARY_PREFIX)
         ):
             word_start = i  # include opening `"` in value
             word_line = line_no

@@ -67,6 +67,7 @@ class _SourceFacts:
 
     ref: _SourceRef
     fi_literal: frozenset[Path]
+    fi_glob_matched: frozenset[Path]
     fi_glob_surviving: frozenset[Path]
     fe_literal: frozenset[Path]
     pi_by_file: dict[Path, frozenset[str]]
@@ -325,6 +326,7 @@ def _extract_facts(
     return _SourceFacts(
         ref=ref,
         fi_literal=frozenset(fi_literal_set),
+        fi_glob_matched=frozenset(fi_glob_matches),
         fi_glob_surviving=frozenset(fi_glob_surviving),
         fe_literal=frozenset(fe_hits),
         pi_by_file={k: frozenset(v) for k, v in pi_by_file.items()},
@@ -376,7 +378,10 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
 
     for file_path in sorted(files_touched, key=lambda p: p.as_posix()):
         is_fi_literal = file_path in facts.fi_literal
-        is_fi_glob = file_path in facts.fi_glob_surviving
+        # Use pre-prune glob membership here so same-layer FI+FE on the
+        # same file is recognized as an intentional subtraction, not a
+        # standalone FE remove (which would false-trigger VE-27).
+        is_fi_glob = file_path in facts.fi_glob_matched
         fi_any = is_fi_literal or is_fi_glob
         is_fe = file_path in facts.fe_literal
         pi_short = facts.pi_by_file.get(file_path, frozenset())

@@ -175,7 +175,7 @@ A backslash `\` immediately before a newline character joins the next line.
 
 Double-quoted strings `"..."` group content into a single word and enable substitutions (`$var`, `[cmd]`, `\x`) inside that word.
 
-**Authoritative rule:** an unescaped `"` at a *word boundary* (after whitespace, after `;`, after `\n`, or at the start of a brace-delimited body) opens a quoted word **at any brace depth**. The previous "quotes are literal inside braces" rule was incorrect and produced false TW-02 diagnostics whenever a real-world proc contained `puts "...;..."` or similar (see this doc Pitfall P-01 and bug report `TW-02_quoted_string_semicolon_misparse.md`).
+**Authoritative rule:** an unescaped `"` at a *true word boundary* opens a quoted word **at any brace depth**. Chopper treats these prefixes as valid quote-open boundaries: start-of-input, whitespace, `;`, and `[`. Other prefixes (notably `{`, `}`, `]`, or another `"`) do not open a quoted word; the `"` is literal in that position. This is required for Tcl rule-5 correctness and prevents phantom-quote brace desync in brace words (see Pitfall P-01 / P-01a).
 
 **Rules for Chopper:**
 1. `"` at a word boundary opens a quoted word regardless of `brace_depth`.
@@ -187,7 +187,7 @@ Double-quoted strings `"..."` group content into a single word and enable substi
 3. The quoted word ends at the next unescaped `"` encountered while `quoted_bracket_depth == 0`.
 4. A genuine unbalanced `{` *inside a string literal* is still a Tcl error, but the file-level brace-depth check at EOF catches it via `PE-02`. The tokenizer does not need to inspect string contents for brace balance.
 
-**Literal-data-word exception (Endekas rule 6):** if the byte immediately preceding a candidate `"` is an unescaped structural `{`, the `{` opened a literal data word and the `"` is its first content byte — NOT a quoted-word opener. Without this exception, idioms like `set q {"}` or `regexp {".*"} $line` would consume the matching `}` as part of a phantom quoted word and desync brace counting (false `PE-02`). See Pitfall P-01a and the regression fixture [`tests/fixtures/edge_cases/parser_literal_quote_in_braced_word.tcl`](../tests/fixtures/edge_cases/parser_literal_quote_in_braced_word.tcl). Detection is a one-byte peek-back at quote-open time; closing `}` handling is unchanged.
+**Brace-word / adjacent-quote guard (Endekas rules 5 + 6):** quote-open detection must use the boundary whitelist above, not just a single-byte `{` exception. This covers both `"` immediately after `{` (e.g. `set q {"}`, `regexp {".*"} $line`) and multi-quote-pair brace words (e.g. `string map {" " ""}`) where a later `"` follows another `"` and must stay literal. Without this guard, phantom quoted-word state can swallow the closing `}` and produce false `PE-02`. Regression fixtures: [`tests/fixtures/edge_cases/parser_literal_quote_in_braced_word.tcl`](../tests/fixtures/edge_cases/parser_literal_quote_in_braced_word.tcl) and [`tests/fixtures/edge_cases/parser_braced_word_multi_quote_pairs.tcl`](../tests/fixtures/edge_cases/parser_braced_word_multi_quote_pairs.tcl).
 
 ##### 1.3.3.1 Pre-Body Quote Rule (Outside Brace-Delimited Blocks)
 
@@ -2078,7 +2078,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | Module | Mistake | Prevention |
 |--------|---------|-----------|
 | **Parser** | Quotes treated as inert inside braced bodies (old, incorrect rule) | Apply Tcl Endekas rule 5: `"` opens a quoted word at any brace depth; track `quoted_bracket_depth` (P-01) |
-| **Parser** | `"` immediately after `{` opens phantom quoted word; matching `}` is silently swallowed and brace counting desyncs (false `PE-02`) — e.g. `set q {"}`, `regexp {".*"} $line` | At quote-open time, peek-back: if `text[i-1]` is an unescaped `{`, do NOT open a quoted word — Endekas rule 6 says contents of `{...}` are literal bytes (P-01a) |
+| **Parser** | Quote-open detection that ignores boundary context can open phantom quoted words inside brace words and swallow the closing `}` (false `PE-02`) — e.g. `set q {"}`, `regexp {".*"} $line`, `string map {" " ""}` | Enforce rule-5 word-boundary whitelist (SOF/whitespace/`;`/`[`) and treat other prefixes as literal quote bytes; this subsumes the old single-byte `{` guard (P-01a) |
 | **Parser** | Line continuation corrupts line numbers | Don't physically join lines (P-02) |
 | **Parser** | Namespace context resets incorrectly | LIFO stack management (P-03) |
 | **Parser** | Computed proc names not skipped | Log `PW-01`, skip proc (P-04) |

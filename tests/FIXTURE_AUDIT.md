@@ -16,7 +16,7 @@
 
 | Directory | Role | Status |
 |---|---|---|
-| [`fixtures/edge_cases/`](fixtures/edge_cases/) | Adversarial single-file Tcl inputs for parser unit tests | **Populated** — 17 fixtures (`parser_*.tcl`). See [§2](#2-edge-cases-parser-fixtures). |
+| [`fixtures/edge_cases/`](fixtures/edge_cases/) | Adversarial single-file Tcl inputs for parser unit tests | **Populated** — 20 fixtures (`parser_*.tcl`). See [§2](#2-edge-cases-parser-fixtures). |
 | [`fixtures/mini_domain/`](fixtures/mini_domain/) | Minimal valid multi-file domain (3 procs, 2 files, 1 feature) for end-to-end integration | **Populated** (see `FIXTURE_CATALOG.md`). |
 | [`fixtures/namespace_domain/`](fixtures/namespace_domain/) | Namespace resolution test cases across files | **Populated** (see `FIXTURE_CATALOG.md`). |
 | [`fixtures/tracing_domain/`](fixtures/tracing_domain/) | BFS trace fixtures (direct, cycle, ambiguous, dynamic) | **Populated** — 6 fixtures (see [§3](#3-tracing-domain-fixtures)). |
@@ -57,12 +57,15 @@ Each `.tcl` under `fixtures/edge_cases/` targets a pitfall (`P-xx`) or parser-sp
 | `parser_call_extraction.tcl` | Call tokens extracted (bracketed, bare, namespace-qualified) | — | §5 |
 | `parser_eda_complex_del_seq_rpt.tcl` | Real EDA-style proc with DPA + structured comments | `PI-01`, `PI-04` | §4.6, §4.7 |
 | `parser_eda_complex_get_hier_summary.tcl` | Real EDA-style proc, complex body | — | §4.6 |
+| `parser_literal_quote_in_braced_word.tcl` | P-01a: literal `"` inside brace word (`set q {"}`) | — | §1.3.3 |
+| `parser_braced_word_multi_quote_pairs.tcl` | P-01a extension: brace word with multiple quote pairs (`string map {" " ""}`) | — | §1.3.3 |
 
 ### 2.1 Pitfall coverage matrix
 
 | Pitfall | Description | Fixture |
 |---|---|---|
 | P-01 | Quote context inside braced body | `parser_brace_in_string_literal.tcl` |
+| P-01a | Literal/adjacent quotes inside brace words | `parser_literal_quote_in_braced_word.tcl`, `parser_braced_word_multi_quote_pairs.tcl` |
 | P-02 | Backslash line continuation | `parser_backslash_line_continuation.tcl` |
 | P-03 | Nested namespace resolution | `parser_nested_namespace_accumulates.tcl`, `parser_namespace_reset_after_block.tcl`, `parser_namespace_absolute_override.tcl` |
 | P-04 | Computed / dynamic proc name | `parser_computed_proc_name_skipped.tcl`, `parser_proc_inside_if_block.tcl` |
@@ -125,7 +128,7 @@ Real production Synopsys Formality patterns are exercised via inline byte-litera
 - [`unit/parser/test_service.py::TestRealWorldScenarios`](unit/parser/test_service.py) — CRLF line endings + ``define_proc_attributes`` backslash-continuation regression (was spuriously emitting `PI-04` + `PW-11`); column-0 proc bodies (as seen in the ``dangle_dont_verify_par`` production proc).
 - [`unit/trimmer/test_proc_dropper.py`](unit/trimmer/test_proc_dropper.py) — structural-fidelity guarantee: after dropping one proc from a real multi-proc file, every kept proc (including its banner comment, blank lines, tab-indented or column-0 body) must appear byte-identical in the output.
 
-Snippets are copied verbatim from production scripts and kept small and representative. When a new real-world pathology surfaces, add it as an inline constant next to an existing scenario — do not reintroduce a bulk corpus directory.
+Snippets are copied verbatim from production scripts and kept small and representative. **Tokenizer/parser structural regressions must also be added as dedicated `tests/fixtures/edge_cases/parser_*.tcl` fixtures** (real snippet as-is), then referenced by a unit test. Keep inline constants for focused service-level assertions, but preserve real-world parser pathologies in the shared fixture corpus.
 
 ---
 

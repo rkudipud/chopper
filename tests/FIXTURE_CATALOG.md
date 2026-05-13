@@ -330,9 +330,9 @@ No proc defined inside a `foreach_in_collection` body (or any CONTROL_FLOW conte
 
 ## Coverage Requirements
 
-All 17 fixtures must pass before the Parser module (Stage 1) is declared complete and Stage 2 (Compiler) begins. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
+All parser fixtures under `tests/fixtures/edge_cases/parser_*.tcl` (currently 20) must pass before the Parser module (Stage 1) is declared complete and Stage 2 (Compiler) begins. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
 
-Parser fixture Tcl files live in `tests/fixtures/edge_cases/`. The binary Latin-1 fixture (fixture 15) is generated into that directory by `tests/fixtures/create_latin1_fixture.py`.
+Parser fixture Tcl files live in `tests/fixtures/edge_cases/`. The binary Latin-1 fixture is generated into that directory by `tests/fixtures/create_latin1_fixture.py`.
 
 ---
 

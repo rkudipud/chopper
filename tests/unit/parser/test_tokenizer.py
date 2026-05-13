@@ -180,6 +180,73 @@ class TestQuotedWords:
         assert r.final_brace_depth == 0
         assert r.errors == ()
 
+    def test_braced_word_with_multiple_quote_pairs(self) -> None:
+        # Tcl LRM rule 5: a ``"`` opens a quoted word only at a true word
+        # boundary. After the closing ``"`` of a prior quoted pair, a
+        # following ``"`` cannot open a new quoted word — the prior
+        # implementation did, swallowing the closing ``}`` of the
+        # enclosing braced data word.
+        # Real-world repro: ``string map {" " ""}`` from Intel Caliber
+        # ``run_caliber.tcl:418``. Validated with ``tclsh info complete``.
+        r = tokenize('set k [string map {" " ""} $x]')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_braced_word_with_two_quoted_regex_fragments(self) -> None:
+        # ``{".*" ".*"}`` — two adjacent quoted regex fragments inside
+        # one braced data word. The internal whitespace doesn't matter;
+        # the closing ``}`` must be reached without phantom quote state.
+        r = tokenize('regexp {".*" ".*"} $line')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_string_map_newline_to_space_idiom(self) -> None:
+        # Normalization idiom: ``string map {"\n" " "}``. The escaped
+        # newline inside the quoted word and the multi-pair brace
+        # structure together exercised the old opener bug.
+        r = tokenize(r'set t [string map {"\n" " "} $s]')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_list_literal_of_quoted_elements(self) -> None:
+        # Four adjacent quoted elements as a braced list literal.
+        r = tokenize('set xs {"a" "b" "c" "d"}')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_close_quote_then_open_quote_without_separator_is_literal(self) -> None:
+        # LRM rule 5 invariant: ``""""`` (no separators) cannot be two
+        # back-to-back quoted words. The first pair opens & closes; the
+        # next ``"`` has a ``"`` immediately before it and therefore
+        # cannot open a new quoted word. The remaining bytes accumulate
+        # as a literal WORD. This is the precise condition that fixed
+        # the multi-quote-pair brace bug.
+        r = tokenize('set x ""extra')
+        # Tokenizer must not desync; no errors, depth unchanged.
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+
+    def test_real_world_fixture_intel_caliber_patterns(self) -> None:
+        # Bulk fixture lifted verbatim from intel_caliber/run_caliber.tcl.
+        # Captures the production patterns that triggered PE-02 before
+        # the LRM rule-5 fix landed. New tokenizer scenarios from real
+        # domains should be appended to this fixture as they are found.
+        from pathlib import Path
+
+        fixture = (
+            Path(__file__).resolve().parents[2]
+            / "fixtures"
+            / "edge_cases"
+            / "parser_braced_word_multi_quote_pairs.tcl"
+        )
+        text = fixture.read_text(encoding="utf-8")
+        r = tokenize(text)
+        assert r.final_brace_depth == 0, (
+            f"final_brace_depth={r.final_brace_depth} (expected 0); "
+            f"errors={r.errors}"
+        )
+        assert r.errors == ()
+
 
 class TestComments:
     def test_simple_comment(self) -> None:

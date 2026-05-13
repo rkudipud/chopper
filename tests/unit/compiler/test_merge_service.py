@@ -125,6 +125,7 @@ def test_glob_matched_non_tcl_file_receives_full_copy_treatment() -> None:
     fake_facts = _SourceFacts(
         ref=_SourceRef(key="feat", source_path=Path("/dom/feat.json")),
         fi_literal=frozenset(),
+        fi_glob_matched=frozenset({report_py}),
         fi_glob_surviving=frozenset({report_py}),
         fe_literal=frozenset(),
         pi_by_file={},
@@ -262,6 +263,22 @@ def test_ve27_emitted_for_glob_fe_with_zero_matches() -> None:
     loaded = make_loaded(base, feat)
     CompilerService().run(ctx, loaded, parsed)
     assert "VE-27" in sink.codes()
+
+
+def test_ve27_not_emitted_for_same_layer_glob_include_then_exclude() -> None:
+    """Same-layer FI glob + FE literal is an intentional subtraction.
+
+    Example: ``files.include=["*"]`` and ``files.exclude=["b.tcl"]`` in the
+    same layer should NOT raise VE-27 for ``b.tcl``.
+    """
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo"], "b.tcl": ["bar"]})
+    base = make_base(files=files_section(include=("*",), exclude=("b.tcl",)))
+    loaded = make_loaded(base)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert "VE-27" not in sink.codes()
+    assert Path("a.tcl") in manifest.file_decisions
+    assert manifest.file_decisions[Path("b.tcl")] is FileTreatment.REMOVE
 
 
 def test_ve27_emitted_for_pe_proc_name_typo() -> None:
