@@ -17,8 +17,14 @@ from chopper.adapters import (
     RichUnavailableError,
     SilentProgress,
 )
-from chopper.cli.render import render_cleanup_message, render_result, render_trim_stats
+from chopper.cli.render import (
+    render_cleanup_message,
+    render_diagnostics,
+    render_result,
+    render_trim_stats,
+)
 from chopper.core.context import ChopperContext, RunConfig
+from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.protocols import ProgressSink
 from chopper.orchestrator import ChopperRunner
 
@@ -168,8 +174,6 @@ def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperCo
         # Per ARCHITECTURE.md §5.1, emit VI-03 so the suffix-strip
         # redirect is visible in stderr and recorded in the audit
         # bundle. Info severity; --strict does not escalate.
-        from chopper.core.diagnostics import Diagnostic, Phase
-
         sink.emit(
             Diagnostic.build(
                 "VI-03",
@@ -199,6 +203,99 @@ def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperCo
 # ---------------------------------------------------------------------------
 
 
+def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
+    """CLI pre-runner check for ``--project`` mode (issue #23, VE-13).
+
+    When ``--project <project.json>`` is given, the project JSON's
+    ``base`` and ``features`` entries are resolved relative to the
+    operational domain root (per ARCHITECTURE.md §3.3 and §5.1). If
+    the user runs Chopper from outside the domain (e.g. from the
+    install/sbox directory) without passing ``--domain``, the
+    domain root defaults to ``Path.cwd()`` and those relative paths
+    silently resolve under the wrong directory. The downstream
+    failure surfaces inside ``ConfigService`` as a generic VE-01
+    file-not-found error pointing at a path under the sbox — exit
+    code 1 with no hint that ``--domain`` is the fix.
+
+    This helper performs a fast pre-check after argument parsing but
+    before constructing the :class:`RunConfig`: load the project
+    JSON, resolve each ``base``/``features`` entry against the
+    candidate domain root, and emit ``VE-13`` (exit 2) when any path
+    does not exist on disk. The downstream pipeline is bypassed
+    entirely so the user sees the actionable diagnostic only.
+
+    Returns ``2`` when the check fires (caller must propagate as the
+    process exit code), ``None`` otherwise. Returns ``None`` for
+    structural problems with the project JSON (missing keys, malformed
+    JSON, schema violations) — those remain ``ConfigService``'s
+    responsibility (VE-01 / VE-04 / schema diagnostics).
+    """
+    project_arg = getattr(args, "project", None)
+    if project_arg is None:
+        return None
+
+    import json as _json
+
+    project_path = Path(project_arg).resolve()
+    try:
+        with open(project_path, encoding="utf-8") as fh:
+            raw = _json.load(fh)
+    except (OSError, _json.JSONDecodeError):
+        # Let ConfigService surface VE-01/VE-04 with its richer context.
+        return None
+    if not isinstance(raw, dict):
+        return None
+
+    domain_root, _ = _resolve_domain_root(args)
+
+    candidates: list[tuple[str, Path]] = []
+    base_val = raw.get("base")
+    if isinstance(base_val, str) and base_val:
+        candidates.append(("base", domain_root / base_val))
+    features_val = raw.get("features")
+    if isinstance(features_val, list):
+        for entry in features_val:
+            if isinstance(entry, str) and entry:
+                candidates.append(("features[]", domain_root / entry))
+
+    missing = [(field, path) for field, path in candidates if not path.exists()]
+    if not missing:
+        return None
+
+    field, missing_path = missing[0]
+    others = ", ".join(f"{f}={p.as_posix()}" for f, p in missing[1:])
+    explicit_domain = getattr(args, "domain", None) is not None
+    hint = (
+        f"Resolved from domain root {domain_root.as_posix()!r} "
+        f"(from {'--domain' if explicit_domain else 'cwd'}). "
+        "Pass --domain <path-to-domain-root>, or 'cd' into the domain "
+        "root before running Chopper. See ARCHITECTURE.md §3.3."
+    )
+    diag = Diagnostic.build(
+        "VE-13",
+        phase=Phase.P1_CONFIG,
+        message=(
+            f"project.json {field} {missing_path.as_posix()!r} does not exist on disk"
+            + (f"; also missing: {others}" if others else "")
+        ),
+        path=project_path,
+        hint=hint,
+        context={
+            "domain_root": domain_root.as_posix(),
+            "domain_source": "--domain" if explicit_domain else "cwd",
+            "missing": [{"field": f, "path": p.as_posix()} for f, p in missing],
+        },
+    )
+    render_diagnostics([diag])
+    import sys as _sys
+
+    _sys.stderr.write(f"  hint: {hint}\n")
+    _sys.stderr.write(
+        f"Summary: 1 error(s), 0 warning(s), 0 info(s); exit 2\n"
+    )
+    return 2
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     """Run the pipeline in dry-run mode (validate only; no writes)."""
 
@@ -206,6 +303,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
     # its sorted ``*.json`` children. See architecture doc §5.1.
     if getattr(args, "project", None) is None:
         args.features = _expand_feature_dirs(getattr(args, "features", None))
+
+    rc = _check_project_paths_resolvable(args)
+    if rc is not None:
+        return rc
 
     ctx, sink = _make_context(args, dry_run=True)
     result = ChopperRunner().run(ctx, command="validate")
@@ -215,6 +316,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_trim(args: argparse.Namespace) -> int:
     """Execute the full trim pipeline."""
+
+    rc = _check_project_paths_resolvable(args)
+    if rc is not None:
+        return rc
 
     ctx, sink = _make_context(args, dry_run=bool(getattr(args, "dry_run", False)))
 
@@ -282,6 +387,10 @@ def cmd_loc(args: argparse.Namespace) -> int:
     # accept directory entries in ``--features`` for ad-hoc LOC sweeps.
     if getattr(args, "project", None) is None:
         args.features = _expand_feature_dirs(getattr(args, "features", None))
+
+    rc = _check_project_paths_resolvable(args)
+    if rc is not None:
+        return rc
 
     ctx, sink = _make_context(args, dry_run=True)
     result = ChopperRunner().run(ctx, command="loc")

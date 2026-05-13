@@ -430,3 +430,137 @@ def test_cmd_trim_does_not_expand_feature_directory(tmp_path: Path, monkeypatch:
 
     # Trim leaves the raw directory path alone (downstream config load will error).
     assert captured["features"] == str(feats)
+
+
+# ---------------------------------------------------------------------------
+# _check_project_paths_resolvable — VE-13 pre-runner check (issue #23)
+# ---------------------------------------------------------------------------
+
+
+def test_ve13_fires_when_project_base_unresolvable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Reproduce issue #23: project.json `base` resolved against wrong CWD.
+
+    Domain root has a real ``jsons/base.json``, but we run from a sibling
+    directory (no ``--domain``). The pre-runner check must emit VE-13 and
+    return exit code 2 *without* invoking the runner.
+    """
+    import json
+
+    from chopper.cli import commands
+
+    domain = tmp_path / "my_domain"
+    (domain / "jsons").mkdir(parents=True)
+    (domain / "jsons" / "base.json").write_text("{}", encoding="utf-8")
+    project = domain / "jsons" / "project.json"
+    project.write_text(
+        json.dumps(
+            {
+                "$schema": "project-v1",
+                "project": "p",
+                "domain": "d",
+                "base": "jsons/base.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    sbox = tmp_path / "chopper_sbox"
+    sbox.mkdir()
+    monkeypatch.chdir(sbox)
+
+    runner_called = {"hit": False}
+
+    def _fake_runner(*a, **kw):  # noqa: ANN001, ANN002, ANN003
+        runner_called["hit"] = True
+        raise AssertionError("runner must not be invoked when VE-13 fires")
+
+    monkeypatch.setattr(commands.ChopperRunner, "run", _fake_runner)
+
+    args = _ns(domain=None, project=str(project))
+    rc = commands.cmd_validate(args)
+
+    assert rc == 2
+    assert runner_called["hit"] is False
+    err = capsys.readouterr().err
+    assert "VE-13" in err
+    assert "exit 2" in err
+    # Hint should mention --domain so users know the recovery path.
+    assert "--domain" in err
+
+
+def test_ve13_does_not_fire_when_paths_resolve(tmp_path: Path) -> None:
+    """Happy path: with --domain pointing at the right root, the check passes."""
+    import json
+
+    from chopper.cli import commands
+
+    domain = tmp_path / "my_domain"
+    (domain / "jsons").mkdir(parents=True)
+    (domain / "jsons" / "base.json").write_text("{}", encoding="utf-8")
+    project = domain / "jsons" / "project.json"
+    project.write_text(
+        json.dumps(
+            {
+                "$schema": "project-v1",
+                "project": "p",
+                "domain": "d",
+                "base": "jsons/base.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    args = _ns(domain=str(domain), project=str(project))
+    assert commands._check_project_paths_resolvable(args) is None
+
+
+def test_ve13_skipped_when_project_arg_is_none(tmp_path: Path) -> None:
+    """No --project → no pre-runner check (returns None)."""
+    from chopper.cli import commands
+
+    args = _ns(project=None, base=str(tmp_path / "x.json"))
+    assert commands._check_project_paths_resolvable(args) is None
+
+
+def test_ve13_skipped_when_project_json_unreadable(tmp_path: Path) -> None:
+    """Malformed JSON / missing file → defer to ConfigService VE-01/VE-04."""
+    from chopper.cli import commands
+
+    bad = tmp_path / "bad.json"
+    bad.write_text("not json {", encoding="utf-8")
+    args = _ns(domain=str(tmp_path), project=str(bad))
+    assert commands._check_project_paths_resolvable(args) is None
+
+
+def test_ve13_reports_missing_features(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A missing entry in ``features[]`` also trips VE-13."""
+    import json
+
+    from chopper.cli import commands
+
+    domain = tmp_path / "d"
+    (domain / "jsons").mkdir(parents=True)
+    (domain / "jsons" / "base.json").write_text("{}", encoding="utf-8")
+    project = domain / "p.json"
+    project.write_text(
+        json.dumps(
+            {
+                "$schema": "project-v1",
+                "project": "p",
+                "domain": "d",
+                "base": "jsons/base.json",
+                "features": ["jsons/missing.feature.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    args = _ns(domain=str(domain), project=str(project))
+    rc = commands._check_project_paths_resolvable(args)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "VE-13" in err
+    assert "missing.feature.json" in err
