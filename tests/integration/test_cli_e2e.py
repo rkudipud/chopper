@@ -374,12 +374,14 @@ class TestTrimSubcommand:
         assert copied.name[:2].isdigit(), f"name must start with two-digit prefix: {copied.name}"
         assert copied.read_bytes() == original_bytes
 
-    def test_trim_only_preserves_selected_features_not_unselected(
+    def test_trim_preserves_entire_jsons_folder_including_unselected(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Only the JSONs actually consumed by the run are preserved.
-        Unselected features sitting on disk must NOT appear in the
-        rebuilt domain. See ``technical_docs/ARCHITECTURE.md`` §5.5."""
+        """The entire original jsons/ directory is copied verbatim into the
+        rebuilt domain \u2014 including feature JSONs that were not selected for
+        the current run. This removes any ambiguity about which configs are
+        available in the trimmed output.
+        See ``technical_docs/ARCHITECTURE.md`` \u00a75.6."""
         domain = tmp_path / "mini"
         base = _seed_valid_domain(domain)
         jsons = domain / "jsons"
@@ -416,11 +418,11 @@ class TestTrimSubcommand:
         # Selected features survive at their in-tree path.
         assert (domain / "jsons" / "a.feature.json").exists()
         assert (domain / "jsons" / "b.feature.json").exists()
-        # Unselected feature must not be re-materialised by the
-        # preserver. _seed_valid_domain doesn't recreate it, but the
-        # backup contains the original; the rebuilt domain must NOT.
-        assert not (domain / "jsons" / "c.feature.json").exists(), (
-            "preserver must only copy JSONs that were actually loaded for the run"
+        # Unselected feature must ALSO be present because the whole jsons/
+        # directory from the backup is copied verbatim.
+        assert (domain / "jsons" / "c.feature.json").exists(), (
+            "entire jsons/ tree from backup must appear in the rebuilt domain, "
+            "including feature JSONs not selected for this run"
         )
 
     def test_trim_dry_run_does_not_preserve_jsons(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

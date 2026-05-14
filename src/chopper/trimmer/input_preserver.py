@@ -1,18 +1,21 @@
 """Selected-JSON-input preservation in the rebuilt domain (P5a tail).
 
 Per ``technical_docs/ARCHITECTURE.md`` §5.6, after the per-file dispatch
-loop has succeeded and only on a live (non-dry-run) trim, every JSON
-input the run consumed is copied into the rebuilt ``<domain>/jsons/``:
+loop has succeeded and only on a live (non-dry-run) trim, the entire
+``jsons/`` directory from the backup is mirrored into the rebuilt
+``<domain>/jsons/``:
 
-* In-tree inputs (absolute path under the domain root) are preserved at
-  their original domain-relative path.
-* Out-of-tree inputs land in ``<domain>/jsons/_external/<NN>_<basename>``
+* The whole ``<domain_backup>/jsons/`` subtree is copied verbatim so
+  every JSON that existed in the original domain — selected or not —
+  is present in the rebuilt domain without ambiguity.
+* Out-of-tree inputs (absolute paths outside the domain root) are
+  additionally copied to ``<domain>/jsons/_external/<NN>_<basename>``
   with a two-digit zero-padded sequence number derived from the input
   ordering. The numeric prefix mirrors the audit-bundle convention
   under ``.chopper/inputs/`` and prevents name collisions when two
   external inputs share a basename.
 
-I/O failures during the copy step emit ``VW-20 audit-write-failed``
+I/O failures during either copy step emit ``VW-20 audit-write-failed``
 (severity warning, exit 0) and the run continues — preservation is a
 convenience, not a hard guarantee. The rebuilt domain remains the
 primary deliverable.
@@ -30,25 +33,45 @@ __all__ = ["preserve_input_sources"]
 
 
 def preserve_input_sources(ctx: ChopperContext, loaded: LoadedConfig) -> int:
-    """Copy every selected JSON input into the rebuilt ``<domain>/jsons/``.
+    """Mirror ``<domain_backup>/jsons/`` into the rebuilt domain and copy
+    any out-of-tree inputs to ``<domain>/jsons/_external/``.
 
-    Returns the number of inputs successfully preserved. Caller is
-    expected to gate on ``not ctx.config.dry_run`` and on a successful
-    P5a dispatch loop.
+    Returns the total number of files preserved. Caller is expected to gate
+    on ``not ctx.config.dry_run`` and on a successful P5a dispatch loop.
 
-    In-tree inputs (paths originally under ``domain_root``) are read
-    from the backup tree, since the live trim has already torn down
-    and rebuilt the domain root and the original ``<domain>/jsons/``
-    contents are no longer present on disk. Out-of-tree inputs are
-    read from their declared location.
+    The entire backup ``jsons/`` directory is copied verbatim so the rebuilt
+    domain is unambiguous: every JSON that existed under the original
+    ``<domain>/jsons/`` — selected or not — is present in the rebuilt
+    domain. Out-of-tree inputs are additionally placed in
+    ``<domain>/jsons/_external/`` with a two-digit sequence prefix so they
+    are accessible without consulting external paths.
     """
 
     domain_root = ctx.config.domain_root.resolve()
     backup_root = ctx.config.backup_root.resolve()
-    jsons_root = domain_root / "jsons"
-    external_root = jsons_root / "_external"
+    backup_jsons = backup_root / "jsons"
+    domain_jsons = domain_root / "jsons"
+    external_root = domain_jsons / "_external"
 
-    # Ordered: project (if any) → base → features (in selection order).
+    preserved = 0
+
+    # --- Step 1: mirror the entire jsons/ tree from backup ---
+    if ctx.fs.exists(backup_jsons):
+        try:
+            ctx.fs.mkdir(domain_jsons, parents=True, exist_ok=True)
+            preserved += _copy_dir(ctx, backup_jsons, domain_jsons)
+        except OSError as exc:
+            ctx.diag.emit(
+                Diagnostic.build(
+                    "VW-20",
+                    phase=Phase.P5_TRIM,
+                    message=f"Failed to copy jsons/ directory from backup: {exc}",
+                    path=backup_jsons,
+                    hint="Preservation is best-effort; the rebuilt domain is unaffected",
+                )
+            )
+
+    # --- Step 2: out-of-tree inputs → _external/<NN>_<basename> ---
     sources: list[Path] = []
     if loaded.project is not None:
         sources.append(loaded.project.source_path)
@@ -56,54 +79,49 @@ def preserve_input_sources(ctx: ChopperContext, loaded: LoadedConfig) -> int:
     for feature in loaded.features:
         sources.append(feature.source_path)
 
-    preserved = 0
     for index, src in enumerate(sources):
+        src_resolved = src.resolve()
         try:
-            resolution = _resolve_target(domain_root, backup_root, jsons_root, external_root, src, index)
-            if resolution is None:
-                continue
-            read_from, target = resolution
-            ctx.fs.mkdir(target.parent, parents=True, exist_ok=True)
-            ctx.fs.copy_file(read_from, target)
-            preserved += 1
-        except OSError as exc:
-            ctx.diag.emit(
-                Diagnostic.build(
-                    "VW-20",
-                    phase=Phase.P5_TRIM,
-                    message=f"Failed to preserve input JSON {src.as_posix()!r}: {exc}",
-                    path=src,
-                    hint="Preservation is best-effort; the rebuilt domain is unaffected",
+            src_resolved.relative_to(domain_root)
+            # In-tree: already covered by the jsons/ tree copy above; skip.
+        except ValueError:
+            # Out-of-tree: copy to _external/<NN>_<basename>.
+            try:
+                target = external_root / f"{index:02d}_{src_resolved.name}"
+                ctx.fs.mkdir(external_root, parents=True, exist_ok=True)
+                ctx.fs.copy_file(src_resolved, target)
+                preserved += 1
+            except OSError as exc:
+                ctx.diag.emit(
+                    Diagnostic.build(
+                        "VW-20",
+                        phase=Phase.P5_TRIM,
+                        message=f"Failed to preserve external input JSON {src.as_posix()!r}: {exc}",
+                        path=src,
+                        hint="Preservation is best-effort; the rebuilt domain is unaffected",
+                    )
                 )
-            )
+
     return preserved
 
 
-def _resolve_target(
-    domain_root: Path,
-    backup_root: Path,
-    jsons_root: Path,
-    external_root: Path,
-    src: Path,
-    index: int,
-) -> tuple[Path, Path] | None:
-    """Compute ``(read_from, write_to)`` for a single input source.
+def _copy_dir(ctx: ChopperContext, src: Path, dst: Path) -> int:
+    """Recursively copy all files under ``src`` into ``dst``.
 
-    Returns ``None`` when the source should be skipped (e.g. it points
-    into ``<domain>/.chopper/``, which is owned by the audit bundle).
+    Creates intermediate directories as needed. Returns the count of
+    regular files copied. ``dst`` must already exist before this is
+    called (the caller creates it).
     """
-
-    src_resolved = src.resolve()
-    try:
-        rel = src_resolved.relative_to(domain_root)
-    except ValueError:
-        # Out-of-tree: source is still on disk at its declared path;
-        # destination is <domain>/jsons/_external/NN_<basename>.
-        return src_resolved, external_root / f"{index:02d}_{src_resolved.name}"
-
-    # In-tree: the live trim has already wiped <domain>/, so the
-    # original is now in the backup. Read from backup, write to the
-    # rebuilt domain at the same relative path.
-    if rel.parts and rel.parts[0] == ".chopper":
-        return None
-    return backup_root / rel, domain_root / rel
+    count = 0
+    for child in ctx.fs.list(src):
+        stat = ctx.fs.stat(child)
+        rel = child.relative_to(src)
+        dst_child = dst / rel
+        if stat.is_dir:
+            ctx.fs.mkdir(dst_child, parents=True, exist_ok=True)
+            count += _copy_dir(ctx, child, dst_child)
+        else:
+            ctx.fs.mkdir(dst_child.parent, parents=True, exist_ok=True)
+            ctx.fs.copy_file(child, dst_child)
+            count += 1
+    return count

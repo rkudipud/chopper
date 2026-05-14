@@ -344,6 +344,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 2.10.0 — 2026-05-14
+
+- **Full `jsons/` directory preserved in the rebuilt domain (§5.6).** The P5a tail now mirrors the entire `<domain_backup>/jsons/` directory verbatim into the rebuilt `<domain>/jsons/`. Every JSON that existed in the original domain — the base JSON, all feature JSONs (selected and unselected), and any other file under `jsons/` — is present in the trimmed output without ambiguity. Users no longer need to consult the backup to find an unselected feature JSON. Out-of-tree inputs (JSON files outside the domain root) continue to land in `<domain>/jsons/_external/<NN>_<basename>`. Implementation: `src/chopper/trimmer/input_preserver.py` rewritten with a new `_copy_dir()` recursive helper; old `_resolve_target()` removed. Version bumped 2.9.1 → 2.10.0.
+
 ### 2.9.0 — 2026-05-12
 
 - **Production-hardening refactor (no spec / registry / schema changes).**
