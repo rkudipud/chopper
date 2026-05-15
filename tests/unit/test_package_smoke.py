@@ -4,11 +4,23 @@ from __future__ import annotations
 
 import importlib.metadata
 import runpy
+import tomllib
 from pathlib import Path
 
 import pytest
 
 import chopper
+
+
+def _pyproject_version() -> str:
+    """Read the project version directly from ``pyproject.toml``.
+
+    Kept dynamic on purpose: the fallback path in ``src/chopper/__init__.py``
+    parses the same file at runtime, so hardcoding a literal here would go
+    stale on every release bump.
+    """
+    data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    return str(data["project"]["version"])
 
 
 def test_package_version_is_defined() -> None:
@@ -24,7 +36,7 @@ def test_package_version_falls_back_to_pyproject(monkeypatch: pytest.MonkeyPatch
 
     namespace = runpy.run_path("src/chopper/__init__.py")
 
-    assert namespace["__version__"] == "2.9.0"
+    assert namespace["__version__"] == _pyproject_version()
 
 
 def test_package_version_uses_unknown_when_pyproject_unreadable(monkeypatch: pytest.MonkeyPatch) -> None:

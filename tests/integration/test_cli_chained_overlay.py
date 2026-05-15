@@ -370,27 +370,15 @@ def test_feature_fe_glob_matches_nothing_emits_ve27(tmp_path: Path) -> None:
 # ===========================================================================
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Adversarial finding: implementation emits VW-21 on redundant "
-        "whole-include re-affirmation; spec §4 row 2 says VW-21 only "
-        "fires when the earlier layer had a different state. Test kept "
-        "as a permanent torture-test; flips to XPASS when reconciled."
-    ),
-    strict=True,
-)
 def test_three_layer_redundant_fi_does_not_emit_vw21(tmp_path: Path) -> None:
-    """Adversarial spec-vs-impl finding.
+    """Per ARCHITECTURE.md §4 row 2, redundant WHOLE→WHOLE is not a shadow.
 
-    Per ARCHITECTURE.md §4 row 2, a layer that includes an already-WHOLE
-    file produces the *same state* as the prior layer and therefore must
-    NOT emit ``VW-21`` (the diagnostic fires only "if earlier layer had
-    different state"). The current implementation, however, treats every
-    re-affirmation as a ``replace`` ShadowEvent and emits ``VW-21`` twice
-    in a three-layer redundant-FI chain. Marked ``xfail`` so the
-    regression stays in the suite as a permanent torture-test that will
-    flip to ``XPASS`` (and force review) the moment either the spec or
-    the implementation reconciles. Do not silently delete this test.
+    Three layers (base + featA + featB) each whole-include the same
+    file. Because no layer changes the prior decision, ``VW-21`` must
+    not fire and ``shadowed_by`` must be empty -- the spec says ``VW-21``
+    only fires when "earlier layer had different state". This is a
+    permanent torture-test guarding the same-state short-circuit in
+    :func:`_record_replace_transition`.
     """
     domain = tmp_path / "redundant_fi"
     domain.mkdir()

@@ -673,8 +673,20 @@ def _record_replace_transition(
     *,
     new_keep: frozenset[str] | None = None,
 ) -> None:
-    """Record a ShadowEvent + emit VW-21 when a layer wholesale-replaces a prior decision."""
+    """Record a ShadowEvent + emit VW-21 when a layer wholesale-replaces a prior decision.
+
+    Per ARCHITECTURE.md §4 row 2 (and the prose at lines 452 / 770 / 835):
+    ``VW-21`` fires only when a later layer **actually changes** an earlier
+    layer's decision. A redundant re-affirmation (WHOLE→WHOLE, or
+    TRIM→TRIM with an identical keep set) is a no-op transition and must
+    not emit ``VW-21`` nor record a ``ShadowEvent``.
+    """
     if prev is None or not prior_layer or prior_layer == layer_key:
+        return
+    # Same-state short-circuit: prior decision is unchanged → no shadow.
+    if isinstance(prev, _Whole) and new_kind == "whole":
+        return
+    if isinstance(prev, _Trim) and new_kind == "trim" and new_keep is not None and prev.keep == new_keep:
         return
     action: Literal["replace", "downgrade-whole-to-trim"]
     if isinstance(prev, _Whole) and new_kind == "trim":

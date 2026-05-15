@@ -92,8 +92,17 @@ def test_full_copy_file_preserves_executable_bit(tmp_path: Path) -> None:
     assert _executable_mode(dst)
 
 
-def test_full_copy_file_preserves_non_executable_mode(tmp_path: Path) -> None:
-    """A non-executable source must end up non-executable (and exact-mode-equal)."""
+def test_full_copy_file_mirrors_non_exec_bits_and_ors_in_a_plus_x(tmp_path: Path) -> None:
+    """Spec contract: src non-exec bits are mirrored verbatim AND ``a+x`` is OR'd in.
+
+    Per the architecture doc (revision-history entry for the
+    ``core/file_perms.py`` hoist): every rebuilt file in ``<domain>/``
+    carries the source file's full mode bits (``shutil.copymode``
+    semantics) **plus** ``a+x`` for user/group/other. So a 0o640 source
+    becomes 0o751 on the rebuilt side -- non-exec bits identical,
+    executable bits forced on. Domain files are run by the EDA tool, so
+    every emitted file must be runnable.
+    """
 
     ctx = _make_ctx(tmp_path)
     rel = Path("data/notes.txt")
@@ -105,8 +114,19 @@ def test_full_copy_file_preserves_non_executable_mode(tmp_path: Path) -> None:
     full_copy_file(ctx, rel, procs_in_file=())
 
     dst = ctx.config.domain_root / rel
-    assert stat.S_IMODE(dst.stat().st_mode) == 0o640
-    assert not _executable_mode(dst)
+    dst_mode = stat.S_IMODE(dst.stat().st_mode)
+    exec_bits = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+    non_exec_mask = 0o7777 & ~exec_bits
+    # Non-exec bits (rwx for owner minus x, rwx for group minus x, rwx for
+    # other minus x, plus setuid/setgid/sticky) are mirrored verbatim.
+    assert dst_mode & non_exec_mask == 0o640 & non_exec_mask, (
+        f"non-exec bits not preserved: src=0o640 dst=0o{dst_mode:o}"
+    )
+    # And a+x is unconditionally OR'd in.
+    assert dst_mode & exec_bits == exec_bits, (
+        f"a+x not OR'd in: dst=0o{dst_mode:o}"
+    )
+    assert _executable_mode(dst)
 
 
 def test_proc_trim_file_preserves_executable_bit(tmp_path: Path) -> None:
