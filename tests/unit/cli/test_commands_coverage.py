@@ -7,29 +7,22 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
+import argparse
+import io
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock
-from unittest.mock import patch
-import io
-import sys
-import json
-from _pytest.monkeypatch import MonkeyPatch
-
-
-import argparse
-
 
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -77,7 +70,6 @@ def test_make_context_emits_vi03_when_backup_dir_passed(tmp_path: Path) -> None:
     """When the domain argument ends in '_backup' and a stripped sibling exists,
     _make_context must emit VI-03 with the resolved domain root.  This keeps the
     suffix-strip redirect visible in the audit bundle (ARCHITECTURE.md §5.1)."""
-    import argparse
 
     from chopper.cli.commands import _make_context
 
@@ -163,7 +155,6 @@ def test_warn_if_cwd_will_be_renamed_silent_when_backup_exists(
 def test_cmd_cleanup_removes_backup_with_confirm(tmp_path: Path) -> None:
     """cmd_cleanup with --confirm must remove domain_backup/ using shutil.rmtree
     (CLI_REFERENCE.md cleanup subcommand)."""
-    import argparse
 
     from chopper.cli.commands import cmd_cleanup
 
@@ -181,7 +172,6 @@ def test_cmd_cleanup_removes_backup_with_confirm(tmp_path: Path) -> None:
 
 def test_cmd_cleanup_refuses_without_confirm(tmp_path: Path) -> None:
     """cmd_cleanup without --confirm must refuse and return exit code 2."""
-    import argparse
 
     from chopper.cli.commands import cmd_cleanup
 
@@ -200,8 +190,6 @@ def test_check_project_paths_emits_ve13_for_missing_base(tmp_path: Path) -> None
     """_check_project_paths_resolvable must return exit code 2 and print VE-13
     when the project.json references a base file that doesn't exist on disk
     (ARCHITECTURE.md §5.1 / §3.3)."""
-    import argparse
-    import json
 
     from chopper.cli.commands import _check_project_paths_resolvable
 
@@ -334,7 +322,6 @@ def test_warn_if_cwd_will_be_renamed_no_warning_when_cwd_outside(tmp_path: Path)
 
 def test_resolve_domain_root_raises_system_exit_on_cwd_failure() -> None:
     """_resolve_domain_root raises SystemExit when Path.cwd() fails (lines 69-74)."""
-    import argparse
     from chopper.cli.commands import _resolve_domain_root  # type: ignore[attr-defined]
 
     args = argparse.Namespace(domain=None)
@@ -362,7 +349,6 @@ def test_warn_if_cwd_will_be_renamed_oserror_returns_silently() -> None:
 
 def test_check_project_paths_resolvable_raw_not_dict(tmp_path: Path) -> None:
     """_check_project_paths_resolvable returns None when project.json is not a dict (line 247)."""
-    import argparse
     from chopper.cli.commands import _check_project_paths_resolvable  # type: ignore[attr-defined]
 
     project_file = tmp_path / "project.json"
@@ -375,8 +361,8 @@ def test_check_project_paths_resolvable_raw_not_dict(tmp_path: Path) -> None:
 
 def test_check_project_paths_resolvable_missing_base_returns_2(tmp_path: Path) -> None:
     """_check_project_paths_resolvable returns 2 when base path does not exist (lines 253->255)."""
-    import argparse
     import json as _json
+
     from chopper.cli.commands import _check_project_paths_resolvable  # type: ignore[attr-defined]
 
     project_file = tmp_path / "project.json"
@@ -402,7 +388,6 @@ def test_check_project_paths_resolvable_missing_base_returns_2(tmp_path: Path) -
 def test_cmd_cleanup_redirects_when_domain_ends_in_backup(tmp_path: Path) -> None:
     """cmd_cleanup (line 439): when --domain ends in '_backup' and a live
     sibling exists, the resolver redirects and emits an informational notice."""
-    import argparse
 
     from chopper.cli import commands as cmds
 
@@ -416,3 +401,163 @@ def test_cmd_cleanup_redirects_when_domain_ends_in_backup(tmp_path: Path) -> Non
     # The redirected target's backup is `dom_backup` which exists → removed
     assert rc == 0
     assert not backup.exists()
+
+
+def test_check_project_paths_returns_none_when_base_field_missing_or_invalid(
+    tmp_path: Path,
+) -> None:
+    """``_check_project_paths_resolvable`` must skip the base candidate when
+    ``project.json.base`` is absent, ``None``, or an empty string (branch
+    ``253→255``). With no candidates the function returns ``None`` (no
+    paths to verify).
+    """
+    import json as _json
+
+    from chopper.cli.commands import _check_project_paths_resolvable
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+
+    for raw in (
+        {"features": []},  # base absent
+        {"base": None, "features": []},  # base is None (not a string)
+        {"base": "", "features": []},  # base is empty string
+    ):
+        project = tmp_path / "proj.json"
+        project.write_text(_json.dumps(raw))
+        args = argparse.Namespace(domain=str(domain), project=str(project))
+        assert _check_project_paths_resolvable(args) is None
+
+
+def test_check_project_paths_skips_non_string_or_empty_feature_entries(
+    tmp_path: Path,
+) -> None:
+    """``_check_project_paths_resolvable`` must skip ``features[]`` entries
+    that are not strings or are empty strings (branch ``258→257``). When
+    every entry is rejected (and no base is present) the function returns
+    ``None``.
+    """
+    import json as _json
+
+    from chopper.cli.commands import _check_project_paths_resolvable
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    project = tmp_path / "proj.json"
+    # All three entries should be skipped — None, empty, integer.
+    project.write_text(_json.dumps({"features": [None, "", 42]}))
+    args = argparse.Namespace(domain=str(domain), project=str(project))
+    assert _check_project_paths_resolvable(args) is None
+
+
+def test_cmd_trim_returns_exit_2_when_project_paths_unresolvable(
+    tmp_path: Path,
+) -> None:
+    """``cmd_trim`` (line 320): when ``_check_project_paths_resolvable``
+    returns a non-None exit code, ``cmd_trim`` must propagate it without
+    invoking the runner. Per ARCHITECTURE.md §5.10 a missing project
+    path surfaces as exit 2 via VE-13.
+    """
+    import json as _json
+
+    from chopper.cli import commands as cmds
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    project = tmp_path / "proj.json"
+    project.write_text(_json.dumps({"base": "missing_base.json", "features": []}))
+    args = argparse.Namespace(
+        domain=str(domain),
+        project=str(project),
+        base=None,
+        features=None,
+        tool_commands=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        dry_run=True,
+        verbose=0,
+    )
+    assert cmds.cmd_trim(args) == 2
+
+
+def test_cmd_loc_returns_exit_2_when_project_paths_unresolvable(
+    tmp_path: Path,
+) -> None:
+    """``cmd_loc`` (line 391): same propagation contract as ``cmd_trim``.
+    A missing project path must short-circuit before the LOC pipeline
+    runs, returning exit 2 (ARCHITECTURE.md §5.10).
+    """
+    import json as _json
+
+    from chopper.cli import commands as cmds
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    project = tmp_path / "proj.json"
+    project.write_text(_json.dumps({"base": "missing_base.json", "features": []}))
+    args = argparse.Namespace(
+        domain=str(domain),
+        project=str(project),
+        base=None,
+        features=None,
+        tool_commands=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        dry_run=True,
+        verbose=0,
+    )
+    assert cmds.cmd_loc(args) == 2
+
+
+def test_cmd_loc_with_project_skips_feature_dir_expansion(
+    tmp_path: Path,
+) -> None:
+    """``cmd_loc`` (branch ``386→389``): when ``--project`` is supplied,
+    the feature-dir expansion shortcut is skipped and the project-path
+    check runs unchanged. We exercise the False branch of the
+    ``if project is None`` guard by supplying both ``--project`` and a
+    base path that exists on disk so the runner reaches P3 cleanly.
+    """
+    import json as _json
+
+    from chopper.cli import commands as cmds
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    base_json = domain / "base.json"
+    base_json.write_text(
+        _json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "loc_proj",
+                "files": {"include": []},
+            }
+        )
+    )
+    project = tmp_path / "proj.json"
+    project.write_text(_json.dumps({"base": "base.json", "features": []}))
+    args = argparse.Namespace(
+        domain=str(domain),
+        project=str(project),
+        base=None,
+        features="some_unused_dir",  # would expand if project were None
+        tool_commands=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        dry_run=True,
+        verbose=0,
+    )
+    rc = cmds.cmd_loc(args)
+    # Per §5.10, valid exit codes for cmd_loc are 0/1/2. The point of
+    # this test is the branch (project is not None ⇒ no _expand_feature_dirs
+    # mutation of args.features); the exit code is incidental.
+    assert rc in (0, 1, 2)
+    # Verify args.features was NOT rewritten (the branch we're targeting
+    # is the ``project is not None`` False branch that *skips* the
+    # rewrite). Were the True branch hit, ``_expand_feature_dirs`` would
+    # have returned the input verbatim (no slash → not a directory) or
+    # raised — either way the absence of mutation is the contract.
+    assert args.features == "some_unused_dir"

@@ -7,25 +7,20 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
-import pytest
 from pathlib import Path
 
+import pytest
 
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -64,7 +59,6 @@ def test_generator_service_mirrors_perms_when_backup_src_exists(tmp_path: Path) 
     (domain / "synth.tcl").write_text("# placeholder\n")
 
     from chopper.adapters.fs_local import LocalFS
-    from chopper.core.context import ChopperContext, RunConfig
 
     cfg = RunConfig(
         domain_root=domain,

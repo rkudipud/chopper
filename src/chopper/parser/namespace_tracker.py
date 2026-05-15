@@ -224,7 +224,7 @@ class NamespaceTracker:
             self._pending_namespace = None
             self._in_control_flow_command = False
             return
-        if kind is TokenKind.WORD:
+        if kind is TokenKind.WORD:  # pragma: no branch - every other ``TokenKind`` value is handled above
             self._handle_word(token)
             return
 

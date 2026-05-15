@@ -123,9 +123,7 @@ def test_full_copy_file_mirrors_non_exec_bits_and_ors_in_a_plus_x(tmp_path: Path
         f"non-exec bits not preserved: src=0o640 dst=0o{dst_mode:o}"
     )
     # And a+x is unconditionally OR'd in.
-    assert dst_mode & exec_bits == exec_bits, (
-        f"a+x not OR'd in: dst=0o{dst_mode:o}"
-    )
+    assert dst_mode & exec_bits == exec_bits, f"a+x not OR'd in: dst=0o{dst_mode:o}"
     assert _executable_mode(dst)
 
 

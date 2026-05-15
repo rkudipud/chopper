@@ -32,10 +32,8 @@ Run with:  ``python tests/unit/_redistribute_coverage_tests.py``
 from __future__ import annotations
 
 import re
-import shutil
 import sys
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UNIT_DIR = REPO_ROOT / "tests" / "unit"

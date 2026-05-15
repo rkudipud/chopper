@@ -7,24 +7,18 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
 from pathlib import Path
 
-
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -160,8 +154,8 @@ def test_copy_dir_recursively_copies_nested_subdirectory() -> None:
 
 def test_preserve_input_sources_project_and_features_appended() -> None:
     """preserve_input_sources includes project.source_path (line 77) and feature.source_path (line 80)."""
-    from chopper.trimmer.input_preserver import preserve_input_sources
     from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig, ProjectJson
+    from chopper.trimmer.input_preserver import preserve_input_sources
 
     # Use tmp_path via InMemoryFS since we only care about line execution, not actual I/O.
     fs = InMemoryFS()

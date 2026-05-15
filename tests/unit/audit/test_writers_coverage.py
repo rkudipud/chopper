@@ -7,27 +7,21 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
+import json
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import MagicMock
-import json
-
 
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-import datetime
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -149,8 +143,7 @@ def test_render_files_removed_shadowed_by_pe_label() -> None:
 
 def test_render_dependency_graph_with_non_none_graph() -> None:
     """render_dependency_graph builds edges and pt lists from a real DependencyGraph."""
-    import json
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.writers import render_dependency_graph
     from chopper.core.models_audit import RunRecord
@@ -171,7 +164,7 @@ def test_render_dependency_graph_with_non_none_graph() -> None:
         edges=(edge,),
         reachable_from_includes=frozenset({"a.tcl::bar", "a.tcl::foo"}),
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="dep-r1",
         command="validate",
@@ -190,8 +183,7 @@ def test_render_dependency_graph_with_non_none_graph() -> None:
 
 def test_render_compiled_manifest_with_traced_proc_having_colon_colon() -> None:
     """render_compiled_manifest extracts source_file from '::' canonical names."""
-    import json
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.writers import render_compiled_manifest
     from chopper.core.models_audit import RunRecord
@@ -218,7 +210,7 @@ def test_render_compiled_manifest_with_traced_proc_having_colon_colon() -> None:
         provenance={},
         stages=(),
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="cm-r2",
         command="validate",
@@ -237,12 +229,12 @@ def test_render_compiled_manifest_with_traced_proc_having_colon_colon() -> None:
 
 def test_before_root_returns_domain_root_when_no_backup() -> None:
     """_before_root returns ctx.config.domain_root when state is None (no backup taken)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.writers import _before_root
     from chopper.core.models_audit import RunRecord
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="br-r3",
         command="validate",
@@ -258,7 +250,7 @@ def test_before_root_returns_domain_root_when_no_backup() -> None:
 
 def test_walk_relative_files_list_raises_filenotfound() -> None:
     """_recurse handles FileNotFoundError from ctx.fs.list (lines 399-400)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.writers import render_files_removed
     from chopper.core.models_audit import RunRecord
@@ -268,7 +260,7 @@ def test_walk_relative_files_list_raises_filenotfound() -> None:
     fs.exists.return_value = True
     fs.list.side_effect = FileNotFoundError("directory gone")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(run_id="r1", command="trim", started_at=now, ended_at=now, exit_code=0)
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=False)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
@@ -280,7 +272,7 @@ def test_walk_relative_files_list_raises_filenotfound() -> None:
 
 def test_walk_relative_files_stat_raises_filenotfound() -> None:
     """_recurse handles FileNotFoundError from ctx.fs.stat (lines 406-407)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.writers import render_files_removed
     from chopper.core.models_audit import RunRecord
@@ -292,7 +284,7 @@ def test_walk_relative_files_stat_raises_filenotfound() -> None:
     fs.list.side_effect = lambda p: [child_path] if p == BACKUP else []
     fs.stat.side_effect = FileNotFoundError("stat vanished")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(run_id="r2", command="trim", started_at=now, ended_at=now, exit_code=0)
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=False)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
@@ -303,12 +295,12 @@ def test_walk_relative_files_stat_raises_filenotfound() -> None:
 
 def test_resolve_before_path_with_state_none() -> None:
     """_resolve_before_path calls _before_root; with state=None returns domain_root/rel."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.writers import _resolve_before_path
     from chopper.core.models_audit import RunRecord
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(run_id="r3", command="trim", started_at=now, ended_at=now, exit_code=0, state=None)
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=False)
     ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())

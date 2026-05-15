@@ -125,7 +125,7 @@ def render_trim_stats(
     rows = _collect_rows(ctx, report)
     rows.extend(_collect_generated_rows(ctx, result.generated_artifacts))
     rows.sort(key=lambda r: str(r["path"]))
-    if not rows:
+    if not rows:  # pragma: no cover - unreachable: outcomes non-empty ⇒ _collect_rows yields ≥1 row
         return
 
     totals = _totals_row(rows)

@@ -7,22 +7,19 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
+from datetime import UTC
+from pathlib import Path
 
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-import datetime
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -86,12 +83,12 @@ def test_audit_service_safe_read_returns_none_on_oserror(tmp_path: Path) -> None
 
 def test_collect_input_jsons_returns_empty_when_loaded_is_none() -> None:
     """AuditService._collect_input_jsons returns [] immediately when record.loaded is None."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.service import AuditService
     from chopper.core.models_audit import RunRecord
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="r-none",
         command="validate",
@@ -107,7 +104,7 @@ def test_collect_input_jsons_returns_empty_when_loaded_is_none() -> None:
 
 def test_copy_inputs_with_readable_base_and_unreadable_feature() -> None:
     """_copy_inputs: base read succeeds; unreadable feature is silently skipped (lines 138-144)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.service import AuditService
     from chopper.core.models_audit import RunRecord
@@ -123,7 +120,7 @@ def test_copy_inputs_with_readable_base_and_unreadable_feature() -> None:
     feature = FeatureJson(source_path=feature_path, name="feat")
     loaded = LoadedConfig(base=base, features=(feature,))
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="r-copy-test",
         command="validate",
@@ -142,7 +139,7 @@ def test_copy_inputs_with_readable_base_and_unreadable_feature() -> None:
 
 def test_copy_inputs_feature_with_none_text_continues() -> None:
     """_copy_inputs: feature text=None path skips feature entry (lines 143-144)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.service import AuditService
     from chopper.core.models_audit import RunRecord
@@ -158,7 +155,7 @@ def test_copy_inputs_feature_with_none_text_continues() -> None:
     feature = FeatureJson(source_path=feature_path, name="missing_feat")
     loaded = LoadedConfig(base=base, features=(feature,))
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="r-feat-none",
         command="validate",
@@ -179,7 +176,7 @@ def test_copy_inputs_feature_with_none_text_continues() -> None:
 
 def test_copy_inputs_readable_feature_written() -> None:
     """_copy_inputs: readable feature produces input_features/01_feat.json (lines 143-144)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from chopper.audit.service import AuditService
     from chopper.core.models_audit import RunRecord
@@ -195,7 +192,7 @@ def test_copy_inputs_readable_feature_written() -> None:
     feature = FeatureJson(source_path=feature_path, name="feat")
     loaded = LoadedConfig(base=base, features=(feature,))
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RunRecord(
         run_id="r-feat-readable",
         command="validate",

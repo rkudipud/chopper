@@ -7,20 +7,16 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
-from unittest.mock import MagicMock
-from unittest.mock import patch
-
+from unittest.mock import MagicMock, patch
 
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -56,7 +52,9 @@ def test_serve_once_returns_4_on_fatal_mcp_protocol_error() -> None:
 def test_mcp_call_tool_routes_chopper_validate() -> None:
     """_call_tool dispatches chopper.validate to call_validate (line 101)."""
     import asyncio
+
     import mcp.types as t
+
     from chopper.mcp.server import build_server
 
     server = build_server()

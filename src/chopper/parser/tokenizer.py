@@ -255,9 +255,9 @@ def tokenize(text: str) -> TokenizerResult:
 
         # Newline — unless it is an odd-backslash continuation.
         if ch == "\n":
-            if _is_escaped(text, i):
-                # Line continuation: the command continues on the next line.
-                # Line number advances; at_cmd_pos is preserved.
+            # Defensive backstop: the top-level guard (~L213) normally consumes
+            # ``\<nl>`` pairs before the main loop sees the ``\n``.
+            if _is_escaped(text, i):  # pragma: no cover - top-level guard handles this case
                 line_no += 1
                 i += 1
                 continue

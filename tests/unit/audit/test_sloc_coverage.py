@@ -7,21 +7,18 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
+from pathlib import Path
 
 import pytest
-from pathlib import Path
-from _pytest.monkeypatch import MonkeyPatch
-
 
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 

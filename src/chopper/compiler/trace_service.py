@@ -291,9 +291,12 @@ def _candidate_qnames(token: str, caller_namespace: str) -> tuple[str, ...]:
     # Relative or bare.
     if caller_namespace:
         qualified_first = f"{caller_namespace}::{token}"
-        # When the token is already caller-namespace-qualified the two
-        # candidates collapse to one. Dedupe while preserving order.
-        if qualified_first == token:
+        # Unreachable: ``qualified_first`` is strictly longer than ``token``
+        # whenever ``caller_namespace`` is truthy (it prepends at least one
+        # non-empty namespace segment + ``::``), so equality is impossible.
+        # Kept as a defensive guard against future refactors that change
+        # the qualification scheme.
+        if qualified_first == token:  # pragma: no cover - defensive guard
             return (token,)
         return (qualified_first, token)
     return (token,)

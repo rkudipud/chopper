@@ -7,23 +7,20 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import MagicMock
-from unittest.mock import patch
-import sys
-from _pytest.monkeypatch import MonkeyPatch
-
 
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -33,7 +30,6 @@ def test_cli_main_last_resort_exception_writes_internal_log(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     import importlib
-    import sys
 
     main_mod = importlib.import_module("chopper.cli.main")
     # __init__.py rebinds chopper.cli.main to the function; reach the

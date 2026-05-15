@@ -7,19 +7,14 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
-import datetime
-
-
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 

@@ -7,39 +7,30 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock
-from unittest.mock import patch
-import sys
-from _pytest.monkeypatch import MonkeyPatch
-
 
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-from chopper.core.diagnostics import Diagnostic
-from chopper.core.diagnostics import Phase
-import tempfile
-
-
+from chopper.core.context import ChopperContext, RunConfig
+from chopper.core.diagnostics import Diagnostic, Phase
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
 def test_runner_catches_generic_exception_with_exit_3() -> None:
     """A non-ChopperError raised by a service hits the generic except,
     writes internal-error.log, and returns exit_code=3."""
-    import tempfile
 
     from chopper.adapters.fs_local import LocalFS
     from chopper.adapters.progress_silent import SilentProgress
@@ -140,7 +131,6 @@ def test_merge_stage_emits_chopper_error_when_stack_path_collides() -> None:
 def test_runner_generic_exception_writes_internal_error_log(monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-ChopperError raised by a service is caught by the generic
     ``except`` arm: exit_code=3 and ``internal_error.log`` is written."""
-    import sys
 
     from chopper.orchestrator import runner as runner_mod
 
@@ -199,29 +189,36 @@ def test_runner_returns_exit_code_3_on_unhandled_exception() -> None:
 def test_runner_p5_indentation_errors_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     """TclIndentationService emitting an error triggers the P5 error gate (lines 134-136)."""
     import json as _json
-    from chopper.adapters import InMemoryFS, SilentProgress, CollectingSink
-    from chopper.core.context import ChopperContext, RunConfig
-    from chopper.core.diagnostics import Diagnostic, Phase
+
+    from chopper.adapters import CollectingSink, InMemoryFS, SilentProgress
     from chopper.orchestrator import ChopperRunner
 
-    _DOMAIN = Path("dom")
-    _BACKUP = Path("dom_backup")
-    _BASE = _DOMAIN / "jsons" / "base.json"
+    domain_path = Path("dom")
+    backup_path = Path("dom_backup")
+    base_path_ = domain_path / "jsons" / "base.json"
 
     fs = InMemoryFS()
-    fs.mkdir(_DOMAIN / "jsons", parents=True, exist_ok=True)
-    fs.write_text(_DOMAIN / "helper.tcl", "proc helper_a {} { return 1 }\n")
-    fs.write_text(_BASE, _json.dumps({
-        "$schema": "base-v1",
-        "domain": "dom",
-        "files": {"include": ["helper.tcl"]},
-    }))
+    fs.mkdir(domain_path / "jsons", parents=True, exist_ok=True)
+    fs.write_text(domain_path / "helper.tcl", "proc helper_a {} { return 1 }\n")
+    fs.write_text(
+        base_path_,
+        _json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "dom",
+                "files": {"include": ["helper.tcl"]},
+            }
+        ),
+    )
 
     sink = CollectingSink()
     cfg = RunConfig(
-        domain_root=_DOMAIN, backup_root=_BACKUP,
-        audit_root=_DOMAIN / ".chopper", strict=False, dry_run=False,
-        base_path=_BASE,
+        domain_root=domain_path,
+        backup_root=backup_path,
+        audit_root=domain_path / ".chopper",
+        strict=False,
+        dry_run=False,
+        base_path=base_path_,
     )
     ctx = ChopperContext(config=cfg, fs=fs, diag=sink, progress=SilentProgress())
 
@@ -244,29 +241,36 @@ def test_runner_p5_indentation_errors_exits_1(monkeypatch: pytest.MonkeyPatch) -
 def test_runner_loc_command_invokes_generator_service(monkeypatch: pytest.MonkeyPatch) -> None:
     """command='loc' in dry-run mode invokes GeneratorService (line 166)."""
     import json as _json
-    from chopper.adapters import InMemoryFS, SilentProgress, CollectingSink
-    from chopper.core.context import ChopperContext, RunConfig
-    from chopper.orchestrator import ChopperRunner
-    from chopper.core.models_common import FileTreatment
 
-    _DOMAIN = Path("dom_loc")
-    _BACKUP = Path("dom_loc_backup")
-    _BASE = _DOMAIN / "jsons" / "base.json"
+    from chopper.adapters import CollectingSink, InMemoryFS, SilentProgress
+    from chopper.orchestrator import ChopperRunner
+
+    domain_path = Path("dom_loc")
+    backup_path = Path("dom_loc_backup")
+    base_path_ = domain_path / "jsons" / "base.json"
 
     fs = InMemoryFS()
-    fs.mkdir(_DOMAIN / "jsons", parents=True, exist_ok=True)
-    fs.write_text(_DOMAIN / "helper.tcl", "proc helper_a {} { return 1 }\n")
-    fs.write_text(_BASE, _json.dumps({
-        "$schema": "base-v1",
-        "domain": "dom_loc",
-        "files": {"include": ["helper.tcl"]},
-    }))
+    fs.mkdir(domain_path / "jsons", parents=True, exist_ok=True)
+    fs.write_text(domain_path / "helper.tcl", "proc helper_a {} { return 1 }\n")
+    fs.write_text(
+        base_path_,
+        _json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "dom_loc",
+                "files": {"include": ["helper.tcl"]},
+            }
+        ),
+    )
 
     sink = CollectingSink()
     cfg = RunConfig(
-        domain_root=_DOMAIN, backup_root=_BACKUP,
-        audit_root=_DOMAIN / ".chopper", strict=False, dry_run=True,
-        base_path=_BASE,
+        domain_root=domain_path,
+        backup_root=backup_path,
+        audit_root=domain_path / ".chopper",
+        strict=False,
+        dry_run=True,
+        base_path=base_path_,
     )
     ctx = ChopperContext(config=cfg, fs=fs, diag=sink, progress=SilentProgress())
 
@@ -290,28 +294,36 @@ def test_runner_loc_command_invokes_generator_service(monkeypatch: pytest.Monkey
 def test_runner_p5_preserve_input_sources_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
     """preserve_input_sources returning > 0 triggers trim_report replace (line 146)."""
     import json as _json
-    from chopper.adapters import InMemoryFS, SilentProgress, CollectingSink
-    from chopper.core.context import ChopperContext, RunConfig
+
+    from chopper.adapters import CollectingSink, InMemoryFS, SilentProgress
     from chopper.orchestrator import ChopperRunner
 
-    _DOMAIN2 = Path("dom_preserve")
-    _BACKUP2 = Path("dom_preserve_backup")
-    _BASE2 = _DOMAIN2 / "jsons" / "base.json"
+    domain2_path = Path("dom_preserve")
+    backup2_path = Path("dom_preserve_backup")
+    base2_path = domain2_path / "jsons" / "base.json"
 
     fs = InMemoryFS()
-    fs.mkdir(_DOMAIN2 / "jsons", parents=True, exist_ok=True)
-    fs.write_text(_DOMAIN2 / "helper.tcl", "proc helper_a {} { return 1 }\n")
-    fs.write_text(_BASE2, _json.dumps({
-        "$schema": "base-v1",
-        "domain": "dom_preserve",
-        "files": {"include": ["helper.tcl"]},
-    }))
+    fs.mkdir(domain2_path / "jsons", parents=True, exist_ok=True)
+    fs.write_text(domain2_path / "helper.tcl", "proc helper_a {} { return 1 }\n")
+    fs.write_text(
+        base2_path,
+        _json.dumps(
+            {
+                "$schema": "base-v1",
+                "domain": "dom_preserve",
+                "files": {"include": ["helper.tcl"]},
+            }
+        ),
+    )
 
     sink = CollectingSink()
     cfg = RunConfig(
-        domain_root=_DOMAIN2, backup_root=_BACKUP2,
-        audit_root=_DOMAIN2 / ".chopper", strict=False, dry_run=False,
-        base_path=_BASE2,
+        domain_root=domain2_path,
+        backup_root=backup2_path,
+        audit_root=domain2_path / ".chopper",
+        strict=False,
+        dry_run=False,
+        base_path=base2_path,
     )
     ctx = ChopperContext(config=cfg, fs=fs, diag=sink, progress=SilentProgress())
 

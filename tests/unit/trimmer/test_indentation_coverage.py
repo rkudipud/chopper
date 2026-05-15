@@ -7,26 +7,20 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
 from pathlib import Path
 
-
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
     _make_file_outcome,
     _make_trim_report,
+    _Progress,
+    _Sink,
 )
 
 
@@ -105,17 +99,18 @@ def test_with_updated_artifacts_unchanged_when_no_normalization() -> None:
 
 def test_indentation_normalizer_skips_write_when_unchanged() -> None:
     """IndentationNormalizer skips ctx.fs.write_text when formatted == text (branch 85->91)."""
-    from chopper.trimmer.indentation import TclIndentationService
-    from chopper.core.models_trimmer import TrimReport, FileOutcome
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
+    from chopper.trimmer.indentation import TclIndentationService
 
     fs = InMemoryFS()
     # Write a file that is ALREADY correctly indented (4-space indent → no change)
     content = "proc foo {} {\n    return 1\n}\n"
     fs.write_text(DOMAIN / "lib.tcl", content)
 
-    outcome = _make_file_outcome("lib.tcl", FileTreatment.PROC_TRIM,
+    outcome = _make_file_outcome(
+        "lib.tcl",
+        FileTreatment.PROC_TRIM,
         bytes_in=len(content.encode()),
         bytes_out=len(content.encode()),
     )

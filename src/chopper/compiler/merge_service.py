@@ -605,7 +605,7 @@ def _classify_layer_intent(
     """Distill one layer's per-file (FI/FE/PI/PE) signals into a single intent tuple."""
     fi_any = is_fi_literal or is_fi_glob
 
-    if not (fi_any or is_fe or pi_short or pe_short):
+    if not (fi_any or is_fe or pi_short or pe_short):  # pragma: no cover - call sites only invoke on touched files
         return ("none",)
 
     # Same-layer FE+PE without FI/PI: contributes nothing (VW-11 contradiction).
@@ -622,14 +622,14 @@ def _classify_layer_intent(
 
     # FI + PI + PE → PI redundant, PE qualifies.
     if fi_any and pi_short and pe_short:
-        if is_fi_glob and not is_fi_literal and is_fe:
+        if is_fi_glob and not is_fi_literal and is_fe:  # pragma: no cover - VW-09 surfaced first
             return ("none",)
         new_keep = all_procs - pe_cn
         return ("trim-replace", new_keep, "fi-and-pe", "procedures.exclude", pi_cn, pe_cn)
 
     # FI + PE (no PI) → TRIM(all - pe).
     if fi_any and pe_short and not pi_short:
-        if is_fi_glob and not is_fi_literal and is_fe:
+        if is_fi_glob and not is_fi_literal and is_fe:  # pragma: no cover - VW-09 surfaced first
             return ("none",)
         new_keep = all_procs - pe_cn
         reason = "fi-and-pe" if is_fi_literal else "pe-overlay"
@@ -655,7 +655,7 @@ def _classify_layer_intent(
     if pe_short and not pi_short and not fi_any and not is_fe:
         return ("trim-pe", pe_cn, "pe-overlay", "procedures.exclude")
 
-    raise AssertionError(
+    raise AssertionError(  # pragma: no cover - defensive: schema + validator gate every reachable combination
         f"_classify_layer_intent: unhandled combination "
         f"FI_lit={is_fi_literal}, FI_glob={is_fi_glob}, FE={is_fe}, "
         f"PI={bool(pi_short)}, PE={bool(pe_short)}"
@@ -756,7 +756,7 @@ def _derive_manifest(
             if pf is not None:
                 for p in pf.procs:
                     layer_field = proc_winner.get((file_path, p.canonical_name))
-                    if layer_field is None:
+                    if layer_field is None:  # pragma: no cover - defensive fallback
                         layer_field = (contributed_by.get(file_path, "base"), "files.include")
                     proc_decisions.setdefault(
                         p.canonical_name,
@@ -784,7 +784,7 @@ def _derive_manifest(
         provenance[file_path] = pv
         for cn in sorted(signal.keep):
             layer_field = proc_winner.get((file_path, cn))
-            if layer_field is None:
+            if layer_field is None:  # pragma: no cover - defensive fallback
                 layer_field = (contributed_by.get(file_path, "base"), "procedures.include")
             proc_decisions.setdefault(
                 cn,
@@ -942,7 +942,7 @@ def _emit_vw21(
                 f"(prior {prior_layer!r} kept: {_fmt(prior_keep)}; "
                 f"new: FULL_COPY)"
             )
-        else:
+        else:  # pragma: no cover - defensive: every replace caller supplies prior_keep or final_keep
             msg = f"{layer!r} shadowed prior layer {prior_layer!r} for {posix!r} (action={action})"
         hint = "No action required if intentional; verify layer order in project.features[] if unexpected"
     else:
@@ -1032,12 +1032,12 @@ def _match_glob(pattern: str, paths: frozenset[Path]) -> set[Path]:
                 if full_match(pattern):
                     hits.add(path)
                     continue
-            except ValueError:
+            except ValueError:  # pragma: no cover - full_match never raises on schema-accepted patterns
                 pass
         if regex is not None:
-            if regex.fullmatch(posix):
+            if regex.fullmatch(posix):  # pragma: no cover - <3.13 fallback; Py 3.13+ uses full_match
                 hits.add(path)
-        elif fnmatchcase(posix, pattern):
+        elif fnmatchcase(posix, pattern):  # pragma: no cover - last-ditch fallback for malformed globs
             hits.add(path)
     return hits
 

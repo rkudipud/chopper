@@ -7,16 +7,14 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -33,8 +31,8 @@ def test_namespace_tracker_post_init_skips_push_when_stack_nonempty() -> None:
 
 def test_namespace_tracker_rbrace_at_file_root_does_not_pop() -> None:
     """RBRACE when top frame is FILE_ROOT → condition at line 309 is False → 309->319."""
-    from chopper.parser.tokenizer import Token, TokenKind
     from chopper.parser.namespace_tracker import ContextFrame, ContextKind, NamespaceTracker
+    from chopper.parser.tokenizer import Token, TokenKind
 
     # Create a tracker with depth=1 but only FILE_ROOT on the stack.
     # This simulates a LBRACE that somehow didn't push a new frame.
@@ -54,8 +52,8 @@ def test_namespace_tracker_rbrace_at_file_root_does_not_pop() -> None:
 
 def test_namespace_tracker_rbrace_namespace_eval_empty_nsstack() -> None:
     """RBRACE with NAMESPACE_EVAL top but empty _namespace_stack → 316->319 (no pop from empty)."""
-    from chopper.parser.tokenizer import Token, TokenKind
     from chopper.parser.namespace_tracker import ContextFrame, ContextKind, NamespaceTracker
+    from chopper.parser.tokenizer import Token, TokenKind
 
     # Build a tracker in a state where the top frame is NAMESPACE_EVAL at depth 0,
     # _depth is currently 1 (inside the eval body), and _namespace_stack is empty.

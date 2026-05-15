@@ -162,9 +162,10 @@ class InMemoryFS:
         if key in self._files:
             raise FileExistsError(f"InMemoryFS: file at target path: {path.as_posix()}")
         if not parents and key.parent not in self._dirs and key.parent != PurePosixPath(key.anchor or "."):
-            # Allow the special case where the parent is the implicit root.
-            if str(key.parent) not in ("/", ".", ""):
-                raise FileNotFoundError(f"InMemoryFS: parent does not exist: {key.parent.as_posix()}")
+            # The outer condition already excludes the root/anchor case
+            # (``"/"`` / ``"."``); any remaining parent is a missing
+            # intermediate directory and must be flagged.
+            raise FileNotFoundError(f"InMemoryFS: parent does not exist: {key.parent.as_posix()}")
         for ancestor in key.parents:
             self._dirs.add(ancestor)
         self._dirs.add(key)

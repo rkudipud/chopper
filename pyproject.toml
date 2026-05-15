@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "2.10.0"
+version = "3.0.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.13. ruff's `target-version` and
 # mypy's `python_version` below are both pinned to 3.13 so the lint /
@@ -69,6 +69,19 @@ select = ["E", "F", "I", "N", "W", "UP", "FA"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-under=78"
+
+[tool.coverage.report]
+# Coverage excludes for defensive guards and language boilerplate.
+# `# pragma: no cover` is the standard inline marker; the additional patterns
+# below cover non-runtime branches and intentionally-unreachable code paths.
+exclude_also = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+    "\\.\\.\\.$",
+]
 
 [tool.hypothesis]
 # Per TESTING_STRATEGY.md and .github/instructions/project.instructions.md,

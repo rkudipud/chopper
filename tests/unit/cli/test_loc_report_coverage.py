@@ -7,28 +7,22 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
-import pytest
+import io
 from pathlib import Path
 from unittest.mock import patch
-import io
-import sys
 
+import pytest
 
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -200,7 +194,6 @@ def test_loc_report_read_unicode_error_then_oserror_returns_none() -> None:
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
     call_count = [0]
-    original_read_text = type(fs).read_text
 
     def _mock_read_text(self, path, encoding="utf-8", errors="strict"):  # type: ignore[misc]
         call_count[0] += 1
@@ -231,7 +224,7 @@ def test_build_loc_report_baseline_only_empty_domain() -> None:
 
 def test_render_loc_report_writes_note_when_no_lines(capsys: pytest.CaptureFixture) -> None:
     """render_loc_report writes 'note: no countable source files' when lines_before==0 (line 363)."""
-    from chopper.cli.loc_report import render_loc_report, LocReport, TreatmentBucket
+    from chopper.cli.loc_report import LocReport, TreatmentBucket, render_loc_report
 
     report = LocReport(
         files_before=0,

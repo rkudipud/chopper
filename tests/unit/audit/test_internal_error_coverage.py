@@ -7,32 +7,25 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-
-from chopper.core.diagnostics import Diagnostic
-from chopper.core.diagnostics import Phase
-import tempfile
-
-
+from chopper.core.diagnostics import Diagnostic, Phase
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
 def test_internal_error_cwd_fallback_uses_tempdir() -> None:
     """When Path.cwd() raises (NFS inode replaced), _resolve_audit_root must
     fall back to a tempdir so the crash log is still written somewhere."""
-    import tempfile
 
     from chopper.audit.internal_error import _resolve_audit_root
 

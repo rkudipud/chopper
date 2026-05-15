@@ -7,16 +7,14 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -71,14 +69,14 @@ def test_tokenizer_handles_backslash_line_continuation() -> None:
 
 def test_tokenizer_backslash_continuation_increments_line_no() -> None:
     """Backslash-newline continuation is consumed without emitting NEWLINE token (lines 261-263)."""
-    from chopper.parser.tokenizer import tokenize, TokenKind
+    from chopper.parser.tokenizer import TokenKind, tokenize
 
     # 'proc foo {} ' followed by a backslash-continuation, then body
     text = "proc foo {} \\\n    {return 1}"
     result = tokenize(text)
     assert not result.errors
     # No NEWLINE token should appear (the \\\\n was consumed as continuation)
-    newlines = [t for t in result.tokens if t.kind is TokenKind.NEWLINE]
+    assert all(t.kind is not TokenKind.NEWLINE for t in result.tokens)
     # The backslash-newline was continuation; the only newline token is the final implicit one if any
     # Main assertion: tokenization succeeds without errors and lines 261-263 execute
     assert len(result.tokens) > 0

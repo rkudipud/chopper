@@ -7,23 +7,18 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
 from pathlib import Path
 from unittest.mock import MagicMock
 
-
 from chopper.adapters.fs_memory import InMemoryFS
-
-
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 

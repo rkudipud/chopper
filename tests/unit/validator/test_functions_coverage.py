@@ -7,27 +7,21 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
 from pathlib import Path
 from unittest.mock import patch
 
-
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-
-
+from chopper.core.context import ChopperContext, RunConfig
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
     _make_file_outcome,
     _make_trim_report,
+    _Progress,
+    _Sink,
 )
 
 
@@ -495,8 +489,8 @@ def test_check_pattern_literal_not_found_emits_ve06() -> None:
 
 def test_check_feature_domains_match_no_vw04() -> None:
     """check_feature_domains emits no VW-04 when feature.domain matches base (branch 124->121)."""
-    from chopper.validator.functions import validate_pre
     from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
+    from chopper.validator.functions import validate_pre
 
     fs = InMemoryFS()
     base_path = DOMAIN / "base.json"
@@ -520,14 +514,15 @@ def test_check_feature_domains_match_no_vw04() -> None:
 
 def test_validate_post_removed_file_not_present_no_mismatch() -> None:
     """validate_post: file marked REMOVE that does NOT exist → no mismatch diagnostic (432->443)."""
-    from chopper.validator.functions import _check_trim_outputs
     from chopper.core.models_common import FileTreatment
-    from chopper.core.models_trimmer import TrimReport, FileOutcome
+    from chopper.validator.functions import _check_trim_outputs
 
     fs = InMemoryFS()
     # Do NOT write removed_file.tcl → ctx.fs.exists returns False → 432->443
 
-    outcome = _make_file_outcome("removed_file.tcl", FileTreatment.REMOVE,
+    outcome = _make_file_outcome(
+        "removed_file.tcl",
+        FileTreatment.REMOVE,
         bytes_in=100,
         bytes_out=0,
     )

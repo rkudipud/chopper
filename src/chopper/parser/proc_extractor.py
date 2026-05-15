@@ -419,7 +419,7 @@ def _detect_non_brace_body(tokens: tuple[Token, ...], start_idx: int, base_depth
             line_no=name_tok.line_no,
             detail=name_tok.value,
         )
-    return None
+    return None  # pragma: no cover - defensive: post-args is WORD (above) or LBRACE (success)
 
 
 # ---------------------------------------------------------------------------

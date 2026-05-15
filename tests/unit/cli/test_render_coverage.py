@@ -7,34 +7,21 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
-
-from pathlib import Path
-from unittest.mock import MagicMock
-from unittest.mock import patch
 import io
-import sys
-
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from chopper.adapters.fs_memory import InMemoryFS
-from chopper.core.context import ChopperContext
-from chopper.core.context import RunConfig
-from chopper.core.diagnostics import Diagnostic
-from chopper.core.diagnostics import DiagnosticSummary
-from chopper.core.diagnostics import Phase
-
-
+from chopper.core.context import ChopperContext, RunConfig
+from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
-    _make_file_outcome,
-    _make_run_result,
-    _make_trim_report,
+    _Progress,
+    _Sink,
 )
 
 
@@ -83,7 +70,6 @@ def _make_trim_report(*outcomes):
 
 
 def _make_run_result(trim_report=None, generated_artifacts=()):
-    from chopper.core.diagnostics import DiagnosticSummary
     from chopper.core.models_audit import RunResult
 
     return RunResult(
@@ -403,7 +389,9 @@ def test_render_trim_stats_artifact_oserror_falls_back_to_content() -> None:
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=False)
     ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
 
-    outcome = _make_file_outcome("other.tcl", __import__("chopper.core.models_common", fromlist=["FileTreatment"]).FileTreatment.FULL_COPY, bytes_out=50)
+    from chopper.core.models_common import FileTreatment
+
+    outcome = _make_file_outcome("other.tcl", FileTreatment.FULL_COPY, bytes_out=50)
     trim_report = _make_trim_report(outcome)
     result = _make_run_result(trim_report=trim_report, generated_artifacts=(artifact,))
     out = io.StringIO()
@@ -436,7 +424,13 @@ def test_render_trim_stats_reads_backup_source_for_artifact(tmp_path) -> None:
         source_stage="mystage",
     )
 
-    cfg = RunConfig(domain_root=domain_root, backup_root=backup_root, audit_root=domain_root / ".chopper", strict=False, dry_run=False)
+    cfg = RunConfig(
+        domain_root=domain_root,
+        backup_root=backup_root,
+        audit_root=domain_root / ".chopper",
+        strict=False,
+        dry_run=False,
+    )
     ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
 
     outcome = _make_file_outcome(

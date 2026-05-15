@@ -7,27 +7,21 @@ for shared fixtures.
 
 from __future__ import annotations
 
-
+import json
+import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock
-from unittest.mock import patch
-import json
-from _pytest.monkeypatch import MonkeyPatch
-
-
-import subprocess
-
 
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
     DOMAIN,
-    _Progress,
-    _Sink,
     _codes,
     _ctx,
+    _Progress,
+    _Sink,
 )
 
 
@@ -58,7 +52,6 @@ def test_cloc_backend_returns_zero_for_blank_input(monkeypatch: pytest.MonkeyPat
 def test_cloc_backend_returns_none_on_subprocess_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """When subprocess.run raises OSError (perl missing from PATH at runtime),
     count_sloc_via_cloc must return None so the caller falls back gracefully."""
-    import subprocess
 
     from chopper.audit import cloc_backend
 
@@ -74,7 +67,6 @@ def test_cloc_backend_returns_none_on_subprocess_error(monkeypatch: pytest.Monke
 def test_cloc_backend_returns_none_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch) -> None:
     """Non-zero exit code from cloc → return None (fallback).  cloc signals
     language-identification failure or internal errors via non-zero exit."""
-    import subprocess
 
     from chopper.audit import cloc_backend
 
@@ -91,7 +83,6 @@ def test_cloc_backend_returns_none_on_nonzero_exit(monkeypatch: pytest.MonkeyPat
 def test_cloc_backend_returns_none_on_json_decode_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unparseable JSON output → return None.  This handles corrupted or
     truncated cloc output without crashing."""
-    import subprocess
 
     from chopper.audit import cloc_backend
 
@@ -108,7 +99,6 @@ def test_cloc_backend_returns_none_on_json_decode_error(monkeypatch: pytest.Monk
 def test_cloc_backend_returns_none_when_no_sum_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """JSON without a SUM key means cloc didn't recognise the language.
     The spec says return None so the caller falls back."""
-    import json
     import subprocess
 
     from chopper.audit import cloc_backend
@@ -125,7 +115,6 @@ def test_cloc_backend_returns_none_when_no_sum_key(monkeypatch: pytest.MonkeyPat
 
 def test_cloc_backend_returns_none_when_code_not_int(monkeypatch: pytest.MonkeyPatch) -> None:
     """SUM.code must be an int; string/null → None (fallback)."""
-    import json
     import subprocess
 
     from chopper.audit import cloc_backend
@@ -142,7 +131,6 @@ def test_cloc_backend_returns_none_when_code_not_int(monkeypatch: pytest.MonkeyP
 
 def test_cloc_backend_returns_code_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """Happy-path: cloc returns valid JSON with SUM.code → return the int."""
-    import json
     import subprocess
 
     from chopper.audit import cloc_backend
@@ -206,7 +194,6 @@ def test_cloc_batch_subprocess_failure_returns_partial_result(
 ) -> None:
     """When the batch subprocess fails (non-zero exit), the batch function
     returns the current result list (blanks pre-set to 0, rest None)."""
-    import subprocess
 
     from chopper.audit import cloc_backend
 
@@ -225,7 +212,6 @@ def test_cloc_batch_subprocess_failure_returns_partial_result(
 
 def test_cloc_batch_json_error_returns_partial_result(monkeypatch: pytest.MonkeyPatch) -> None:
     """Bad JSON from batch subprocess → return current result list."""
-    import subprocess
 
     from chopper.audit import cloc_backend
 
@@ -242,7 +228,6 @@ def test_cloc_batch_json_error_returns_partial_result(monkeypatch: pytest.Monkey
 
 def test_count_sloc_via_cloc_batch_returns_nones_on_subprocess_failure() -> None:
     """count_sloc_via_cloc_batch returns a list of Nones when subprocess fails."""
-    import subprocess
 
     from chopper.audit.cloc_backend import count_sloc_via_cloc_batch
 
@@ -283,6 +268,7 @@ def test_count_sloc_via_cloc_batch_returns_nones_on_json_decode_error() -> None:
 def test_cloc_script_path_returns_none_on_module_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     """cloc_script_path returns None when resources.files raises ModuleNotFoundError (lines 71-72)."""
     import importlib.resources as _resources
+
     from chopper.audit import cloc_backend
 
     cloc_backend.cloc_script_path.cache_clear()
@@ -296,6 +282,7 @@ def test_cloc_script_path_returns_none_on_as_file_oserror(monkeypatch: pytest.Mo
     """cloc_script_path returns None when resources.as_file raises OSError (lines 82-84)."""
     import importlib.resources as _resources
     from contextlib import contextmanager
+
     from chopper.audit import cloc_backend
 
     cloc_backend.cloc_script_path.cache_clear()
@@ -316,7 +303,6 @@ def test_cloc_script_path_returns_none_on_as_file_oserror(monkeypatch: pytest.Mo
 
 def test_cloc_count_sloc_oserror_on_unlink_passes(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc handles OSError from tmp_path.unlink in finally (lines 166-167)."""
-    import subprocess
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -331,8 +317,10 @@ def test_cloc_count_sloc_oserror_on_unlink_passes(monkeypatch: pytest.MonkeyPatc
 
     # Patch Path.unlink to raise OSError — should be caught silently
     original_unlink = Path.unlink
+
     def _bad_unlink(self, **kwargs):  # type: ignore[misc]
         raise OSError("unlink failed")
+
     monkeypatch.setattr(Path, "unlink", _bad_unlink)
 
     try:
@@ -346,6 +334,7 @@ def test_cloc_count_sloc_oserror_on_unlink_passes(monkeypatch: pytest.MonkeyPatc
 def test_cloc_batch_returns_early_on_tmpdir_oserror(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch returns [None] on TemporaryDirectory OSError (lines 211-212)."""
     import tempfile
+
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -370,8 +359,10 @@ def test_cloc_batch_returns_early_when_no_valid_files(monkeypatch: pytest.Monkey
 
     # Patch Path.write_text to raise OSError → no files written → valid == []
     original_write = Path.write_text
+
     def _bad_write(self, *a, **kw):  # type: ignore[misc]
         raise OSError("write failed")
+
     monkeypatch.setattr(Path, "write_text", _bad_write)
 
     try:
@@ -383,7 +374,6 @@ def test_cloc_batch_returns_early_when_no_valid_files(monkeypatch: pytest.Monkey
 
 def test_cloc_batch_returns_result_on_subprocess_oserror(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch catches subprocess OSError (lines 242-243)."""
-    import subprocess
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -398,7 +388,6 @@ def test_cloc_batch_returns_result_on_subprocess_oserror(monkeypatch: pytest.Mon
 
 def test_cloc_batch_returns_result_on_nonzero_returncode(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch returns [None] when subprocess returncode != 0 (line 251)."""
-    import subprocess
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -417,7 +406,6 @@ def test_cloc_batch_returns_result_on_nonzero_returncode(monkeypatch: pytest.Mon
 
 def test_cloc_batch_returns_result_on_json_decode_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch returns [None] on JSONDecodeError (lines 262->259)."""
-    import subprocess
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -436,7 +424,6 @@ def test_cloc_batch_returns_result_on_json_decode_error(monkeypatch: pytest.Monk
 
 def test_cloc_batch_returns_result_on_non_dict_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch returns [None] when payload is not a dict (line 268)."""
-    import subprocess
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -455,7 +442,6 @@ def test_cloc_batch_returns_result_on_non_dict_payload(monkeypatch: pytest.Monke
 
 def test_cloc_batch_skips_header_and_sum_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch skips 'header' and 'SUM' keys (lines 271-272)."""
-    import subprocess
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -465,6 +451,7 @@ def test_cloc_batch_skips_header_and_sum_keys(monkeypatch: pytest.MonkeyPatch) -
 
     # Payload has only header+SUM but no per-file entry → result stays None
     import json as _json
+
     payload = {"header": {"cloc_version": "1.92"}, "SUM": {"code": 10, "blank": 2, "comment": 0}}
     mock_proc = MagicMock()
     mock_proc.returncode = 0
@@ -482,6 +469,7 @@ def test_cloc_script_path_returns_none_on_resources_as_file_oserror2(monkeypatch
     `from importlib import resources` and uses `resources.as_file` at call time.
     """
     from contextlib import contextmanager
+
     from chopper.audit import cloc_backend
 
     cloc_backend.cloc_script_path.cache_clear()
@@ -507,8 +495,9 @@ def test_cloc_script_path_returns_none_on_resources_as_file_oserror2(monkeypatch
 
 def test_cloc_batch_skips_entry_without_code_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch skips per-file entries with missing/invalid code (branch 262->259)."""
-    import subprocess as _subprocess
     import json as _json
+    import subprocess as _subprocess
+
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -534,8 +523,9 @@ def test_cloc_batch_skips_entry_without_code_key(monkeypatch: pytest.MonkeyPatch
 
 def test_cloc_batch_handles_mixed_write_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch: one file writes, one fails write → tp_opt None path (line 268)."""
-    import subprocess as _subprocess
     import json as _json
+    import subprocess as _subprocess
+
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -545,11 +535,13 @@ def test_cloc_batch_handles_mixed_write_success_and_failure(monkeypatch: pytest.
 
     write_call_count = [0]
     original_write = Path.write_text
+
     def _partial_write(self, *a, **kw):  # type: ignore[misc]
         write_call_count[0] += 1
         if write_call_count[0] == 1:
             raise OSError("first write fails")
         return original_write(self, *a, **kw)
+
     monkeypatch.setattr(Path, "write_text", _partial_write)
 
     # 2 items: first will fail write (tp_opt=None), second succeeds
@@ -560,10 +552,12 @@ def test_cloc_batch_handles_mixed_write_success_and_failure(monkeypatch: pytest.
     mock_proc.stdout = _json.dumps(payload_dict)
     monkeypatch.setattr(_subprocess, "run", lambda *a, **kw: mock_proc)
 
-    result = cloc_backend.count_sloc_via_cloc_batch([
-        (Path("x.tcl"), "proc foo {} {}\n"),   # write fails → tp_opt=None
-        (Path("y.tcl"), "proc bar {} {}\n"),   # write succeeds
-    ])
+    result = cloc_backend.count_sloc_via_cloc_batch(
+        [
+            (Path("x.tcl"), "proc foo {} {}\n"),  # write fails → tp_opt=None
+            (Path("y.tcl"), "proc bar {} {}\n"),  # write succeeds
+        ]
+    )
     # First slot: write failed → tp_opt is None → continue → stays None
     assert result[0] is None
     # Second slot: write succeeded but no code match → stays None
@@ -572,8 +566,9 @@ def test_cloc_batch_handles_mixed_write_success_and_failure(monkeypatch: pytest.
 
 def test_cloc_batch_success_path_with_matching_file(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch success: subprocess returns per-file code, result updated (lines 263-264, 273)."""
-    import subprocess as _subprocess
     import json as _json
+    import subprocess as _subprocess
+
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -602,8 +597,9 @@ def test_cloc_batch_success_path_with_matching_file(monkeypatch: pytest.MonkeyPa
 
 def test_cloc_batch_code_found_by_basename_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc_batch: str(tp_opt) misses but tp_opt.name hits (line 270->272)."""
-    import subprocess as _subprocess
     import json as _json
+    import subprocess as _subprocess
+
     from chopper.audit import cloc_backend
 
     cloc_backend.is_available.cache_clear()
@@ -631,3 +627,34 @@ def test_cloc_batch_code_found_by_basename_fallback(monkeypatch: pytest.MonkeyPa
     result = cloc_backend.count_sloc_via_cloc_batch([(Path("x.tcl"), "proc foo {} {}\n")])
     # Basename match means code=None from str(tp_opt) but code=5 from tp_opt.name
     assert result == [5]
+
+
+def test_cloc_script_path_returns_none_when_resource_not_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """``cloc_script_path`` (line 84): when ``importlib.resources.as_file``
+    yields a path whose ``is_file()`` is False (e.g. resource resolves to
+    a directory or a stale symlink), the function must fall through to
+    the final ``return None`` without raising.
+    """
+    import importlib.resources as _resources
+    from contextlib import contextmanager
+
+    from chopper.audit import cloc_backend
+
+    cloc_backend.cloc_script_path.cache_clear()
+
+    # A directory exists on disk but is not a file → ``is_file()`` is False.
+    fake_dir = tmp_path / "not_a_cloc_file"
+    fake_dir.mkdir()
+
+    @contextmanager
+    def _fake_as_file(_ref):
+        yield fake_dir
+
+    monkeypatch.setattr(_resources, "as_file", _fake_as_file)
+
+    assert cloc_backend.cloc_script_path() is None
+
+    cloc_backend.cloc_script_path.cache_clear()
