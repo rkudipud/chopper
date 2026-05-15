@@ -33,6 +33,7 @@ __all__ = [
     "render_diagnostics",
     "render_files_kept",
     "render_files_removed",
+    "render_p4_commands",
     "render_run_id",
     "render_trim_report_json",
     "render_trim_report_txt",
@@ -499,6 +500,111 @@ def _format_removed_provenance(prov) -> str:  # type: ignore[no-untyped-def]
     if last.action == "remove":
         return f"removed-by:{last.layer}:files.exclude"
     return f"shadowed-by:{last.layer}:procedures.exclude"
+
+
+def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]:
+    """Perforce command list correlating each file-treatment decision to a
+    ready-to-execute ``p4`` command.
+
+    Three alphabetically-sorted sections, each headed by a ``#``-comment
+    line and separated by a blank line; section order is fixed
+    (edits → adds → deletes):
+
+    * ``p4 edit -t text+x <path>`` — every ``PROC_TRIM`` file, plus every
+      ``GENERATED`` file whose path exists in the pre-trim source root
+      (regenerate-in-place; the depot file is being overwritten).
+    * ``p4 add -t text+x <path>`` — every ``GENERATED`` file whose path
+      does not exist pre-trim (newly created stage file).
+    * ``p4 delete <path>`` — every file that exists in the pre-trim source
+      tree but not in the rebuilt domain's surviving set; coextensive
+      with the entries in ``files_removed.txt``. No ``-t`` flag because
+      Perforce derives the filetype from the existing depot entry.
+
+    ``FULL_COPY`` files emit no command: the rebuilt copy is byte-identical
+    to the depot version.
+
+    ``-t text+x`` declares Perforce filetype ``text`` with the executable
+    bit set, matching the cross-phase :func:`chopper.core.file_perms.ensure_executable`
+    contract (every rebuilt file in ``<domain>/`` carries ``a+x``).
+
+    Source-root resolution mirrors :func:`render_files_removed` via
+    :func:`_physical_source_root` — ``<domain>_backup/`` after a live
+    trim, ``<domain>/`` for first-trim ``--dry-run``. When neither root
+    is readable (e.g. audit after a P0/P1 abort, unit-test stub
+    filesystem), the writer falls back to a manifest-only view.
+
+    Determinism: each section is sorted lexicographically by POSIX path;
+    output uses LF line endings and ends with a trailing newline.
+
+    Emission policy: written on both live trim and ``--dry-run``; not
+    emitted by ``validate``, ``loc``, or ``cleanup``. Chopper never
+    invokes ``p4`` itself — the file is a review artifact.
+
+    See architecture doc §5.5.14 and FR-47.
+    """
+
+    manifest = record.manifest
+    source_root = _physical_source_root(ctx)
+
+    edits: list[str] = []
+    adds: list[str] = []
+
+    if manifest is not None:
+        for path, treatment in manifest.file_decisions.items():
+            rel = path.as_posix()
+            if treatment is FileTreatment.PROC_TRIM:
+                edits.append(rel)
+            elif treatment is FileTreatment.GENERATED:
+                if source_root is not None and ctx.fs.exists(source_root / path):
+                    edits.append(rel)
+                else:
+                    adds.append(rel)
+            # FULL_COPY → no command; REMOVE handled below.
+
+    # `p4 delete` set is parity with `files_removed.txt`:
+    # walk(source_root) - kept_set. Falls back to manifest REMOVE
+    # decisions when no source root is available.
+    deletes: list[str]
+    if source_root is not None:
+        kept_paths: set[Path] = set()
+        if manifest is not None:
+            kept_paths = {p for p, t in manifest.file_decisions.items() if t in _KEPT_TREATMENTS}
+        physical_paths = _walk_relative_files(ctx, source_root)
+        deletes = [p.as_posix() for p in (set(physical_paths) - kept_paths)]
+    elif manifest is not None:
+        deletes = [p.as_posix() for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE]
+    else:
+        deletes = []
+
+    edits.sort()
+    adds.sort()
+    deletes.sort()
+
+    lines: list[str] = [
+        "# p4_commands.txt — Perforce commands corresponding to this Chopper trim.",
+        "# Review each section, then run `p4 submit` yourself; Chopper does NOT submit.",
+        "# Paths are domain-relative; run these from the rebuilt domain root.",
+        "# `-t text+x` declares Perforce filetype `text` with the executable bit set.",
+    ]
+
+    if edits:
+        lines.append("")
+        lines.append("# p4 edit — PROC_TRIM files and GENERATED files that overwrite an existing depot file.")
+        lines.extend(f"p4 edit -t text+x {p}" for p in edits)
+    if adds:
+        lines.append("")
+        lines.append("# p4 add — GENERATED files newly created by this trim (no prior depot entry).")
+        lines.extend(f"p4 add -t text+x {p}" for p in adds)
+    if deletes:
+        lines.append("")
+        lines.append("# p4 delete — files dropped from the rebuilt domain.")
+        lines.extend(f"p4 delete {p}" for p in deletes)
+
+    if not (edits or adds or deletes):
+        lines.append("")
+        lines.append("# (no Perforce commands — nothing to submit)")
+
+    return "p4_commands.txt", "\n".join(lines) + "\n"
 
 
 def render_files_kept(record: RunRecord) -> tuple[str, str]:

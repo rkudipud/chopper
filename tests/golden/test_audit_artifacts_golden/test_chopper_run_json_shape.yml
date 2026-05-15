@@ -6,6 +6,7 @@ artifacts_present:
 - files_kept.txt
 - files_removed.txt
 - input_base.json
+- p4_commands.txt
 - run_id
 - trim_report.json
 - trim_report.txt

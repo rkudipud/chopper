@@ -1343,7 +1343,7 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 
 - Under a normal run: leave the rebuilt `domain/` in place, preserve `<domain>_backup/` per the re-trim model, and emit the `.chopper/` bundle for the run.
 - Under `--dry-run`: leave the domain untouched and emit only the report artifacts under `.chopper/`.
-- Write the full audit bundle under `.chopper/`: `chopper_run.json`, `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, `diagnostics.json`, `trim_stats.json`.
+- Write the full audit bundle under `.chopper/`: `chopper_run.json`, `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt`, `diagnostics.json`, `trim_stats.json`, `files_kept.txt`, `files_removed.txt`, `p4_commands.txt`.
 - Owner: `audit/`.
 - Output: the audit trail (see §5.5).
 
@@ -1651,7 +1651,10 @@ domain/
 │   ├── diagnostics.json              ← all VE/VW/VI/TW/PE/PW/PI diagnostics with context
 │   ├── trim_report.json              ← summary: counts, before/after, validation results
 │   ├── trim_report.txt              ← human-readable projection of trim_report.json
-│   └── trim_stats.json              ← numbers: files before/after, procs before/after, SLOC delta
+│   ├── trim_stats.json              ← numbers: files before/after, procs before/after, SLOC delta
+│   ├── files_kept.txt               ← surviving paths + last-contributing layer
+│   ├── files_removed.txt            ← physically-removed paths + provenance
+│   └── p4_commands.txt              ← Perforce command list (p4 edit / add / delete) — see §5.5.14
 └── ...trimmed domain files...
 ```
 
@@ -1921,6 +1924,7 @@ The `input_base.json`, `input_features/`, and `input_project.json` files are **e
 | `trim_report.txt` | ✓ | ✓ | — | — |
 | `files_removed.txt` | ✓ | ✓ | — | — |
 | `files_kept.txt` | ✓ | ✓ | — | — |
+| `p4_commands.txt` | ✓ | ✓ | — | — |
 | `trim_stats.json` | ✓ | ✓ | — | — |
 | `internal-error.log` | ✓ (exit 3 only) | ✓ (exit 3 only) | ✓ (exit 3 only) | ✓ (exit 3 only) |
 
@@ -1978,6 +1982,30 @@ All line-count fields labeled `sloc_*` report **logical source lines** — langu
 5. **SLOC is computed per file.** Domain totals are the sum of per-file SLOC values.
 6. **Both metrics are always reported.** `sloc_*` for meaningful trim ratios; `raw_lines_*` for sanity-checking and auditors who want the unfiltered count.
 7. **`trim_ratio_sloc`** is computed as `sloc_after / sloc_before`. This gives the most accurate picture of how much functional code was removed.
+
+#### 5.5.14 `p4_commands.txt` — Perforce command list
+
+A plain-UTF-8 text artifact that correlates each file-treatment decision to the Perforce command a reviewer must run to record the change against the depot. Chopper **never invokes `p4` itself** — the file is a ready-to-execute command list, not an automation surface. Operators inspect it, edit it if necessary, and then run `p4 submit` themselves.
+
+**Sections.** The file contains up to three command sections, each prefixed by a `#`-comment section header, alphabetically sorted by POSIX path within the section, and separated from the next section by a blank line. The section order is fixed: edits, then adds, then deletes.
+
+| Treatment in `manifest.file_decisions` | Emitted command | Notes |
+|---|---|---|
+| `PROC_TRIM` | `p4 edit -t text+x <path>` | Content of an existing depot file changes in place. |
+| `GENERATED` where path exists in the pre-trim source root | `p4 edit -t text+x <path>` | Regenerate-in-place: the generator overwrites an existing depot file (e.g., `fev_fm_rtl2gate.tcl`-style stages). |
+| `GENERATED` where path does **not** exist in the pre-trim source root | `p4 add -t text+x <path>` | Newly created stage file with no prior depot entry. |
+| Physically removed (walk(source_root) − kept_set) | `p4 delete <path>` | Same set as `files_removed.txt`; covers both explicit `files.exclude` and default-exclude removals. |
+| `FULL_COPY` | *(no command)* | The rebuilt file is byte-identical to the depot copy; nothing to submit. |
+
+The `-t text+x` filetype declares Perforce filetype `text` with the executable bit set, matching the cross-phase `ensure_executable()` contract (every rebuilt file in `<domain>/` carries `a+x`; see `core/file_perms.py`). `p4 delete` takes no `-t` flag because Perforce reads the filetype from the existing depot entry.
+
+**Source-root resolution** mirrors `files_removed.txt`: `<domain>_backup/` after a live trim, `<domain>/` for a first-trim `--dry-run`. The same `_physical_source_root(ctx)` helper backs both artifacts so the `p4 delete` section is always coextensive with `files_removed.txt`. When neither root is readable (audit after a P0/P1 abort, unit-test stub filesystem), the writer falls back to a manifest-only view (explicit `REMOVE` decisions → `p4 delete`, `GENERATED` decisions → `p4 add`).
+
+**Determinism.** Each section is sorted lexicographically by POSIX path. Section order is fixed. Output uses LF line endings and ends with a trailing newline. Two runs with identical inputs produce byte-identical `p4_commands.txt`.
+
+**Emission policy.** Written on both live trim and `--dry-run` (consistent with every other audit artifact). `validate`, `loc`, and `cleanup` do not produce it. Under `--dry-run` the commands are a preview — they reflect what *would* be submitted if the same JSON selection were run live — but no domain mutation has yet occurred, so `p4 submit` against a dry-run is premature.
+
+**Empty-state.** When no section has any entries (e.g., aborted run with no manifest, or a no-op trim), the file still emits its banner comments plus a single `# (no Perforce commands — nothing to submit)` marker line, so the artifact is always present and well-formed.
 
 ### 5.6 Output Expectations
 
@@ -2934,6 +2962,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-44 | P4 maintains a **tool-command pool** (§3.10) — the union of built-in `.commands` files under `src/chopper/data/tool_commands/` and user-supplied files passed via the repeatable CLI flag `--tool-commands <path>`. When a call token fails namespace resolution and its raw or leaf name is in the pool, the tracer emits `TI-01 known-tool-command` instead of `TW-02 unresolved-proc-call` and records an `Edge` with `status = "tool_command"`. The pool is not surfaced in any JSON (base / feature / project); CLI flag is the sole user extension. The pool never affects file-level (F1), proc-level (F2), or run-file (F3) decisions. |
 | FR-45 | `chopper --version` prints `chopper <version>` to stdout and exits 0. The version string is sourced from the installed package metadata (`importlib.metadata`) with a `pyproject.toml` fallback for source checkouts. `--version` is a top-level global flag; it does not require a subcommand. |
 | FR-46 | `chopper loc` runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, additionally invokes `GeneratorService` in no-write mode so generated stage `.tcl` content is countable, and emits a stdout LOC report comparing the source domain against the planned trimmed domain (files-before/after, physical-lines-before/after, SLOC-before/after, percent reduction). The subcommand accepts the same input flags as `validate`/`trim` (`--base [--features]` or `--project`). It writes nothing to the filesystem — no domain modifications and no `.chopper/` audit bundle (the runner suppresses P7 audit when `command == "loc"`). Exit-code policy matches `validate` (0/1/2/3); `loc` cannot return `4`. See §5.7. |
+| FR-47 | The P7 audit bundle includes `.chopper/p4_commands.txt`: a deterministic, sorted, ready-to-execute Perforce command list correlating each file-treatment decision to a `p4 edit -t text+x` / `p4 add -t text+x` / `p4 delete` invocation. Emitted on both live trim and `--dry-run`; not emitted by `validate`, `loc`, or `cleanup`. Chopper never invokes `p4` itself — operators review the file and run `p4 submit` manually. See §5.5.14. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -3295,6 +3324,7 @@ This log records the conscious design decisions that shaped the current document
 | Date | Change |
 |---|---|
 | 2024-06-01 | Initial draft. |
+| 2026-05-15 | **3.1.0 — `.chopper/p4_commands.txt` audit artifact (issue #24, FR-47).** New deterministic Perforce command-list artifact correlating every file-treatment decision in `manifest.file_decisions` (plus walk-based `files_removed.txt` parity for deletes) to a ready-to-execute `p4 edit -t text+x` / `p4 add -t text+x` / `p4 delete` command. Three alphabetically-sorted sections (edits → adds → deletes), each headed by a `#`-comment line; trailing-newline + LF-only for byte-stable diffs. `-t text+x` matches the cross-phase `ensure_executable()` contract (every rebuilt file carries `a+x`; §5.5, `core/file_perms.py`). `p4 delete` carries no `-t` flag — Perforce reads filetype from the depot entry. `FULL_COPY` files emit no command (byte-identical to depot). `GENERATED` files emit `p4 edit` when the path exists in the pre-trim source root (regenerate-in-place, e.g. `fev_fm_rtl2gate.tcl`-style stages) and `p4 add` otherwise. Source-root resolution mirrors `files_removed.txt`: `_physical_source_root(ctx)` returns `<domain>_backup/` after a live trim and `<domain>/` for first-trim `--dry-run`; the writer falls back to a manifest-only view when neither root is readable. Emitted on live trim and `--dry-run`; not emitted by `validate`, `loc`, or `cleanup`. Chopper never invokes `p4` itself; the file is a review artifact, not an automation surface. **§5.5.1** layout updated. New **§5.5.14** `p4_commands.txt` contract added in place between §5.5.13 and §5.6. **§5.5.10** emission rules table extended with the new row. **FR-47** added to §7.1. Code: new `render_p4_commands(ctx, record)` in `src/chopper/audit/writers.py` (added to `__all__`); wired into `AuditService.run()` first-pass renderings list before `render_chopper_run` so `artifacts_present` reflects it. Tests: new `tests/unit/audit/test_p4_commands.py` covering empty record, PROC_TRIM, REMOVE, GENERATED regenerate-in-place, GENERATED new-file, FULL_COPY exclusion, mixed scenarios, sort determinism, `-t text+x` invariant, no `-t` on `p4 delete`, dry-run vs live byte-identical parity, source-root fallback. Integration coverage added to `tests/integration/test_runner_localfs_e2e.py` (stages_domain live trim → asserts artifact contents). README changelog and `pyproject.toml` version bumped 3.0.0 → 3.1.0. No diagnostic-registry, schema, CLI surface, exit-code, or pipeline-phase changes. |
 | 2026-05-15 | **3.0.0 — Test-coverage hardening (99.92%).** Distributed 30+ surgical `test_*_coverage.py` unit tests across native `tests/unit/<module>/` locations covering defensive branches, OSError/ValueError handlers, MCP per-call error paths, and edge cases across every pipeline phase (parser, compiler, trimmer, validator, orchestrator, CLI, audit, MCP, adapters, core). Added `[tool.coverage.report].exclude_also` block to `pyproject.toml` so `# pragma: no cover` markers properly gate unreachable defensive guards at the branch level. Targeted pragma annotations placed on four provably-unreachable branches in `compiler/merge_service.py` and `parser/proc_extractor.py`. `tests/integration/test_cli_chained_actions.py` (19 scenarios A1–O) and `tests/integration/test_cli_chained_overlay.py` (16 scenarios) added as permanent regression anchors for the R1 ordered-overlay + FlowAction torture paths. Final gate: **1368 tests passing, 0 failed; total coverage 99.92%** (5454 lines, 0 missed lines, 6 partial branches — all pragma-annotated). `make ci` fully green across all six quality stages (ruff lint, ruff format, mypy strict on 78 files, lint-imports 4/4 contracts, docs-gate, pytest). No spec, schema, diagnostic-registry, CLI surface, exit-code, or pipeline-phase changes. Version bumped 2.10.0 → 3.0.0. |
 | 2026-05-14 | **2.10.0 — Full `jsons/` directory preserved in the rebuilt domain (§5.6).** Changed P5a tail behavior: instead of copying only the selected JSON inputs (those listed in `compiled_manifest.input_sources`) into the rebuilt `<domain>/jsons/`, the trimmer now mirrors the entire `<domain_backup>/jsons/` directory verbatim via a new `_copy_dir()` recursive helper. Every JSON that existed in the original domain — the base JSON, all feature JSONs (selected and unselected), and any other file under `jsons/` — is present in the rebuilt domain without ambiguity. Users no longer need to consult the backup to find an unselected feature JSON. Out-of-tree inputs (JSON files whose absolute path is outside the domain root) continue to land in `<domain>/jsons/_external/<NN>_<basename>` with the same numeric-prefix convention. The "Only selected inputs survive" bullet in the 1.1.0 spec was removed; the "Domain owners who keep a curated `<domain>/jsons/` should treat rebuilt domain as derived artifact" advisory was likewise removed as it was a consequence of the old selective-copy behavior. Implementation: `src/chopper/trimmer/input_preserver.py` rewritten; old `_resolve_target()` helper removed; new `_copy_dir()` helper added. Integration test `test_trim_only_preserves_selected_features_not_unselected` renamed to `test_trim_preserves_entire_jsons_folder_including_unselected` with assertion inverted. Architecture doc §5.6 updated in place. Version bumped 2.9.1 → 2.10.0. |
 | 2026-05-13 | **2.9.1 — Docs sync for tokenizer + VE-27 semantics.** Updated R1/overlay wording to clarify that same-layer `files.include` + `files.exclude` subtraction is intentional and should not emit `VE-27`; `VE-27` now documents the stricter "contributes no removal signal" condition (no earlier-layer contribution and no same-layer FI touch). Parser/tokenizer docs were updated from the old one-byte `{` peek-back wording to the current Tcl rule-5 word-boundary guard (SOF/whitespace/`;`/`[`) that also covers multi-quote-pair brace words such as `string map {" " ""}`. Test docs were synced to the current fixture corpus size and policy (real-world tokenizer scenarios captured as dedicated `tests/fixtures/edge_cases/parser_*.tcl` fixtures). |

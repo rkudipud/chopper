@@ -447,6 +447,58 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
         assert by_path[stack_path]["treatment"] == "generated"
 
 
+def test_runner_localfs_live_trim_emits_p4_commands_txt(tmp_path: Path) -> None:
+    """``.chopper/p4_commands.txt`` is emitted by live trim with the
+    expected ``p4 add -t text+x`` lines for newly-generated stage files
+    (FR-47, architecture doc §5.5.14).
+
+    The ``stages_domain`` fixture has no pre-existing ``setup.tcl`` /
+    ``run_flow.tcl`` / ``promote.tcl`` / ``*.stack`` files in the source
+    tree, so each generated artifact must land in the ``p4 add`` section.
+    """
+
+    domain = tmp_path / "stages_domain"
+    shutil.copytree(FIXTURE_STAGES, domain)
+
+    ctx, sink = _make_ctx(domain, dry_run=False)
+    result = ChopperRunner().run(ctx, command="trim")
+    assert result.exit_code == 0, f"non-zero exit; diagnostics: {[d.code for d in sink.snapshot()]}"
+
+    p4_path = domain / ".chopper" / "p4_commands.txt"
+    assert p4_path.exists(), "p4_commands.txt missing from audit bundle"
+    content = p4_path.read_text()
+
+    # Banner present.
+    assert content.startswith("# p4_commands.txt")
+    assert content.endswith("\n")
+    # Generated stage files (no pre-existing depot counterpart) → p4 add.
+    for stage_name in ("setup", "run_flow", "promote"):
+        assert f"p4 add -t text+x {stage_name}.tcl" in content, f"missing p4 add for {stage_name}.tcl"
+        assert f"p4 add -t text+x {stage_name}.stack" in content, f"missing p4 add for {stage_name}.stack"
+    # `chopper_run.json` lists p4_commands.txt in artifacts_present.
+    run_meta = json.loads((domain / ".chopper" / "chopper_run.json").read_text())
+    assert "p4_commands.txt" in run_meta["artifacts_present"]
+
+
+def test_runner_localfs_dry_run_emits_p4_commands_txt(tmp_path: Path) -> None:
+    """Dry-run also emits ``p4_commands.txt`` (preview, consistent with
+    every other audit artifact under §5.5.10)."""
+
+    domain = tmp_path / "stages_domain"
+    shutil.copytree(FIXTURE_STAGES, domain)
+
+    ctx, _ = _make_ctx(domain, dry_run=True)
+    result = ChopperRunner().run(ctx, command="trim")
+    assert result.exit_code == 0
+
+    p4_path = domain / ".chopper" / "p4_commands.txt"
+    assert p4_path.exists(), "dry-run must still emit p4_commands.txt"
+    content = p4_path.read_text()
+    # Same preview content: each generated stage → p4 add.
+    for stage_name in ("setup", "run_flow", "promote"):
+        assert f"p4 add -t text+x {stage_name}.tcl" in content
+
+
 # ---------------------------------------------------------------------------
 # overlay_* fixtures \u2014 R1 ordered-overlay end-to-end
 # ---------------------------------------------------------------------------

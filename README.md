@@ -344,6 +344,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 3.1.0 — 2026-05-15
+
+- **New `.chopper/p4_commands.txt` audit artifact (issue #24, FR-47).** Every `chopper trim` run — live and dry-run — now emits a deterministic, sorted Perforce command list under `.chopper/p4_commands.txt`. Three alphabetically-sorted sections, each with a `#`-comment header: (1) `p4 edit -t text+x <path>` for `PROC_TRIM` files and `GENERATED` files that overwrite an existing depot entry (regenerate-in-place), (2) `p4 add -t text+x <path>` for newly-created `GENERATED` files, (3) `p4 delete <path>` for files dropped from the rebuilt domain (parity with `files_removed.txt`). `FULL_COPY` files emit no command (byte-identical to depot). `-t text+x` matches the cross-phase `ensure_executable()` contract (every rebuilt file carries `a+x`). Operators review the file and run `p4 submit` manually — Chopper never invokes `p4` itself. Not emitted by `validate`, `loc`, or `cleanup`. Architecture doc §5.5.14, FR-47. Version bumped 3.0.0 → 3.1.0.
+
 ### 3.0.0 — 2026-05-15
 
 - **Test-coverage hardening — 99.92% across all source files.** Distributed 30+ surgical `test_*_coverage.py` unit tests into their native `tests/unit/<module>/` locations, covering defensive branches, OSError/ValueError handlers, MCP per-call error paths, and edge cases across every pipeline phase (parser, compiler, trimmer, validator, orchestrator, CLI, audit, MCP, adapters, core). Added `[tool.coverage.report].exclude_also` block to `pyproject.toml` so standard `# pragma: no cover` markers properly exclude unreachable defensive guards. Four targeted pragma annotations placed on provably-unreachable branches in `merge_service.py` and `proc_extractor.py`. Final gate: **1368 tests passing, 0 failed; total coverage 99.92%** (5454 lines, 0 missed lines, 6 partial branches — all pragma-annotated). `make ci` fully green across all six quality stages. Version bumped 2.10.0 → 3.0.0.

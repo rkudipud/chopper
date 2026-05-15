@@ -99,6 +99,13 @@ options:
   --dry-run            Compile, trace, run synthetic post-trim validation, and emit reports without rebuilding domain content files
 ```
 
+The `.chopper/` audit bundle written by `chopper trim` includes
+`p4_commands.txt` — a sorted, ready-to-execute Perforce command list
+(`p4 edit -t text+x` / `p4 add -t text+x` / `p4 delete`) correlating each
+file-treatment decision to the command needed to record the change
+against the depot. Chopper never invokes `p4` itself; review the file and
+run `p4 submit` manually. See architecture doc §5.5.14 and FR-47.
+
 ---
 
 ## `chopper loc`

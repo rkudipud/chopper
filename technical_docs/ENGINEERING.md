@@ -207,7 +207,7 @@ Ports live in `src/chopper/core/protocols.py` as `typing.Protocol` definitions. 
 
 - **Clock** — `datetime.now(timezone.utc)` is called directly by `AuditService`. Tests use `freezegun` or `monkeypatch` to freeze time. Two call sites do not warrant a port.
 - **Serialization** — `core/serialization.py` exposes a single helper `dump_model(obj) -> str` (`json.dumps(asdict(obj), sort_keys=True, default=_encode)`). Services and `AuditService` call it directly. No port, no `ctx.serde`.
-- **Audit storage** — `AuditService.run()` writes its seven fixed artifacts directly via `ctx.fs.write_text(ctx.config.audit_root / name, ...)`. Tests point `audit_root` at an `InMemoryFS` path; no separate store abstraction.
+- **Audit storage** — `AuditService.run()` writes its fixed audit artifacts directly via `ctx.fs.write_text(ctx.config.audit_root / name, ...)`. Tests point `audit_root` at an `InMemoryFS` path; no separate store abstraction.
 - **Table renderer** — rendering is a CLI concern. `cli/render.py` calls `rich.print` / `rich.Table` directly. Services never render. One output path, not a three-adapter matrix.
 
 **`FileSystemPort` — the full honest surface.** Trimmer, domain-state detection, and audit all need more than `read_text` / `write_text`. The complete port is:
