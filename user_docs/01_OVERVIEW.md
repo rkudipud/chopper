@@ -197,22 +197,31 @@ A **source** is one JSON file: the base, or any one selected feature. The projec
 
 ### Layer-shadow audit (when later layers change earlier decisions)
 
-Features are **layered, not additive**. A later layer's exclude can remove what an earlier layer included, and a later layer's include can re-add what an earlier layer removed. Every transition that actually changes a prior decision is recorded:
+Features are **layered, not additive**. A later layer's exclude can remove what an earlier layer included, and a later layer's include can re-add what an earlier layer removed. Every transition that actually changes a prior decision is recorded with the specific proc names involved:
 
-| Code | When it fires |
-|---|---|
-| `VW-21` layer-shadowed | A later layer cancelled an include, removed a proc that was kept, or downgraded a whole-file include to PROC_TRIM. The audit bundle records each event with `(layer, prior_layer, action)`. |
+| Code | When it fires | What the message tells you |
+|---|---|---|
+| `VW-21` layer-shadowed | A later layer cancelled an include, removed a proc that was kept, or downgraded a whole-file include to PROC_TRIM | The message is action-specific: `add-proc` shows added procs, prior keep-set, and combined set; `remove-proc` shows removed procs, prior keep-set, and remaining set; `downgrade-whole-to-trim` shows the resulting keep-set; `remove` names the excluding layer; `replace` shows old vs new proc sets |
 
 `VW-21` is informational (exit 0). It is the audit trail for ordered-overlay merges — use it to verify the layer order in `project.features[]` reflects your intent. Run with `--strict` if CI should fail on any warning.
 
+**Example** — feature 1 selects procs `a, b, c` from `procs.tcl`; feature 2 selects `c, e, r`:
+
+```
+WARNING VW-21: 'feature:feat2' added proc(s) [e, r] to 'procs.tcl'
+  (already kept by 'feature:feat1': [a, b, c]); combined keep-set: [a, b, c, e, r]
+```
+
 ### Same-source authoring conflicts
 
-| Code | Meaning | Fix |
-|---|---|---|
-| `VW-09` fi-pi-overlap | Same JSON has both `files.include` and `procedures.include` for the same file | Drop the PI. FI alone keeps everything unless PE is also present; then PE qualifies the FI contribution. |
-| `VW-11` fe-pe-same-source-conflict | Same JSON has `files.exclude` and `procedures.exclude` for the same file, no `files.include` | Pick one |
-| `VW-12` pi-pe-same-file | Same JSON has `procedures.include` and `procedures.exclude` for the same file, with no whole-file include signal | PI wins, PE ignored |
-| `VW-13` pe-removes-all-procs | The PE set covers every proc in the file | File survives as comment-only — consider `files.exclude` |
+The message for each of these codes names the specific proc(s) involved so you can fix the JSON without guessing:
+
+| Code | Meaning | What the message shows | Fix |
+|---|---|---|---|
+| `VW-09` fi-pi-overlap | Same JSON has both `files.include` and `procedures.include` for the same file | The redundant PI proc names | Drop the PI entries. FI alone keeps everything unless PE is also present; then PE qualifies the FI contribution. |
+| `VW-11` fe-pe-same-source-conflict | Same JSON has `files.exclude` and `procedures.exclude` for the same file, no `files.include` | The PE proc names | Pick one: `files.exclude` alone to drop the file, or `procedures.exclude` alone to keep it with some procs removed |
+| `VW-12` pi-pe-same-file | Same JSON has `procedures.include` and `procedures.exclude` for the same file, with no whole-file include signal | Both the PI proc names and the PE proc names | Choose one model — PI wins, PE is ignored; remove the PE entries or switch to PE-only |
+| `VW-13` pe-removes-all-procs | The PE set covers every proc in the file | All excluded proc names | File survives as comment-only — consider `files.exclude` |
 
 ---
 

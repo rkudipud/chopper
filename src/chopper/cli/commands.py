@@ -290,9 +290,7 @@ def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
     import sys as _sys
 
     _sys.stderr.write(f"  hint: {hint}\n")
-    _sys.stderr.write(
-        f"Summary: 1 error(s), 0 warning(s), 0 info(s); exit 2\n"
-    )
+    _sys.stderr.write("Summary: 1 error(s), 0 warning(s), 0 info(s); exit 2\n")
     return 2
 
 

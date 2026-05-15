@@ -404,12 +404,12 @@ def tokenize(text: str) -> TokenizerResult:
         # * Real-world: Intel Caliber ``run_caliber.tcl`` line 418
         #   ``[string map {" " ""} ...]``; see
         #   tests/fixtures/edge_cases/parser_braced_word_multi_quote_pairs.tcl.
-        _WORD_BOUNDARY_PREFIX = " \t\n;["
+        _word_boundary_prefix = " \t\n;["
         if (
             ch == '"'
             and word_start == -1
             and not _is_escaped(text, i)
-            and (i == 0 or text[i - 1] in _WORD_BOUNDARY_PREFIX)
+            and (i == 0 or text[i - 1] in _word_boundary_prefix)
         ):
             word_start = i  # include opening `"` in value
             word_line = line_no

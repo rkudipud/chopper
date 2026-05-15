@@ -234,17 +234,11 @@ class TestQuotedWords:
         from pathlib import Path
 
         fixture = (
-            Path(__file__).resolve().parents[2]
-            / "fixtures"
-            / "edge_cases"
-            / "parser_braced_word_multi_quote_pairs.tcl"
+            Path(__file__).resolve().parents[2] / "fixtures" / "edge_cases" / "parser_braced_word_multi_quote_pairs.tcl"
         )
         text = fixture.read_text(encoding="utf-8")
         r = tokenize(text)
-        assert r.final_brace_depth == 0, (
-            f"final_brace_depth={r.final_brace_depth} (expected 0); "
-            f"errors={r.errors}"
-        )
+        assert r.final_brace_depth == 0, f"final_brace_depth={r.final_brace_depth} (expected 0); errors={r.errors}"
         assert r.errors == ()
 
 

@@ -238,6 +238,77 @@ def test_vw21_emitted_when_feature_pi_overrides_base_pe() -> None:
     assert "VW-21" in sink.codes()
 
 
+def test_vw21_add_proc_message_names_procs_and_sets() -> None:
+    """VW-21 add-proc message names the added procs, prior keep-set, and
+    combined keep-set explicitly so users know exactly what each feature layer
+    contributed.  See ``technical_docs/DIAGNOSTIC_CODES.md`` VW-21."""
+    ctx, sink = make_ctx()
+    # Feature 1 keeps a, b, c; feature 2 adds c, e, r (c already there).
+    parsed = make_parsed({"procs.tcl": ["a", "b", "c", "e", "r"]})
+    base = make_base()
+    feat1 = make_feature(
+        "feat1",
+        procedures=procs_section(include=(proc_ref("procs.tcl", "a", "b", "c"),)),
+    )
+    feat2 = make_feature(
+        "feat2",
+        procedures=procs_section(include=(proc_ref("procs.tcl", "c", "e", "r"),)),
+    )
+    loaded = make_loaded(base, feat1, feat2)
+    CompilerService().run(ctx, loaded, parsed)
+    vw21_msgs = [d.message for d in sink.emissions if d.code == "VW-21"]
+    assert vw21_msgs, "expected a VW-21 add-proc diagnostic"
+    msg = vw21_msgs[0]
+    # Added procs are e and r (c was already kept by feat1).
+    assert "e" in msg and "r" in msg
+    # The prior keep-set (a, b, c) and final set are shown.
+    assert "a" in msg and "b" in msg and "c" in msg
+    # Layer names are shown.
+    assert "feature:feat2" in msg
+    assert "feature:feat1" in msg
+
+
+def test_vw21_remove_proc_message_names_removed_procs() -> None:
+    """VW-21 remove-proc message names the procs that were dropped."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"procs.tcl": ["a", "b", "c"]})
+    base = make_base()
+    feat1 = make_feature(
+        "feat1",
+        procedures=procs_section(include=(proc_ref("procs.tcl", "a", "b", "c"),)),
+    )
+    feat2 = make_feature(
+        "feat2",
+        procedures=procs_section(exclude=(proc_ref("procs.tcl", "b"),)),
+    )
+    loaded = make_loaded(base, feat1, feat2)
+    CompilerService().run(ctx, loaded, parsed)
+    vw21_msgs = [d.message for d in sink.emissions if d.code == "VW-21"]
+    assert vw21_msgs, "expected a VW-21 remove-proc diagnostic"
+    msg = vw21_msgs[0]
+    assert "b" in msg  # removed proc named
+    assert "feature:feat2" in msg  # acting layer named
+    assert "feature:feat1" in msg  # prior layer named
+
+
+def test_vw21_downgrade_whole_to_trim_message_names_kept_procs() -> None:
+    """VW-21 downgrade-whole-to-trim message shows the resulting keep-set."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"procs.tcl": ["a", "b", "c"]})
+    base = make_base(files=files_section(include=("procs.tcl",)))
+    feat = make_feature(
+        "narrow",
+        procedures=procs_section(exclude=(proc_ref("procs.tcl", "c"),)),
+    )
+    loaded = make_loaded(base, feat)
+    CompilerService().run(ctx, loaded, parsed)
+    vw21_msgs = [d.message for d in sink.emissions if d.code == "VW-21"]
+    assert vw21_msgs, "expected a VW-21 downgrade-whole-to-trim diagnostic"
+    msg = vw21_msgs[0]
+    assert "FULL_COPY" in msg or "PROC_TRIM" in msg
+    assert "feature:narrow" in msg
+
+
 # ---------------------------------------------------------------------------
 # VE-27 — no-op excludes
 # ---------------------------------------------------------------------------
@@ -292,3 +363,80 @@ def test_ve27_emitted_for_pe_proc_name_typo() -> None:
     loaded = make_loaded(base)
     CompilerService().run(ctx, loaded, parsed)
     assert "VE-27" in sink.codes()
+
+
+# ---------------------------------------------------------------------------
+# VW-09/11/12/13 — message text names the specific procs involved
+# ---------------------------------------------------------------------------
+
+
+def test_vw09_message_names_redundant_pi_procs() -> None:
+    """VW-09 message names the specific PI procs that are redundant."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(include=(proc_ref("a.tcl", "foo", "bar"),)),
+    )
+    loaded = make_loaded(base)
+    CompilerService().run(ctx, loaded, parsed)
+    vw09_msgs = [d.message for d in sink.emissions if d.code == "VW-09"]
+    assert vw09_msgs, "expected a VW-09 diagnostic"
+    msg = vw09_msgs[0]
+    assert "foo" in msg
+    assert "bar" in msg
+
+
+def test_vw11_message_names_pe_procs() -> None:
+    """VW-11 message names the PE procs on the doubly-excluded file."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar"]})
+    base = make_base(
+        files=files_section(exclude=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "foo", "bar"),)),
+    )
+    loaded = make_loaded(base)
+    CompilerService().run(ctx, loaded, parsed)
+    vw11_msgs = [d.message for d in sink.emissions if d.code == "VW-11"]
+    assert vw11_msgs, "expected a VW-11 diagnostic"
+    msg = vw11_msgs[0]
+    assert "foo" in msg
+    assert "bar" in msg
+
+
+def test_vw12_message_names_pi_and_pe_procs() -> None:
+    """VW-12 message names both the PI procs (kept) and PE procs (ignored)."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar", "baz"]})
+    base = make_base(
+        procedures=procs_section(
+            include=(proc_ref("a.tcl", "foo", "bar"),),
+            exclude=(proc_ref("a.tcl", "baz"),),
+        ),
+    )
+    loaded = make_loaded(base)
+    CompilerService().run(ctx, loaded, parsed)
+    vw12_msgs = [d.message for d in sink.emissions if d.code == "VW-12"]
+    assert vw12_msgs, "expected a VW-12 diagnostic"
+    msg = vw12_msgs[0]
+    assert "foo" in msg
+    assert "bar" in msg
+    assert "baz" in msg
+
+
+def test_vw13_message_names_all_excluded_procs() -> None:
+    """VW-13 message names every proc that procedures.exclude removed."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar", "baz"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "foo", "bar", "baz"),)),
+    )
+    loaded = make_loaded(base)
+    CompilerService().run(ctx, loaded, parsed)
+    vw13_msgs = [d.message for d in sink.emissions if d.code == "VW-13"]
+    assert vw13_msgs, "expected a VW-13 diagnostic"
+    msg = vw13_msgs[0]
+    assert "foo" in msg
+    assert "bar" in msg
+    assert "baz" in msg

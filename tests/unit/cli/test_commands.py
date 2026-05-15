@@ -534,9 +534,7 @@ def test_ve13_skipped_when_project_json_unreadable(tmp_path: Path) -> None:
     assert commands._check_project_paths_resolvable(args) is None
 
 
-def test_ve13_reports_missing_features(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_ve13_reports_missing_features(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """A missing entry in ``features[]`` also trips VE-13."""
     import json
 

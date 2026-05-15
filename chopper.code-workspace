@@ -3,9 +3,6 @@
     {
       "path": ".",
       "name": "chopper"
-    },
-    {
-      "path": "../2025.03_json_exp"
     }
   ],
   "settings": {

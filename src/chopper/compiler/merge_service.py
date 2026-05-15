@@ -399,18 +399,18 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
 
         # ---- Same-layer authoring warnings (unchanged from prior model) --
         if fi_any and pi_short:
-            _emit_vw09(ctx, src, file_path)
+            _emit_vw09(ctx, src, file_path, pi_procs=pi_short)
         if is_fe and pe_short and not fi_any and not pi_short:
-            _emit_vw11(ctx, src, file_path)
+            _emit_vw11(ctx, src, file_path, pe_procs=pe_short)
         if pi_short and pe_short and not fi_any:
-            _emit_vw12(ctx, src, file_path)
+            _emit_vw12(ctx, src, file_path, pi_procs=pi_short, pe_procs=pe_short)
         if pe_short and not pi_short and not fi_any and not is_fe:
             if all_procs and not (all_procs - pe_cn):
-                _emit_vw13(ctx, src, file_path)
+                _emit_vw13(ctx, src, file_path, pe_procs=pe_short)
         if fi_any and pe_short:
             keep_after = all_procs - pe_cn
             if all_procs and not keep_after:
-                _emit_vw13(ctx, src, file_path)
+                _emit_vw13(ctx, src, file_path, pe_procs=pe_short)
 
         intent = _classify_layer_intent(is_fi_literal, is_fi_glob, is_fe, pi_short, pe_short, pi_cn, pe_cn, all_procs)
 
@@ -438,7 +438,15 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
 
         if intent[0] == "whole":
             _, reason, json_field = intent
-            _record_replace_transition(ctx, file_path, layer_key, prior_layer, prev, "whole", shadow_events)
+            _record_replace_transition(
+                ctx,
+                file_path,
+                layer_key,
+                prior_layer,
+                prev,
+                "whole",
+                shadow_events,
+            )
             running[file_path] = _Whole()
             contributed_by[file_path] = layer_key
             last_reason_by_file[file_path] = reason
@@ -449,7 +457,16 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
 
         if intent[0] == "trim-replace":
             _, new_keep, reason, json_field, _layer_pi, _layer_pe = intent
-            _record_replace_transition(ctx, file_path, layer_key, prior_layer, prev, "trim", shadow_events)
+            _record_replace_transition(
+                ctx,
+                file_path,
+                layer_key,
+                prior_layer,
+                prev,
+                "trim",
+                shadow_events,
+                new_keep=frozenset(new_keep),
+            )
             running[file_path] = _Trim(keep=set(new_keep))
             contributed_by[file_path] = layer_key
             last_reason_by_file[file_path] = reason
@@ -475,7 +492,14 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
                         action="downgrade-whole-to-trim",
                     )
                 )
-                _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "downgrade-whole-to-trim")
+                _emit_vw21(
+                    ctx,
+                    file_path,
+                    layer_key,
+                    prior_layer or layer_key,
+                    "downgrade-whole-to-trim",
+                    final_keep=frozenset(new_keep),
+                )
                 running[file_path] = _Trim(keep=new_keep)
                 contributed_by[file_path] = layer_key
                 last_reason_by_file[file_path] = reason
@@ -486,7 +510,16 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
                     shadow_events.setdefault(file_path, []).append(
                         ShadowEvent(layer=layer_key, prior_layer=prior_layer or layer_key, action="add-proc")
                     )
-                    _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "add-proc")
+                    _emit_vw21(
+                        ctx,
+                        file_path,
+                        layer_key,
+                        prior_layer or layer_key,
+                        "add-proc",
+                        added_procs=frozenset(added),
+                        prior_keep=frozenset(prev.keep),
+                        final_keep=frozenset(new_keep),
+                    )
                 running[file_path] = _Trim(keep=new_keep)
                 if added:
                     contributed_by[file_path] = layer_key
@@ -514,7 +547,15 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
                         action="downgrade-whole-to-trim",
                     )
                 )
-                _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "downgrade-whole-to-trim")
+                _emit_vw21(
+                    ctx,
+                    file_path,
+                    layer_key,
+                    prior_layer or layer_key,
+                    "downgrade-whole-to-trim",
+                    removed_procs=frozenset(layer_pe),
+                    final_keep=frozenset(new_keep),
+                )
                 running[file_path] = _Trim(keep=new_keep)
                 contributed_by[file_path] = layer_key
                 last_reason_by_file[file_path] = reason
@@ -531,7 +572,16 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
                             action="remove-proc",
                         )
                     )
-                    _emit_vw21(ctx, file_path, layer_key, prior_layer or layer_key, "remove-proc")
+                    _emit_vw21(
+                        ctx,
+                        file_path,
+                        layer_key,
+                        prior_layer or layer_key,
+                        "remove-proc",
+                        removed_procs=frozenset(removed),
+                        prior_keep=frozenset(prev.keep),
+                        final_keep=frozenset(new_keep),
+                    )
                 running[file_path] = _Trim(keep=new_keep)
                 if removed:
                     contributed_by[file_path] = layer_key
@@ -620,6 +670,8 @@ def _record_replace_transition(
     prev: _RunningSignal | None,
     new_kind: str,
     shadow_events: dict[Path, list[ShadowEvent]],
+    *,
+    new_keep: frozenset[str] | None = None,
 ) -> None:
     """Record a ShadowEvent + emit VW-21 when a layer wholesale-replaces a prior decision."""
     if prev is None or not prior_layer or prior_layer == layer_key:
@@ -629,8 +681,9 @@ def _record_replace_transition(
         action = "downgrade-whole-to-trim"
     else:
         action = "replace"
+    prior_keep = frozenset(prev.keep) if isinstance(prev, _Trim) else None
     shadow_events.setdefault(file_path, []).append(ShadowEvent(layer=layer_key, prior_layer=prior_layer, action=action))
-    _emit_vw21(ctx, file_path, layer_key, prior_layer, action)
+    _emit_vw21(ctx, file_path, layer_key, prior_layer, action, prior_keep=prior_keep, final_keep=new_keep)
 
 
 # ---------------------------------------------------------------------------
@@ -739,49 +792,63 @@ def _derive_manifest(
 # ---------------------------------------------------------------------------
 
 
-def _emit_vw09(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
+def _emit_vw09(ctx: ChopperContext, ref: _SourceRef, file_path: Path, *, pi_procs: frozenset[str]) -> None:
+    procs_list = "[" + ", ".join(sorted(pi_procs)) + "]"
     ctx.diag.emit(
         Diagnostic.build(
             "VW-09",
             phase=Phase.P3_COMPILE,
             message=(
-                f"Source {ref.key!r}: file {file_path.as_posix()!r} is in both "
-                f"files.include and procedures.include; PI entries are redundant"
+                f"{ref.key!r}: {file_path.as_posix()!r} is in files.include and procedures.include; "
+                f"PI procs {procs_list} are redundant — file will be FULL_COPY regardless"
             ),
             path=file_path,
             hint=(
-                "Remove from files.include for selective proc inclusion, or remove redundant procedures.include entries"
+                "Remove from files.include to enable selective proc inclusion, "
+                "or remove the redundant procedures.include entries"
             ),
         )
     )
 
 
-def _emit_vw11(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
+def _emit_vw11(ctx: ChopperContext, ref: _SourceRef, file_path: Path, *, pe_procs: frozenset[str]) -> None:
+    procs_list = "[" + ", ".join(sorted(pe_procs)) + "]"
     ctx.diag.emit(
         Diagnostic.build(
             "VW-11",
             phase=Phase.P3_COMPILE,
             message=(
-                f"Source {ref.key!r}: file {file_path.as_posix()!r} appears in both "
-                f"files.exclude and procedures.exclude with no matching procedures.include; "
-                f"source contributes nothing for this file"
+                f"{ref.key!r}: {file_path.as_posix()!r} is in both files.exclude and "
+                f"procedures.exclude {procs_list} with no matching procedures.include; "
+                f"this layer contributes nothing for this file"
             ),
             path=file_path,
             hint=(
-                "Use files.exclude alone to drop the file, or procedures.exclude alone to keep it with procs removed"
+                "Use files.exclude alone to drop the file, "
+                "or procedures.exclude alone to keep it with some procs removed"
             ),
         )
     )
 
 
-def _emit_vw12(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
+def _emit_vw12(
+    ctx: ChopperContext,
+    ref: _SourceRef,
+    file_path: Path,
+    *,
+    pi_procs: frozenset[str],
+    pe_procs: frozenset[str],
+) -> None:
+    pi_list = "[" + ", ".join(sorted(pi_procs)) + "]"
+    pe_list = "[" + ", ".join(sorted(pe_procs)) + "]"
     ctx.diag.emit(
         Diagnostic.build(
             "VW-12",
             phase=Phase.P3_COMPILE,
             message=(
-                f"Source {ref.key!r}: file {file_path.as_posix()!r} has procs in both "
-                f"procedures.include and procedures.exclude; PI takes precedence, PE ignored"
+                f"{ref.key!r}: {file_path.as_posix()!r} has procs in both "
+                f"procedures.include {pi_list} and procedures.exclude {pe_list}; "
+                f"PI takes precedence — keeping {pi_list}, PE ignored"
             ),
             path=file_path,
             hint="Choose one model per file at this layer: procedures.include or procedures.exclude, not both",
@@ -789,13 +856,14 @@ def _emit_vw12(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
     )
 
 
-def _emit_vw13(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
+def _emit_vw13(ctx: ChopperContext, ref: _SourceRef, file_path: Path, *, pe_procs: frozenset[str]) -> None:
+    procs_list = "[" + ", ".join(sorted(pe_procs)) + "]"
     ctx.diag.emit(
         Diagnostic.build(
             "VW-13",
             phase=Phase.P3_COMPILE,
             message=(
-                f"Source {ref.key!r}: procedures.exclude removes every proc in "
+                f"{ref.key!r}: procedures.exclude removes all procs {procs_list} from "
                 f"{file_path.as_posix()!r}; file survives as comment/blank-only"
             ),
             path=file_path,
@@ -804,19 +872,81 @@ def _emit_vw13(ctx: ChopperContext, ref: _SourceRef, file_path: Path) -> None:
     )
 
 
-def _emit_vw21(ctx: ChopperContext, file_path: Path, layer: str, prior_layer: str, action: str) -> None:
+def _emit_vw21(
+    ctx: ChopperContext,
+    file_path: Path,
+    layer: str,
+    prior_layer: str,
+    action: str,
+    *,
+    added_procs: frozenset[str] | None = None,
+    removed_procs: frozenset[str] | None = None,
+    prior_keep: frozenset[str] | None = None,
+    final_keep: frozenset[str] | None = None,
+) -> None:
+    posix = file_path.as_posix()
+
+    def _fmt(procs: frozenset[str] | None) -> str:
+        return "[" + ", ".join(sorted(procs)) + "]" if procs is not None else "[?]"
+
+    if action == "add-proc" and added_procs is not None:
+        msg = (
+            f"{layer!r} added proc(s) {_fmt(added_procs)} to {posix!r} "
+            f"(already kept by {prior_layer!r}: {_fmt(prior_keep)}); "
+            f"combined keep-set: {_fmt(final_keep)}"
+        )
+        hint = "No action required if intentional; verify feature layer order in project.features[] if unexpected"
+    elif action == "remove-proc" and removed_procs is not None:
+        msg = (
+            f"{layer!r} removed proc(s) {_fmt(removed_procs)} from {posix!r} "
+            f"(were kept by {prior_layer!r}: {_fmt(prior_keep)}); "
+            f"remaining keep-set: {_fmt(final_keep)}"
+        )
+        hint = (
+            "No action required if intentional; to reinstate a proc, add it to "
+            "procedures.include in a later feature layer"
+        )
+    elif action == "downgrade-whole-to-trim" and final_keep is not None:
+        excluded = _fmt(removed_procs) if removed_procs is not None else "[?]"
+        msg = (
+            f"{layer!r} narrowed {posix!r} from FULL_COPY to PROC_TRIM "
+            f"(prior: {prior_layer!r} included the whole file); "
+            f"keeping: {_fmt(final_keep)}" + (f"; excluded: {excluded}" if removed_procs is not None else "")
+        )
+        hint = "No action required if intentional; verify layer order in project.features[] if unexpected"
+    elif action == "remove":
+        msg = f"{layer!r} excluded {posix!r} (was included by {prior_layer!r})"
+        hint = "No action required if intentional; check layer order in project.features[] if unexpected"
+    elif action == "replace":
+        if prior_keep is not None and final_keep is not None:
+            msg = (
+                f"{layer!r} replaced the proc selection for {posix!r} "
+                f"(prior {prior_layer!r} keep: {_fmt(prior_keep)}; "
+                f"new keep: {_fmt(final_keep)})"
+            )
+        elif prior_keep is not None:
+            msg = (
+                f"{layer!r} replaced prior selection for {posix!r} "
+                f"(prior {prior_layer!r} kept: {_fmt(prior_keep)}; "
+                f"new: FULL_COPY)"
+            )
+        else:
+            msg = f"{layer!r} shadowed prior layer {prior_layer!r} for {posix!r} (action={action})"
+        hint = "No action required if intentional; verify layer order in project.features[] if unexpected"
+    else:
+        msg = f"{layer!r} shadowed prior layer {prior_layer!r} for {posix!r} (action={action})"
+        hint = (
+            "No action required if the layer order in project.features[] is intentional; "
+            "verify the order if the shadow is unexpected"
+        )
+
     ctx.diag.emit(
         Diagnostic.build(
             "VW-21",
             phase=Phase.P3_COMPILE,
-            message=(
-                f"Layer {layer!r} shadowed prior layer {prior_layer!r} for {file_path.as_posix()!r} (action={action})"
-            ),
+            message=msg,
             path=file_path,
-            hint=(
-                "No action required if the layer order in project.features[] is intentional; "
-                "verify the order if the shadow is unexpected"
-            ),
+            hint=hint,
         )
     )
 

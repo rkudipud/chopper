@@ -127,3 +127,11 @@ O1 cache domain walk and O2 cache short_to_canonical are implemented. O3 sort-on
 
 - Pre-existing 7 `tests/unit/scripts/` failures fixed: 5 via path correction (`scripts/*.py` → `schemas/scripts/*.py`, the canonical post-`json_kit/`-dissolution location), 2 marked `@pytest.mark.skipif(sys.platform == "win32")` because their fixture is a `#!/bin/sh` `gh` stub.
 - Version bumped 0.5.0 → 0.5.2 in `pyproject.toml`. README changelog has a 0.5.2 entry covering Option A + the test cleanup. (0.5.1 had been documented in README without a corresponding pyproject bump; 0.5.2 reconciles.)
+
+## Adversarial Chained-Overlay Torture Suite (2026-05-14)
+
+- New file: `tests/integration/test_cli_chained_overlay.py` — 7 spec-driven scenarios (A-G) authored against architecture doc §4 R1 ordered overlay. No mocks; each scenario writes a real multi-layer on-disk domain and drives the real `ChopperRunner`.
+- Scenarios: A (PE-alone downgrades base WHOLE → PROC_TRIM, VW-21 downgrade-whole-to-trim), B (PE-alone fresh file → PROC_TRIM or VE-27), C (same-layer FI+PE-all-procs → VW-13), D (glob FE matches nothing → VE-27), E (3-layer redundant FI; strict xfail — impl emits VW-21 on redundant whole-include re-affirmation but §4 row 2 mandates VW-21 only on state change; flips to XPASS when reconciled), F (cmd_validate→cmd_trim→cmd_loc chain on real overlay; asserts `treatment.PROC_TRIM.files: 1`), G (cmd_loc baseline fallback; asserts `files.before:`).
+- Dismantled `tests/unit/cli/test_commands_coverage.py` mocked-runner block (5 tests + helpers deleted); kept the real-fs `cleanup` redirect test.
+- Result: **1331 passed, 1 xfailed, 2 pre-existing fails**. Overall coverage **99.34%**. `merge_service.py` 94% → 96%, `cli/loc_report.py` 100%, `cli/commands.py` 97%, `cli/render.py` 99%, `compiler/trace_service.py` 99%.
+- Remaining lifts to reach 99% on `merge_service.py` need more R1 scenarios: VW-21 action=replace/add-proc/remove-proc, same-layer VW-09/VW-11/VW-12 conveniences. Captured as backlog.
