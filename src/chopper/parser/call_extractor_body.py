@@ -14,6 +14,27 @@ from chopper.parser.tokenizer import Token, TokenKind
 __all__ = ["extract_body_refs"]
 
 
+def _bracket_is_escaped(text: str, bracket_pos: int) -> bool:
+    """Return True if the ``[`` at *bracket_pos* in *text* is backslash-escaped.
+
+    A ``[`` is escaped when it is preceded by an **odd** count of backslashes.
+    An even count (including zero) means the backslashes cancel out and the
+    bracket is a real command-substitution opener.
+
+    Examples::
+
+        \\[H      → odd (1)  → escaped  → literal bracket, NOT a proc call
+        \\\\[H   → even (2) → not escaped → real command substitution
+        [H        → zero     → not escaped → real command substitution
+    """
+    count = 0
+    j = bracket_pos - 1
+    while j >= 0 and text[j] == "\\":
+        count += 1
+        j -= 1
+    return count % 2 == 1
+
+
 def extract_body_refs(
     tokens: tuple[Token, ...],
     body_lbrace_idx: int,
@@ -50,6 +71,10 @@ def extract_body_refs(
                     calls.add(candidate)
         if token.kind is TokenKind.WORD and i not in consumed:
             for match in BRACKET_CALL_RE.finditer(token.value):
+                # P-46: skip escaped brackets — \[ is a literal character in a
+                # Tcl string, not a command-substitution opener.
+                if _bracket_is_escaped(token.value, match.start()):
+                    continue
                 candidate = classify_call_candidate(match.group(1))
                 if candidate is not None:
                     calls.add(candidate)

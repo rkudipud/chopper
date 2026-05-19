@@ -112,5 +112,16 @@ TCL_BUILTINS: frozenset[str] = frozenset(
         "clock",
         "after",
         "trace",
+        # Tcl 8.5+ builtins absent from the original list (P-48).
+        # Their omission caused spurious TW-02 warnings when these commands
+        # appeared as first-word calls in proc bodies.
+        "lassign",
+        "subst",
+        "apply",
+        "throw",
+        # Tcl 8.6+ list helpers
+        "lmap",
+        "lrepeat",
+        "lreverse",
     }
 )

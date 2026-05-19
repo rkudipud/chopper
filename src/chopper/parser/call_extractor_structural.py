@@ -121,7 +121,19 @@ def mark_opaque_arg_braces(tokens: tuple[Token, ...], start: int, end: int, base
 
 
 def mark_switch_pattern_words(tokens: tuple[Token, ...], start: int, end: int, base_depth: int, skip: set[int]) -> None:
-    """Mark ``switch`` pattern-label WORDs inside the body brace as skip."""
+    """Mark ``switch`` pattern-label WORDs inside the body brace as skip.
+
+    Handles both plain-WORD patterns and brace-delimited patterns (P-47).
+    Brace-delimited patterns such as ``{[a-z]+}`` have their entire token
+    block marked opaque so regex character-class content (e.g. ``a``, ``z``)
+    is not mis-extracted as proc calls.
+
+    Uses an alternating pattern/body state machine: each WORD or LBRACE
+    block at ``inner_depth`` alternates between "pattern" and "body" roles.
+    Pattern tokens (WORD or brace-enclosed) are added to ``skip``; body
+    braces are left unmarked so their code is walked normally by the
+    main body extractor.
+    """
     body_lbrace = last_lbrace_at_depth(tokens, start, end, base_depth)
     if body_lbrace is None:
         return
@@ -129,10 +141,31 @@ def mark_switch_pattern_words(tokens: tuple[Token, ...], start: int, end: int, b
     if body_rbrace is None:
         return
     inner_depth = base_depth + 1
-    for j in range(body_lbrace + 1, body_rbrace):
+    expecting_pattern = True
+    j = body_lbrace + 1
+    while j < body_rbrace:
         token = tokens[j]
         if token.kind is TokenKind.WORD and token.brace_depth == inner_depth:
+            # Always skip WORD tokens at inner_depth (patterns, fall-through
+            # ``-`` markers, and rare unbraced one-word bodies are all non-calls).
             skip.add(j)
+            expecting_pattern = not expecting_pattern
+            j += 1
+        elif token.kind is TokenKind.LBRACE and token.brace_depth == inner_depth:
+            rbrace_j = matching_rbrace(tokens, j, body_rbrace)
+            if rbrace_j is not None:
+                if expecting_pattern:
+                    # Brace-delimited pattern (e.g. ``{[a-z]+}``) — mark the
+                    # entire block opaque so its contents are never walked.
+                    for k in range(j, rbrace_j + 1):
+                        skip.add(k)
+                # Body brace: leave unmarked — its code is real Tcl.
+                expecting_pattern = not expecting_pattern
+                j = rbrace_j + 1
+            else:
+                j += 1
+        else:
+            j += 1
 
 
 def matching_rbrace(tokens: tuple[Token, ...], lbrace_idx: int, limit: int) -> int | None:

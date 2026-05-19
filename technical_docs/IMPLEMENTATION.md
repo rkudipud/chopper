@@ -5,7 +5,7 @@
 > **What changed in this consolidation.** This file replaces four previous docs that drifted apart over time:
 >
 > - The Tcl parser engineering spec
-> - The technical-risks and implementation-pitfalls ledger (P-01 … P-44 + TC-01 … TC-10)
+> - The technical-risks and implementation-pitfalls ledger (P-01 … P-48 + TC-01 … TC-10)
 > - The parser implementation decision log (D-1b-01 … D-1e-03)
 > - The future-planned-developments ledger (OOS-01 … OOS-04 + FD-01 … FD-14)
 >
@@ -13,7 +13,7 @@
 
 ## Contents
 
-1. [Parser Module](#1-parser-module) — Tcl parser engineering spec, parser pitfalls (P-01 … P-07, P-32 … P-43), and parser decisions (D-1b-01 … D-1e-03)
+1. [Parser Module](#1-parser-module) — Tcl parser engineering spec, parser pitfalls (P-01 … P-07, P-32 … P-43, P-46 … P-48), and parser decisions (D-1b-01 … D-1e-03)
 2. [Compiler & Tracer Module](#2-compiler--tracer-module) — Merge algorithm and trace expansion (P-08 … P-12, P-41, P-42)
 3. [Trimmer Module](#3-trimmer-module) — Backup / rebuild / write contract (P-13, P-15, P-37, P-44)
 4. [Validator Module](#4-validator-module) — Pre/post-trim integrity checks (P-16, P-17)
@@ -1357,6 +1357,155 @@ Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) 
 
 ---
 
+### Pitfall P-46: Escaped `\[` in a Quoted String Must Not Be Extracted as a Proc Call
+
+**THE TRAP (bug report: GitHub #25):**
+
+```tcl
+# ANSI escape sequence in a double-quoted word
+puts -nonewline "\x1b\[H\x1b\[2J"
+
+# Escaped bracket used for literal text
+append status_str " \[flow_setup\]"
+```
+
+`BRACKET_CALL_RE` scans the raw token value for `[<identifier>` patterns. The tokenizer correctly *does not* increment `quoted_bracket_depth` for a `\[` (backslash precedes `[`, so `_is_escaped` returns True), but the token value still contains the raw backslash-bracket bytes. When the regex later scans the token value it finds `\[H` and `\[flow_setup` and emits `H` and `flow_setup` as proc-call candidates — false positives that produce TW-02 warnings.
+
+**Correct Behavior:** Before accepting a `BRACKET_CALL_RE` match as a proc-call candidate, check whether the `[` at `match.start()` in the token value is preceded by an **odd** number of backslashes. An odd count means the bracket is backslash-escaped (a literal `[` in Tcl), not a command-substitution opener. The match must be silently discarded.
+
+An **even** count (including zero) means the backslashes cancel each other out and the `[` is a real command-substitution opener:
+
+| Source text | Preceding `\` count | Escaped? | Action |
+|---|---|---|---|
+| `\[H`    | 1 (odd)  | Yes | Discard — `H` is not a call |
+| `\\[H`   | 2 (even) | No  | Keep — `H` is a real call candidate |
+| `\\\[H`  | 3 (odd)  | Yes | Discard |
+| `[H`     | 0 (even) | No  | Keep |
+
+**Implementation Requirement:**
+
+In `src/chopper/parser/call_extractor_body.py`, add a private helper:
+
+```python
+def _bracket_is_escaped(text: str, bracket_pos: int) -> bool:
+    count = 0
+    j = bracket_pos - 1
+    while j >= 0 and text[j] == "\\":
+        count += 1
+        j -= 1
+    return count % 2 == 1
+```
+
+Apply it in the `BRACKET_CALL_RE.finditer` loop before calling `classify_call_candidate`:
+
+```python
+for match in BRACKET_CALL_RE.finditer(token.value):
+    if _bracket_is_escaped(token.value, match.start()):
+        continue  # \[ is a literal character, not command substitution
+    candidate = classify_call_candidate(match.group(1))
+    if candidate is not None:
+        calls.add(candidate)
+```
+
+**Why It Matters:** ANSI escape sequences (`\[H`, `\[2J`, etc.) and any literal string that uses `\[` to embed a bracket are common in EDA logging, status-display, and report-generation code. Without this fix, every such string emits a spurious TW-02 warning for the identifier following the escaped bracket. Users then either incorrectly add those identifiers to `procedures.include` (polluting their JSON) or spend time investigating phantom unresolved-call warnings.
+
+**Tests:**
+- `tests/unit/parser/test_call_extractor.py::TestEscapedBracketCalls::test_ansi_escape_sequence_not_a_call`
+- `tests/unit/parser/test_call_extractor.py::TestEscapedBracketCalls::test_escaped_bracket_string_literal_not_a_call`
+- `tests/unit/parser/test_call_extractor.py::TestEscapedBracketCalls::test_unescaped_bracket_still_extracted`
+- `tests/unit/parser/test_call_extractor.py::TestEscapedBracketCalls::test_double_backslash_bracket_extracted`
+- `tests/unit/parser/test_call_extractor.py::TestEscapedBracketCalls::test_multiple_escaped_brackets_all_suppressed`
+- `tests/unit/parser/test_call_extractor.py::TestEscapedBracketCalls::test_mixed_escaped_and_real_bracket`
+
+**Fixture:** `tests/fixtures/edge_cases/parser_escaped_bracket_in_string.tcl`
+
+---
+
+### Pitfall P-47: Brace-Delimited Switch Patterns with `[...]` Content Generate False Call Candidates
+
+**THE TRAP:**
+
+```tcl
+proc classify {ch} {
+    switch $ch {
+        {[a-z]} { lower_handler $ch }   ;# brace-delimited literal pattern
+        {[0-9]} { numeric_handler $ch }
+        default { other_handler $ch }
+    }
+}
+```
+
+`mark_switch_pattern_words` (P-39) marks only WORD tokens at `inner_depth` as skip. A brace-delimited pattern `{[a-z]}` produces an LBRACE at `inner_depth` — **not** a WORD — and its interior WORD `[a-z]` sits at `inner_depth + 1`. Neither is added to `skip_indices`. When `extract_body_refs` later processes the WORD `[a-z]`, `BRACKET_CALL_RE` matches `[a` and emits `a` as a proc-call candidate — a false positive.
+
+**Correct Behavior:** The pre-pass must distinguish "pattern" positions from "body" positions in the switch body using an alternating state machine. When the current position is "pattern" and an LBRACE is found at `inner_depth`, the entire brace block (LBRACE, all interior tokens, matching RBRACE) is marked opaque in `skip_indices`.
+
+The alternating model:
+
+| Position | Token at `inner_depth` | Action |
+|---|---|---|
+| Pattern | `WORD` | Mark as skip; advance to body position |
+| Pattern | `LBRACE` | Mark entire block as skip; advance to body position |
+| Body | `WORD` (e.g. `-` fall-through) | Mark as skip; advance to pattern position |
+| Body | `LBRACE` | Leave unmarked (real code); advance to pattern position |
+
+**Implementation Requirement:**
+
+In `src/chopper/parser/call_extractor_structural.py`, replace the `for`-loop in `mark_switch_pattern_words` with a `while`-loop that tracks `expecting_pattern: bool`. When `expecting_pattern is True` and an LBRACE at `inner_depth` is found, mark all tokens in the range `[j, rbrace_j]` inclusive as skip (using `mark_opaque_arg_braces` semantics). Toggle `expecting_pattern` after every consumed token pair.
+
+**Why It Matters:** Brace-enclosed regex-style patterns are common in EDA Tcl for character-class routing (`{[A-Z]+}`, `{[0-9a-f]+}`) and glob-pattern dispatch. Without this fix, every such switch arm emits spurious TW-02 warnings for single-letter identifiers like `a`, `z`, `A`, `Z`.
+
+**Tests:**
+- `tests/unit/parser/test_call_extractor.py::TestSwitchBracePatterns::test_brace_pattern_char_class_not_a_call`
+- `tests/unit/parser/test_call_extractor.py::TestSwitchBracePatterns::test_multiple_brace_patterns_suppressed`
+- `tests/unit/parser/test_call_extractor.py::TestSwitchBracePatterns::test_mixed_word_and_brace_patterns`
+- `tests/unit/parser/test_call_extractor.py::TestSwitchBracePatterns::test_body_code_inside_switch_arm_still_extracted`
+- `tests/unit/parser/test_call_extractor.py::TestSwitchBracePatterns::test_fixture_classify_char`
+
+**Fixture:** `tests/fixtures/edge_cases/parser_switch_brace_pattern.tcl`
+
+---
+
+### Pitfall P-48: Missing Standard Tcl Builtins Cause Spurious TW-02 Warnings
+
+**THE TRAP:**
+
+```tcl
+proc parse_line {line} {
+    lassign [split $line :] host port path   ;# TW-02: lassign not in domain proc set
+    subst $template                          ;# TW-02: subst not in domain proc set
+}
+```
+
+`TCL_BUILTINS` did not include `lassign`, `subst`, `apply`, `throw`, `lmap`, `lrepeat`, or `lreverse`. When any of these appeared as first-word commands in a proc body, `classify_call_candidate` did not suppress them (not in the builtin set, not EDA commands) and they were emitted as unresolved proc-call candidates. Every domain that used these commands received spurious TW-02 `unresolved-call` warnings, polluting diagnostic output.
+
+**Correct Behavior:** All standard Tcl 8.5+ / 8.6+ built-in commands must be in `TCL_BUILTINS`. First-word occurrences of `lassign`, `subst`, `apply`, `throw`, `lmap`, `lrepeat`, and `lreverse` in proc bodies should produce zero TW-02 diagnostics.
+
+**Implementation Requirement:**
+
+In `src/chopper/parser/call_extractor_constants.py`, add to `TCL_BUILTINS`:
+
+```python
+"lassign",   # Tcl 8.5 — destructuring list assignment
+"subst",     # Tcl core — variable/command substitution in a string
+"apply",     # Tcl 8.5 — anonymous proc (lambda) application
+"throw",     # Tcl 8.5 — structured error with options dict
+"lmap",      # Tcl 8.6 — list map (transform each element)
+"lrepeat",   # Tcl 8.5 — create a list by repeating an element
+"lreverse",  # Tcl 8.5 — reverse a list
+```
+
+**Why It Matters:** `lassign` in particular is ubiquitous in modern EDA Tcl for destructuring complex parsed output (`lassign [split $path /] dir base ext`). Every file using it generated a TW-02 false positive. Users who investigated would be confused — `lassign` is not a user proc and does not belong in `procedures.include`.
+
+**Tests:**
+- `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_lassign_not_extracted_as_call`
+- `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_subst_not_extracted_as_call`
+- `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_apply_not_extracted_as_call`
+- `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_throw_not_extracted_as_call`
+- `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_lmap_not_extracted_as_call`
+- `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_builtins_in_tcl_builtins_constant`
+
+---
+
 
 ---
 
@@ -2091,6 +2240,9 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Parser** | `regexp`/`regsub`/`exec`/`glob` brace args walked as code | Pre-pass marks opaque `{…}` token ranges as skip; recurse into code-block braces (P-38) |
 | **Parser** | `switch` pattern labels extracted as proc calls | Pre-pass marks odd-indexed body WORDs as skip (P-39) |
 | **Parser** | DPA name parser concatenates option-list fragments | Take first whitespace-token after keyword; ignore option list entirely (P-40) |
+| **Parser** | `\[` in a quoted string extracted as a proc-call candidate | Count preceding backslashes at match position; skip on odd count (P-46) |
+| **Parser** | Brace-delimited switch pattern `{[a-z]+}` generates false call candidates | Alternating pattern/body state in `mark_switch_pattern_words`; mark brace-pattern blocks opaque (P-47) |
+| **Parser** | `lassign`, `subst`, `apply`, `throw`, `lmap` etc. generate spurious TW-02 | Add missing Tcl 8.5+/8.6+ builtins to `TCL_BUILTINS` (P-48) |
 | **Compiler/Validator** | Diagnostics serialise with `"file": null` | P4/P6 emit sites must pass `path=`; recover from canonical name where ProcEntry is absent (P-41) |
 | **Compiler** | Glob-matched non-Tcl files silently absent from manifest | (1) Pass full surface paths (not Tcl-only `parsed_paths`) to `_extract_facts`; (2) Add `fi_glob_surviving` to `_collect_universe`; F1 is file-type agnostic (P-42) |
 | **Trimmer** | Adjacent drop-ranges leave blank-line artifacts | Coalesce adjacent/overlapping ranges before deletion pass (P-37) |

@@ -431,6 +431,227 @@ class TestConstants:
         assert "read_verilog" in EDA_FLOW_COMMANDS
 
 
+# ---------------------------------------------------------------------------
+# Escaped brackets in string literals (issue #25 — Pitfall P-46)
+# ---------------------------------------------------------------------------
+
+
+class TestEscapedBracketCalls:
+    r"""Verify that ``\[`` inside a quoted string is not extracted as a proc call.
+
+    In Tcl, a backslash-escaped ``\[`` inside a ``"..."`` word is a literal
+    ``[`` character, not the start of a command substitution.  The call
+    extractor must not emit a candidate for the token that follows the
+    escaped bracket.
+
+    Regression guard: unescaped ``[`` must still be extracted normally, and
+    ``\\[`` (even backslash count → escaped backslash + real ``[``) must also
+    be extracted.
+    """
+
+    def test_ansi_escape_sequence_not_a_call(self) -> None:
+        # \x1b\[H\x1b\[2J — ANSI cursor-home + clear.
+        # \[ is escaped; H and 2J are NOT proc calls (false-positive from issue #25).
+        src = 'proc foo {} {\n    puts -nonewline "\\x1b\\[H\\x1b\\[2J"\n}\n'
+        assert _calls(src) == ()
+
+    def test_escaped_bracket_string_literal_not_a_call(self) -> None:
+        # \[flow_setup\] in a string — flow_setup is NOT a proc call.
+        src = 'proc foo {} {\n    append status_str " \\[flow_setup\\]"\n}\n'
+        assert _calls(src) == ()
+
+    def test_unescaped_bracket_still_extracted(self) -> None:
+        # Regression guard: [real_proc $arg] is a real bracket call.
+        src = "proc foo {} {\n    set x [real_proc $arg]\n}\n"
+        assert _calls(src) == ("real_proc",)
+
+    def test_double_backslash_bracket_extracted(self) -> None:
+        # \\[real_call $arg] — two backslashes (even count) cancel each other;
+        # the [ is a real command-substitution opener; real_call IS a proc call.
+        src = 'proc foo {} {\n    puts "test \\\\[real_call $arg]"\n}\n'
+        assert _calls(src) == ("real_call",)
+
+    def test_multiple_escaped_brackets_all_suppressed(self) -> None:
+        # Multiple \[ in one word — all suppressed, no false positives.
+        src = 'proc foo {} {\n    set msg "\\[alpha\\] and \\[beta\\]"\n}\n'
+        assert _calls(src) == ()
+
+    def test_mixed_escaped_and_real_bracket(self) -> None:
+        # \[fake_call] is escaped (not a call); [real_call] is real (is a call).
+        src = 'proc foo {} {\n    puts "\\[fake_call] [real_call]"\n}\n'
+        calls = set(_calls(src))
+        assert "real_call" in calls
+        assert "fake_call" not in calls
+
+
 # ------------------------------------------------------------------
 # Extracted from test_final_coverage_push.py (module-aligned consolidation).
 # ------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Brace-delimited switch patterns (Pitfall P-47)
+# ---------------------------------------------------------------------------
+
+
+class TestSwitchBracePatterns:
+    r"""Brace-delimited switch patterns with ``[...]`` must not yield false calls.
+
+    ``switch { {[a-z]+} body }`` — the ``{[a-z]+}`` is a literal pattern
+    string, not command substitution.  Characters like ``a`` and ``z`` inside
+    character-class brackets are NOT proc calls.  (P-47)
+    """
+
+    def test_brace_pattern_char_class_not_a_call(self) -> None:
+        src = (
+            "proc foo {ch} {\n"
+            "    switch $ch {\n"
+            "        {[a-z]} {\n"
+            "            lower_handler $ch\n"
+            "        }\n"
+            "        default {\n"
+            "            other_handler $ch\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        calls = set(_calls(src))
+        # character-class fragments must NOT appear as calls
+        assert "a" not in calls
+        assert "z" not in calls
+        # body code inside the arms MUST still be extracted
+        assert "lower_handler" in calls
+        assert "other_handler" in calls
+
+    def test_multiple_brace_patterns_suppressed(self) -> None:
+        src = (
+            "proc foo {ch} {\n"
+            "    switch $ch {\n"
+            "        {[0-9]} {\n"
+            "            numeric_handler $ch\n"
+            "        }\n"
+            "        {[A-Z]+} {\n"
+            "            upper_handler $ch\n"
+            "        }\n"
+            "        default {\n"
+            "            fallback_proc $ch\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        calls = set(_calls(src))
+        for false_candidate in ("0", "9", "A", "Z"):
+            assert false_candidate not in calls, f"{false_candidate!r} leaked as a call"
+        assert "numeric_handler" in calls
+        assert "upper_handler" in calls
+        assert "fallback_proc" in calls
+
+    def test_mixed_word_and_brace_patterns(self) -> None:
+        src = (
+            "proc foo {kind} {\n"
+            "    switch $kind {\n"
+            "        word_pat {\n"
+            "            word_proc $kind\n"
+            "        }\n"
+            "        {[A-Z]+} {\n"
+            "            upper_proc $kind\n"
+            "        }\n"
+            "        default {\n"
+            "            default_proc $kind\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        calls = set(_calls(src))
+        assert "word_proc" in calls
+        assert "upper_proc" in calls
+        assert "default_proc" in calls
+        assert "A" not in calls
+        assert "Z" not in calls
+        assert "word_pat" not in calls
+
+    def test_body_code_inside_switch_arm_still_extracted(self) -> None:
+        # Regression guard: bodies after brace patterns must be walked normally.
+        # Uses bracket substitution to ensure extraction regardless of at_cmd_pos.
+        src = (
+            "proc foo {ch} {\n"
+            "    switch $ch {\n"
+            "        {[a-z]} {\n"
+            "            set result [transform_char $ch]\n"
+            "            emit_result $result\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        calls = set(_calls(src))
+        assert "transform_char" in calls
+        assert "emit_result" in calls
+        assert "a" not in calls
+
+    def test_fixture_classify_char(self) -> None:
+        """Fixture-based regression: classify_char must not extract a, z, 0, 9."""
+        from pathlib import Path
+
+        fixture = Path(__file__).parent.parent.parent / "fixtures" / "edge_cases" / "parser_switch_brace_pattern.tcl"
+        from chopper.parser.proc_extractor import extract_procs
+
+        r = extract_procs(fixture, fixture.read_text())
+        calls_by_proc = {p.qualified_name: set(p.calls) for p in r.procs}
+        char_calls = calls_by_proc.get("classify_char", set())
+        for false_candidate in ("a", "z", "0", "9"):
+            assert false_candidate not in char_calls, f"{false_candidate!r} leaked from classify_char"
+        assert "real_handler" in char_calls
+        assert "numeric_handler" in char_calls
+        assert "other_handler" in char_calls
+
+
+# ---------------------------------------------------------------------------
+# Missing standard Tcl builtins (Pitfall P-48)
+# ---------------------------------------------------------------------------
+
+
+class TestMissingBuiltins:
+    """Standard Tcl 8.5+/8.6+ builtins omitted from TCL_BUILTINS cause false TW-02.
+
+    These commands appeared as first-word commands in proc bodies and were
+    treated as unresolved user proc calls.  (P-48)
+    """
+
+    def test_lassign_not_extracted_as_call(self) -> None:
+        src = "proc foo {line} {\n    lassign [split $line :] host port path\n    connect $host $port $path\n}\n"
+        calls = set(_calls(src))
+        assert "lassign" not in calls
+        assert "connect" in calls
+
+    def test_subst_not_extracted_as_call(self) -> None:
+        src = "proc foo {tmpl} {\n    set result [subst $tmpl]\n    emit_result $result\n}\n"
+        calls = set(_calls(src))
+        assert "subst" not in calls
+        assert "emit_result" in calls
+
+    def test_apply_not_extracted_as_call(self) -> None:
+        src = "proc foo {vals} {\n    set mapped [apply {{x} { transform $x }} $vals]\n    collect_results $mapped\n}\n"
+        calls = set(_calls(src))
+        assert "apply" not in calls
+        assert "collect_results" in calls
+
+    def test_throw_not_extracted_as_call(self) -> None:
+        src = (
+            "proc foo {val} {\n"
+            '    if {$val < 0} { throw {RANGE NEGATIVE} "value must be >= 0" }\n'
+            "    process_val $val\n"
+            "}\n"
+        )
+        calls = set(_calls(src))
+        assert "throw" not in calls
+        assert "process_val" in calls
+
+    def test_lmap_not_extracted_as_call(self) -> None:
+        src = "proc foo {lst} {\n    set out [lmap x $lst { transform_item $x }]\n    finalize $out\n}\n"
+        calls = set(_calls(src))
+        assert "lmap" not in calls
+        assert "finalize" in calls
+
+    def test_builtins_in_tcl_builtins_constant(self) -> None:
+        for name in ("lassign", "subst", "apply", "throw", "lmap", "lrepeat", "lreverse"):
+            assert name in TCL_BUILTINS, f"{name!r} missing from TCL_BUILTINS"
