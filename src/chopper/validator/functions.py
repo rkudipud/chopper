@@ -315,6 +315,7 @@ def validate_post(
     rewritten: Sequence[Path],
     *,
     trim_report: TrimReport | None = None,
+    tool_command_pool: frozenset[str] = frozenset(),
 ) -> None:
     """Run Phase 2 correctness checks on the rebuilt domain.
 
@@ -333,7 +334,7 @@ def validate_post(
     _check_trim_outputs(ctx, trim_report)
     _check_trimmed_proc_sets(ctx, trim_report)
     _check_dangling_refs(ctx, manifest, graph)
-    _check_stage_steps(ctx, manifest)
+    _check_stage_steps(ctx, manifest, tool_command_pool)
 
 
 def _check_manifest_vs_trim(
@@ -801,7 +802,11 @@ _SOURCE_CMD_RE = re.compile(r"^\s*(?:source|iproc_source)\s+(\S+)\s*$")
 _FILE_EXT_SUFFIXES = (".tcl", ".pl", ".py", ".csh", ".sh", ".bash")
 
 
-def _check_stage_steps(ctx: ChopperContext, manifest: CompiledManifest) -> None:
+def _check_stage_steps(
+    ctx: ChopperContext,
+    manifest: CompiledManifest,
+    tool_command_pool: frozenset[str] = frozenset(),
+) -> None:
     if not manifest.stages:
         return
 
@@ -816,6 +821,7 @@ def _check_stage_steps(ctx: ChopperContext, manifest: CompiledManifest) -> None:
                 step=step,
                 surviving_files=surviving_files,
                 surviving_proc_shorts=surviving_proc_short,
+                tool_command_pool=tool_command_pool,
             )
 
 
@@ -842,6 +848,7 @@ def _classify_and_emit(
     step: str,
     surviving_files: frozenset[Path],
     surviving_proc_shorts: frozenset[str],
+    tool_command_pool: frozenset[str] = frozenset(),
 ) -> None:
     stripped = step.strip()
     if not stripped:
@@ -888,7 +895,7 @@ def _classify_and_emit(
     # VW-15: bare proc token.
     if _looks_like_bare_proc(stripped):
         proc_name = stripped.split()[0]
-        if proc_name not in surviving_proc_shorts:
+        if proc_name not in surviving_proc_shorts and proc_name not in tool_command_pool:
             ctx.diag.emit(
                 Diagnostic.build(
                     "VW-15",
@@ -917,7 +924,12 @@ def _looks_like_bare_proc(step: str) -> bool:
         return False
     if any(head.endswith(ext) for ext in _FILE_EXT_SUFFIXES):
         return False
-    return bool(head) and not head.startswith("#")
+    if not head or head.startswith("#"):
+        return False
+    # Reject Tcl syntax artifacts and variable references.
+    if head in ("}", "{") or head.startswith("$"):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------

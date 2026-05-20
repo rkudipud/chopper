@@ -148,7 +148,7 @@ class ChopperRunner:
 
                 # P6 — Post-validate final Tcl outputs rewritten during P5.
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
-                validate_post(ctx, manifest, graph, rewritten, trim_report=trim_report)
+                validate_post(ctx, manifest, graph, rewritten, trim_report=trim_report, tool_command_pool=loaded.tool_command_pool)
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
                     exit_code = 1
@@ -165,7 +165,7 @@ class ChopperRunner:
                 if command == "loc":
                     artifacts = GeneratorService().run(ctx, manifest)
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
-                validate_post(ctx, manifest, graph, rewritten=(), trim_report=None)
+                validate_post(ctx, manifest, graph, rewritten=(), trim_report=None, tool_command_pool=loaded.tool_command_pool)
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
                     exit_code = 1
