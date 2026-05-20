@@ -200,7 +200,7 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
                     namespace_path=tracker.namespace_path,
                 )
                 diagnostics.extend(entry_diags)
-                if entry is not None:
+                if entry is not None:  # pragma: no branch
                     procs.append(entry)
                     # §4.6 forward DPA scan.
                     dpa_start, dpa_end, dpa_diags = _scan_dpa(

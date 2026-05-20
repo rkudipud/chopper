@@ -583,6 +583,22 @@ def test_glob_has_matches_regex_pattern_matches_returns_true() -> None:
     assert result is True  # lines 287-288 covered
 
 
+def test_glob_has_matches_regex_pattern_skips_non_matching_file() -> None:
+    """When regex is not None but fullmatch is False for a file, the loop
+    continues to the next child (covers branch 287→271)."""
+    from chopper.validator.functions import _glob_has_matches
+
+    fs = InMemoryFS()
+    # foo.py does not match **/*.tcl; bar.tcl does — so the loop must iterate past foo.py
+    fs.write_text(DOMAIN / "foo.py", "")
+    fs.write_text(DOMAIN / "bar.tcl", "")
+    cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
+    ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
+
+    result = _glob_has_matches(ctx2, "**/*.tcl")
+    assert result is True  # bar.tcl matches after skipping foo.py
+
+
 def test_glob_has_matches_fnmatchcase_no_match_continues() -> None:
     """_glob_has_matches continues when fnmatchcase returns False (289->271)."""
     from chopper.validator.functions import _glob_has_matches

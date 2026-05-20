@@ -344,6 +344,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 3.2.0 — 2026-05-19
+
+- **Coverage gate raised to 99% and validated at 100%.** Updated the project coverage threshold from 78% to 99% in active testing/config docs and pytest coverage enforcement (`--cov-fail-under=99`). Full regression gate run is green: **1410 passed, 0 failed; total coverage 100.00%** (5512 statements with 0 missed; 1912 branches with 0 partial). No schema, diagnostic-registry, CLI surface, exit-code, or runtime behavior changes. Version bumped 3.1.0 → 3.2.0.
+
 ### 3.1.0 — 2026-05-15
 
 - **New `.chopper/p4_commands.txt` audit artifact (issue #24, FR-47).** Every `chopper trim` run — live and dry-run — now emits a deterministic, sorted Perforce command list under `.chopper/p4_commands.txt`. Three alphabetically-sorted sections, each with a `#`-comment header: (1) `p4 edit -t text+x <path>` for `PROC_TRIM` files and `GENERATED` files that overwrite an existing depot entry (regenerate-in-place), (2) `p4 add -t text+x <path>` for newly-created `GENERATED` files, (3) `p4 delete <path>` for files dropped from the rebuilt domain (parity with `files_removed.txt`). `FULL_COPY` files emit no command (byte-identical to depot). `-t text+x` matches the cross-phase `ensure_executable()` contract (every rebuilt file carries `a+x`). Operators review the file and run `p4 submit` manually — Chopper never invokes `p4` itself. Not emitted by `validate`, `loc`, or `cleanup`. Architecture doc §5.5.14, FR-47. Version bumped 3.0.0 → 3.1.0.

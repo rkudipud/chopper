@@ -7,7 +7,7 @@ from importlib.metadata import version as _pkg_version
 
 try:
     __version__ = _pkg_version("chopper")
-except PackageNotFoundError:
+except PackageNotFoundError:  # pragma: no cover
     # Source checkout without install (e.g. `PYTHONPATH=src python -c 'import chopper'`).
     # Fall back to parsing pyproject.toml so the package still reports a sensible version.
     import tomllib

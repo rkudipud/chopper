@@ -481,6 +481,15 @@ class TestPrivateHelperBranches:
             )
             assert proc_extractor_module._detect_non_brace_body(tokens, proc_idx, base_depth=0) is None
 
+    def test_layout_none_and_non_brace_body_none_silently_skips(self) -> None:
+        """When _scan_proc_layout returns None and _detect_non_brace_body also
+        returns None, the proc is silently skipped (covers 221→226 False branch)."""
+        # "proc foo {}" at EOF with no body token — layout is None (incomplete)
+        # AND _detect_non_brace_body returns None (no word/word-pair after args).
+        r = extract_procs(Path("u.tcl"), "proc foo {}")
+        assert r.procs == ()
+        assert not any(d.kind == "non-brace-body" for d in r.diagnostics)
+
     def test_build_entry_reports_computed_name_when_called_directly(self) -> None:
         tokens = tokenize("proc $computed {} {}\n").tokens
         proc_idx = next(i for i, token in enumerate(tokens) if token.kind is TokenKind.WORD and token.value == "proc")

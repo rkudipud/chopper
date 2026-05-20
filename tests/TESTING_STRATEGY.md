@@ -28,7 +28,7 @@ A scenario tagged with a stage must pass before that module is declared complete
 | `core/` | ≥ 80% branch | ✅ |
 | `config/` | ≥ 85% branch | ✅ |
 | `cli/` | ≥ 70% line | ✅ |
-| **Project-wide minimum** | **≥ 78% line** | ✅ `--cov-fail-under=78` |
+| **Project-wide minimum** | **≥ 99% line** | ✅ `--cov-fail-under=99` |
 
 Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 

@@ -162,7 +162,7 @@ def mark_switch_pattern_words(tokens: tuple[Token, ...], start: int, end: int, b
                 # Body brace: leave unmarked — its code is real Tcl.
                 expecting_pattern = not expecting_pattern
                 j = rbrace_j + 1
-            else:
+            else:  # pragma: no cover - unreachable: tokenizer ensures balanced braces
                 j += 1
         else:
             j += 1

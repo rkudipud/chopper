@@ -253,3 +253,46 @@ def test_merge_vw21_action_replace_trim_to_whole_shows_prior_keep() -> None:
     assert diags
     msg = diags[0].message
     assert "alpha" in msg or "beta" in msg
+
+
+def test_merge_trim_pi_redundant_procs_no_shadow_event() -> None:
+    """When a second feature's PI adds procs already in prev.keep, `added` is
+    empty — no VW-21, no contributed_by update.
+
+    This exercises merge_service.py branch 509->523 (condition False) and
+    524->527 (condition False): the ``if added and prior_layer != layer_key``
+    and ``if added:`` guards both take the False path.
+    """
+    from chopper.compiler import CompilerService
+    from tests.unit.compiler._helpers import (
+        make_base,
+        make_ctx,
+        make_feature,
+        make_loaded,
+        make_parsed,
+        proc_ref,
+        procs_section,
+    )
+
+    ctx, sink = make_ctx()
+    # File with two procs
+    parsed = make_parsed({"lib.tcl": ["alpha", "beta"]})
+    # Base PI includes both procs (creates _Trim(keep={alpha, beta}))
+    base = make_base(
+        procedures=procs_section(include=(proc_ref("lib.tcl", "alpha", "beta"),)),
+    )
+    # Feature also includes the same procs (added will be empty)
+    feat = make_feature(
+        "redundant",
+        procedures=procs_section(include=(proc_ref("lib.tcl", "alpha", "beta"),)),
+    )
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+
+    # No VW-21 emitted because added is empty — no shadow event.
+    vw21 = [d for d in sink.emissions if d.code == "VW-21"]
+    assert vw21 == []
+    # File still ends up PROC_TRIM with both procs surviving.
+    from chopper.core.models_common import FileTreatment
+
+    assert manifest.file_decisions[Path("lib.tcl")] is FileTreatment.PROC_TRIM

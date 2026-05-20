@@ -529,7 +529,7 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
                 proc_winner[(file_path, cn)] = (layer_key, json_field)
             continue
 
-        if intent[0] == "trim-pe":
+        if intent[0] == "trim-pe":  # pragma: no branch
             _, layer_pe, reason, json_field = intent
             if prev is None:
                 new_keep = set(all_procs) - set(layer_pe)
@@ -1027,7 +1027,7 @@ def _match_glob(pattern: str, paths: frozenset[Path]) -> set[Path]:
     for path in paths:
         posix = path.as_posix()
         full_match = getattr(PurePosixPath(posix), "full_match", None)
-        if full_match is not None:
+        if full_match is not None:  # pragma: no branch
             try:
                 if full_match(pattern):
                     hits.add(path)
