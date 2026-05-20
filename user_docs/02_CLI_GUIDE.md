@@ -28,7 +28,7 @@ Steps 1 and 2 are **safe and free** — run them as often as you want. Step 4 is
 | Windows | PowerShell 5.1+ | `. .\setup.ps1` |
 | Windows | cmd.exe | `setup.bat` |
 
-Each script creates `.venv`, activates it, and installs dependencies. Python ≥ 3.11 required (3.13 preferred). Verify:
+Each script creates `.venv`, activates it, and installs dependencies. Python ≥ 3.13 required. Verify:
 
 ```text
 chopper --help

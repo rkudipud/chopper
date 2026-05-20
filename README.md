@@ -1,7 +1,7 @@
 # Chopper
 
 ![Status](https://img.shields.io/badge/status-ready-0a7a3d)
-![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
+![Python](https://img.shields.io/badge/python-3.13%2B-3776ab)
 ![License](https://img.shields.io/badge/license-Intel%20Proprietary-555555)
 ![Pipeline](https://img.shields.io/badge/pipeline-P0--P7-8a3ffc)
 

@@ -189,7 +189,7 @@ src/chopper/
 ├── orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
 ├── adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
 ├── mcp/          Stdio-only read-only MCP server                             (mcp-serve)
-└── cli/          argparse, render helpers, four subcommand handlers          (user)
+└── cli/          argparse, render helpers, five subcommand handlers           (user)
 ```
 
 Each service depends only on `core/` and its own submodules. The lone permitted exception is the validator importing the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`) — documented in `technical_docs/ARCHITECTURE.md` §5.12.9.
@@ -254,7 +254,7 @@ No. Single-threaded and deterministic. Runtime of 3–5 minutes per domain is ac
 
 ### What Python version?
 
-3.11 or later (3.13 preferred). The default `.venv` from `setup.*` uses whatever interpreter `python` resolves to.
+3.13 or later. The default `.venv` from `setup.*` uses whatever interpreter `python` resolves to.
 
 ### What happens if Chopper crashes mid-trim?
 

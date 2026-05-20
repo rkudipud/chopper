@@ -507,7 +507,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 /* Traced-only (PT) */
 .bfsNode.pt{border-color:rgba(245,158,11,.45);color:var(--warn);background:rgba(245,158,11,.06)}
 .bfsNode.pt .ntag{background:rgba(245,158,11,.18);color:var(--warn)}
-/* Unresolved (TW-01) */
+/* Unresolved (TW-02) */
 .bfsNode.unres{border-color:rgba(251,113,133,.55);color:var(--bad);background:rgba(251,113,133,.08)}
 .bfsNode.unres .ntag{background:rgba(251,113,133,.20);color:var(--bad)}
 .bfsNode.unres.flash{animation:bfsFlash .55s ease-out 1}
@@ -755,7 +755,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     <div class="kpis">
       <div class="kpi"><div class="v grad">3</div><div class="l">Capabilities &mdash; F1 &middot; F2 &middot; F3</div></div>
       <div class="kpi"><div class="v grad">8</div><div class="l">Pipeline phases P0&ndash;P7</div></div>
-      <div class="kpi"><div class="v grad">4</div><div class="l">CLI subcommands</div></div>
+      <div class="kpi"><div class="v grad">5</div><div class="l">CLI subcommands</div></div>
       <div class="kpi"><div class="v grad">2026.06</div><div class="l">CTH global beta release</div></div>
     </div>
   </div>
@@ -1183,7 +1183,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
   },
   "<span class="k">log_msg</span>": {
     "<span class="k">status</span>": "<span class="s">unresolved</span>",
-    "<span class="k">diag</span>":   "<span class="s">TW-01</span>"
+    "<span class="k">diag</span>":   "<span class="s">TW-02</span>"
   }
 }</pre>
       <div class="callout">
@@ -1192,7 +1192,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
       </div>
       <p style="font-size:15px;color:var(--ink-dim);margin-top:6px">
         <strong>PI</strong> = explicitly kept &middot; <strong>PT</strong> = traced-only (reporting) &middot;
-        <strong>unres</strong> = unresolved (<code>TW-01</code>)
+        <strong>unres</strong> = unresolved (<code>TW-02</code>)
       </p>
     </div>
   </div>
@@ -2479,11 +2479,11 @@ function animateProcTrace(){
       const tag = n.querySelector('.ntag');
 
       if(_callees === null){
-        // Unresolved — emit TW-01, mark red, stop.
+        // Unresolved — emit TW-02, mark red, stop.
         n.classList.remove('visiting');
         n.classList.add('unres','flash');
-        if(tag) tag.textContent = 'TW-01';
-        diags.push('TW-01 unresolved-proc-call · ' + _cur);
+        if(tag) tag.textContent = 'TW-02';
+        diags.push('TW-02 unresolved-proc-call · ' + _cur);
         renderDiags(diags);
       } else {
         // Resolved — kept (PI) for the root, traced-only (PT) for the rest.
