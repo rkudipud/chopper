@@ -59,6 +59,43 @@ def test_format_tcl_indentation_ports_legacy_brace_logic() -> None:
     )
 
 
+def test_format_tcl_indentation_backslash_continuation() -> None:
+    """Backslash-continuation lines get one extra indent level."""
+    text = 'proc foo {} {\nputs body\n}\ndefine_proc_attributes foo \\\n-info "does something"\n'
+    result = format_tcl_indentation(text)
+    assert result == ('proc foo {} {\n    puts body\n}\ndefine_proc_attributes foo \\\n    -info "does something"\n')
+
+
+def test_format_tcl_indentation_multi_continuation() -> None:
+    """Multiple consecutive continuation lines all get one extra indent level."""
+    text = "set long_cmd \\\n-opt1 val1 \\\n-opt2 val2 \\\n-opt3 val3\n"
+    result = format_tcl_indentation(text)
+    # All continuation lines at same indent (+1 level from opening line)
+    assert result == ("set long_cmd \\\n    -opt1 val1 \\\n    -opt2 val2 \\\n    -opt3 val3\n")
+
+
+def test_format_tcl_indentation_continuation_inside_proc() -> None:
+    """Continuation inside a proc body gets proc indent + continuation indent."""
+    text = "proc bar {} {\nsome_command \\\n-flag value\nputs done\n}\n"
+    result = format_tcl_indentation(text)
+    assert result == ("proc bar {} {\n    some_command \\\n        -flag value\n    puts done\n}\n")
+
+
+def test_format_tcl_indentation_double_backslash_not_continuation() -> None:
+    r"""Line ending with \\\\ (escaped backslash) is NOT a continuation."""
+    text = 'set path "C:\\\\"\nputs next_line\n'
+    result = format_tcl_indentation(text)
+    # Both lines at indent 0 — no continuation
+    assert result == ('set path "C:\\\\"\nputs next_line\n')
+
+
+def test_format_tcl_indentation_blank_lines_no_trailing_whitespace() -> None:
+    """Blank lines inside proc bodies are truly empty (no trailing whitespace)."""
+    text = "proc foo {} {\n\n    puts body\n\t\n    puts more\n}\n"
+    result = format_tcl_indentation(text)
+    assert result == ("proc foo {} {\n\n    puts body\n\n    puts more\n}\n")
+
+
 def test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl() -> None:
     """P5c rewrites PROC_TRIM and GENERATED ``.tcl`` only.
 
@@ -112,3 +149,53 @@ def test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl() -> None
     assert outcomes["trim.tcl"].bytes_out == len(fs.read_text(DOMAIN / "trim.tcl").encode("utf-8"))
     assert outcomes["note.txt"].bytes_out == len(note_text.encode("utf-8"))
     assert updated_artifacts[0].content == fs.read_text(DOMAIN / "stage.tcl")
+
+
+# -- Fixture-based tests (real-world patterns) --
+
+FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "edge_cases"
+
+
+def test_format_tcl_indentation_fixture_backslash_continuation() -> None:
+    """Real-world fixture: indentation handles backslash continuations,
+    trailing whitespace, and blank lines inside proc bodies correctly."""
+    fixture = FIXTURES_DIR / "indent_backslash_continuation.tcl"
+    text = fixture.read_text(encoding="utf-8")
+    result = format_tcl_indentation(text)
+
+    # Idempotency: re-formatting produces identical output.
+    assert format_tcl_indentation(result) == result
+
+    # No trailing whitespace on any line.
+    for i, line in enumerate(result.splitlines(), 1):
+        assert line == line.rstrip(), f"Line {i} has trailing whitespace: {repr(line)}"
+
+    # Blank lines are truly empty (no whitespace-only lines).
+    for i, line in enumerate(result.splitlines(), 1):
+        if not line.strip():
+            assert line == "", f"Line {i} is whitespace-only: {repr(line)}"
+
+    # Specific structural checks:
+    lines = result.splitlines()
+
+    # define_proc_attributes continuation: -info line gets +1 indent from proc body
+    for i, line in enumerate(lines):
+        if "define_proc_attributes read_libs \\" in line:
+            # Inside proc body (indent=1), continuation is (1+1)*4 = 8 spaces
+            assert lines[i + 1].startswith("        -info"), f"Continuation line not indented: {repr(lines[i + 1])}"
+            break
+
+    # Multi-continuation: all continuation args at same level
+    for i, line in enumerate(lines):
+        if "set long_command [some_proc \\" in line:
+            assert lines[i + 1].startswith("    -arg1"), repr(lines[i + 1])
+            assert lines[i + 2].startswith("    -arg2"), repr(lines[i + 2])
+            assert lines[i + 3].startswith("    -arg3"), repr(lines[i + 3])
+            break
+
+    # Double-backslash is NOT treated as continuation
+    for i, line in enumerate(lines):
+        if 'set path "C:\\\\Windows\\\\System32\\\\"' in line:
+            # Next line should be at indent 0, not +1
+            assert lines[i + 1] == "puts $path", repr(lines[i + 1])
+            break

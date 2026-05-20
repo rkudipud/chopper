@@ -101,18 +101,27 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
 
     The formatter strips leading whitespace from each line, tracks a
     running indentation level from unescaped Tcl braces, outdents lines
-    that begin with a closing brace, and half-outdents selected domain
-    marker lines. It always emits LF line endings and terminates
-    non-empty files with a final newline.
+    that begin with a closing brace, half-outdents selected domain
+    marker lines, and indents backslash-continuation lines one extra
+    level beyond the opening line. It always emits LF line endings and
+    terminates non-empty files with a final newline.
     """
 
     if text == "":
         return ""
 
     indent = 0
+    is_continuation = False
     output: list[str] = []
     for raw_line in text.splitlines():
-        line = raw_line.lstrip()
+        line = raw_line.strip()
+
+        # Preserve blank lines as truly empty (no trailing whitespace).
+        if not line:
+            output.append("")
+            is_continuation = False
+            continue
+
         flag = 0
         original_indent = indent
         previous = ""
@@ -132,13 +141,19 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
                 if flag == 0:
                     flag += 1
 
-        if flag == 1:
+        if is_continuation:
+            spaces = tab_space * (original_indent + 1)
+        elif flag == 1:
             spaces = tab_space * (original_indent - 1)
         elif _MARKER_LINE.match(line):
             spaces = (tab_space * original_indent) - (tab_space // 2)
         else:
             spaces = tab_space * original_indent
         output.append(f"{' ' * max(spaces, 0)}{line}")
+
+        # Detect backslash-continuation: line ends with odd number of
+        # trailing backslashes (simplification: just check single `\`).
+        is_continuation = line.endswith("\\") and not line.endswith("\\\\")
 
     return "\n".join(output) + "\n"
 
