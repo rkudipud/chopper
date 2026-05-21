@@ -641,3 +641,174 @@ def test_case_2_full_copy_into_subdirectory_succeeds() -> None:
     assert fs.read_text(DOMAIN / "onepower" / "power_utils.tcl") == "proc power_utils {} {}\n"
     # Backup must remain intact.
     assert fs.read_text(BACKUP / "onepower" / "analyze_power.tcl") == "proc analyze_power {} {}\n"
+
+
+# ---------------------------------------------------------------------------
+# Case 2 JSON sync — user edits to <domain>/jsons/ survive re-trim
+# ---------------------------------------------------------------------------
+
+
+def test_case2_syncs_domain_jsons_to_backup_before_delete() -> None:
+    """On a Case 2 rerun the user's edits in <domain>/jsons/ must be synced
+    into <domain>_backup/jsons/ before the domain is deleted, so that
+    preserve_input_sources (P5a tail) restores the latest user JSONs.
+    """
+    fs = InMemoryFS(
+        {
+            # Domain has user-edited JSONs.
+            DOMAIN / "jsons" / "base.json": '{"domain":"d","edited":true}',
+            DOMAIN / "jsons" / "features" / "f1.feature.json": '{"name":"f1_v2"}',
+            # Domain also has a trimmed .tcl (irrelevant to the test but
+            # establishes the Case 2 scenario).
+            DOMAIN / "a.tcl": "# trimmed\n",
+            # Backup has STALE JSONs from the first run.
+            BACKUP / "jsons" / "base.json": '{"domain":"d","edited":false}',
+            BACKUP / "jsons" / "features" / "f1.feature.json": '{"name":"f1_v1"}',
+            # Backup has original .tcl sources.
+            BACKUP / "a.tcl": "proc hello {} { return hi }\n",
+        }
+    )
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {"a.tcl": FileTreatment.FULL_COPY},
+        {"a.tcl::hello": "files.include"},
+    )
+    parsed = _parsed({"a.tcl": [_proc("a.tcl", "hello", start=1, end=1)]})
+    state = _state(2, domain_exists=True, backup_exists=True)
+
+    TrimmerService().run(ctx, manifest, parsed, state)
+
+    # After trim, backup/jsons/ must have the user's EDITED content.
+    assert fs.read_text(BACKUP / "jsons" / "base.json") == '{"domain":"d","edited":true}'
+    assert fs.read_text(BACKUP / "jsons" / "features" / "f1.feature.json") == '{"name":"f1_v2"}'
+    # No unexpected diagnostics.
+    assert sink.codes() == []
+
+
+def test_case2_jsons_sync_removes_deleted_feature_json() -> None:
+    """If the user deleted a feature JSON between runs, the sync must not
+    leave it lingering in the backup's jsons/ directory.
+    """
+    fs = InMemoryFS(
+        {
+            # Domain jsons — user removed f2.feature.json between runs.
+            DOMAIN / "jsons" / "base.json": '{"domain":"d"}',
+            DOMAIN / "jsons" / "features" / "f1.feature.json": '{"name":"f1"}',
+            DOMAIN / "a.tcl": "# trimmed\n",
+            # Backup has the stale f2 that no longer exists in domain.
+            BACKUP / "jsons" / "base.json": '{"domain":"d"}',
+            BACKUP / "jsons" / "features" / "f1.feature.json": '{"name":"f1"}',
+            BACKUP / "jsons" / "features" / "f2.feature.json": '{"name":"f2_obsolete"}',
+            BACKUP / "a.tcl": "proc hello {} { return hi }\n",
+        }
+    )
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {"a.tcl": FileTreatment.FULL_COPY},
+        {"a.tcl::hello": "files.include"},
+    )
+    parsed = _parsed({"a.tcl": [_proc("a.tcl", "hello", start=1, end=1)]})
+    state = _state(2, domain_exists=True, backup_exists=True)
+
+    TrimmerService().run(ctx, manifest, parsed, state)
+
+    # f2 must no longer exist in backup/jsons/.
+    assert not fs.exists(BACKUP / "jsons" / "features" / "f2.feature.json")
+    # f1 must still be present.
+    assert fs.exists(BACKUP / "jsons" / "features" / "f1.feature.json")
+
+
+def test_case2_jsons_sync_oserror_is_suppressed() -> None:
+    """If the jsons/ sync fails (e.g. read-only backup), the trim still
+    proceeds using the stale backup content — no crash, no diagnostic.
+    """
+
+    class _FailRemove(InMemoryFS):
+        def remove(self, path: Path, *, recursive: bool = False) -> None:
+            if "jsons" in str(path) and "backup" in str(path):
+                raise OSError("read-only backup")
+            return super().remove(path, recursive=recursive)
+
+    fs = _FailRemove(
+        {
+            DOMAIN / "jsons" / "base.json": '{"domain":"d","new":true}',
+            DOMAIN / "a.tcl": "# trimmed\n",
+            BACKUP / "jsons" / "base.json": '{"domain":"d","new":false}',
+            BACKUP / "a.tcl": "proc hello {} { return hi }\n",
+        }
+    )
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {"a.tcl": FileTreatment.FULL_COPY},
+        {"a.tcl::hello": "files.include"},
+    )
+    parsed = _parsed({"a.tcl": [_proc("a.tcl", "hello", start=1, end=1)]})
+    state = _state(2, domain_exists=True, backup_exists=True)
+
+    report = TrimmerService().run(ctx, manifest, parsed, state)
+
+    # Trim completed successfully despite the sync failure.
+    assert report.rebuild_interrupted is False
+    # No error diagnostics from the sync step.
+    assert "VE-23" not in sink.codes()
+
+
+def test_case2_no_domain_jsons_dir_skips_sync_gracefully() -> None:
+    """When <domain>/jsons/ doesn't exist (user never created one), the
+    sync step is a no-op and the trim proceeds normally.
+    """
+    fs = InMemoryFS(
+        {
+            # Domain has .tcl files but NO jsons/ directory.
+            DOMAIN / "a.tcl": "# trimmed\n",
+            # Backup has original .tcl sources and its own jsons/.
+            BACKUP / "jsons" / "base.json": '{"domain":"d"}',
+            BACKUP / "a.tcl": "proc hello {} { return hi }\n",
+        }
+    )
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {"a.tcl": FileTreatment.FULL_COPY},
+        {"a.tcl::hello": "files.include"},
+    )
+    parsed = _parsed({"a.tcl": [_proc("a.tcl", "hello", start=1, end=1)]})
+    state = _state(2, domain_exists=True, backup_exists=True)
+
+    report = TrimmerService().run(ctx, manifest, parsed, state)
+
+    # Trim succeeds; backup jsons untouched (no sync happened).
+    assert report.rebuild_interrupted is False
+    assert sink.codes() == []
+    assert fs.read_text(BACKUP / "jsons" / "base.json") == '{"domain":"d"}'
+
+
+def test_case2_sync_creates_backup_jsons_when_absent() -> None:
+    """When backup has no jsons/ directory yet (e.g. manually created backup
+    containing only .tcl sources), the sync must create it from scratch.
+    """
+    fs = InMemoryFS(
+        {
+            # Domain has jsons/ with user content.
+            DOMAIN / "jsons" / "base.json": '{"domain":"d","fresh":true}',
+            DOMAIN / "a.tcl": "# trimmed\n",
+            # Backup has .tcl sources but NO jsons/ directory.
+            BACKUP / "a.tcl": "proc hello {} { return hi }\n",
+        }
+    )
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {"a.tcl": FileTreatment.FULL_COPY},
+        {"a.tcl::hello": "files.include"},
+    )
+    parsed = _parsed({"a.tcl": [_proc("a.tcl", "hello", start=1, end=1)]})
+    state = _state(2, domain_exists=True, backup_exists=True)
+
+    TrimmerService().run(ctx, manifest, parsed, state)
+
+    # Sync must have created backup/jsons/ from domain's content.
+    assert fs.read_text(BACKUP / "jsons" / "base.json") == '{"domain":"d","fresh":true}'

@@ -128,12 +128,53 @@ class TrimmerService:
             ctx.fs.rename(domain, backup)
             ctx.fs.mkdir(domain, parents=True, exist_ok=False)
         elif state.case == 2:
+            # Sync the user's current jsons/ into the backup before
+            # deleting the domain. Users edit JSONs in <domain>/jsons/,
+            # not in <domain>_backup/jsons/. Without this step the stale
+            # backup copy would overwrite their edits when
+            # preserve_input_sources mirrors jsons/ back at P5a tail.
+            self._sync_domain_jsons_to_backup(ctx, domain, backup)
             ctx.fs.remove(domain, recursive=True)
             ctx.fs.mkdir(domain, parents=True, exist_ok=False)
         elif state.case == 3:
             ctx.fs.mkdir(domain, parents=True, exist_ok=False)
         else:  # pragma: no cover — guarded by run()
             raise ValueError(f"unexpected DomainState case {state.case}")
+
+    # ------------------------------------------------------------------
+    # JSON sync for Case 2 reruns
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _sync_domain_jsons_to_backup(ctx: ChopperContext, domain: Path, backup: Path) -> None:
+        """Copy ``<domain>/jsons/`` → ``<domain>_backup/jsons/`` so the
+        backup always reflects the user's latest JSON edits.
+
+        Users edit JSONs in the working domain, not in the backup. On a
+        Case 2 rerun the domain is about to be deleted; without this
+        sync step the stale backup copy would win when
+        ``preserve_input_sources`` mirrors jsons/ back at P5a tail.
+
+        Failures are suppressed — the run will proceed with whatever
+        jsons/ content the backup already contains.
+        """
+        domain_jsons = domain / "jsons"
+        backup_jsons = backup / "jsons"
+
+        if not ctx.fs.exists(domain_jsons):
+            return
+
+        try:
+            # Remove stale backup jsons/ first so deleted files don't
+            # persist (e.g. user removed a feature JSON between runs).
+            if ctx.fs.exists(backup_jsons):
+                ctx.fs.remove(backup_jsons, recursive=True)
+            ctx.fs.mkdir(backup_jsons, parents=True, exist_ok=True)
+            _sync_dir(ctx, domain_jsons, backup_jsons)
+        except OSError:
+            # Best-effort; preserve_input_sources will use whatever the
+            # backup has. The run itself is unaffected because P1 already
+            # loaded the JSONs from the domain path before we got here.
+            pass
 
     # ------------------------------------------------------------------
     # Per-file dispatch
@@ -345,3 +386,25 @@ def _emit_vw22(ctx: ChopperContext, rel_path: Path) -> None:
             ),
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Filesystem helpers
+# ---------------------------------------------------------------------------
+
+
+def _sync_dir(ctx: ChopperContext, src: Path, dst: Path) -> None:
+    """Recursively copy all files under *src* into *dst*.
+
+    Creates intermediate directories as needed. *dst* must already exist.
+    """
+    for child in ctx.fs.list(src):
+        stat = ctx.fs.stat(child)
+        rel = child.relative_to(src)
+        dst_child = dst / rel
+        if stat.is_dir:
+            ctx.fs.mkdir(dst_child, parents=True, exist_ok=True)
+            _sync_dir(ctx, child, dst_child)
+        else:
+            ctx.fs.mkdir(dst_child.parent, parents=True, exist_ok=True)
+            ctx.fs.copy_file(child, dst_child)

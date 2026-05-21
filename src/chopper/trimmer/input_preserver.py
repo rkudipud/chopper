@@ -5,6 +5,10 @@ loop has succeeded and only on a live (non-dry-run) trim, the entire
 ``jsons/`` directory from the backup is mirrored into the rebuilt
 ``<domain>/jsons/``:
 
+* The ``_prepare_workspace`` step (Case 2) syncs the user's current
+  ``<domain>/jsons/`` into ``<domain>_backup/jsons/`` *before* deleting
+  the domain. This ensures the backup always reflects the user's latest
+  JSON edits, and the mirror step below restores them faithfully.
 * The whole ``<domain_backup>/jsons/`` subtree is copied verbatim so
   every JSON that existed in the original domain — selected or not —
   is present in the rebuilt domain without ambiguity.

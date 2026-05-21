@@ -82,6 +82,57 @@ Probe with `echo $shell` (Unix) or `$PSVersionTable.PSVersion` (Windows) before 
 
 ---
 
+## ⚠ Critical Filesystem Guardrails (Never Violate)
+
+Before any `chopper validate`, `chopper trim`, or restore-from-snapshot operation, enforce these rules. Violating any one of them has caused silent data loss in past sessions.
+
+### Guardrail 1: `<domain>_backup/` is Chopper-reserved — it is NOT a user snapshot location
+
+`<domain>_backup/` is a name Chopper itself owns. When `chopper trim` runs:
+
+- It uses `<domain>_backup/` as the source-of-truth for file reads (`src/chopper/trimmer/service.py`).
+- It **copies `<domain>_backup/jsons/` verbatim into the rebuilt working domain** (`src/chopper/trimmer/input_preserver.py`).
+- The CLI has a single-shot `_backup` redirect that maps `--domain foo_backup` → `foo` if `foo/` exists as a sibling (`src/chopper/cli/commands.py:79`).
+
+**Consequences if you ignore this:**
+
+- A user who maintains `fev_formality_backup/` as their own pristine snapshot will see edits to `fev_formality/jsons/base.json` silently reverted on the next `chopper trim` because the input_preserver overwrites them with the stale backup copy.
+- `chopper validate` may appear to honor edits while `chopper trim` silently uses the backup tree — producing baffling "my changes didn't take effect" reports.
+
+**What you must do:**
+
+- **Before any `validate` or `trim`**, run `ls -d <domain>* 2>/dev/null` and check for a sibling `<domain>_backup/`. If one exists with content you did not create in this session, **stop and ask the user**: rename it (e.g. `<domain>.pristine/`, `<domain>.orig/`, `<domain>_snapshot/`), delete it, or accept it as authoritative. Anything ending in `_backup` is reserved.
+- **Never instruct a user to `cp -r <domain>/ <domain>_backup/`** as a "make a safety copy" step. Suggest `<domain>.pristine/` or `<domain>.orig/` instead.
+- **Never create `<domain>_backup/` yourself.** Chopper will create and manage that directory; treat it as Chopper-owned.
+
+### Guardrail 2: Never use wildcards or recursive cp when restoring user files
+
+When the user asks for help recovering files that `chopper trim` has rewritten:
+
+- **Copy only specific files, by full literal name, one explicit source per cp argument.**
+- **Forbidden patterns** (do not issue these, even from a script):
+  - `cp <snapshot>/* <domain>/`
+  - `cp -r <snapshot>/jsons/ <domain>/jsons/`
+  - `cp <snapshot>/jsons/*.json <domain>/jsons/`
+  - Any glob that could match JSON files in `jsons/`
+- **JSON authoring files (`jsons/base.json`, `jsons/features/*.feature.json`, `jsons/projects/*.json`) are working state owned by the user.** Agents are not authorized to overwrite them via cp / mv / sed-in-place. Restore them only with explicit `replace_string_in_file` / `create_file` edits the user can review.
+- If the user **explicitly** asks to restore a JSON from a snapshot, name the file you are about to overwrite, show the user the target path, and wait for confirmation.
+
+### Guardrail 3: `chopper trim` is destructive — verify a recovery path exists first
+
+`chopper trim` (live, not dry-run) overwrites source .tcl files with their GEN output. Before issuing a live trim:
+
+1. **Confirm the user has version control** (`git status` is clean or they have an explicit `git stash`) **or** an out-of-band snapshot stored **outside the `<domain>_backup/` reserved namespace**.
+2. **Always prefer `--dry-run`** until the manifest, diagnostics, and SLOC numbers match intent.
+3. **If a recovery snapshot is needed**, place it at `<domain>.pristine/`, `<domain>.orig/`, or anywhere whose basename does **not** end in `_backup`.
+4. **After any live trim**, the working .tcl files contain GEN output, not original sources. Restoring them requires the snapshot from step 1 — never `cp` from `<domain>_backup/` because that is Chopper-managed and may have been mutated.
+
+### Guardrail 4: When in doubt, stop and ask
+
+If the user's recovery request mixes JSONs and .tcls, or names a backup tree that ends in `_backup`, **stop the destructive command and ask the user a single focused question** before proceeding. Silent data loss is worse than a one-turn pause.
+
+---
+
 ## Internalized Personas (No Subagent Switch Needed)
 
 You operate as a single agent that fluidly applies four mindsets depending on the request. There is **no separate `principal-software-engineer`, `swe`, `devils-advocate`, or `beast-mode` agent** \u2014 their behaviors live in you.

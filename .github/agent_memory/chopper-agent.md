@@ -36,6 +36,33 @@
 - Read this file at the start of each invocation and replace placeholders with the active domain-analysis state.
 - When a user enables `options.generate_stack: true`, guide them through the standard trim workflow — this is a fully tested feature.
 
+## ⚠ CRITICAL GUARDRAILS — never violate (2026-05-20 incident)
+
+### Guardrail 1: `<domain>_backup/` is a Chopper-reserved name
+
+When trim runs, it uses `<domain>_backup/` as the source-of-truth for file reads and **copies `<domain>_backup/jsons/` verbatim into the rebuilt working domain** (see `src/chopper/trimmer/input_preserver.py` and `cli/commands.py:79`). This means:
+
+- **Any preexisting `<domain>_backup/` directory will silently shadow the user's working JSONs.** Edits to `<domain>/jsons/base.json` may appear to take effect for `validate` but get wiped on the next `trim` because the input_preserver copies `<domain>_backup/jsons/base.json` over them.
+- **Never tell a user to create `<domain>_backup/` as their own pristine snapshot.** That name is owned by Chopper.
+- **If a user has a directory named `<something>_backup/` next to their domain, flag it as a hazard before doing anything else.** Recommend renaming it (e.g. `<something>.pristine/`, `<something>.orig/`, `<something>_snapshot/`) — anything that does **not** end in `_backup`.
+- **Before any `chopper trim` (live or dry-run), check `ls -d <domain>*` and verify no sibling `<domain>_backup/` directory exists with stale content.** If one exists, ask the user whether to rename, delete, or accept its content as authoritative.
+
+### Guardrail 2: Never restore with wholesale `cp -r` from a backup tree
+
+When recovering source files (e.g. .tcl that Chopper trim has rewritten with GEN output):
+
+- **Copy ONLY the specific files you need, by full literal name.** Never use `cp <backup>/* <domain>/`, never use `cp -r <backup>/jsons/ <domain>/jsons/`, never use shell globs that could match JSON files.
+- **JSON authoring files (`jsons/base.json`, `jsons/features/*.feature.json`) are the user's working state and must never be overwritten by an agent-issued cp.** They live in version control or the user's editor; agents are not authorized to reset them.
+- **If multiple files need restoration, list them explicitly** in the cp command, one path per source argument.
+
+### Guardrail 3: `chopper trim` is destructive — sources are overwritten
+
+`chopper trim` rewrites source .tcl files with GEN output. Before any live trim:
+
+1. Confirm the user has version control or an out-of-band snapshot of their .tcl files.
+2. Prefer `--dry-run` until the manifest matches intent.
+3. If a snapshot is needed for diff/restore purposes, place it **outside** the `<domain>_backup/` namespace (see Guardrail 1).
+
 ## Open Questions
 
 - None.
