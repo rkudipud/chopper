@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-30 | 27 | 3 | 30 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-30 | 19 | 9 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures (2 retired slots: VW-18, VW-19) |
+| `VW` Validation Warnings | VW-01–VW-30 | 20 | 8 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01–VI-05 | 3 | 2 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **73** | **45** | **120** | |
+| **Total** | | **74** | **44** | **120** | |
 
 ---
 
@@ -100,7 +100,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-19 | `RETIRED` | — | — | — | **RETIRED in 2.0.0-alpha** — was `cross-source-fe-vetoed` under the additive-only model. Cannot fire under the ordered-overlay R1 (a later layer's FE actually removes the file rather than being vetoed). Slot preserved per registry policy. | — |
 | VW-20 | `audit-write-failed` | 7 | audit | 0 | An audit-bundle artifact under `.chopper/` could not be written (filesystem-layer `OSError`: disk full, permission denied, etc.). The run otherwise succeeded; this diagnostic ensures silent partial bundles surface to the user instead of being swallowed. The artifact name is included in the diagnostic context. | Free disk space or fix `.chopper/` permissions and re-run; check `diagnostics.json` for the failed artifact name |
 | VW-21 | `layer-shadowed` | 1 | compiler | 0 | A later layer in the R1 overlay actually changed a decision made by an earlier layer. The message is action-specific and includes the affected proc names: `add-proc` names the added procs, prior keep-set, and combined keep-set; `remove-proc` names the removed procs, prior keep-set, and remaining set; `downgrade-whole-to-trim` names the resulting keep-set (and excluded procs when PE-driven); `remove` names the layer that excluded a file; `replace` shows old vs new proc sets. The audit bundle records each transition with `(layer, prior_layer, action)` provenance. | No action required if intentional; verify the layer order in `project.features[]` if the shadow is unexpected. |
-| — | — | — | — | — | **VW-22 through VW-30 reserved** | — |
+| VW-22 | `proc-trim-no-drop` | 5 | trimmer | 0 | A live P5 `PROC_TRIM` file had zero procs to remove: every proc found in `<domain>_backup/` already belonged to the keep set. The rebuilt file is byte-identical to the backup copy. Most common cause: `<domain>_backup/` holds a prior run’s post-trim output rather than the original pre-trim source (i.e., `chopper cleanup --confirm` removed the real backup; a subsequent Case 1 run then promoted the already-trimmed domain to backup; the next trim finds nothing more to drop). This is not a correctness failure — the trimmed output is accurate for the files Chopper could see — but it means the original source lines are no longer recoverable from `<domain>_backup/` alone. Signals that proc-accounting statistics in `trim_report.json` / `trim_report.txt` will show `bytes_in == bytes_out` and `procs_removed = []` for the affected file, which will differ from any prior run that trimmed the same file from the original source. | Verify that `<domain>_backup/<file>` is the original pre-trim source: check its line count or diff against a known-good version in version control. If the backup is stale, restore the original from P4 or VCS at a pre-trim CL, delete `<domain>_backup/`, and re-run `chopper trim`. Do not call `chopper cleanup --confirm` between regression passes if consistent proc-drop accounting across runs is required. |
+| — | — | — | — | — | **VW-23 through VW-30 reserved** | — |
 
 ---
 

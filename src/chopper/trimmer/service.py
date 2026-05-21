@@ -156,7 +156,10 @@ class TrimmerService:
                     f"PROC_TRIM requested for {rel_path.as_posix()!r} but file is absent from ParseResult"
                 )
             keep_canonical = keep_by_file.get(rel_path, frozenset())
-            return proc_trim_file(ctx, rel_path, parsed=parsed_file, keep_canonical=keep_canonical)
+            outcome = proc_trim_file(ctx, rel_path, parsed=parsed_file, keep_canonical=keep_canonical)
+            if not outcome.procs_removed:
+                _emit_vw22(ctx, rel_path)
+            return outcome
         if treatment is FileTreatment.REMOVE:
             return remove_file(ctx, rel_path)
         if treatment is FileTreatment.GENERATED:
@@ -315,6 +318,30 @@ def _emit_ve26(ctx: ChopperContext, rel_path: Path, detail: str) -> None:
             hint=(
                 "Parser output is stale relative to the file on disk; re-run after reconciling "
                 "the backup contents with the expected domain state"
+            ),
+        )
+    )
+
+
+def _emit_vw22(ctx: ChopperContext, rel_path: Path) -> None:
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VW-22",
+            phase=Phase.P5_TRIM,
+            message=(
+                f"PROC_TRIM file had no procs to remove: {rel_path.as_posix()!r}. "
+                "The backup copy already contains only the surviving proc set; "
+                "the rebuilt file is byte-identical to the backup. "
+                "Most likely cause: <domain>_backup/ holds a prior run's post-trim output "
+                "rather than the original pre-trim source."
+            ),
+            path=rel_path,
+            hint=(
+                "Verify that <domain>_backup/ was not replaced with an already-trimmed copy between runs. "
+                "If the backup is stale, restore the original source from version control, "
+                "delete <domain>_backup/, and re-run chopper trim. "
+                "Do not run chopper cleanup --confirm between regression passes "
+                "if consistent proc-drop statistics across runs are required."
             ),
         )
     )

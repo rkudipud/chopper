@@ -344,6 +344,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 3.2.1 — 2026-05-20
+
+- **New `VW-22 proc-trim-no-drop` diagnostic (issue #26).** Chopper now emits a warning when a `PROC_TRIM` file’s backup contains zero procs to remove — i.e. every proc found in `<domain>_backup/` already belongs to the keep set. The built file is byte-identical to the backup. The canonical cause is a stale backup that holds a prior run’s post-trim output: `chopper cleanup --confirm` removed the real backup; a subsequent Case 1 run promoted the already-trimmed domain to backup; the second trim has nothing more to do. `VW-22` surfaces this in `diagnostics.json` so regression pipelines can distinguish a genuine “no change needed” trim from a “backup was already trimmed” silent no-op. Recovery: restore the original pre-trim source from version control, delete `<domain>_backup/`, and re-run. Version bumped 3.2.0 → 3.2.1.
+
 ### 3.2.0 — 2026-05-19
 
 - **Coverage gate raised to 99% and validated at 100%.** Updated the project coverage threshold from 78% to 99% in active testing/config docs and pytest coverage enforcement (`--cov-fail-under=99`). Full regression gate run is green: **1410 passed, 0 failed; total coverage 100.00%** (5512 statements with 0 missed; 1912 branches with 0 partial). No schema, diagnostic-registry, CLI surface, exit-code, or runtime behavior changes. Version bumped 3.1.0 → 3.2.0.
