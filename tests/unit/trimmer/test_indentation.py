@@ -199,3 +199,43 @@ def test_format_tcl_indentation_fixture_backslash_continuation() -> None:
             # Next line should be at indent 0, not +1
             assert lines[i + 1] == "puts $path", repr(lines[i + 1])
             break
+
+
+def test_format_tcl_indentation_fixture_comment_braces() -> None:
+    """Comments with braces must not affect indentation or brace counting."""
+    fixture = FIXTURES_DIR / "indent_comment_braces.tcl"
+    text = fixture.read_text(encoding="utf-8")
+    result = format_tcl_indentation(text)
+
+    # Idempotency
+    assert format_tcl_indentation(result) == result
+
+    lines = result.splitlines()
+    # proc body: comment line should be indented to proc level and 'puts ok' should be indented
+    for i, line in enumerate(lines):
+        if line.startswith("proc test {} {"):
+            # comment line follows and should be indented to proc level
+            assert lines[i + 1].startswith("    #"), repr(lines[i + 1])
+            assert lines[i + 2].startswith("    puts ok"), repr(lines[i + 2])
+            break
+
+
+def test_format_tcl_indentation_fixture_quoted_braces() -> None:
+    """Braces inside double-quoted strings must be ignored by the brace counter."""
+    fixture = FIXTURES_DIR / "indent_quoted_braces.tcl"
+    text = fixture.read_text(encoding="utf-8")
+    result = format_tcl_indentation(text)
+
+    # Idempotency
+    assert format_tcl_indentation(result) == result
+
+    lines = result.splitlines()
+    # The 'puts nested' line should be indented inside the if-block
+    for i, line in enumerate(lines):
+        if line.startswith('    set s "This string contains'):
+            # find the following if-block and check nested indent
+            for j in range(i, i + 6):
+                if lines[j].strip().startswith("if {$flag}"):
+                    assert lines[j + 1].startswith("        puts nested"), repr(lines[j + 1])
+                    break
+            break

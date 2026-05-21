@@ -127,11 +127,29 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
         previous = ""
         char = ""
         previous_previous = ""
+        in_double_quote = False
+        comment_start = False
 
         for current in line:
             previous_previous = previous
             previous = char
             char = current
+            # Toggle double-quote state (ignore escaped quotes)
+            if char == '"' and previous != "\\":
+                in_double_quote = not in_double_quote
+
+            # Tcl comments: a '#' that begins a token (start of line or after whitespace)
+            # starts a comment that runs to end-of-line. When we see such a comment
+            # marker outside of a double-quoted string, stop scanning further chars
+            # so braces inside comments do not affect indentation counting.
+            if char == "#" and not in_double_quote and previous in ("", " ", "\t"):
+                comment_start = True
+                break
+
+            # While inside a double-quoted string ignore brace characters
+            if in_double_quote:
+                continue
+
             if char == "{" and previous != "\\":
                 indent += 1
                 if flag == 0:
@@ -141,15 +159,21 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
                 if flag == 0:
                     flag += 1
 
-        if is_continuation:
-            spaces = tab_space * (original_indent + 1)
-        elif flag == 1:
-            spaces = tab_space * (original_indent - 1)
-        elif _MARKER_LINE.match(line):
-            spaces = (tab_space * original_indent) - (tab_space // 2)
-        else:
+        # If this line is a comment start, indent it to the current level but
+        # do not use it to change the running brace-based indent state.
+        if line.startswith("#"):
             spaces = tab_space * original_indent
-        output.append(f"{' ' * max(spaces, 0)}{line}")
+            output.append(f"{' ' * max(spaces, 0)}{line}")
+        else:
+            if is_continuation:
+                spaces = tab_space * (original_indent + 1)
+            elif flag == 1:
+                spaces = tab_space * (original_indent - 1)
+            elif _MARKER_LINE.match(line):
+                spaces = (tab_space * original_indent) - (tab_space // 2)
+            else:
+                spaces = tab_space * original_indent
+            output.append(f"{' ' * max(spaces, 0)}{line}")
 
         # Detect backslash-continuation: line ends with odd number of
         # trailing backslashes (simplification: just check single `\`).
