@@ -2419,6 +2419,104 @@ Per the scope-lock policy in [`.github/instructions/project.instructions.md`](..
 
 ---
 
+### FD-15: Companion-File Sync for ERRGEN Config (`default_rules` pattern)
+
+#### What
+
+A silent post-trim behavior triggered when a file whose POSIX basename matches `default_rules.<sfx>.tcl` receives **PROC_TRIM treatment** — meaning the final compiled PI set (accounting for both `procedures.include` **and** `procedures.exclude` across all feature layers merged via R1 overlay) retains only a subset of its procs. After the trimmer drops procs from the rules file, Chopper also:
+
+1. **Filters the companion CSV** — removes any row whose first comma-separated column (proc name, stripped) is not in the final surviving PI set. The line is deleted entirely; no blank placeholder is left. Original blank lines and `#`-comment lines in the file are kept unchanged.
+2. **Prunes the companion milestone** — removes `change_config <ProcName> ...` lines where `<ProcName>` is not in the final surviving PI set. The line is deleted entirely; no blank placeholder is left.
+
+No CLI flag. No schema field. No user-visible output beyond optional `VW-xx` warnings when a companion file is expected but absent. Triggered solely by the naming convention of the trimmed file.
+
+#### Naming convention and file discovery
+
+Given a trimmed file at `<dir>/default_rules.<sfx>.tcl`:
+
+| Companion | Derived path | Required? |
+|---|---|---|
+| Config CSV | `<dir>/default_config.<sfx>.csv` | Warn `VW-xx companion-file-missing` if absent, then skip |
+| Milestone Tcl | `<dir>/default_milestone.<sfx>.tcl` | Warn `VW-xx companion-file-missing` if absent, then skip |
+
+Example for Formality (`<sfx>` = `fm`):
+- Rules: `default_rules.fm.tcl` → CSV: `default_config.fm.csv`, Milestone: `default_milestone.fm.tcl`
+
+Example for Conformal (`<sfx>` = `cfm`):
+- Rules: `default_rules.cfm.tcl` → CSV: `default_config.cfm.csv`, Milestone: `default_milestone.cfm.tcl`
+
+The suffix `<sfx>` is any single dot-separated token between `default_rules.` and `.tcl`. The pattern match is applied to the POSIX basename of every PROC_TRIM file in the domain; depth in the directory tree does not matter.
+
+#### CSV modification algorithm
+
+```
+For each line in default_config.<sfx>.csv (in order):
+  stripped = line.strip()
+  if stripped == "" or stripped.startswith("#"):
+    keep the line unchanged          # original blanks and comments survive
+  else:
+    col0 = stripped.split(",")[0].strip()
+    if col0 in final_pi_proc_names:
+      keep the line unchanged
+    else:
+      drop the line entirely         # no blank placeholder; the line is gone
+Write the retained lines back, preserving original line endings.
+```
+
+#### Milestone modification algorithm
+
+```
+For each line in default_milestone.<sfx>.tcl (in order):
+  m = re.match(r'^\s*change_config\s+(\w+)\b', line)
+  if m:
+    proc_name = m.group(1)
+    if proc_name NOT in final_pi_proc_names:
+      drop the line entirely         # no blank placeholder; the line is gone
+    else:
+      keep the line
+  else:
+    keep the line (comments, blanks, other Tcl statements, etc.)
+Write the retained lines back, preserving original line endings.
+```
+
+Note: original blank lines and non-`change_config` statements are kept as-is. Only `change_config` lines that reference a proc absent from the final PI set are removed.
+
+#### Trigger conditions
+
+- The trimmed domain contains at least one file whose POSIX basename matches `default_rules.*.tcl`.
+- That file's treatment in the `TrimReport` is `PROC_TRIM` (not `FULL_COPY`, not `REMOVE`).
+- The **surviving proc set** used to filter companion files is the **final compiled PI set** from `CompiledManifest` for the `default_rules.<sfx>.tcl` file. This accounts for both `procedures.include` and `procedures.exclude` contributions from all merged feature layers (R1 ordered overlay) — not merely the raw `procedures.include` list of any individual JSON. Procs excluded via `procedures.exclude` are absent from PI and therefore removed from the companion files.
+- The companion files (`default_config.<sfx>.csv`, `default_milestone.<sfx>.tcl`) are declared as `files.include` entries in the base or feature JSON, so they receive FULL_COPY treatment and are unconditionally present in the rebuilt domain. The companion-sync pass operates on those already-written full copies and overwrites them in-place.
+- The companion-sync pass runs after P3 (compile) and P4 (BFS trace) have completed, so the final PI set is fully resolved before any filtering decisions are made.
+
+#### Where in the pipeline
+
+This runs at the end of **P5** (build output), after `TrimmerService` has written the rebuilt domain and the `TrimReport` is available, but before P6 (post-validate) and P7 (audit). The companion files (`default_config.*.csv` and `default_milestone.*.tcl`) have already been full-copied into the rebuilt domain at this point; this step overwrites them in-place with the filtered versions.
+
+The feature is implemented as a post-process pass in `TrimmerService` or as a thin co-worker called from the trimmer's `run()` method — it does not alter the `TrimReport` or any `CompiledManifest` fields.
+
+#### Diagnostics (assigned in 2.0.1)
+
+| Code | Slug | Condition | Exit effect |
+|---|---|---|---|
+| `VW-24` | `companion-file-missing` | Expected `default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl` not found in the rebuilt domain | Warning only; sync skipped for the missing file |
+| `VI-04` | `companion-sync-applied` | Companion file was present and was successfully filtered | Informational |
+
+#### What would change in the architecture doc if adopted
+
+- ✅ **Adopted in 2.0.1.** `technical_docs/ARCHITECTURE.md` §5.5 (P5 build output) was extended with a P5d companion-file sync sub-step. `technical_docs/DIAGNOSTIC_CODES.md` gained `VW-24 companion-file-missing` and `VI-04 companion-sync-applied`. Implementation is in `src/chopper/trimmer/companion_sync.py`, called from `src/chopper/orchestrator/runner.py` after P5c.
+
+#### Why deferred
+
+- The naming convention (`default_rules` / `default_config` / `default_milestone`) is specific to the fev_formality and fev_conformal EDA tool families. No other domains use it. Encoding it in the core trimmer adds domain-specific knowledge to a domain-agnostic tool.
+- The CSV format is informal (no schema): any deviation in column order or quoting would silently corrupt the file. A formal companion-file declaration in the JSON (e.g., `options.companion_config`) would be safer but requires schema changes.
+- The milestone pruning relies on a regex match on `change_config` — if other Tcl commands follow the same pattern in the milestone, they would be incorrectly removed.
+- A cleaner long-term approach (FD-15b, not filed) would let the domain author declare companion relationships in the base JSON (`files.companions: [{source: "default_rules.fm.tcl", csv: "default_config.fm.csv", milestone: "default_milestone.fm.tcl"}]`) and let Chopper apply a general-purpose sync. That design requires schema changes and a more robust CSV/Tcl parser.
+
+**Source:** User request 2026-05-22; fev_formality domain analysis.
+
+---
+
 ### B.5 Summary Table
 
 | ID | Category | Item | Status |
@@ -2436,3 +2534,4 @@ Per the scope-lock policy in [`.github/instructions/project.instructions.md`](..
 | FD-11 | Platform | Multi-platform domain support (trim on Windows) | Deferred; v1 is Linux-only |
 | FD-12 | Generator | Template-script generation (post-trim executor) | Deferred; scope-lock removed the reserved seam |
 | FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload | Deferred; issue creation may be automated, binary attachment upload is not |
+| FD-15 | Trimmer | Companion-file sync for ERRGEN config (`default_rules` pattern) | **ADOPTED in 2.0.1** — P5d in `src/chopper/trimmer/companion_sync.py`; `VW-24`, `VI-04` |

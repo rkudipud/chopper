@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-35 | 31 | 4 | 35 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-30 | 21 | 7 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning (2 retired slots: VW-18, VW-19) |
-| `VI` Validation Info | VI-01–VI-05 | 3 | 2 | 5 | Advisory notices; no action required |
+| `VW` Validation Warnings | VW-01–VW-30 | 22 | 6 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing (2 retired slots: VW-18, VW-19) |
+| `VI` Validation Info | VI-01–VI-05 | 4 | 1 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **79** | **44** | **125** | |
+| **Total** | | **81** | **42** | **125** | |
 
 ---
 
@@ -106,7 +106,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-21 | `layer-shadowed` | 1 | compiler | 0 | A later layer in the R1 overlay actually changed a decision made by an earlier layer. The message is action-specific and includes the affected proc names: `add-proc` names the added procs, prior keep-set, and combined keep-set; `remove-proc` names the removed procs, prior keep-set, and remaining set; `downgrade-whole-to-trim` names the resulting keep-set (and excluded procs when PE-driven); `remove` names the layer that excluded a file; `replace` shows old vs new proc sets. The audit bundle records each transition with `(layer, prior_layer, action)` provenance. | No action required if intentional; verify the layer order in `project.features[]` if the shadow is unexpected. |
 | VW-22 | `proc-trim-no-drop` | 5 | trimmer | 0 | A live P5 `PROC_TRIM` file had zero procs to remove: every proc found in `<domain>_backup/` already belonged to the keep set. The rebuilt file is byte-identical to the backup copy. Most common cause: `<domain>_backup/` holds a prior run’s post-trim output rather than the original pre-trim source (i.e., `chopper cleanup --confirm` removed the real backup; a subsequent Case 1 run then promoted the already-trimmed domain to backup; the next trim finds nothing more to drop). This is not a correctness failure — the trimmed output is accurate for the files Chopper could see — but it means the original source lines are no longer recoverable from `<domain>_backup/` alone. Signals that proc-accounting statistics in `trim_report.json` / `trim_report.txt` will show `bytes_in == bytes_out` and `procs_removed = []` for the affected file, which will differ from any prior run that trimmed the same file from the original source. | Verify that `<domain>_backup/<file>` is the original pre-trim source: check its line count or diff against a known-good version in version control. If the backup is stale, restore the original from P4 or VCS at a pre-trim CL, delete `<domain>_backup/`, and re-run `chopper trim`. Do not call `chopper cleanup --confirm` between regression passes if consistent proc-drop accounting across runs is required. |
 | VW-23 | `stack-stage-empty-command` | 3 | compiler | 0 | A stage included as a record in the aggregate F3 stack (emitted because `options.generate_stack: true`) has an empty `command` field, so the record's `J` line is omitted entirely. Most schedulers reject records with no job command. | Author a `command` on the stage, or accept the warning if the downstream scheduler tolerates `J`-less records. |
-| — | — | — | — | — | **VW-24 through VW-30 reserved** | — |
+| VW-24 | `companion-file-missing` | 5 | trimmer | 0 | P5d companion-file sync expected `default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl` alongside a `PROC_TRIM` `default_rules.<sfx>.tcl` file but the companion was not found in the rebuilt domain. Sync is skipped for the missing file. | Declare the companion file in `files.include` so it receives `FULL_COPY` treatment and is present in the rebuilt domain before P5d runs. |
+| — | — | — | — | — | **VW-25 through VW-30 reserved** | — |
 
 ---
 
@@ -119,7 +120,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VI-01 | `empty-base-json` | 1 | validator | 0 | Base JSON has no `files`, `procedures`, or `stages` blocks | May be intentional for feature-driven flow; review if draft |
 | VI-02 | `top-level-tcl-only` | 5 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
 | VI-03 | `domain-suffix-strip-applied` | 1 | cli | 0 | Resolution candidate (from `--domain` or cwd) ended in `_backup` and a stripped sibling exists as a directory; the operational domain root was redirected to that sibling, and the original candidate is treated as the previous-run snapshot. The redirect is single-shot and conditional — a `_backup`-suffixed path with no live sibling is honored as-is. The diagnostic carries the original candidate path and the resolved domain root in its context. | If the redirect was unintended (i.e. the user genuinely meant the `_backup` path and the sibling collision is coincidental), rename the live sibling to break the collision, or run from inside the intended domain. Otherwise no action is required — the run will proceed against the real domain. |
-| — | — | — | — | — | **VI-04 through VI-05 reserved** | — |
+| VI-04 | `companion-sync-applied` | 5 | trimmer | 0 | P5d companion-file sync successfully filtered a companion file (`default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl`) to match the surviving proc set of the paired `default_rules.<sfx>.tcl` file. Informational only; no action needed. | No action required. |
+| — | — | — | — | — | **VI-05 reserved** | — |
 
 > **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* A `VI-03 domain-hand-edited` code was proposed and rejected during pre-1.0 design (see [`ENGINEERING.md`](ENGINEERING.md) §16 closed decisions). The `VI-03` slot was later reused in 1.2.0 for `domain-suffix-strip-applied` (above) per the registry's lowest-available-slot convention.
 

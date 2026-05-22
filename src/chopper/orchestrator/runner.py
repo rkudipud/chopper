@@ -30,6 +30,7 @@ from chopper.generators.service import GeneratorService
 from chopper.orchestrator.domain_state import DomainStateService
 from chopper.orchestrator.gates import has_errors
 from chopper.parser.service import ParserService
+from chopper.trimmer.companion_sync import CompanionSyncService
 from chopper.trimmer.indentation import TclIndentationService
 from chopper.trimmer.service import TrimmerService
 from chopper.validator import validate_post, validate_pre
@@ -134,6 +135,10 @@ class ChopperRunner:
                     ctx.progress.phase_done(Phase.P5_TRIM)
                     exit_code = 1
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+                # P5d — Companion-file sync (FD-15 / ARCHITECTURE.md §5.5 P5d).
+                # Filters default_config.<sfx>.csv and default_milestone.<sfx>.tcl
+                # for every PROC_TRIM default_rules.<sfx>.tcl file.
+                trim_report = CompanionSyncService().run(ctx, manifest, trim_report)
                 # P5a tail — preserve selected JSON inputs in the rebuilt
                 # domain (ARCHITECTURE.md §5.6). Best-effort; OSError →
                 # VW-20, run continues.
