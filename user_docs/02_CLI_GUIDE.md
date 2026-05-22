@@ -7,15 +7,19 @@
 
 ## Quick start (the 5-step loop)
 
+Chopper is designed around a safe, iterative workflow. You never have to "get it right the first time" — validate and dry-run cost nothing and give you full visibility before anything touches disk.
+
 ```text
-1.  chopper validate ...         # read-only sanity check
-2.  chopper trim --dry-run ...   # full analysis, no filesystem rebuild
+1.  chopper validate ...         # read-only sanity check (seconds, no side effects)
+2.  chopper trim --dry-run ...   # full analysis, no filesystem rebuild (writes .chopper/ only)
 3.  review .chopper/             # trim_report.txt, compiled_manifest.json, dependency_graph.json
 4.  chopper trim ...             # live trim; renames domain → backup, rebuilds clean
 5.  chopper cleanup --confirm    # remove the backup once the trim window closes
 ```
 
 Steps 1 and 2 are **safe and free** — run them as often as you want. Step 4 is **destructive** in the sense that it overwrites `<domain>/` (the original is preserved as `<domain>_backup/`). Step 5 is **irreversible**.
+
+> **Key design principle:** you always have a way back. `<domain>_backup/` is your undo button. The only time data is permanently deleted is `chopper cleanup --confirm` — and that requires explicit opt-in.
 
 ---
 
@@ -418,15 +422,16 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | File | Purpose |
 |---|---|
 | `run_id` | Unique ID for this run |
-| `chopper_run.json` | CLI args, timing, outcome |
-| `compiled_manifest.json` | Per-file/per-proc decisions (`FULL_COPY`, `PROC_TRIM`, `GENERATED`, `REMOVE`) |
+| `chopper_run.json` | CLI args, timing, outcome, `artifacts_present` inventory |
+| `compiled_manifest.json` | Per-file/per-proc decisions (`FULL_COPY`, `PROC_TRIM`, `GENERATED`, `REMOVE`) with provenance |
 | `dependency_graph.json` | Full proc call graph from the trace phase |
 | `trim_report.json` | Machine-readable summary — file counts, proc counts, SLOC fields |
 | `trim_report.txt` | Human-readable projection of the above |
-| `trim_stats.json` | File and SLOC counts before/after |
-| `diagnostics.json` | Every diagnostic emitted (code, severity, location, hint) |
-| `files_kept.txt` | Sorted list of paths that survived, with per-line provenance (`<path>\t<source>:<field>,...`) |
-| `files_removed.txt` | Sorted list of paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance |
+| `trim_stats.json` | File and SLOC counts before/after (before reads from backup when present) |
+| `diagnostics.json` | Every diagnostic emitted (code, severity, phase, message, location, hint) |
+| `files_kept.txt` | Sorted paths that survived, with per-line provenance (`<path>\t<contributed_by>`) |
+| `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance |
+| `p4_commands.txt` | Ready-to-execute Perforce command list (`p4 edit`, `p4 add`, `p4 delete`) for every file-treatment decision. Chopper never invokes `p4` — review and submit manually. |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
 | `input_features/NN_name.json` | Verbatim copies of feature JSONs, prefixed by feature order |

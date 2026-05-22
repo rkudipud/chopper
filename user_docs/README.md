@@ -4,6 +4,8 @@ Welcome. This folder is the **single end-user entry point** for Chopper. It is w
 
 > **What is Chopper?** A Python CLI that derives a project-specific subset of a VLSI EDA tool-flow domain from JSON. You declare what to keep; Chopper produces a minimal, reproducible, audited domain.
 >
+> **Why is it easy?** Three reasons: (1) the workflow is iterative — `validate` and `--dry-run` are free and safe, so you never commit to a trim blind; (2) the original domain is always preserved as a backup until you explicitly delete it; (3) every decision is recorded in `.chopper/` so you can always explain why something was kept or dropped.
+>
 > **Why the name?** Slightly misleading. Conceptually Chopper is closest to **Flow Builder**: both let domain owners derive specialised flows from a fully feature-rich domain. The distinction is scope — Flow Builder targets *file-based* flows; Chopper supports both *file-based* **and** *proc-based* flows, which makes it suitable for procedure-heavy domains.
 
 ---
@@ -16,7 +18,7 @@ Welcome. This folder is the **single end-user entry point** for Chopper. It is w
 | 2 | [02_CLI_GUIDE.md](02_CLI_GUIDE.md) | When you are about to run Chopper for the first time — every subcommand, every flag, deep examples | ~20 min |
 | 3 | [03_HOW_CHOPPER_WORKS.md](03_HOW_CHOPPER_WORKS.md) | When you want to understand the pipeline, decide where it fits, or troubleshoot a result | ~25 min |
 
-If you only have 10 minutes, read **§1–§4 of [01_OVERVIEW.md](01_OVERVIEW.md)** and the **Quick Start** section of [02_CLI_GUIDE.md](02_CLI_GUIDE.md).
+If you only have 10 minutes, read the **TL;DR** at the top of [01_OVERVIEW.md](01_OVERVIEW.md) and the **Quick Start** section of [02_CLI_GUIDE.md](02_CLI_GUIDE.md).
 
 ---
 
@@ -37,7 +39,7 @@ Ready-made prompts live under [.github/prompts/](../.github/prompts/).
 
 | Resource | Use for |
 |---|---|
-| [../examples/](../examples/) | 11 progressive worked JSON examples |
+| [../examples/](../examples/) | 13 progressive worked JSON examples (file-only → full pipeline with stacks) |
 | [../schemas/](../schemas/) | Authoritative JSON schemas |
 | [../technical_docs/JSON_AUTHORING_GUIDE.md](../technical_docs/JSON_AUTHORING_GUIDE.md) | Complete JSON field reference |
 | [../technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md) | Every diagnostic code |

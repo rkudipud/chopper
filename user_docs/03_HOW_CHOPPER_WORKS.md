@@ -276,6 +276,14 @@ Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formali
 
 Read-only by design. No network surface means no inadvertent destructive remote calls and no auth/transport complexity. Destructive subcommands (`trim`, `cleanup`) are never advertised over MCP.
 
+### What does `options.cross_validate` do?
+
+When `true` (default), P6 checks every step string in every surviving stage against the files and procs that survived trimming. Missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) — all warnings, never errors. Set to `false` if your stages intentionally reference content outside the trimmed domain (e.g. cross-domain sources). `VW-17 external-reference` is always emitted regardless of this flag.
+
+### What is `p4_commands.txt` in `.chopper/`?
+
+A ready-to-execute Perforce command list correlating each file-treatment decision to the `p4` command needed to record the change against the depot. Three sections: `p4 edit` for PROC_TRIM/overwritten files, `p4 add` for newly GENERATED files, `p4 delete` for removed files. Chopper never invokes `p4` itself — review and `p4 submit` manually.
+
 ---
 
 ## 12. Where to go next

@@ -5,6 +5,19 @@
 
 ---
 
+## TL;DR — from zero to a trimmed domain in 4 commands
+
+```text
+cd <domain>
+chopper validate --base jsons/base.json                  # safe, read-only preflight
+chopper trim --dry-run --base jsons/base.json            # preview what would change
+chopper trim --base jsons/base.json                      # live trim — domain rebuilt on disk
+```
+
+That's it. Write one JSON describing what to keep; Chopper removes everything else. The original is preserved as `<domain>_backup/` so you can always go back. Every decision is recorded in `.chopper/` for full auditability.
+
+---
+
 ## 1. The problem
 
 A typical VLSI EDA tool-flow **domain** is a directory of Tcl, Perl, Python, csh, and config files that has accreted over years to support every project, every block, every methodology, every vendor tool the team has ever needed. A single project usually needs only a small slice of it.
@@ -103,8 +116,9 @@ Emit `<stage>.tcl` run scripts (and optional `<stage>.stack` scheduler files) fr
 }
 ```
 
-- One `<stage>.tcl` is emitted per resolved stage. With `generate_stack: true`, Chopper also emits `<stage>.stack` using the N/J/L/D/I/O/R format.
-- Stage step references (procs, sourced files) are validated post-trim — broken refs become `VW-*` warnings.
+- One `<stage>.tcl` is emitted per resolved stage. With `generate_stack: true`, Chopper also emits an aggregate `<domain>.stack` file containing one record per stage (topologically sorted by dependencies).
+- A stage that sets `standalone_stack: true` emits a `<stage>.stack` with the authored `steps` verbatim (useful for wrapper stages that encode scheduler-format records directly). The standalone stack suppresses that stage's `<stage>.tcl` — see [example 13](../examples/13_base_with_standalone_stack/).
+- Stage step references (procs, sourced files) are validated post-trim when `options.cross_validate` is `true` (default) — broken refs become `VW-14`/`VW-15`/`VW-16` warnings.
 - Features can extend stages with `flow_actions` (`add_stage_after`, `replace_steps`, etc.). Feature **order** matters here.
 
 ---
@@ -258,7 +272,8 @@ For each pattern, copy from the matching folder in [../examples/](../examples/) 
 
 | Field | Where | Default | Effect |
 |---|---|---|---|
-| `options.generate_stack` | `base.json` | `false` | When `stages` are defined, emit `<stage>.stack` alongside `<stage>.tcl` |
+| `options.cross_validate` | `base.json` | `true` | Cross-validate F3 stage steps against surviving F1/F2 set. When `true`, missing file/proc references emit `VW-14`/`VW-15`/`VW-16` warnings. Set to `false` to suppress when stages intentionally reference content outside the trimmed domain. |
+| `options.generate_stack` | `base.json` | `false` | When `stages` are defined, emit an aggregate `<domain>.stack` alongside per-stage `<stage>.tcl` files |
 | `options.indent` | `base.json` | `false` | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Off by default — the current formatter has known limitations; only opt in after verifying it on your domain. |
 | `depends_on` | feature JSON | `[]` | Topologically order this feature after the named features |
 | `flow_actions` | feature JSON | none | Append/insert/replace stage entries from the base or earlier features |
@@ -330,6 +345,8 @@ Copy the nearest example into your domain root, replace placeholders, validate, 
 | Base + multiple features | [../examples/09_base_plus_multiple_features/](../examples/09_base_plus_multiple_features/) |
 | Feature dependency chain | [../examples/10_chained_features_depends_on/](../examples/10_chained_features_depends_on/) |
 | Project-mode without features | [../examples/11_project_base_only/](../examples/11_project_base_only/) |
+| Aggregate scheduler stack (`generate_stack`) | [../examples/12_base_with_aggregate_stack/](../examples/12_base_with_aggregate_stack/) |
+| Aggregate + per-stage standalone stack | [../examples/13_base_with_standalone_stack/](../examples/13_base_with_standalone_stack/) |
 
 ---
 

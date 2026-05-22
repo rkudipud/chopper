@@ -53,13 +53,15 @@ Use the example folders as templates, not as production-ready inputs. Pick the c
 | Full starting point | `examples/07_base_full/` |
 | Base plus one feature | `examples/08_base_plus_one_feature/` |
 | Feature chains with `depends_on` | `examples/10_chained_features_depends_on/` |
+| Aggregate scheduler stack (`generate_stack`) | `examples/12_base_with_aggregate_stack/` |
+| Aggregate + per-stage standalone stack | `examples/13_base_with_standalone_stack/` |
 
 Recommended sequence:
 
 1. Copy `jsons/` from the nearest example into `<domain_root>/`.
 2. Copy `project.json` too if you want project mode.
 3. Change every `domain`, path, proc, and stage field to match the real domain.
-4. Validate with `python validate_jsons.py <domain_root>/` before you run Chopper.
+4. Validate with `python schemas/scripts/validate_jsons.py <domain_root>/` before you run Chopper.
 
 ---
 
@@ -724,7 +726,7 @@ Are you selecting which features to apply for a specific project run?
   NO  → Not needed (single-base-only trim)
 ```
 
-When using an agent or assistant, the expected task is: inspect the user-provided codebase, help generate `jsons/base.json` and any needed feature JSONs, and then validate them with `validate_jsons.py`.
+When using an agent or assistant, the expected task is: inspect the user-provided codebase, help generate `jsons/base.json` and any needed feature JSONs, and then validate them with `schemas/scripts/validate_jsons.py`.
 
 This work should be collaborative. Best UX comes from analyzing the codebase hand-in-hand with the user, showing inventories and trace logs, collecting corrections, and only then finalizing JSON content.
 
@@ -747,14 +749,14 @@ python -m json.tool jsons/base.json > /dev/null
 Use the repository helper script (recommended):
 
 ```bash
-python validate_jsons.py my_domain/
+python schemas/scripts/validate_jsons.py my_domain/
 ```
 
 Examples:
 
 ```bash
-python validate_jsons.py
-python validate_jsons.py examples/08_base_plus_one_feature/
+python schemas/scripts/validate_jsons.py
+python schemas/scripts/validate_jsons.py examples/08_base_plus_one_feature/
 ```
 
 The script validates every JSON file with recognized `$schema` values and reports `OK`, `ERR`, or `SKIP` per file.
