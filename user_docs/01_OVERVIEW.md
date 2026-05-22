@@ -271,7 +271,7 @@ CLI-side switches (covered in [02_CLI_GUIDE.md](02_CLI_GUIDE.md)):
 | `--dry-run` | Run the analysis under `trim` but skip the filesystem rebuild |
 | `--plain` | Disable Rich live rendering and ANSI colour |
 | `-v` / `-vv` / `-q` | Verbosity controls |
-| `--tool-commands <path>` | Add a vendor tool-command file to silence `TW-02` noise via `TI-01` |
+| `--tool-commands <path>` | Add a vendor tool-command file to silence `TW-02` noise via `TI-01`. Six pools bundled; use for additional site-local pools. |
 
 ---
 
@@ -283,7 +283,7 @@ CLI-side switches (covered in [02_CLI_GUIDE.md](02_CLI_GUIDE.md)):
 4. **Review `dependency_graph.json` before shipping.** Every `TW-01`/`TW-02`/`TW-03` is a place Chopper could not prove a dependency. Decide consciously: include explicitly or accept.
 5. **Commit JSONs, not the trimmed domain.** Teammates can reproduce your trim exactly from the JSONs alone — and `.chopper/trim_report.json` for cross-checking.
 6. **Use `--strict` in CI.** Warnings in CI should fail the build; they always indicate something worth a human glance.
-7. **Use a tool-command pool.** For PrimeTime / vendor-heavy domains, pass `--tool-commands` so vendor commands surface as `TI-01` (info, exit 0) rather than `TW-02` (warning) — keeps the diagnostic stream signal-rich.
+7. **Use a tool-command pool.** Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) and loaded automatically. For site-local or additional tools, pass `--tool-commands` so vendor commands surface as `TI-01` (info, exit 0) rather than `TW-02` (warning) — keeps the diagnostic stream signal-rich.
 
 ---
 

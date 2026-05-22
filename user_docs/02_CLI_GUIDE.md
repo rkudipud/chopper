@@ -70,7 +70,7 @@ chopper mcp-serve     # stdio-only read-only Model Context Protocol server
 | `-q`, `--quiet` | Suppress progress. Diagnostics and the final summary still print. Useful in CI. |
 | `--plain` | Disable Rich live rendering and ANSI colour. Use for log capture or plain terminals. |
 | `--strict` | Exit `1` if any warning is emitted. Severities themselves are unchanged. |
-| `--tool-commands PATH` | Repeatable. Add a vendor tool-command file (one command name per line). Calls matching the pool become `TI-01` info, not `TW-02` warnings. A PrimeTime pool is bundled by default. |
+| `--tool-commands PATH` | Repeatable. Add a vendor tool-command file (one command name per line). Calls matching the pool become `TI-01` info, not `TW-02` warnings. Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure); pass this flag only for additional vendor or site-local pools. |
 
 ---
 
@@ -144,8 +144,10 @@ Both are read-only. The difference is reporting context: `trim --dry-run` writes
    - **`REMOVE`** — file is not copied across.
    - **`GENERATED`** — `<stage>.tcl` (and `<stage>.stack` if `options.generate_stack: true`) written into the rebuilt domain.
 3. P5c — if `base.options.indent: true`, every emitted PROC_TRIM/GENERATED Tcl file is normalised by a deterministic indentation pass. Default: skipped (Chopper writes those outputs verbatim).
-4. P6 — the rebuilt output is re-parsed; brace-balance, dangling proc references, and stage-step references are checked. Issues become `VW-*` warnings.
-5. P7 — `.chopper/` is written.
+4. P5d — companion-file sync: for every `PROC_TRIM` `default_rules.<sfx>.tcl`, the sibling `default_config.<sfx>.csv` and `default_milestone.<sfx>.tcl` are filtered to keep only rows/lines matching surviving procs. Emits `VW-24` if a companion is missing; `VI-04` on success.
+5. JSON input preservation — the entire `<domain_backup>/jsons/` tree is mirrored into the rebuilt `<domain>/jsons/`, and any out-of-tree JSON inputs are copied to `<domain>/jsons/_external/`.
+6. P6 — the rebuilt output is re-parsed; brace-balance, dangling proc references, and stage-step references are checked. Issues become `VW-*` warnings.
+7. P7 — `.chopper/` is written.
 
 > **You always have a recoverable state.** If the run fails between phases, `<domain>_backup/` is untouched and the next invocation rebuilds cleanly from it.
 
@@ -494,7 +496,8 @@ chopper --plain --strict validate --project project.json 2>&1 | tee chopper.log
 ### Example E — quiesce a tool-command-heavy domain
 
 ```text
-# PrimeTime is bundled by default. For Genus, ICC2, etc., pass extra pools:
+# Six vendor pools bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure).
+# For site-local or additional tool pools, pass extra:
 chopper validate --tool-commands /shared/eda/genus.commands \
                  --tool-commands /shared/eda/icc2.commands \
                  --project project.json

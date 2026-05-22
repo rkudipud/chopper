@@ -67,70 +67,107 @@ The user's ask was phrased as "service-oriented, context-aware." Taken literally
 
 ## 3. Repository and Module Layout
 
-This is the target layout under `src/chopper/`. Stage 0 creates the skeleton; later stages fill in the services.
+Authoritative layout of `src/chopper/` as of v3.4.0. Every file below exists on disk; `__init__.py` and `__pycache__/` elided for brevity.
 
 ```
 src/chopper/
-├── __init__.py
 ├── core/                        # Stage 0 — no deps on sibling modules
 │   ├── models_common.py         # Shared primitives: FileTreatment, DomainState, FileStat
 │   ├── models_parser.py         # P2 parser records: ProcEntry, ParsedFile, ParseResult
 │   ├── models_config.py         # P1 JSON/config records: BaseJson, FeatureJson, LoadedConfig
-│   ├── models_compiler.py       # P3/P4 records: CompiledManifest, DependencyGraph, ...
+│   ├── models_compiler.py       # P3/P4 records: CompiledManifest, DependencyGraph, StageSpec, …
 │   ├── models_trimmer.py        # P5 trimmer/generator records: TrimReport, GeneratedArtifact
 │   ├── models_audit.py          # P7/run records: RunRecord, RunResult, AuditManifest
 │   ├── diagnostics.py           # Severity, Phase, Diagnostic, code registry guard
+│   ├── _diagnostic_registry.py  # Machine-generated band → code mapping (mirrors DIAGNOSTIC_CODES.md)
 │   ├── errors.py                # Exception types (programmer errors only)
-│   ├── protocols.py             # Ports: FileSystemPort, DiagnosticSink, ...
+│   ├── protocols.py             # Ports: FileSystemPort, DiagnosticSink, ProgressSink
 │   ├── context.py               # ChopperContext + RunConfig (service bundle, §6.1)
-│   ├── result.py                # RunResult, phase-level result dataclasses
-│   └── serialization.py         # JSON encode/decode for all models
+│   ├── serialization.py         # JSON encode/decode for all models
+│   ├── globs.py                 # Canonical POSIX glob → regex translator
+│   ├── tool_commands.py         # Vendor-tool command pool parser (TI-01)
+│   ├── file_perms.py            # Cross-phase permission helpers (ensure_executable, mirror_perms_plus_exec)
+│   ├── fs_walk.py               # Shared filesystem-tree walker (TEXT_LIKE_EXTENSIONS, walk_files)
+│   └── header.py                # Intel-standard copyright header for generated files
 │
 ├── adapters/                    # Concrete implementations of ports (ctx.fs / ctx.diag / ctx.progress only)
 │   ├── fs_local.py              # LocalFS
 │   ├── fs_memory.py             # InMemoryFS (tests)
 │   ├── sink_collecting.py       # CollectingSink (default)
-│   ├── sink_jsonl.py            # JSONLSink (audit)
 │   ├── progress_rich.py         # RichProgress
-│   ├── progress_silent.py       # SilentProgress
+│   └── progress_silent.py       # SilentProgress
+│
+├── data/                        # Bundled static data consumed at runtime
+│   └── tool_commands/           # Vendor tool-command pools (auto-loaded; see §3.10 in architecture doc)
+│       ├── pt.commands          # PrimeTime (~1 050 commands)
+│       ├── pwr.commands         # PrimePower (~1 110)
+│       ├── pe.commands          # PrimeECO (~1 000)
+│       ├── ps.commands          # PrimeSim (~1 000)
+│       ├── fm.commands          # Formality (~650)
+│       └── pc.commands          # PrimeClosure (~350)
 │
 ├── parser/                      # Stage 1 — Tcl static analysis (P2)
 │   ├── service.py               # ParserService.run(ctx, files) -> ParseResult
-│   ├── tokenizer.py
-│   ├── proc_extractor.py
-│   └── namespace_tracker.py
+│   ├── tokenizer.py             # Tcl state machine tokenizer
+│   ├── proc_extractor.py        # ProcEntry extraction from token stream
+│   ├── namespace_tracker.py     # LIFO namespace stack
+│   ├── call_extractor_body.py   # Call-site extraction from proc bodies
+│   ├── call_extractor_classify.py  # Call classification (local / qualified / dynamic)
+│   ├── call_extractor_constants.py # Constant patterns for call recognition
+│   ├── call_extractor_sources.py   # Source-reference extraction
+│   └── call_extractor_structural.py # Structural call patterns (namespace eval, etc.)
 │
 ├── config/                      # Stage 2a — JSON loading (part of P1)
 │   ├── service.py               # ConfigService.run(ctx, state) -> LoadedConfig
-│   ├── loaders.py
-│   └── schema.py                # jsonschema adapters
+│   ├── loaders.py               # File I/O + depends_on topo-sort
+│   └── schema.py                # jsonschema validation adapters
 │
-├── compiler/                    # Stage 2b — Merge + trace (P3, P4)
-│   ├── merge_service.py         # CompilerService.run(...)
-│   ├── trace_service.py         # TracerService.run(...)
-│   └── provenance.py
+├── compiler/                    # Stage 2b — Merge + trace + F3 (P3, P4)
+│   ├── merge_service.py         # CompilerService.run(...) — R1 ordered-overlay fold
+│   ├── trace_service.py         # TracerService.run(...) — BFS call-tree trace
+│   ├── flow_resolver.py         # F3 flow-action resolver (add_stage_after, replace_steps, …)
+│   └── stack_graph.py           # Stage dependency graph + Kahn topo-sort for aggregate stacks
 │
-├── trimmer/                     # Stage 3a — Trim state machine (P5a)
-│   └── service.py               # TrimmerService.run(...)
+├── trimmer/                     # Stage 3a — Trim state machine (P5a, P5c, P5d)
+│   ├── service.py               # TrimmerService.run(...) — P5a dispatch loop
+│   ├── file_writer.py           # FULL_COPY / PROC_TRIM / REMOVE file dispatch
+│   ├── proc_dropper.py          # Atomic proc-body deletion from Tcl files
+│   ├── indentation.py           # TclIndentationService — P5c opt-in normaliser
+│   ├── companion_sync.py        # CompanionSyncService — P5d companion-file sync
+│   └── input_preserver.py       # P5a tail: mirror jsons/ + out-of-tree inputs into rebuilt domain
 │
 ├── generators/                  # Stage 3b — Run-file emission (P5b)
-│   └── service.py               # GeneratorService.run(...)
+│   ├── service.py               # GeneratorService.run(...)
+│   ├── stage_emitter.py         # F3 <stage>.tcl writer
+│   └── stack_emitter.py         # F3 <stage>.stack writer (N/J/L/D/I/O/R format)
 │
 ├── audit/                       # Stage 3c — .chopper/ writes (P7)
-│   └── service.py               # AuditService.run(...)
+│   ├── service.py               # AuditService.run(...)
+│   ├── writers.py               # Per-artifact writers (JSON, txt, logs)
+│   ├── hashing.py               # Deterministic content hashing for manifests
+│   ├── sloc.py                  # SLOC counting orchestrator (cloc → fallback strategy)
+│   ├── cloc_backend.py          # cloc.pl invocation + JSON result parsing
+│   ├── internal_error.py        # internal-error.log writer (exit-3 path)
+│   └── vendor/                  # Vendored third-party tools
+│       └── cloc.pl              # cloc v2.x (Perl; used by cloc_backend.py)
 │
 ├── validator/                   # Stage 4 — Pre+post validation (P1, P6)
-│   └── functions.py              # validate_pre(ctx, loaded), validate_post(ctx, manifest, graph, rewritten)
+│   └── functions.py             # validate_pre(ctx, loaded), validate_post(ctx, manifest, graph, rewritten)
 │
 ├── orchestrator/                # Composes the services; owns phase loop
 │   ├── runner.py                # ChopperRunner
 │   ├── domain_state.py          # DomainStateService (P0)
 │   └── gates.py                 # Phase-boundary gating logic
 │
+├── mcp/                         # Read-only stdio MCP server (0.4.0+; see arch doc §3.9)
+│   ├── server.py                # JSON-RPC stdio loop
+│   └── tools.py                 # chopper.validate / chopper.explain_diagnostic / chopper.read_audit
+│
 └── cli/                         # Stage 5 — thin CLI (no business logic)
-    ├── main.py                  # argparse / typer entrypoint
-    ├── commands.py              # validate / trim / cleanup
-    └── render.py                # Rich-based output (no TableRenderer port; CLI calls rich directly)
+    ├── main.py                  # argparse entrypoint
+    ├── commands.py              # validate / trim / loc / cleanup / mcp-serve handlers
+    ├── loc_report.py            # LOC report builder (chopper loc)
+    └── render.py                # Rich-based output formatting
 ```
 
 **The dependency rule is strict and enforced at CI** (`import-linter`):

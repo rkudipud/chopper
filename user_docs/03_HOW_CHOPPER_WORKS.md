@@ -37,7 +37,7 @@ P7  Audit  ←  P6  Post-validate  ←  P5  Build output  ←  P4  Trace (BFS, r
 | **P2** | `parser/` | Tokenize each `.tcl` file, extract `ProcEntry` records (definitions, calls, namespaces). Phase 2a parses surface files with diagnostics; Phase 2b silently parses every other `.tcl` under `domain_root` so the proc index is **full-domain**. | `ParseResult` |
 | **P3** | `compiler/merge_service.py` | Apply R1 merge rules across base + features; produce per-file treatments | `CompiledManifest` |
 | **P4** | `compiler/trace_service.py` | BFS from explicit proc includes; emit `dependency_graph.json` and `TW-*` warnings. **Reporting only — no auto-copy.** | `DependencyGraph` |
-| **P5** | `trimmer/`, `generators/` | Execute file copies, proc-level rewrites, generated stage files, optional P5c indentation pass (`base.options.indent`, default off) | `TrimReport` |
+| **P5** | `trimmer/`, `generators/` | Execute file copies, proc-level rewrites, generated stage files, optional P5c indentation pass, P5d companion-file sync, JSON input preservation | `TrimReport` |
 | **P6** | `validator/functions.py` | Re-parse trimmed output; brace balance, dangling refs, namespace consistency, stage-step references | post-validation diagnostics |
 | **P7** | `audit/service.py` | Write `.chopper/` bundle. Always runs in `finally`, even after upstream failure. | `AuditManifest` |
 
@@ -178,14 +178,18 @@ No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
 ```text
 src/chopper/
-├── core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization
+├── core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization,
+│              filesystem helpers (fs_walk, file_perms, globs, header, tool_commands)
 ├── config/       JSON loading, schema validation, depends_on topo-sort       (P1)
 ├── parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
-├── compiler/     R1 merge algorithm, BFS trace, F3 flow-actions              (P3, P4)
-├── trimmer/      File copier, proc dropper, opt-in indentation normaliser  (P5a, P5c)
+├── compiler/     R1 merge algorithm, BFS trace, F3 flow-actions, stack graph  (P3, P4)
+├── trimmer/      File copier, proc dropper, indentation normaliser,
+│              companion-file sync, JSON input preservation                  (P5a, P5c, P5d)
 ├── generators/   F3 stage + stack file emitter                               (P5b)
 ├── validator/    Pre- and post-trim validation                               (P1, P6)
-├── audit/        .chopper/ writers, SLOC counter, hashing, internal-error log (P7)
+├── audit/        .chopper/ writers, SLOC counter (cloc + fallback), hashing,
+│              internal-error log                                            (P7)
+├── data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
 ├── orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
 ├── adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
 ├── mcp/          Stdio-only read-only MCP server                             (mcp-serve)
@@ -266,7 +270,7 @@ Yes. The parser handles standard Tcl (`proc`, `namespace eval`, `source`, contro
 
 ### How do I quiet a flood of `TW-02` warnings?
 
-Pass `--tool-commands <path>` for each vendor pool. Matches surface as `TI-01` (info, exit 0) instead of `TW-02` (warning). PrimeTime is bundled by default.
+Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) and loaded automatically. For site-local or additional tool pools, pass `--tool-commands <path>` for each extra file. Matches surface as `TI-01` (info, exit 0) instead of `TW-02` (warning).
 
 ### Why `mcp-serve` only over stdio?
 

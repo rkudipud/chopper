@@ -344,6 +344,11 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 3.4.1 — 2026-05-22
+
+- **P5d companion-file sync (FD-15 ADOPTED).** New `CompanionSyncService` in `src/chopper/trimmer/companion_sync.py`. For every `PROC_TRIM` `default_rules.<sfx>.tcl`, filters sibling `default_config.<sfx>.csv` (row-level, column 0) and `default_milestone.<sfx>.tcl` (`change_config <ProcName>` lines) to keep only rows/lines matching surviving proc short-names. Two new diagnostics: `VW-24 companion-file-missing`, `VI-04 companion-sync-applied`. Diagnostic registry active count 79→81.
+- **Documentation refresh.** All technical and user docs updated to match actual v3.4 implementation: ENGINEERING.md §3 module layout rewritten with all 14 packages and files; tool-command pool descriptions updated to 6 bundled vendor pools (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure); user_docs live-trim steps, module map, FAQ, and flag descriptions updated. Version bumped 3.4.0 → 3.4.1.
+
 ### 3.4.0 — 2026-05-21
 
 - **Aggregate `<domain>.stack` records now emitted in topological order.** Record order in the aggregate stack file (`options.generate_stack: true`) is now the topological sort of the stage dependency graph — edges are `dependencies ∪ {load_from}` per stage. Kahn's algorithm with **authored position** as the tiebreaker: deterministic, preserves authoring intent for unrelated subgraphs, no lexicographic shuffle. Materialized on a new `CompiledManifest.stack_order: tuple[str, ...]` field; `manifest.stages` itself remains in authored order so `<stage>.tcl` emission, trim report, and audit views continue to use authored sequencing.

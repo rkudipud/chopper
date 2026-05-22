@@ -2534,4 +2534,4 @@ The feature is implemented as a post-process pass in `TrimmerService` or as a th
 | FD-11 | Platform | Multi-platform domain support (trim on Windows) | Deferred; v1 is Linux-only |
 | FD-12 | Generator | Template-script generation (post-trim executor) | Deferred; scope-lock removed the reserved seam |
 | FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload | Deferred; issue creation may be automated, binary attachment upload is not |
-| FD-15 | Trimmer | Companion-file sync for ERRGEN config (`default_rules` pattern) | **ADOPTED in 2.0.1** — P5d in `src/chopper/trimmer/companion_sync.py`; `VW-24`, `VI-04` |
+| FD-15 | Trimmer | Companion-file sync for ERRGEN config (`default_rules` pattern) | **ADOPTED in 3.4.1** — P5d in `src/chopper/trimmer/companion_sync.py`; `VW-24`, `VI-04` |

@@ -195,14 +195,15 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 | Module | Responsibility | Key Files | Phase |
 |--------|-----------------|-----------|-------|
 | `parser/` | Tcl static analysis; tokenize, extract proc defs, track namespaces | `service.py`, `tokenizer.py`, `proc_extractor.py`, `namespace_tracker.py`, `call_extractor_body.py`, `call_extractor_*.py` | P2 |
-| `compiler/` | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions | `merge_service.py`, `trace_service.py`, `flow_resolver.py` | P3–P4 |
-| `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place; P5c indentation normalization | `service.py`, `file_writer.py`, `proc_dropper.py`, `indentation.py` | P5 |
+| `compiler/` | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions, stack dependency graph | `merge_service.py`, `trace_service.py`, `flow_resolver.py`, `stack_graph.py` | P3–P4 |
+| `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place; P5c indentation normalization; P5d companion-file sync; P5a-tail JSON input preservation | `service.py`, `file_writer.py`, `proc_dropper.py`, `indentation.py`, `companion_sync.py`, `input_preserver.py` | P5 |
 | `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `functions.py` (validate_pre, validate_post) | P1, P6 |
 | `config/` | JSON schema loading, path resolution, feature `depends_on` topo-sort | `service.py`, `loaders.py`, `schema.py` | P1 |
 | `cli/` | Command-line interface layer (subcommands: `validate`, `trim`, `loc`, `cleanup`, `mcp-serve`) | `main.py`, `commands.py`, `loc_report.py`, `render.py` | User layer |
-| `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization, glob helpers, tool-command index | `models_*.py`, `errors.py`, `diagnostics.py`, `_diagnostic_registry.py`, `protocols.py`, `context.py`, `serialization.py`, `globs.py`, `tool_commands.py` | All |
-| `audit/` | Write `.chopper/` bundle on every run (success and failure); SLOC accounting; internal-error log | `service.py`, `writers.py`, `hashing.py`, `sloc.py`, `internal_error.py` | P7 |
+| `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization, glob helpers, tool-command index, filesystem walker, permission helpers, generated-file header | `models_*.py`, `errors.py`, `diagnostics.py`, `_diagnostic_registry.py`, `protocols.py`, `context.py`, `serialization.py`, `globs.py`, `tool_commands.py`, `fs_walk.py`, `file_perms.py`, `header.py` | All |
+| `audit/` | Write `.chopper/` bundle on every run (success and failure); SLOC accounting (cloc + fallback); internal-error log | `service.py`, `writers.py`, `hashing.py`, `sloc.py`, `cloc_backend.py`, `internal_error.py`, `vendor/cloc.pl` | P7 |
 | `generators/` | F3 run-file (`<stage>.tcl`) and optional stack-file emission | `service.py`, `stage_emitter.py`, `stack_emitter.py` | P5 |
+| `data/` | Bundled static data: vendor tool-command pools (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) | `tool_commands/*.commands` | P4 (pool lookup) |
 | `mcp/` | Read-only stdio JSON-RPC server (3 tools: `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`) | `server.py`, `tools.py` | `mcp-serve` subcommand |
 | `orchestrator/` | Phase loop, domain-state detection, phase-gate logic | `runner.py`, `domain_state.py`, `gates.py` | All |
 | `adapters/` | Concrete port implementations (filesystem, diagnostic sink, progress) | `fs_local.py`, `fs_memory.py`, `sink_collecting.py`, `progress_rich.py`, `progress_silent.py` | All |
