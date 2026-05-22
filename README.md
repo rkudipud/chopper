@@ -344,6 +344,13 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 3.4.2 — 2026-05-22
+
+- **Fix: `options.cross_validate` now honored.** The flag in `BaseOptions` was loaded from JSON but never consumed; `_check_stage_steps()` ran VW-14/VW-15/VW-16 unconditionally. Threaded through `validate_post` → `_check_stage_steps` → `_classify_and_emit`. When `cross_validate: false`, VW-14/15/16 are suppressed entirely; VW-17 (external-path advisory) still fires because it does not depend on manifest lookups. See [src/chopper/validator/functions.py](src/chopper/validator/functions.py) and [src/chopper/orchestrator/runner.py](src/chopper/orchestrator/runner.py).
+- **Docs decluttered.** Aggressive trim of the architecture-doc revision history (the canonical release log is git + this changelog). Removed `IMPLEMENTATION.md` Appendix A (out-of-scope items already covered by scope-lock in [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)). Renamed Appendix B → main-body "Future Considerations" section; dropped ADOPTED FD-14/FD-15 entries; compressed remaining `FD-xx` entries.
+- **System review.** Full code-vs-spec audit confirmed all 5 CLI subcommands, all 83 diagnostic codes, all audit artifacts, MCP read-only surface, generator outputs (aggregate + standalone), all 4 P5 sub-phases, and exit-code policy match the architecture doc. Only gap found was `cross_validate` (fixed above).
+- Tests: 1506 passed, 100% coverage. Version bumped 3.4.1 → 3.4.2.
+
 ### 3.4.1 — 2026-05-22
 
 - **P5d companion-file sync (FD-15 ADOPTED).** New `CompanionSyncService` in `src/chopper/trimmer/companion_sync.py`. For every `PROC_TRIM` `default_rules.<sfx>.tcl`, filters sibling `default_config.<sfx>.csv` (row-level, column 0) and `default_milestone.<sfx>.tcl` (`change_config <ProcName>` lines) to keep only rows/lines matching surviving proc short-names. Two new diagnostics: `VW-24 companion-file-missing`, `VI-04 companion-sync-applied`. Diagnostic registry active count 79→81.

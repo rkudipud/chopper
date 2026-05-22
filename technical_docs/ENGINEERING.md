@@ -757,7 +757,7 @@ def make_test_context(
 - **Diagnostic order is emission order.** Because v1 is single-threaded and phase order is fixed (§6.2), emission order is reproducible without any sort. `CollectingSink` preserves it verbatim (§8.3).
 - **Concurrency.** **Chopper is single-threaded. Period.** No thread pools, no `asyncio`, no `multiprocessing`, no background workers, no locks of any kind — not in the sink, not around `.chopper/`, not around the domain tree. Chopper is a single-user push-button tool: one operator runs it against one on-disk domain, it finishes, and it exits. If two operators race the same checkout, the second invocation will observe a half-written `DomainStateService` state and abort through normal diagnostics — that is the intended failure mode, not a bug to guard against with locking. This is a closed design decision, not a deferral.
 - **Memory envelope.** ≤1 GB domain → whole-file reads acceptable (architecture doc §11 NFR-06). No streaming.
-- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/IMPLEMENTATION.md` Appendix B](IMPLEMENTATION.md) §FD-09).
+- **Performance posture.** Correctness first, optimization later. 5–10 minute runtime for a typical domain is acceptable. No per-phase time budget is enforced. Audit artifacts are written even on failure. A `make bench` harness and phase-time budgets are explicitly deferred (see [`technical_docs/IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations §FD-09).
 
 ---
 
@@ -862,7 +862,7 @@ Policy: read each file as UTF-8. On `UnicodeDecodeError`, retry as Latin-1 and e
 
 ### Deferred (explicitly not v1)
 
-- Runtime optimization and per-phase budgets — deferred to [`technical_docs/IMPLEMENTATION.md` Appendix B](IMPLEMENTATION.md) §FD-09.
+- Runtime optimization and per-phase budgets — deferred to [`technical_docs/IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations §FD-09.
 
 ---
 

@@ -26,8 +26,7 @@
 11. [Testing Strategy](#11-testing-strategy) — Stage gating and edge-case timing (P-24)
 12. [Quick Reference](#12-quick-reference-common-mistakes-by-module) — One-table-per-mistake summary
 13. [Standalone Risk Items](#13-standalone-risk-items) — TC-06, TC-09 (no dedicated pitfall)
-- [Appendix A: Out of Scope (OOS-01 … OOS-04)](#appendix-a-permanently-out-of-scope)
-- [Appendix B: Deferred Work (FD-01 … FD-14)](#appendix-b-deferred-work-items)
+- [Future Considerations (FD-xx)](#future-considerations)
 
 ---
 
@@ -2284,254 +2283,64 @@ Template-script generation is **not** a Chopper v1 feature and is not reserved i
 
 ---
 
+## Future Considerations
 
----
+Items considered and **deferred** from v1. An entry here is *not* a TODO — many will stay deferred indefinitely. Adding any of these requires re-entering the architecture-doc-first cascade in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) §3.
 
-## Appendix A: Permanently Out of Scope
+Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintained here; the scope-lock list in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) §1 is the single source of truth for what is closed.
 
-These items have been evaluated and **permanently excluded**. They will not be implemented in any version of Chopper. Do not plan, design, or prototype any of these.
+### Parser
 
-| ID | Item | Rationale |
+**FD-01 — Advanced namespace resolution.** Out of scope today; calls emit `TW-03 unresolvable-call`. Closed forms: `namespace import`, `namespace path`, `namespace unknown`, `interp alias`, runtime redefinition across sourced files. Source: this doc §6.3; `technical_docs/ARCHITECTURE.md` §4.6.
+
+### Pipeline
+
+**FD-02 — Cross-domain dependency awareness.** v1 treats domains as fully isolated; cross-domain calls are logged as `TW-02 unresolved-proc-call` but never traced. A future version could accept a multi-domain manifest for read-only cross-domain call validation (not trimming). Source: `technical_docs/ARCHITECTURE.md` §2.2.
+
+### CLI / UX
+
+**FD-03 — Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred — CLI-first is correct today; the service-layer + renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` §5.11) enables this with no engine changes.
+
+**FD-04 — GUI client.** Machine-readable stdio wire protocol documented in `technical_docs/ARCHITECTURE.md` §5.11.3. The wire payload (conventionally "TrimRequest") deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. Progress events as JSON lines on stderr. GUI data surfaces (file/proc selection, dependency graph, trim stats, JSON view, diagnostics) are enumerated in §1.5.11.5. Architecturally enabled by the service-layer + serialization + renderer-adapter contracts; no new data models needed.
+
+**FD-10 — Machine-readable CLI output (`--json` / `--jsonl`).** Emit `RunResult` and progress events as structured lines on stdout. Post-v1 this is ~50 lines in `cli/render.py` plus a fixture — `RunResult` already serialises via `core/serialization.py`. Deferred to keep v1's user surface minimal and let the table renderer bed in before freezing a machine-output contract. Source: `DAY0_REVIEW.md` A1.
+
+**FD-13 — Host-integrated GitHub issue attachment upload.** The Chopper Agent already creates issues with packaged evidence in the body; v1 does not standardise binary attachment upload. Future work would define allowed host transports (`gh`, browser, extension), credential sourcing, size/type limits, and partial-failure behavior. Deferred — issue-body packaging already solves the reproducibility problem without committing Chopper to GitHub's unstable attachment surface.
+
+### Generator
+
+**FD-12 — Template-script generation.** Some domains want Chopper to execute a domain-specific post-trim script (lint reports, project-level `run.tcl` wrappers, tool-specific setup). Earlier drafts carried `options.template_script` + `VE-18`. Removed per scope-lock policy (no reserved seams with registered diagnostics). A future version would spec the execution contract (sandbox, arguments, failure mode) before reintroducing the field. Deferred — domain owners can run generation scripts before/after `chopper trim` today; baking in an executor commits Chopper to a security surface no v1 caller demands. Source: `DAY0_REVIEW.md` G2.
+
+### Performance
+
+**FD-09 — Benchmark harness + phase budgets.** Deferred until core pipeline is verified across more production domains.
+
+### Platform
+
+**FD-11 — Multi-platform domain support (trim on Windows).** Deferred; v1 is Linux-only by deployment policy.
+
+### Documentation
+
+**FD-05, FD-06, FD-07** — Quick-start guide, example diagnostic messages per code, and terminology glossary (capability F1/F2/F3 vs feature JSON). Deferred until spec is final. Source: `technical_docs/ARCHITECTURE.md` §13.4 (DF-01 / DF-02 / DF-03).
+
+### Summary
+
+| ID | Category | Item |
 |---|---|---|
-| OOS-01 | Non-Tcl subroutine-level trimming | Non-Tcl files (Perl, Python, shell) are file-level only by design. Subroutine-level parsing for non-Tcl languages is not a requirement. |
-| OOS-02 | Computed proc name extraction | Procs with dynamic names (`proc ${prefix}_helper`) are skipped with `PW-01`. Heuristic resolution adds complexity with no practical value. |
-| OOS-03 | Pipeline checkpointing | No domain exceeds 200 MB. Full restart from Phase 1 is acceptable. The `compiled_plan.json` resumption idea is unnecessary. |
-| OOS-04 | Auto-draft JSON / scan mode | Scan mode was considered and explicitly removed. Chopper does not generate draft JSONs. Domain owners author JSONs manually; `--dry-run` is the authoring iteration feedback loop. |
-
----
-
-
----
-
-## Appendix B: Deferred Work Items
-
-These items have been considered and **deferred** from the v1 release. They are recorded so future authors know what was thought about and why it was not built. An FD-xx entry is **not a TODO** — many will stay deferred indefinitely. Adding any of these requires re-entering the architecture-doc-first cascade specified in `.github/instructions/project.instructions.md`.
-
-### B.1 Parser Enhancements
-
-### FD-01: Advanced Namespace Resolution
-
-The following Tcl namespace features are out of scope and are never guessed. They emit `TW-03` (unresolvable call form) when encountered:
-
-- `namespace import`
-- Command path lookup (`namespace path`)
-- `namespace unknown` handlers
-- Runtime aliasing / `interp alias`
-- Runtime redefinition order across sourced files
-
-**Source:** this doc §6.3, `technical_docs/ARCHITECTURE.md` §4.6
-
----
-
-### B.2 Compiler / Pipeline Enhancements
-
-### FD-02: Cross-Domain Dependency Awareness
-
-v1 treats domains as fully isolated. Cross-domain proc calls are logged as `TW-02` (unresolved) but never traced. A future version could optionally accept a multi-domain manifest for read-only cross-domain call validation (not trimming).
-
-**Source:** `technical_docs/ARCHITECTURE.md` §2.2, Q1
-
-### FD-14: Feature Replacement Semantics
-
-**ADOPTED in 2.0.0-alpha.** Adopted as the design baseline. See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §4 (R1 ordered overlay). The original FD-14 proposal was the seed of the overlay model: features are now layered, not additive, and the last layer that mentions a file or proc wins. A feature can therefore add new content, remove base content, or replace base content with its own — exactly the use case this FD called out. The previous additive-only semantics with `VW-18` / `VW-19` cross-source vetoes are retired.
-
----
-
-### B.3 CLI / UX Enhancements
-
-### FD-03: Interactive Feature Selection TUI
-
-Provide a terminal-based interactive UI for browsing available features, previewing their effects, and composing a project JSON.
-
-**Deferred because:** CLI-first approach is correct today. The service-layer and renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` §5.11) enables this without engine changes.
-
-### FD-04: GUI Client
-
-A machine-readable stdio wire protocol for a future GUI client is documented in `technical_docs/ARCHITECTURE.md` §5.11.3 and in [`FD-10`](#fd-10-machine-readable-cli-output). The wire-level JSON payload is conventionally called a "TrimRequest" envelope; on the Python side it deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. There is no Python class named `TrimRequest` — the engine boundary is `ChopperContext` in, `RunResult` out (see [`technical_docs/ENGINEERING.md`](ENGINEERING.md) §6). Progress events will be emitted as JSON lines on stderr. Not implemented here but architecturally enabled by the service-layer, serialization, and renderer-adapter contracts defined in §5.11.
-
-GUI-relevant data surfaces (file selection, proc selection, dependency graph, trim stats, JSON viewing, diagnostics) are enumerated in §1.5.11.5. No additional data models or artifacts are needed — the current pipeline already produces everything a GUI would consume.
-
-### FD-13: Host-Integrated GitHub Issue Attachment Upload
-
-The Chopper Agent may package local evidence and create a GitHub issue body automatically, but v1 does not standardize binary attachment upload to the created issue. GitHub's attachment flow is host- and credential-dependent: browser UI upload works today, while CLI/API support for issue attachments varies by environment and is not exposed through a stable Chopper-owned contract.
-
-If future users require truly end-to-end companion filing, this FD would define:
-
-- which host transports are allowed (`gh`, browser automation, extension API, or none)
-- how credentials are sourced and validated without expanding Chopper's runtime surface
-- size and file-type limits for uploaded bundles
-- failure behavior when issue creation succeeds but attachment upload does not
-
-**Deferred because:** packaging plus issue-body creation solves the reproducibility problem today without forcing Chopper to own browser automation, token storage, or an unstable GitHub attachment API.
-
----
-
-### B.4 Documentation Enhancements
-
-### FD-05: Quick-Start Guide
-
-Add a quick-start section to the architecture doc with a minimal end-to-end walkthrough.
-
-**Source:** `technical_docs/ARCHITECTURE.md` §13.4, DF-01
-
-### FD-06: Example Diagnostic Messages
-
-Add concrete example error/warning messages to the architecture doc for every diagnostic code.
-
-**Source:** `technical_docs/ARCHITECTURE.md` §13.4, DF-02
-
-### FD-07: Terminology Glossary
-
-Add a terminology note distinguishing "capability" (F1/F2/F3) from "feature JSON" (a JSON file that extends the base).
-
-**Source:** `technical_docs/ARCHITECTURE.md` §13.4, DF-03
-
----
-
-
----
-
-### FD-10: Machine-Readable CLI Output
-
-v1's CLI emits human-readable table output only. A `--json` or `--jsonl` mode would emit `RunResult` (and progress events) as structured lines on stdout so downstream tooling (CI dashboards, a future GUI, ad-hoc scripts) can consume them without scraping tables.
-
-Post-v1, this is ~50 lines of code in `cli/render.py` plus a test fixture — `RunResult` already serializes via `core/serialization.py` and `PresentationConfig` already has a rendering seam. The deferral is solely to keep v1's user surface minimal and let the table renderer bed in before committing to a machine-output contract.
-
-**Deferred because:** v1 is a push-button tool for one operator on one domain; structured output solves a problem (programmatic consumption) that no v1 user has. Shipping it now would freeze the JSON shape before the core pipeline has proved itself.
-
-**Source:** `DAY0_REVIEW.md` A1 (CLI flag inventory decision).
-
----
-
-
-
----
-
-### FD-12: Template-Script Generation
-
-Some domains may want Chopper to execute a domain-specific post-trim script that generates derived artifacts (lint reports, project-level `run.tcl` wrappers, tool-specific setup files). Earlier spec drafts carried an `options.template_script` schema field and a `VE-18` diagnostic for path-safety validation, with the intent that v1 would validate the path but not execute the script ("reserved seam").
-
-Per the scope-lock policy in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md), reserved seams with registered diagnostics are not allowed. The field and the diagnostic have been removed. If a future version wants template generation, it will file this FD-12 entry as the starting point and re-enter the architecture through the architecture-doc-first cascade: spec the execution contract (sandbox? arguments? failure mode?), then reintroduce the schema field and diagnostic in a new code slot.
-
-**Deferred because:** domain owners today can run their generation scripts before or after `chopper trim` themselves. Baking an executor into Chopper commits the tool to a security surface (what paths are allowed? what exit-code policy?) that has no v1 caller demanding it.
-
-**Source:** `DAY0_REVIEW.md` G2; scope-lock policy (`.github/instructions/project.instructions.md` §1).
-
----
-
-### FD-15: Companion-File Sync for ERRGEN Config (`default_rules` pattern)
-
-#### What
-
-A silent post-trim behavior triggered when a file whose POSIX basename matches `default_rules.<sfx>.tcl` receives **PROC_TRIM treatment** — meaning the final compiled PI set (accounting for both `procedures.include` **and** `procedures.exclude` across all feature layers merged via R1 overlay) retains only a subset of its procs. After the trimmer drops procs from the rules file, Chopper also:
-
-1. **Filters the companion CSV** — removes any row whose first comma-separated column (proc name, stripped) is not in the final surviving PI set. The line is deleted entirely; no blank placeholder is left. Original blank lines and `#`-comment lines in the file are kept unchanged.
-2. **Prunes the companion milestone** — removes `change_config <ProcName> ...` lines where `<ProcName>` is not in the final surviving PI set. The line is deleted entirely; no blank placeholder is left.
-
-No CLI flag. No schema field. No user-visible output beyond optional `VW-xx` warnings when a companion file is expected but absent. Triggered solely by the naming convention of the trimmed file.
-
-#### Naming convention and file discovery
-
-Given a trimmed file at `<dir>/default_rules.<sfx>.tcl`:
-
-| Companion | Derived path | Required? |
-|---|---|---|
-| Config CSV | `<dir>/default_config.<sfx>.csv` | Warn `VW-xx companion-file-missing` if absent, then skip |
-| Milestone Tcl | `<dir>/default_milestone.<sfx>.tcl` | Warn `VW-xx companion-file-missing` if absent, then skip |
-
-Example for Formality (`<sfx>` = `fm`):
-- Rules: `default_rules.fm.tcl` → CSV: `default_config.fm.csv`, Milestone: `default_milestone.fm.tcl`
-
-Example for Conformal (`<sfx>` = `cfm`):
-- Rules: `default_rules.cfm.tcl` → CSV: `default_config.cfm.csv`, Milestone: `default_milestone.cfm.tcl`
-
-The suffix `<sfx>` is any single dot-separated token between `default_rules.` and `.tcl`. The pattern match is applied to the POSIX basename of every PROC_TRIM file in the domain; depth in the directory tree does not matter.
-
-#### CSV modification algorithm
-
-```
-For each line in default_config.<sfx>.csv (in order):
-  stripped = line.strip()
-  if stripped == "" or stripped.startswith("#"):
-    keep the line unchanged          # original blanks and comments survive
-  else:
-    col0 = stripped.split(",")[0].strip()
-    if col0 in final_pi_proc_names:
-      keep the line unchanged
-    else:
-      drop the line entirely         # no blank placeholder; the line is gone
-Write the retained lines back, preserving original line endings.
-```
-
-#### Milestone modification algorithm
-
-```
-For each line in default_milestone.<sfx>.tcl (in order):
-  m = re.match(r'^\s*change_config\s+(\w+)\b', line)
-  if m:
-    proc_name = m.group(1)
-    if proc_name NOT in final_pi_proc_names:
-      drop the line entirely         # no blank placeholder; the line is gone
-    else:
-      keep the line
-  else:
-    keep the line (comments, blanks, other Tcl statements, etc.)
-Write the retained lines back, preserving original line endings.
-```
-
-Note: original blank lines and non-`change_config` statements are kept as-is. Only `change_config` lines that reference a proc absent from the final PI set are removed.
-
-#### Trigger conditions
-
-- The trimmed domain contains at least one file whose POSIX basename matches `default_rules.*.tcl`.
-- That file's treatment in the `TrimReport` is `PROC_TRIM` (not `FULL_COPY`, not `REMOVE`).
-- The **surviving proc set** used to filter companion files is the **final compiled PI set** from `CompiledManifest` for the `default_rules.<sfx>.tcl` file. This accounts for both `procedures.include` and `procedures.exclude` contributions from all merged feature layers (R1 ordered overlay) — not merely the raw `procedures.include` list of any individual JSON. Procs excluded via `procedures.exclude` are absent from PI and therefore removed from the companion files.
-- The companion files (`default_config.<sfx>.csv`, `default_milestone.<sfx>.tcl`) are declared as `files.include` entries in the base or feature JSON, so they receive FULL_COPY treatment and are unconditionally present in the rebuilt domain. The companion-sync pass operates on those already-written full copies and overwrites them in-place.
-- The companion-sync pass runs after P3 (compile) and P4 (BFS trace) have completed, so the final PI set is fully resolved before any filtering decisions are made.
-
-#### Where in the pipeline
-
-This runs at the end of **P5** (build output), after `TrimmerService` has written the rebuilt domain and the `TrimReport` is available, but before P6 (post-validate) and P7 (audit). The companion files (`default_config.*.csv` and `default_milestone.*.tcl`) have already been full-copied into the rebuilt domain at this point; this step overwrites them in-place with the filtered versions.
-
-The feature is implemented as a post-process pass in `TrimmerService` or as a thin co-worker called from the trimmer's `run()` method — it does not alter the `TrimReport` or any `CompiledManifest` fields.
-
-#### Diagnostics (assigned in 2.0.1)
-
-| Code | Slug | Condition | Exit effect |
-|---|---|---|---|
-| `VW-24` | `companion-file-missing` | Expected `default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl` not found in the rebuilt domain | Warning only; sync skipped for the missing file |
-| `VI-04` | `companion-sync-applied` | Companion file was present and was successfully filtered | Informational |
-
-#### What would change in the architecture doc if adopted
-
-- ✅ **Adopted in 2.0.1.** `technical_docs/ARCHITECTURE.md` §5.5 (P5 build output) was extended with a P5d companion-file sync sub-step. `technical_docs/DIAGNOSTIC_CODES.md` gained `VW-24 companion-file-missing` and `VI-04 companion-sync-applied`. Implementation is in `src/chopper/trimmer/companion_sync.py`, called from `src/chopper/orchestrator/runner.py` after P5c.
-
-#### Why deferred
-
-- The naming convention (`default_rules` / `default_config` / `default_milestone`) is specific to the fev_formality and fev_conformal EDA tool families. No other domains use it. Encoding it in the core trimmer adds domain-specific knowledge to a domain-agnostic tool.
-- The CSV format is informal (no schema): any deviation in column order or quoting would silently corrupt the file. A formal companion-file declaration in the JSON (e.g., `options.companion_config`) would be safer but requires schema changes.
-- The milestone pruning relies on a regex match on `change_config` — if other Tcl commands follow the same pattern in the milestone, they would be incorrectly removed.
-- A cleaner long-term approach (FD-15b, not filed) would let the domain author declare companion relationships in the base JSON (`files.companions: [{source: "default_rules.fm.tcl", csv: "default_config.fm.csv", milestone: "default_milestone.fm.tcl"}]`) and let Chopper apply a general-purpose sync. That design requires schema changes and a more robust CSV/Tcl parser.
-
-**Source:** User request 2026-05-22; fev_formality domain analysis.
-
----
-
-### B.5 Summary Table
-
-| ID | Category | Item | Status |
-|---|---|---|---|
-| FD-01 | Parser | Advanced namespace resolution | Out of scope for v1 |
-| FD-02 | Pipeline | Cross-domain dependency awareness | Out of scope for v1 |
-| FD-14 | Pipeline | Feature replacement semantics | **ADOPTED in 2.0.0-alpha** — R1 ordered overlay (see ARCHITECTURE.md §4) |
-| FD-03 | CLI/UX | Interactive feature selection TUI | Architecturally enabled, deferred |
-| FD-04 | CLI/UX | GUI client via JSON-over-stdio | Architecturally enabled, deferred (§1.5.11) |
-| FD-05 | Docs | Quick-start guide | Deferred until spec final |
-| FD-06 | Docs | Example diagnostic messages | Deferred until spec final |
-| FD-07 | Docs | Terminology glossary | Deferred until spec final |
-| FD-09 | Performance | Benchmark harness and phase budgets | Deferred until core pipeline verified |
-| FD-10 | CLI/UX | Machine-readable CLI output (`--json` / `--jsonl`) | Deferred; v1 is table-only |
-| FD-11 | Platform | Multi-platform domain support (trim on Windows) | Deferred; v1 is Linux-only |
-| FD-12 | Generator | Template-script generation (post-trim executor) | Deferred; scope-lock removed the reserved seam |
-| FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload | Deferred; issue creation may be automated, binary attachment upload is not |
-| FD-15 | Trimmer | Companion-file sync for ERRGEN config (`default_rules` pattern) | **ADOPTED in 3.4.1** — P5d in `src/chopper/trimmer/companion_sync.py`; `VW-24`, `VI-04` |
+| FD-01 | Parser | Advanced namespace resolution |
+| FD-02 | Pipeline | Cross-domain dependency awareness |
+| FD-03 | CLI/UX | Interactive feature-selection TUI |
+| FD-04 | CLI/UX | GUI client over stdio JSON protocol |
+| FD-05 | Docs | Quick-start guide |
+| FD-06 | Docs | Per-code example diagnostic messages |
+| FD-07 | Docs | Terminology glossary |
+| FD-09 | Performance | Benchmark harness + phase budgets |
+| FD-10 | CLI/UX | Machine-readable CLI output (`--json` / `--jsonl`) |
+| FD-11 | Platform | Multi-platform domain support |
+| FD-12 | Generator | Template-script generation |
+| FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload |
+
+**Adopted historical entries** (no longer tracked here):
+
+- **FD-14 — Feature replacement semantics.** ADOPTED 2.0.0-alpha as the R1 ordered-overlay design baseline. See `technical_docs/ARCHITECTURE.md` §4.
+- **FD-15 — Companion-file sync for `default_rules` pattern.** ADOPTED 3.4.1 as P5d in `src/chopper/trimmer/companion_sync.py`; diagnostics `VW-24`, `VI-04`. See `technical_docs/ARCHITECTURE.md` §5.5.

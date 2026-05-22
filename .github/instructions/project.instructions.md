@@ -53,7 +53,7 @@ Everything else in the MCP row stays closed: no destructive tools over MCP, no p
 - [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
 - [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
 - [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/IMPLEMENTATION.md` (pitfalls)](../../technical_docs/IMPLEMENTATION.md), [`technical_docs/IMPLEMENTATION.md` (parser section)](../../technical_docs/IMPLEMENTATION.md) — all subordinate.
-- [`technical_docs/IMPLEMENTATION.md` Appendix B](../../technical_docs/IMPLEMENTATION.md) — records what was considered and *not* shipped; never a green light to build.
+- [`technical_docs/IMPLEMENTATION.md` Future Considerations section](../../technical_docs/IMPLEMENTATION.md) — records what was considered and *not* shipped; never a green light to build.
 
 **When docs disagree, the architecture doc wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
 
@@ -70,7 +70,7 @@ No agent may invert this order. If you catch yourself writing code for a feature
 
 When you (or a reviewer, or a user comment) identify something Chopper "should maybe do", the correct action is **not** to implement it. It is not to stub it. It is not to reserve a seam for it. The correct action is:
 
-1. Open [`technical_docs/IMPLEMENTATION.md` Appendix B](../../technical_docs/IMPLEMENTATION.md).
+1. Open [`technical_docs/IMPLEMENTATION.md` Future Considerations section](../../technical_docs/IMPLEMENTATION.md).
 2. Add a new `FD-xx` entry at the next unused number in the appropriate category section.
 3. State: what the idea is, why it was considered, why it is not in the current design, and what would change in the architecture doc if it were adopted.
 4. Do **not** implement it. Do **not** stub it. Do **not** reserve a diagnostic code, port, or namespace for it.
@@ -99,7 +99,7 @@ Is this in technical_docs/ARCHITECTURE.md?
 ├── YES → Implement per the architecture doc. Cascade to subordinate docs if needed.
 └── NO  → Is it in §1 "Closed Decisions" above?
          ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
-         └── NO  → File an FD-xx stub in IMPLEMENTATION.md Appendix B. Flag the user. Stop.
+         └── NO  → File an FD-xx stub in IMPLEMENTATION.md Future Considerations section. Flag the user. Stop.
 ```
 
 There is no fourth branch.
@@ -303,7 +303,7 @@ All authoritative documentation lives under [technical_docs/](../../technical_do
 Other key docs:
 
 - [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
-- [technical_docs/IMPLEMENTATION.md Appendix B](../../technical_docs/IMPLEMENTATION.md) — Roadmap items explicitly out of v1 scope.
+- [technical_docs/IMPLEMENTATION.md Future Considerations section](../../technical_docs/IMPLEMENTATION.md) — Roadmap items explicitly out of v1 scope.
 - [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
 - [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
 
