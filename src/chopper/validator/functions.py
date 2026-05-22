@@ -316,6 +316,7 @@ def validate_post(
     *,
     trim_report: TrimReport | None = None,
     tool_command_pool: frozenset[str] = frozenset(),
+    cross_validate: bool = True,
 ) -> None:
     """Run Phase 2 correctness checks on the rebuilt domain.
 
@@ -334,7 +335,7 @@ def validate_post(
     _check_trim_outputs(ctx, trim_report)
     _check_trimmed_proc_sets(ctx, trim_report)
     _check_dangling_refs(ctx, manifest, graph)
-    _check_stage_steps(ctx, manifest, tool_command_pool)
+    _check_stage_steps(ctx, manifest, tool_command_pool, cross_validate=cross_validate)
 
 
 def _check_manifest_vs_trim(
@@ -806,6 +807,8 @@ def _check_stage_steps(
     ctx: ChopperContext,
     manifest: CompiledManifest,
     tool_command_pool: frozenset[str] = frozenset(),
+    *,
+    cross_validate: bool = True,
 ) -> None:
     if not manifest.stages:
         return
@@ -822,6 +825,7 @@ def _check_stage_steps(
                 surviving_files=surviving_files,
                 surviving_proc_shorts=surviving_proc_short,
                 tool_command_pool=tool_command_pool,
+                cross_validate=cross_validate,
             )
 
 
@@ -849,6 +853,7 @@ def _classify_and_emit(
     surviving_files: frozenset[Path],
     surviving_proc_shorts: frozenset[str],
     tool_command_pool: frozenset[str] = frozenset(),
+    cross_validate: bool = True,
 ) -> None:
     stripped = step.strip()
     if not stripped:
@@ -863,6 +868,11 @@ def _classify_and_emit(
                 message=(f"Stage {stage.name!r} step references external path: {stripped!r}"),
             )
         )
+        return
+
+    # When cross_validate is disabled, suppress VW-14/VW-15/VW-16 entirely.
+    # VW-17 (above) still fires because it does not depend on manifest lookups.
+    if not cross_validate:
         return
 
     # VW-16: source / iproc_source <path>.

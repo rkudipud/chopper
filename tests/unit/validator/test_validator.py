@@ -848,6 +848,24 @@ def test_validate_post_ignores_blank_and_comment_stage_steps() -> None:
     assert not any(code in _codes(ctx) for code in ("VW-14", "VW-15", "VW-16", "VW-17"))
 
 
+def test_validate_post_cross_validate_false_suppresses_vw14_15_16() -> None:
+    """When cross_validate=False, VW-14/15/16 are suppressed but VW-17 still fires."""
+    manifest = _make_manifest(
+        stages=(_stage(steps=("missing.tcl", "run_flow", "source lib/x.tcl", "/abs/path.tcl")),)
+    )
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), cross_validate=False)
+
+    codes = _codes(ctx)
+    # VW-14/15/16 suppressed
+    assert "VW-14" not in codes
+    assert "VW-15" not in codes
+    assert "VW-16" not in codes
+    # VW-17 still fires (external path advisory)
+    assert "VW-17" in codes
+
+
 # ---------------------------------------------------------------------------
 # Issue #8 regression — VW-06 false positive for bare filenames in source
 # ---------------------------------------------------------------------------

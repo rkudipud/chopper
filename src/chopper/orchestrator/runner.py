@@ -160,6 +160,7 @@ class ChopperRunner:
                     rewritten,
                     trim_report=trim_report,
                     tool_command_pool=loaded.tool_command_pool,
+                    cross_validate=loaded.base.options.cross_validate,
                 )
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
@@ -184,6 +185,7 @@ class ChopperRunner:
                     rewritten=(),
                     trim_report=None,
                     tool_command_pool=loaded.tool_command_pool,
+                    cross_validate=loaded.base.options.cross_validate,
                 )
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
