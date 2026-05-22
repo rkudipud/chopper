@@ -1,0 +1,41 @@
+{
+  "$schema": "base-v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base with multiple stages and options.generate_stack: true. Demonstrates the 3.3.0 aggregate scheduler-stack contract: one <basename(domain_root)>.stack file at the domain root, containing one record per stage in declared order.",
+  "options": {
+    "generate_stack": true
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw my_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source procs/core_procs.tcl",
+        "run_setup"
+      ]
+    },
+    {
+      "name": "verify",
+      "load_from": "setup",
+      "command": "-xt vw my_shell -B BLOCK -T verify",
+      "exit_codes": [0, 3, 5],
+      "dependencies": ["setup"],
+      "steps": [
+        "verify_netlist",
+        "report_summary"
+      ]
+    },
+    {
+      "name": "promote",
+      "load_from": "verify",
+      "command": "vw promote.tcl -B BLOCK -T verify -force",
+      "dependencies": ["verify"],
+      "steps": [
+        "promote_outputs"
+      ]
+    }
+  ]
+}

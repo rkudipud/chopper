@@ -99,9 +99,15 @@ def test_flow_resolver_replace_stage_rejects_duplicate_name() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_merge_stage_emits_chopper_error_when_stack_path_collides() -> None:
-    """When ``options.generate_stack`` is on and a base file collides
-    with the stage's ``.stack`` artifact the merger raises ChopperError."""
+def test_merge_stage_emits_chopper_error_when_aggregate_stack_path_collides() -> None:
+    """When ``options.generate_stack`` is on and a base file collides with
+    the aggregate ``<domain-basename>.stack`` artifact, the merger emits
+    ``VE-28`` and raises ``ChopperError``.
+
+    The aggregate path is derived from the domain-root basename; the
+    test_runner_coverage ``_ctx`` fixture uses ``DOMAIN = Path("/work/d")``,
+    so the colliding ``files.include`` entry is ``d.stack``.
+    """
     from chopper.compiler.merge_service import CompilerService
     from chopper.core.errors import ChopperError
     from chopper.core.models_config import (
@@ -117,15 +123,17 @@ def test_merge_stage_emits_chopper_error_when_stack_path_collides() -> None:
     base = BaseJson(
         source_path=Path("/work/base.json"),
         domain="d",
-        files=FilesSection(include=("synth.stack",), exclude=()),
+        files=FilesSection(include=("d.stack",), exclude=()),
         procedures=ProceduresSection(include=(), exclude=()),
-        stages=(StageDefinition(name="synth", load_from="base", steps=("setup",)),),
+        stages=(StageDefinition(name="synth", load_from="", steps=("setup",)),),
         options=BaseOptions(generate_stack=True),
     )
     cfg = LoadedConfig(base=base, features=(), project=None)
     ctx = _ctx()
     with pytest.raises(ChopperError, match="generate_stack|collides"):
         CompilerService().run(ctx, cfg, ParseResult(index={}, files={}))
+    codes = [d.code for d in ctx.diag.snapshot()]
+    assert "VE-28" in codes
 
 
 def test_runner_generic_exception_writes_internal_error_log(monkeypatch: pytest.MonkeyPatch) -> None:

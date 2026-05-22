@@ -52,7 +52,7 @@ def test_stage_definition_emits_generated_file_with_base_contributor() -> None:
     parsed = make_parsed({"a.tcl": ["foo"]})
     base = _base_with_stages(
         make_base(files=files_section(include=("a.tcl",))),
-        stages=(StageDefinition(name="compile", load_from="default", steps=("foo",)),),
+        stages=(StageDefinition(name="compile", load_from="", steps=("foo",)),),
     )
     loaded = make_loaded(base)
     manifest = CompilerService().run(ctx, loaded, parsed)
@@ -69,7 +69,7 @@ def test_stage_collision_with_existing_file_decision_raises() -> None:
     parsed = make_parsed({"compile.tcl": ["x"]})
     base = _base_with_stages(
         make_base(files=files_section(include=("compile.tcl",))),
-        stages=(StageDefinition(name="compile", load_from="default", steps=("x",)),),
+        stages=(StageDefinition(name="compile", load_from="", steps=("x",)),),
     )
     loaded = make_loaded(base)
     with pytest.raises(ChopperError, match="collides with an existing file decision"):
@@ -81,12 +81,12 @@ def test_feature_flow_action_appears_in_stage_input_sources() -> None:
     parsed = make_parsed({"a.tcl": ["foo"]})
     base = _base_with_stages(
         make_base(files=files_section(include=("a.tcl",))),
-        stages=(StageDefinition(name="compile", load_from="default", steps=("foo",)),),
+        stages=(StageDefinition(name="compile", load_from="", steps=("foo",)),),
     )
     flow = AddStageAction(
         action="add_stage_after",
         reference="compile",
-        stage=StageDefinition(name="post", load_from="default", steps=("foo",)),
+        stage=StageDefinition(name="post", load_from="compile", steps=("foo",)),
     )
     feat = _feature_with_flow(make_feature("post_compile"), (flow,))
     loaded = make_loaded(base, feat)

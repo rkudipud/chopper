@@ -61,6 +61,9 @@ Each `.tcl` under `fixtures/edge_cases/` targets a pitfall (`P-xx`) or parser-sp
 | `parser_braced_word_multi_quote_pairs.tcl` | P-01a extension: brace word with multiple quote pairs (`string map {" " ""}`) | — | §1.3.3 |
 | `parser_escaped_bracket_in_string.tcl` | P-46: escaped `\[` inside double-quoted string not treated as bracket substitution | — | §3.2 |
 | `parser_switch_brace_pattern.tcl` | P-47: brace-delimited switch pattern with `[...]` inside suppressed as opaque | — | §5.3 |
+| `indent_backslash_continuation.tcl` | P5c formatter — backslash continuation indent, multi-continuation runs, escaped `\\\\` not treated as continuation | — | trimmer §5.5 (P5c) |
+| `indent_comment_braces.tcl` | P5c formatter — `#` comment lines with unmatched `{` / `}` and trailing `\` must not shift indent or propagate continuation (real-world `default_fm_procs.tcl` patterns) | — | trimmer §5.5 (P5c) |
+| `indent_quoted_braces.tcl` | P5c formatter — unmatched `{` inside `"..."` strings and nested braces in `set_vclp_setup_commands` arguments must not affect brace counting (real-world `fev_formality` patterns) | — | trimmer §5.5 (P5c) |
 
 ### 2.1 Pitfall coverage matrix
 

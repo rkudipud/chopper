@@ -96,6 +96,14 @@ _REGISTRY: dict[str, _Entry] = {
     "VE-25": _Entry(slug="domain-write-failed", severity=Severity.ERROR, phase=5, source="trimmer", exit_code=1),
     "VE-26": _Entry(slug="proc-atomic-drop-failed", severity=Severity.ERROR, phase=5, source="trimmer", exit_code=1),
     "VE-27": _Entry(slug="no-op-exclude", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1),
+    "VE-28": _Entry(slug="aggregate-stack-collision", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1),
+    "VE-29": _Entry(
+        slug="standalone-stack-collision", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1
+    ),
+    "VE-30": _Entry(slug="stage-dependency-cycle", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1),
+    "VE-31": _Entry(
+        slug="stage-dependency-unresolved", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1
+    ),
     "VW-01": _Entry(
         slug="file-in-both-include-lists", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0
     ),
@@ -126,6 +134,9 @@ _REGISTRY: dict[str, _Entry] = {
     "VW-20": _Entry(slug="audit-write-failed", severity=Severity.WARNING, phase=7, source="audit", exit_code=0),
     "VW-21": _Entry(slug="layer-shadowed", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0),
     "VW-22": _Entry(slug="proc-trim-no-drop", severity=Severity.WARNING, phase=5, source="trimmer", exit_code=0),
+    "VW-23": _Entry(
+        slug="stack-stage-empty-command", severity=Severity.WARNING, phase=3, source="compiler", exit_code=0
+    ),
     "VI-01": _Entry(slug="empty-base-json", severity=Severity.INFO, phase=1, source="validator", exit_code=0),
     "VI-02": _Entry(slug="top-level-tcl-only", severity=Severity.INFO, phase=5, source="trimmer", exit_code=0),
     "VI-03": _Entry(slug="domain-suffix-strip-applied", severity=Severity.INFO, phase=1, source="cli", exit_code=0),

@@ -194,36 +194,106 @@ def test_service_does_not_emit_stack_files_when_flag_off() -> None:
     assert not fs.exists(DOMAIN / "setup.stack")
 
 
-def test_service_emits_stack_pair_per_stage_when_flag_on() -> None:
+def test_service_emits_aggregate_stack_when_flag_on() -> None:
+    """``options.generate_stack: true`` → one aggregate ``<domain>.stack``,
+    appended after all per-stage ``.tcl`` files."""
+
     ctx, fs = _make_ctx()
     stages = (
-        StageSpec(name="setup", steps=("a",)),
-        StageSpec(name="run", steps=("b",), load_from="setup"),
+        StageSpec(name="setup", steps=("a",), command="-tool x"),
+        StageSpec(name="run", steps=("b",), command="-tool y", load_from="setup"),
     )
     manifest = _manifest_with_stages_and_stack(stages)
 
     arts = GeneratorService().run(ctx, manifest)
-    # Ordering: per stage, .tcl immediately precedes .stack.
+    # Aggregate (kind="stack", source_stage=<domain>) is the final element.
     assert tuple((a.source_stage, a.kind) for a in arts) == (
         ("setup", "tcl"),
-        ("setup", "stack"),
         ("run", "tcl"),
-        ("run", "stack"),
+        (DOMAIN.name, "stack"),
     )
-    assert fs.exists(DOMAIN / "setup.stack")
-    assert fs.exists(DOMAIN / "run.stack")
-    assert fs.read_text(DOMAIN / "setup.stack").startswith(intel_header_text() + "# Chopper-generated stack: setup\n")
+    # No per-stage ``.stack`` files when standalone_stack is not set.
+    assert not fs.exists(DOMAIN / "setup.stack")
+    assert not fs.exists(DOMAIN / "run.stack")
+    # The aggregate file is written at ``<domain>/<domain-basename>.stack``.
+    aggregate_path = DOMAIN / f"{DOMAIN.name}.stack"
+    assert fs.exists(aggregate_path)
+    aggregate_text = fs.read_text(aggregate_path)
+    # Single header at the top, both stage records present.
+    assert aggregate_text.count("#Intel Legal compliant copyright header") == 1
+    assert "# Chopper-generated stack: setup\n" in aggregate_text
+    assert "# Chopper-generated stack: run\n" in aggregate_text
+
+
+def test_service_emits_standalone_stack_per_stage_when_flag_set() -> None:
+    """``stage.standalone_stack: true`` → per-stage ``<stage>.stack`` is
+    emitted **instead of** the ``.tcl`` (3.4.0: standalone stack is the
+    stage's sole driver). Regardless of ``options.generate_stack``."""
+
+    ctx, fs = _make_ctx()
+    stages = (
+        StageSpec(name="setup", steps=("a",)),
+        StageSpec(name="eco_apply_patch", steps=("rm -rf x", "cp y z"), standalone_stack=True),
+    )
+    manifest = _manifest_with_stages(stages)
+
+    arts = GeneratorService().run(ctx, manifest)
+    assert tuple((a.source_stage, a.kind) for a in arts) == (
+        ("setup", "tcl"),
+        ("eco_apply_patch", "stack"),
+    )
+    assert not fs.exists(DOMAIN / "setup.stack")
+    assert fs.exists(DOMAIN / "eco_apply_patch.stack")
+    # 3.4.0: standalone stage does NOT emit a .tcl.
+    assert not fs.exists(DOMAIN / "eco_apply_patch.tcl")
+    standalone_text = fs.read_text(DOMAIN / "eco_apply_patch.stack")
+    # Verbatim steps body — Intel header + blank line + steps.
+    assert standalone_text == intel_header_text() + "\n" + "rm -rf x\ncp y z\n"
+
+
+def test_service_emits_aggregate_and_standalone_together() -> None:
+    """Mixed flow: ``options.generate_stack: true`` + one stage with
+    ``standalone_stack: true``. The non-standalone stage emits ``.tcl``;
+    the standalone stage emits ``.stack`` instead; the aggregate is
+    appended last."""
+
+    ctx, fs = _make_ctx()
+    stages = (
+        StageSpec(name="setup", steps=("a",), command="-tool x"),
+        StageSpec(
+            name="eco_apply_patch",
+            steps=("rm -rf x",),
+            command="-tool patch",
+            standalone_stack=True,
+        ),
+    )
+    manifest = _manifest_with_stages_and_stack(stages)
+
+    arts = GeneratorService().run(ctx, manifest)
+    assert tuple((a.source_stage, a.kind) for a in arts) == (
+        ("setup", "tcl"),
+        ("eco_apply_patch", "stack"),
+        (DOMAIN.name, "stack"),
+    )
+    assert fs.exists(DOMAIN / "eco_apply_patch.stack")
+    assert not fs.exists(DOMAIN / "eco_apply_patch.tcl")
+    assert fs.exists(DOMAIN / f"{DOMAIN.name}.stack")
+    # ``setup`` (no standalone_stack) has no per-stage stack.
+    assert not fs.exists(DOMAIN / "setup.stack")
 
 
 def test_service_dry_run_builds_stack_artifacts_but_writes_nothing() -> None:
     ctx, fs = _make_ctx(dry_run=True)
-    stages = (StageSpec(name="setup", steps=("a",)),)
+    stages = (StageSpec(name="setup", steps=("a",), command="-tool x", standalone_stack=True),)
     manifest = _manifest_with_stages_and_stack(stages)
 
     arts = GeneratorService().run(ctx, manifest)
-    assert tuple(a.kind for a in arts) == ("tcl", "stack")
+    # 3.4.0: standalone stage emits only its .stack; the aggregate is
+    # still appended because generate_stack is on.
+    assert tuple(a.kind for a in arts) == ("stack", "stack")
     assert not fs.exists(DOMAIN / "setup.tcl")
     assert not fs.exists(DOMAIN / "setup.stack")
+    assert not fs.exists(DOMAIN / f"{DOMAIN.name}.stack")
 
 
 # ------------------------------------------------------------------

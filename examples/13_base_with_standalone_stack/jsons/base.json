@@ -1,0 +1,34 @@
+{
+  "$schema": "base-v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Mixed flow: options.generate_stack: true emits the aggregate <basename(domain_root)>.stack; one stage (eco_apply_patch) also sets standalone_stack: true, so it additionally emits its own verbatim eco_apply_patch.stack containing the authored steps with no record-style line derivation.",
+  "options": {
+    "generate_stack": true
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw my_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "steps": [
+        "source procs/core_procs.tcl",
+        "run_setup"
+      ]
+    },
+    {
+      "name": "eco_apply_patch",
+      "load_from": "setup",
+      "command": "bash apply_patch.sh",
+      "exit_codes": [0],
+      "dependencies": ["setup"],
+      "standalone_stack": true,
+      "steps": [
+        "rm -rf $ward/old_artifacts",
+        "cp -r $ward/patch_src $ward/patch_dst",
+        "bash $ward/apply.sh"
+      ]
+    }
+  ]
+}

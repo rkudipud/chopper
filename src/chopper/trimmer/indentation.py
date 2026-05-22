@@ -105,6 +105,20 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
     marker lines, and indents backslash-continuation lines one extra
     level beyond the opening line. It always emits LF line endings and
     terminates non-empty files with a final newline.
+
+    Comment and quote awareness:
+
+    * A ``#`` token at the start of a line (after optional whitespace)
+      starts a comment that runs to end-of-line; braces inside the
+      comment never affect the running indent level, and a comment
+      line that ends with ``\\`` never propagates a continuation to
+      the next line.
+    * Braces inside an unescaped ``"..."`` double-quoted string are
+      ignored by the indent counter.
+
+    Known limitations: braces inside command substitution ``[...]``,
+    braces inside nested braced words ``{...}``, and ``;#`` inline
+    comments after a statement-terminating semicolon are not tracked.
     """
 
     if text == "":
@@ -128,7 +142,6 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
         char = ""
         previous_previous = ""
         in_double_quote = False
-        comment_start = False
 
         for current in line:
             previous_previous = previous
@@ -143,7 +156,6 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
             # marker outside of a double-quoted string, stop scanning further chars
             # so braces inside comments do not affect indentation counting.
             if char == "#" and not in_double_quote and previous in ("", " ", "\t"):
-                comment_start = True
                 break
 
             # While inside a double-quoted string ignore brace characters
@@ -177,7 +189,13 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
 
         # Detect backslash-continuation: line ends with odd number of
         # trailing backslashes (simplification: just check single `\`).
-        is_continuation = line.endswith("\\") and not line.endswith("\\\\")
+        # Comment lines never propagate continuation to the next line: a
+        # comment that ends with ``\`` is still a comment and must not
+        # cause the following statement to be indented as a continuation.
+        if line.startswith("#"):
+            is_continuation = False
+        else:
+            is_continuation = line.endswith("\\") and not line.endswith("\\\\")
 
     return "\n".join(output) + "\n"
 

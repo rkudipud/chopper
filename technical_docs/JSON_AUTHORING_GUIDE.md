@@ -8,7 +8,7 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 ## Contents
 
 1. [The Three JSON Types](#1-the-three-json-types)
-2. [Stack File Semantics — N J L D I O](#2-stack-file-semantics)
+2. [Stack File Semantics — N J L I O D R](#2-stack-file-semantics)
 3. [Base JSON — Complete Field Reference](#3-base-json)
 4. [Feature JSON — Complete Field Reference](#4-feature-json)
 5. [Project JSON — Complete Field Reference](#5-project-json)
@@ -109,7 +109,7 @@ Equivalent JSON stage definition:
 ```
 
 > **What Chopper emits:**  
-> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to also emit one `<stage>.stack` per resolved stage — see the auto-generation subsection below.
+> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to additionally emit one aggregate `<basename(domain_root)>.stack` containing one record per stage — record order is the **topological sort** of the stage dependency graph (`dependencies` ∪ `{load_from}` edges); see the auto-generation subsection below. For wrapper stages whose `steps` are themselves a verbatim scheduler record, set `standalone_stack: true` on the stage to emit `<stage>.stack` **instead of** `<stage>.tcl` (the standalone stack becomes the stage's sole driver).
 >
 > **Note on `load_from` vs `dependencies`:**  
 > `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). It is **not** the stack `D` line.  
@@ -119,7 +119,7 @@ Equivalent JSON stage definition:
 
 ### 2.1 Auto-generation via `options.generate_stack`
 
-Set `"generate_stack": true` in the base JSON `options` block to have Chopper emit one `<stage>.stack` file alongside each `<stage>.tcl`. The flag has no effect when the base declares no stages.
+Set `"generate_stack": true` in the base JSON `options` block to have Chopper assemble **one** aggregate scheduler stack file at the domain root named `<basename(domain_root)>.stack` (filename sourced from the runtime domain-root basename — there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage, with records separated by a single blank line. **Record order is the topological sort of the stage dependency graph**, *not* authored order — see the ordering rules below. The flag has no effect when the base declares no stages.
 
 ```json
 {
@@ -130,7 +130,7 @@ Set `"generate_stack": true` in the base JSON `options` block to have Chopper em
 }
 ```
 
-**Emitted format (one file per stage):**
+**Emitted format (one aggregate file per domain):**
 
 ```
 ####################################################################################################
@@ -138,17 +138,21 @@ Set `"generate_stack": true` in the base JSON `options` block to have Chopper em
 # Copyright (c) <YEAR> Intel Corporation
 # ... (full Intel notice; see ARCHITECTURE.md §6.6.1)
 ####################################################################################################
-# Chopper-generated stack: <name>
-N <name>
-J <command>            # omitted when command is empty
+
+# Chopper-generated stack: <stage1.name>
+N <stage1.name>
+J <stage1.command>     # omitted when command is empty
 L <c1> <c2> ...        # omitted when exit_codes is empty
-D <dependency>         # always emitted; see derivation rules below
 I <input>              # one line per entry; block omitted when empty
 O <output>             # one line per entry; block omitted when empty
-R <run_mode>           # always emitted ("serial" or "parallel")
+D <dependency>         # always emitted; see derivation rules below
+R parallel             # only when run_mode == "parallel"; omitted for serial
+
+# Chopper-generated stack: <stage2.name>
+...
 ```
 
-Every Chopper-generated artifact (`<stage>.tcl` and `<stage>.stack`) is prefixed with the verbatim Intel-standard copyright header. The `<YEAR>` token is substituted with `datetime.now().year` at emission time so generated files always carry the current calendar year. The provenance line (`# Chopper-generated stack: <name>`) immediately follows the closing rule of the header.
+Per-record line order is fixed: `N` → `J` → `L` → `I` → `O` → `D` → (optional `R parallel`). The `R` line is **omitted** for the default `serial` mode (matches the production stack-file convention — no reference `.stack` file emits an `R` line for serial stages). The Intel header appears once at the top of the file regardless of how many records follow. The provenance line (`# Chopper-generated stack: <name>`) precedes every record so audit consumers can correlate.
 
 **`D`-line derivation (in order):**
 
@@ -156,7 +160,48 @@ Every Chopper-generated artifact (`<stage>.tcl` and `<stage>.stack`) is prefixed
 2. Else if `load_from` is non-empty → a single `D <load_from>` line.
 3. Else → a bare `D` line (first stage, no predecessor).
 
-Generated `.stack` files participate in the `compiled_manifest.json`, trimmer skip-set, and audit bundle exactly like generated `.tcl` files (treatment `GENERATED`, reason `fi-literal`).
+The aggregate `<domain>.stack` participates in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like generated `.tcl` files (treatment `GENERATED`, reason `fi-literal`). If a stage in the aggregate has an empty `command` (the `J` line is omitted), Chopper emits `VW-23 stack-stage-empty-command` — the scheduler will almost certainly reject that record at runtime.
+
+**Record ordering — topological sort.** Records in the aggregate stack are emitted in topological order over the stage dependency graph. For each stage `S`, the incoming edges are the union of (1) `P → S` for every `P` in `S.dependencies` and (2) `S.load_from → S` when `S.load_from` is non-empty. Ordering uses Kahn's algorithm with **authored position** as the tiebreaker: among stages of equal in-degree at any step, the one declared earliest in the resolved `stages` array wins. This is fully deterministic and preserves authoring intent for unrelated subgraphs.
+
+**Cycles and dangling references are hard errors** — they fire whenever `stages` is non-empty, regardless of `generate_stack`:
+
+* `VE-30 stage-dependency-cycle` — the graph contains a cycle (including a self-loop where a stage names itself in `dependencies` or `load_from`). Compilation aborts with exit 1. The diagnostic names the cycle in the order discovered.
+* `VE-31 stage-dependency-unresolved` — a `dependencies` entry or `load_from` reference names a stage that does not exist in the resolved flow. The diagnostic names the referrer, the unresolved name, and which field carried it.
+
+Break cycles by removing the offending edge; resolve unresolved references by defining the missing stage or correcting the name.
+
+### 2.2 Per-stage standalone stacks via `standalone_stack`
+
+A stage may set `"standalone_stack": true` (default `false`) to emit a `<stage>.stack` whose body is the Intel header followed by the authored `steps` verbatim — no N/J/L/D record derivation. This is the right surface for wrapper stages whose `steps` field already encodes a scheduler-format record (ECO hooks, scheduler-only sub-flows).
+
+The flag **suppresses** that stage's `<stage>.tcl`: the standalone stack becomes the stage's sole driver. The stage is still included as a derived record in the aggregate `<domain>.stack` when `options.generate_stack` is on, and its `dependencies` / `load_from` edges still participate in the topological ordering. The four combinations:
+
+| `options.generate_stack` | stage `standalone_stack` | Artifacts emitted for this stage |
+|---|---|---|
+| `false` | `false` | `<stage>.tcl` |
+| `false` | `true` | `<stage>.stack` (verbatim `steps`) — **no `<stage>.tcl`** |
+| `true` | `false` | `<stage>.tcl` + record in `<domain>.stack` (topological order) |
+| `true` | `true` | `<stage>.stack` (verbatim `steps`) + record in `<domain>.stack` — **no `<stage>.tcl`** |
+
+Working example: a stage that wraps an external scheduler invocation —
+
+```json
+{
+  "name": "eco_apply_patch",
+  "load_from": "",
+  "standalone_stack": true,
+  "steps": [
+    "N eco_apply_patch",
+    "J -xt vw Ifc_shell -B BLOCK -F apr_fc -T apply_patch -output_log_file logs/fc.apply_patch.log -f $ward/global/snps/fev_formality/utils/targ_synth/run_apply_patch.tcl",
+    "D eco_post_synth"
+  ]
+}
+```
+
+Produces a `eco_apply_patch.stack` containing the Intel header followed by exactly those three lines.
+
+A standalone `<stage>.stack` collision with `files.*` entries or with the aggregate `<domain>.stack` path is reported as `VE-29 standalone-stack-collision`. Aggregate `<domain>.stack` collisions with `files.*` are reported as `VE-28 aggregate-stack-collision`.
 
 ---
 
@@ -191,7 +236,7 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 | `description` | string | No | Human-readable summary |
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
 | `options.indent` | boolean | No | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Default: `false` (skip indentation entirely). |
-| `options.generate_stack` | boolean | No | Emit one `<stage>.stack` per resolved stage (see §2.1). Default: `false` |
+| `options.generate_stack` | boolean | No | Emit aggregate `<basename(domain_root)>.stack` with one record per stage (see §2.1). Default: `false` |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
@@ -243,8 +288,9 @@ Generated `.stack` files participate in the `compiled_manifest.json`, trimmer sk
 | `dependencies` | No | `D` | Scheduler dependency (parent task names) |
 | `inputs` | No | `I` | Input artifact markers |
 | `outputs` | No | `O` | Output artifact markers |
-| `run_mode` | No | `R` | `"serial"` (default) or `"parallel"` |
+| `run_mode` | No | `R` | `"serial"` (default) or `"parallel"`. Aggregate stack emits `R parallel` only when set to `"parallel"`; serial is implicit. |
 | `language` | No | — | `"tcl"` (default) or `"python"` |
+| `standalone_stack` | No | — | When `true`, additionally emit `<stage>.stack` with the authored `steps` verbatim (see §2.2). Orthogonal to `options.generate_stack` and to `<stage>.tcl` emission. Default: `false`. |
 
 ---
 

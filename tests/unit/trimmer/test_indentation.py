@@ -202,7 +202,14 @@ def test_format_tcl_indentation_fixture_backslash_continuation() -> None:
 
 
 def test_format_tcl_indentation_fixture_comment_braces() -> None:
-    """Comments with braces must not affect indentation or brace counting."""
+    """Comments with braces must not affect indentation or brace counting.
+
+    Real-world patterns extracted from ``fev_formality/default_fm_procs.tcl``:
+    template banner comments containing ``{}{`` / ``#}``, commented-out
+    ``define_proc_attributes`` blocks with backslash continuations, and
+    inline ``;#`` comments. None of these may shift the running indent of
+    the following statement.
+    """
     fixture = FIXTURES_DIR / "indent_comment_braces.tcl"
     text = fixture.read_text(encoding="utf-8")
     result = format_tcl_indentation(text)
@@ -211,17 +218,33 @@ def test_format_tcl_indentation_fixture_comment_braces() -> None:
     assert format_tcl_indentation(result) == result
 
     lines = result.splitlines()
-    # proc body: comment line should be indented to proc level and 'puts ok' should be indented
-    for i, line in enumerate(lines):
-        if line.startswith("proc test {} {"):
-            # comment line follows and should be indented to proc level
-            assert lines[i + 1].startswith("    #"), repr(lines[i + 1])
-            assert lines[i + 2].startswith("    puts ok"), repr(lines[i + 2])
-            break
+    # All statements inside ``proc example`` must remain at proc body
+    # indent (4 spaces) — neither the unmatched braces in the template
+    # banner nor the trailing ``\`` on the commented-out
+    # ``define_proc_attributes`` line may push them deeper.
+    body_statements = (
+        'puts "after template comment"',
+        'puts "after backslash comment"',
+        'puts "after inline comment"',
+    )
+    for stmt in body_statements:
+        match = [line for line in lines if line.endswith(stmt)]
+        assert match, f"missing statement {stmt!r} in:\n{result}"
+        assert match[0] == f"    {stmt}", repr(match[0])
+
+    # Closing brace of the proc lands back at column 0.
+    assert lines[-1] == "}"
 
 
 def test_format_tcl_indentation_fixture_quoted_braces() -> None:
-    """Braces inside double-quoted strings must be ignored by the brace counter."""
+    """Braces inside double-quoted strings must be ignored by the brace counter.
+
+    Real-world patterns extracted from ``fev_formality`` flows: ``iproc_msg``
+    diagnostics whose message strings embed ``{`` characters, and
+    ``set_vclp_setup_commands`` arguments where a braced word contains a
+    quoted string with nested braces. The if-block at the end must still
+    indent its body correctly after these strings.
+    """
     fixture = FIXTURES_DIR / "indent_quoted_braces.tcl"
     text = fixture.read_text(encoding="utf-8")
     result = format_tcl_indentation(text)
@@ -230,12 +253,53 @@ def test_format_tcl_indentation_fixture_quoted_braces() -> None:
     assert format_tcl_indentation(result) == result
 
     lines = result.splitlines()
-    # The 'puts nested' line should be indented inside the if-block
-    for i, line in enumerate(lines):
-        if line.startswith('    set s "This string contains'):
-            # find the following if-block and check nested indent
-            for j in range(i, i + 6):
-                if lines[j].strip().startswith("if {$flag}"):
-                    assert lines[j + 1].startswith("        puts nested"), repr(lines[j + 1])
-                    break
-            break
+    # The if-block body must reach 8 spaces (proc body + if body).
+    if_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("if {$flag}"))
+    assert lines[if_idx] == "    if {$flag} {", repr(lines[if_idx])
+    assert lines[if_idx + 1] == "        puts nested", repr(lines[if_idx + 1])
+    assert lines[if_idx + 2] == "    }", repr(lines[if_idx + 2])
+
+    # Last `puts "done"` is still inside the proc body (4 spaces).
+    assert '    puts "done"' in lines
+    assert lines[-1] == "}"
+
+
+# -- Targeted regression tests for comment- and quote-awareness --
+
+
+def test_format_tcl_indentation_comment_with_unmatched_open_brace() -> None:
+    """A ``#`` comment containing ``{`` must not push following lines deeper."""
+    text = "proc foo {} {\n# bogus open brace {\nputs ok\n}\n"
+    result = format_tcl_indentation(text)
+    assert result == ("proc foo {} {\n    # bogus open brace {\n    puts ok\n}\n")
+
+
+def test_format_tcl_indentation_comment_with_unmatched_close_brace() -> None:
+    """A ``#}`` comment line must not outdent following lines."""
+    text = "proc foo {} {\n#}\nputs ok\n}\n"
+    result = format_tcl_indentation(text)
+    assert result == ("proc foo {} {\n    #}\n    puts ok\n}\n")
+
+
+def test_format_tcl_indentation_comment_continuation_not_propagated() -> None:
+    """A comment line ending with ``\\`` must not make the next line a continuation."""
+    text = "proc foo {} {\n# define_proc_attributes foo \\\nputs ok\n}\n"
+    result = format_tcl_indentation(text)
+    # Expected: ``puts ok`` at proc body indent (4 spaces), NOT 8 spaces.
+    assert result == ("proc foo {} {\n    # define_proc_attributes foo \\\n    puts ok\n}\n")
+
+
+def test_format_tcl_indentation_quoted_unmatched_brace() -> None:
+    """Unmatched ``{`` inside a ``"..."`` string must not shift indent."""
+    text = 'proc foo {} {\niproc_msg -info "Setting: {opened brace}"\nputs ok\n}\n'
+    result = format_tcl_indentation(text)
+    assert result == ('proc foo {} {\n    iproc_msg -info "Setting: {opened brace}"\n    puts ok\n}\n')
+
+
+def test_format_tcl_indentation_escaped_quote_does_not_toggle_string_state() -> None:
+    """Backslash-escaped ``\\"`` inside a string must not toggle the in-string flag."""
+    text = 'proc foo {} {\nputs "outer \\"inner\\" still outer {ignored}"\nputs ok\n}\n'
+    result = format_tcl_indentation(text)
+    # The whole string stays one quoted span; the ``{ignored}`` braces are
+    # inside the string and must not shift indent.
+    assert result == ('proc foo {} {\n    puts "outer \\"inner\\" still outer {ignored}"\n    puts ok\n}\n')

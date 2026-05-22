@@ -327,8 +327,9 @@ def test_runner_localfs_live_trim_writes_proc_trim_and_generated_tcl_verbatim(tm
 
 def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
     """Dry-run on ``stages_domain`` (``options.generate_stack: true``):
-    manifest includes GENERATED entries for every ``.tcl`` and ``.stack`` pair;
-    no files are written to disk.
+    manifest includes one GENERATED ``.tcl`` per stage plus exactly one
+    aggregate ``<domain-basename>.stack`` (per 3.3.0 contract); no files
+    are written to disk.
     """
 
     domain = tmp_path / "stages_domain"
@@ -344,20 +345,23 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
     manifest = result.manifest
     assert manifest.generate_stack is True
 
-    # Three stages → three .tcl + three .stack GENERATED entries.
+    # Three stages → three .tcl GENERATED entries, plus one aggregate
+    # ``stages_domain.stack`` (domain basename). No per-stage .stack files
+    # because no stage has ``standalone_stack: true``.
     generated = {p.as_posix() for p, t in manifest.file_decisions.items() if t is FileTreatment.GENERATED}
     assert "setup.tcl" in generated
-    assert "setup.stack" in generated
     assert "run_flow.tcl" in generated
-    assert "run_flow.stack" in generated
     assert "promote.tcl" in generated
-    assert "promote.stack" in generated
+    assert "stages_domain.stack" in generated
+    assert "setup.stack" not in generated
+    assert "run_flow.stack" not in generated
+    assert "promote.stack" not in generated
 
     # Dry-run: no files written.
     assert result.trim_report is None
     assert result.generated_artifacts == ()
     assert not (domain / "setup.tcl").exists()
-    assert not (domain / "setup.stack").exists()
+    assert not (domain / "stages_domain.stack").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -366,8 +370,9 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
 
 
 def test_runner_localfs_live_trim_stages_domain_generates_stack_files(tmp_path: Path) -> None:
-    """Live trim on ``stages_domain`` writes one ``.tcl`` + one ``.stack`` per
-    resolved stage when ``options.generate_stack`` is ``true``.
+    """Live trim on ``stages_domain`` writes one ``.tcl`` per resolved stage
+    and exactly one aggregate ``<domain-basename>.stack`` when
+    ``options.generate_stack`` is ``true`` (3.3.0 contract).
 
     This is the primary end-to-end validation that the F3 stack-file path
     (P5b ``GeneratorService``) works correctly on a real filesystem.
@@ -384,33 +389,46 @@ def test_runner_localfs_live_trim_stages_domain_generates_stack_files(tmp_path: 
     assert result.manifest is not None
     assert result.trim_report is not None
 
-    # GeneratorService emitted six artifacts: tcl+stack for each of 3 stages.
-    assert len(result.generated_artifacts) == 6
+    # GeneratorService emitted four artifacts: 3 tcl + 1 aggregate stack.
+    assert len(result.generated_artifacts) == 4
     kinds = tuple(a.kind for a in result.generated_artifacts)
-    # Ordering contract: per stage, .tcl immediately precedes .stack.
-    assert kinds == ("tcl", "stack", "tcl", "stack", "tcl", "stack")
+    # Ordering contract: all .tcl files first, aggregate .stack appended last.
+    assert kinds == ("tcl", "tcl", "tcl", "stack")
+    aggregate = result.generated_artifacts[-1]
+    assert aggregate.path == Path("stages_domain.stack")
+    assert aggregate.source_stage == "stages_domain"
 
-    # All six files exist on disk.
+    # Per-stage .tcl files exist; no per-stage .stack files.
     for stage_name in ("setup", "run_flow", "promote"):
         tcl_path = domain / f"{stage_name}.tcl"
-        stack_path = domain / f"{stage_name}.stack"
         assert tcl_path.exists(), f"missing {tcl_path}"
-        assert stack_path.exists(), f"missing {stack_path}"
+        assert not (domain / f"{stage_name}.stack").exists()
 
-    # Spot-check setup.stack content — N/J/L/D/R lines.
-    setup_stack = (domain / "setup.stack").read_text()
-    assert setup_stack.startswith(intel_header_text() + "# Chopper-generated stack: setup\n")
-    assert "N setup\n" in setup_stack
-    assert "J -xt vw my_shell -B BLOCK -T setup\n" in setup_stack
-    assert "L 0\n" in setup_stack
-    assert "D\n" in setup_stack  # first stage — no predecessor → bare D
-    assert "R serial\n" in setup_stack
+    # Aggregate stack file on disk.
+    aggregate_path = domain / "stages_domain.stack"
+    assert aggregate_path.exists()
+    aggregate_text = aggregate_path.read_text()
 
-    # Spot-check run_flow.stack — dependencies → D line per dep.
-    run_flow_stack = (domain / "run_flow.stack").read_text()
-    assert "N run_flow\n" in run_flow_stack
-    assert "D setup\n" in run_flow_stack
-    assert "L 0 3\n" in run_flow_stack
+    # Single Intel header at the top.
+    assert aggregate_text.count("#Intel Legal compliant copyright header") == 1
+
+    # All three stage records appear in declared order, separated by blank lines.
+    setup_idx = aggregate_text.index("# Chopper-generated stack: setup\n")
+    run_idx = aggregate_text.index("# Chopper-generated stack: run_flow\n")
+    promote_idx = aggregate_text.index("# Chopper-generated stack: promote\n")
+    assert setup_idx < run_idx < promote_idx
+
+    # setup record content (first stage — bare D, serial → no R line).
+    assert "N setup\n" in aggregate_text
+    assert "J -xt vw my_shell -B BLOCK -T setup\n" in aggregate_text
+    assert "L 0\n" in aggregate_text
+    assert "\nD\n" in aggregate_text  # bare D for first stage
+    assert "R serial" not in aggregate_text  # serial is implicit
+
+    # run_flow record content (D-line points at setup, multiple exit codes).
+    assert "N run_flow\n" in aggregate_text
+    assert "D setup\n" in aggregate_text
+    assert "L 0 3\n" in aggregate_text
 
     # Spot-check setup.tcl banner + steps.
     setup_tcl = (domain / "setup.tcl").read_text()
@@ -423,7 +441,9 @@ def test_runner_localfs_live_trim_stages_domain_generates_stack_files(tmp_path: 
 
 
 def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: Path) -> None:
-    """Generated ``.stack`` files appear in the audit bundle's compiled_manifest."""
+    """Generated aggregate ``.stack`` file appears in the audit bundle's
+    ``compiled_manifest.json``; per-stage ``.stack`` entries do NOT appear
+    unless a stage sets ``standalone_stack: true``."""
 
     domain = tmp_path / "stages_domain"
     shutil.copytree(FIXTURE_STAGES, domain)
@@ -440,11 +460,12 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
     by_path = {entry["path"]: entry for entry in files}
     for stage_name in ("setup", "run_flow", "promote"):
         tcl_path = f"{stage_name}.tcl"
-        stack_path = f"{stage_name}.stack"
         assert tcl_path in by_path, f"{tcl_path} missing from manifest"
-        assert stack_path in by_path, f"{stack_path} missing from manifest"
         assert by_path[tcl_path]["treatment"] == "generated"
-        assert by_path[stack_path]["treatment"] == "generated"
+        assert f"{stage_name}.stack" not in by_path
+    # The single aggregate entry.
+    assert "stages_domain.stack" in by_path
+    assert by_path["stages_domain.stack"]["treatment"] == "generated"
 
 
 def test_runner_localfs_live_trim_emits_p4_commands_txt(tmp_path: Path) -> None:
@@ -471,10 +492,13 @@ def test_runner_localfs_live_trim_emits_p4_commands_txt(tmp_path: Path) -> None:
     # Banner present.
     assert content.startswith("# p4_commands.txt")
     assert content.endswith("\n")
-    # Generated stage files (no pre-existing depot counterpart) → p4 add.
+    # Generated per-stage ``.tcl`` files (no pre-existing depot counterpart) → p4 add.
     for stage_name in ("setup", "run_flow", "promote"):
         assert f"p4 add -t text+x {stage_name}.tcl" in content, f"missing p4 add for {stage_name}.tcl"
-        assert f"p4 add -t text+x {stage_name}.stack" in content, f"missing p4 add for {stage_name}.stack"
+        # No per-stage .stack — only the aggregate.
+        assert f"p4 add -t text+x {stage_name}.stack" not in content
+    # Aggregate ``<domain-basename>.stack`` added once.
+    assert "p4 add -t text+x stages_domain.stack" in content
     # `chopper_run.json` lists p4_commands.txt in artifacts_present.
     run_meta = json.loads((domain / ".chopper" / "chopper_run.json").read_text())
     assert "p4_commands.txt" in run_meta["artifacts_present"]

@@ -44,7 +44,7 @@
         "generate_stack": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the base declares at least one stage, Chopper emits one <stage>.stack file per resolved stage alongside the <stage>.tcl run script. The .stack format uses N/J/L/D/I/O/R records derived directly from the authored stage fields; see the JSON authoring guide for details. No effect when stages is empty."
+          "description": "When true and the base declares at least one stage, Chopper emits one aggregate scheduler stack file at the domain root named <basename(domain_root)>.stack (filename sourced from the runtime domain-root basename; there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage in declared order, with records separated by a single blank line. Per-record line order is N -> J -> L -> I -> O -> D -> (R parallel). The R line is emitted only when run_mode == 'parallel'; serial is implicit. Orthogonal to per-stage standalone_stack. See the JSON authoring guide and ARCHITECTURE.md §3.6 for details. No effect when stages is empty."
         },
         "indent": {
           "type": "boolean",
@@ -195,6 +195,11 @@
           "enum": ["tcl", "python"],
           "default": "tcl",
           "description": "Language of the stage. Set to 'python' if the stage uses Python. Default is tcl."
+        },
+        "standalone_stack": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, F3 additionally emits <stage>.stack whose body is the Intel header followed by the authored steps verbatim (no N/J/L/D record derivation; command, exit_codes, dependencies, inputs, outputs, load_from, and run_mode are ignored for body construction). Orthogonal to options.generate_stack and to <stage>.tcl emission: the stage still emits its .tcl and (when generate_stack is true) is still included as a derived record in the aggregate <domain>.stack. Default: false. See ARCHITECTURE.md §3.6 and the JSON authoring guide §2.2."
         },
         "steps": {
           "type": "array",

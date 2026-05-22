@@ -471,10 +471,11 @@ def _seed_stages_domain(fs: InMemoryFS) -> None:
 
 
 class TestGenerateStackPipeline:
-    """End-to-end tests for ``options.generate_stack`` through the full runner."""
+    """End-to-end tests for ``options.generate_stack`` through the full runner (3.3.0)."""
 
-    def test_dry_run_manifest_has_generated_stack_entries(self) -> None:
-        """Dry-run: manifest records GENERATED for both .tcl and .stack per stage."""
+    def test_dry_run_manifest_has_aggregate_stack_entry(self) -> None:
+        """Dry-run: manifest records GENERATED for each per-stage ``.tcl``
+        and exactly one aggregate ``<domain-basename>.stack``."""
         fs = InMemoryFS()
         _seed_stages_domain(fs)
         ctx, sink = _make_ctx(fs, dry_run=True)
@@ -487,9 +488,12 @@ class TestGenerateStackPipeline:
 
         file_decisions = result.manifest.file_decisions
         assert file_decisions.get(Path("setup.tcl")) is FileTreatment.GENERATED
-        assert file_decisions.get(Path("setup.stack")) is FileTreatment.GENERATED
         assert file_decisions.get(Path("run.tcl")) is FileTreatment.GENERATED
-        assert file_decisions.get(Path("run.stack")) is FileTreatment.GENERATED
+        # Aggregate: <domain-basename>.stack — DOMAIN basename is "dom".
+        assert file_decisions.get(Path(f"{DOMAIN.name}.stack")) is FileTreatment.GENERATED
+        # No per-stage .stack entries (no stage sets standalone_stack=True).
+        assert Path("setup.stack") not in file_decisions
+        assert Path("run.stack") not in file_decisions
 
     def test_dry_run_does_not_write_stack_files(self) -> None:
         """Dry-run must not write any .tcl or .stack files to the filesystem."""
@@ -500,12 +504,12 @@ class TestGenerateStackPipeline:
         ChopperRunner().run(ctx, command="validate")
 
         assert not fs.exists(DOMAIN / "setup.tcl")
-        assert not fs.exists(DOMAIN / "setup.stack")
         assert not fs.exists(DOMAIN / "run.tcl")
-        assert not fs.exists(DOMAIN / "run.stack")
+        assert not fs.exists(DOMAIN / f"{DOMAIN.name}.stack")
 
-    def test_live_trim_writes_tcl_and_stack_files(self) -> None:
-        """Live trim writes one .tcl and one .stack file per resolved stage."""
+    def test_live_trim_writes_tcl_and_aggregate_stack(self) -> None:
+        """Live trim writes one .tcl per resolved stage and one aggregate
+        ``<domain-basename>.stack`` at the domain root."""
 
         fs = InMemoryFS()
         _seed_stages_domain(fs)
@@ -516,46 +520,53 @@ class TestGenerateStackPipeline:
         assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
         assert result.trim_report is not None
 
-        # GeneratorService emitted 4 artifacts: tcl+stack for 2 stages.
-        assert len(result.generated_artifacts) == 4
+        # GeneratorService emitted 3 artifacts: 2 tcl + 1 aggregate stack.
+        assert len(result.generated_artifacts) == 3
         kinds = tuple(a.kind for a in result.generated_artifacts)
-        assert kinds == ("tcl", "stack", "tcl", "stack")
+        assert kinds == ("tcl", "tcl", "stack")
+        # Aggregate is last.
+        assert result.generated_artifacts[-1].path == Path(f"{DOMAIN.name}.stack")
 
         assert fs.exists(DOMAIN / "setup.tcl")
-        assert fs.exists(DOMAIN / "setup.stack")
         assert fs.exists(DOMAIN / "run.tcl")
-        assert fs.exists(DOMAIN / "run.stack")
+        assert fs.exists(DOMAIN / f"{DOMAIN.name}.stack")
+        # No per-stage .stack files.
+        assert not fs.exists(DOMAIN / "setup.stack")
+        assert not fs.exists(DOMAIN / "run.stack")
 
-    def test_live_trim_stack_content_setup_stage(self) -> None:
-        """setup.stack has correct N/J/L/D/R lines for the first stage."""
+    def test_live_trim_aggregate_stack_content(self) -> None:
+        """Aggregate stack file contains one Intel header at top and one
+        record per stage; per-record N/J/L/D lines reflect the stage's
+        fields; serial run_mode omits the R line."""
 
         fs = InMemoryFS()
         _seed_stages_domain(fs)
         ctx, _ = _make_ctx(fs, dry_run=False)
         ChopperRunner().run(ctx, command="trim")
 
-        content = fs.read_text(DOMAIN / "setup.stack")
-        from chopper.core.header import intel_header_text
+        content = fs.read_text(DOMAIN / f"{DOMAIN.name}.stack")
+        # Single header at the top.
+        assert content.count("#Intel Legal compliant copyright header") == 1
 
-        assert content.startswith(intel_header_text() + "# Chopper-generated stack: setup\n")
+        # setup record (first stage — bare D, serial → no R line).
+        assert "# Chopper-generated stack: setup\n" in content
         assert "N setup\n" in content
         assert "J shell -T setup\n" in content
         assert "L 0\n" in content
-        assert "D\n" in content  # first stage — bare D (no predecessor)
-        assert "R serial\n" in content
+        assert "\nD\n" in content  # bare D
 
-    def test_live_trim_stack_content_run_stage(self) -> None:
-        """run.stack has D-line derived from ``dependencies`` field."""
-
-        fs = InMemoryFS()
-        _seed_stages_domain(fs)
-        ctx, _ = _make_ctx(fs, dry_run=False)
-        ChopperRunner().run(ctx, command="trim")
-
-        content = fs.read_text(DOMAIN / "run.stack")
+        # run record (D-line derived from dependencies).
+        assert "# Chopper-generated stack: run\n" in content
         assert "N run\n" in content
         assert "D setup\n" in content
         assert "L 0 3\n" in content
+
+        # Serial is implicit; R line never emitted in this fixture.
+        assert "R serial" not in content
+        assert "R parallel" not in content
+
+        # Record ordering: setup precedes run.
+        assert content.index("# Chopper-generated stack: setup") < content.index("# Chopper-generated stack: run")
 
     def test_live_trim_tcl_content_setup_stage(self) -> None:
         """setup.tcl contains the generated banner and the authored steps."""

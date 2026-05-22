@@ -405,7 +405,9 @@ def test_remove_stage_drops_stage_and_no_generated_tcl(tmp_path: Path) -> None:
             "files": {"include": ["src/a.tcl"]},
             "stages": [
                 {"name": "setup", "load_from": "", "command": "-T setup", "exit_codes": [0], "steps": ["a"]},
-                {"name": "main", "load_from": "setup", "command": "-T main", "exit_codes": [0], "steps": ["a"]},
+                # 3.4.0: ``main`` is independent of ``setup`` (no load_from)
+                # so removing ``setup`` does not leave a dangling reference.
+                {"name": "main", "load_from": "", "command": "-T main", "exit_codes": [0], "steps": ["a"]},
             ],
         },
     )

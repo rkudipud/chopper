@@ -37,6 +37,7 @@ from re import Pattern
 from typing import Literal
 
 from chopper.compiler.flow_resolver import resolve_stages
+from chopper.compiler.stack_graph import compute_stack_order
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.errors import ChopperError
@@ -157,7 +158,8 @@ class CompilerService:
 
         # ---- F3 flow-action resolution -----------------------------------
         stages = resolve_stages(ctx, loaded.base.stages, loaded.features)
-        _register_generated_stage_files(file_decisions, provenance, stages, loaded)
+        _register_generated_stage_files(ctx, file_decisions, provenance, stages, loaded)
+        stack_order = compute_stack_order(ctx, stages)
 
         return CompiledManifest(
             file_decisions=file_decisions,
@@ -165,6 +167,7 @@ class CompilerService:
             provenance=provenance,
             stages=stages,
             generate_stack=loaded.base.options.generate_stack,
+            stack_order=stack_order,
         )
 
 
@@ -174,12 +177,28 @@ class CompilerService:
 
 
 def _register_generated_stage_files(
+    ctx: ChopperContext,
     file_decisions: dict[Path, FileTreatment],
     provenance: dict[Path, FileProvenance],
     stages: tuple,
     loaded: LoadedConfig,
 ) -> None:
-    """Record one :class:`FileTreatment.GENERATED` entry per resolved stage."""
+    """Record :class:`FileTreatment.GENERATED` entries for F3 artifacts.
+
+    Per stage: one ``<stage>.tcl`` **unless** ``stage.standalone_stack``
+    is ``True``, in which case ``<stage>.stack`` is registered instead
+    (the standalone stack becomes the stage's sole driver). Once
+    globally: one ``<basename(domain_root)>.stack`` when
+    ``loaded.base.options.generate_stack`` is ``True`` and ``stages`` is
+    non-empty. Diagnostics:
+
+    * ``VE-28 aggregate-stack-collision`` — aggregate path collides with
+      an existing ``files.*`` entry.
+    * ``VE-29 standalone-stack-collision`` — per-stage standalone path
+      collides with ``files.*`` or with the aggregate path.
+    * ``VW-23 stack-stage-empty-command`` — a stage included in the
+      aggregate has an empty ``command``.
+    """
 
     if not stages:
         return
@@ -191,19 +210,12 @@ def _register_generated_stage_files(
     input_sources = tuple(sorted(contributors))
     contributed_by_value = contributors[-1]
 
-    emit_stack = loaded.base.options.generate_stack
+    emit_aggregate = loaded.base.options.generate_stack
+    aggregate_path: Path | None = Path(f"{ctx.config.domain_root.name}.stack") if emit_aggregate else None
 
-    for stage in stages:
-        tcl_path = Path(f"{stage.name}.tcl")
-        if tcl_path in file_decisions:
-            raise ChopperError(
-                f"F3 generated path {tcl_path.as_posix()!r} collides with an "
-                f"existing file decision; rename the stage or drop the "
-                f"colliding files.* entry"
-            )
-        file_decisions[tcl_path] = FileTreatment.GENERATED
-        provenance[tcl_path] = FileProvenance(
-            path=tcl_path,
+    def _make_provenance(path: Path) -> FileProvenance:
+        return FileProvenance(
+            path=path,
             treatment=FileTreatment.GENERATED,
             reason="fi-literal",
             input_sources=input_sources,
@@ -212,27 +224,92 @@ def _register_generated_stage_files(
             proc_model=None,
         )
 
-        if emit_stack:
-            stack_path = Path(f"{stage.name}.stack")
-            if stack_path in file_decisions:
+    for stage in stages:
+        tcl_path = Path(f"{stage.name}.tcl")
+        if not stage.standalone_stack:
+            if tcl_path in file_decisions:
                 raise ChopperError(
-                    f"F3 generated path {stack_path.as_posix()!r} collides with an "
-                    f"existing file decision; rename the stage, disable "
-                    f"options.generate_stack, or drop the colliding files.* entry"
+                    f"F3 generated path {tcl_path.as_posix()!r} collides with an "
+                    f"existing file decision; rename the stage or drop the "
+                    f"colliding files.* entry"
                 )
-            file_decisions[stack_path] = FileTreatment.GENERATED
-            provenance[stack_path] = FileProvenance(
-                path=stack_path,
-                treatment=FileTreatment.GENERATED,
-                reason="fi-literal",
-                input_sources=input_sources,
-                contributed_by=contributed_by_value,
-                shadowed_by=(),
-                proc_model=None,
+            file_decisions[tcl_path] = FileTreatment.GENERATED
+            provenance[tcl_path] = _make_provenance(tcl_path)
+
+        if stage.standalone_stack:
+            standalone_path = Path(f"{stage.name}.stack")
+            colliding_files_entry = standalone_path in file_decisions
+            colliding_aggregate = aggregate_path is not None and standalone_path == aggregate_path
+            if colliding_files_entry or colliding_aggregate:
+                _emit_ve29(ctx, standalone_path, stage.name, aggregate_collision=colliding_aggregate)
+                raise ChopperError(
+                    f"F3 standalone stack path {standalone_path.as_posix()!r} collides with "
+                    f"an existing file decision or the aggregate stack path; rename the stage, "
+                    f"remove the colliding files.* entry, or unset standalone_stack"
+                )
+            file_decisions[standalone_path] = FileTreatment.GENERATED
+            provenance[standalone_path] = _make_provenance(standalone_path)
+
+        if emit_aggregate and not stage.command:
+            _emit_vw23(ctx, stage.name)
+
+    if aggregate_path is not None:
+        if aggregate_path in file_decisions:
+            _emit_ve28(ctx, aggregate_path)
+            raise ChopperError(
+                f"F3 aggregate stack path {aggregate_path.as_posix()!r} collides with "
+                f"an existing file decision; rename the domain root, exclude the colliding "
+                f"files.* entry, or disable options.generate_stack"
             )
+        file_decisions[aggregate_path] = FileTreatment.GENERATED
+        provenance[aggregate_path] = _make_provenance(aggregate_path)
 
     _resort_by_posix(file_decisions)
     _resort_by_posix(provenance)
+
+
+def _emit_ve28(ctx: ChopperContext, aggregate_path: Path) -> None:
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-28",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"Aggregate F3 stack path {aggregate_path.as_posix()!r} (from options.generate_stack) "
+                f"collides with an existing files.* entry"
+            ),
+            path=aggregate_path,
+            hint=("Rename the domain root, exclude the colliding files.* entry, or disable options.generate_stack"),
+        )
+    )
+
+
+def _emit_ve29(ctx: ChopperContext, standalone_path: Path, stage_name: str, *, aggregate_collision: bool) -> None:
+    cause = "the aggregate stack path" if aggregate_collision else "an existing files.* entry"
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-29",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"Standalone F3 stack path {standalone_path.as_posix()!r} for stage {stage_name!r} "
+                f"collides with {cause}"
+            ),
+            path=standalone_path,
+            hint=("Rename the stage, remove the colliding files.* entry, or unset standalone_stack on this stage"),
+        )
+    )
+
+
+def _emit_vw23(ctx: ChopperContext, stage_name: str) -> None:
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VW-23",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"Stage {stage_name!r} is in the aggregate stack but has no command; the record will omit its J line"
+            ),
+            hint="Author a command on the stage or accept the J-less record if the scheduler tolerates it",
+        )
+    )
 
 
 def _resort_by_posix(mapping: dict) -> None:

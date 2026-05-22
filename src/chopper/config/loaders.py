@@ -123,6 +123,7 @@ def _load_stage_def(raw: dict[str, Any]) -> StageDefinition:
         outputs=tuple(raw.get("outputs") or []),
         run_mode=raw.get("run_mode", "serial"),  # type: ignore[arg-type]
         language=raw.get("language", "tcl"),  # type: ignore[arg-type]
+        standalone_stack=raw.get("standalone_stack", False),
     )
 
 

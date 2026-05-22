@@ -1,11 +1,24 @@
 """GeneratorService — Phase 5b run-file emitter.
 
-Emits one ``<stage>.tcl`` per :class:`StageSpec` in
-``manifest.stages``. When ``manifest.generate_stack`` is ``True`` also
-emits one ``<stage>.stack`` per stage. Stateless and deterministic:
-same manifest, same artifact tuple in the same order — for each stage
-the ``.tcl`` artifact appears immediately before its ``.stack``
-artifact, so audit consumers can iterate pairs predictably.
+For each :class:`StageSpec` in ``manifest.stages``:
+
+* If ``stage.standalone_stack`` is ``False``, emits ``<stage>.tcl``.
+* If ``stage.standalone_stack`` is ``True``, emits ``<stage>.stack``
+  (verbatim ``steps`` + Intel header) **instead of** ``<stage>.tcl`` —
+  the standalone stack becomes the stage's sole driver.
+
+Additionally, when ``manifest.generate_stack`` is ``True`` and
+``manifest.stages`` is non-empty, emits exactly one aggregate
+``<domain>.stack`` (where ``<domain>`` is ``ctx.config.domain_root.name``)
+containing one record per stage. Record order is
+``manifest.stack_order`` (topological per the compiler's
+:func:`compute_stack_order`), or ``manifest.stages`` order when
+``stack_order`` is empty. The aggregate is appended *after* the
+per-stage loop so its artifact slot is last and predictable for audit
+consumers.
+
+Stateless and deterministic: same manifest, same artifact tuple in the
+same order.
 
 Signature::
 
@@ -29,7 +42,7 @@ from chopper.core.errors import ChopperError
 from chopper.core.file_perms import ensure_executable, mirror_perms_plus_exec
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_trimmer import GeneratedArtifact
-from chopper.generators.stack_emitter import emit_stage_stack
+from chopper.generators.stack_emitter import emit_flow_stack, emit_standalone_stack
 from chopper.generators.stage_emitter import emit_stage_tcl
 
 __all__ = ["GeneratorService"]
@@ -40,18 +53,28 @@ class GeneratorService:
     """P5b stage run-file emitter."""
 
     def run(self, ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]:
-        """Build (and under live runs, write) one or two artifacts per stage."""
+        """Build (and under live runs, write) the F3 artifact set."""
 
         artifacts: list[GeneratedArtifact] = []
         for stage in manifest.stages:
-            tcl_artifact = emit_stage_tcl(stage)
-            self._write(ctx, tcl_artifact)
-            artifacts.append(tcl_artifact)
+            if not stage.standalone_stack:
+                tcl_artifact = emit_stage_tcl(stage)
+                self._write(ctx, tcl_artifact)
+                artifacts.append(tcl_artifact)
 
-            if manifest.generate_stack:
-                stack_artifact = emit_stage_stack(stage)
-                self._write(ctx, stack_artifact)
-                artifacts.append(stack_artifact)
+            if stage.standalone_stack:
+                standalone_artifact = emit_standalone_stack(stage)
+                self._write(ctx, standalone_artifact)
+                artifacts.append(standalone_artifact)
+
+        if manifest.generate_stack and manifest.stages:
+            aggregate = emit_flow_stack(
+                manifest.stages,
+                ctx.config.domain_root.name,
+                manifest.stack_order,
+            )
+            self._write(ctx, aggregate)
+            artifacts.append(aggregate)
 
         return tuple(artifacts)
 

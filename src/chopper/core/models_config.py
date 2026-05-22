@@ -70,6 +70,7 @@ class StageDefinition:
     outputs: tuple[str, ...] = ()
     run_mode: Literal["serial", "parallel"] = "serial"
     language: Literal["tcl", "python"] = "tcl"
+    standalone_stack: bool = False
 
     def __post_init__(self) -> None:
         if not self.name:

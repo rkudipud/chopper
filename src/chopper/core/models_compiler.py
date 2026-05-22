@@ -92,6 +92,7 @@ class StageSpec:
     outputs: tuple[str, ...] = ()
     run_mode: Literal["serial", "parallel"] = "serial"
     language: Literal["tcl", "python"] = "tcl"
+    standalone_stack: bool = False
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -109,6 +110,7 @@ class CompiledManifest:
     provenance: dict[Path, FileProvenance] = field(default_factory=dict)
     stages: tuple[StageSpec, ...] = ()
     generate_stack: bool = False
+    stack_order: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         fd_keys = [p.as_posix() for p in self.file_decisions]
@@ -127,6 +129,16 @@ class CompiledManifest:
                 raise ValueError(
                     f"CompiledManifest: provenance/decision mismatch for {path!r}: "
                     f"file_decisions={treatment}, provenance.treatment={pv_treatment}"
+                )
+        if self.stack_order:
+            stage_names = {s.name for s in self.stages}
+            stack_set = set(self.stack_order)
+            if len(stack_set) != len(self.stack_order):
+                raise ValueError("CompiledManifest.stack_order must contain unique stage names")
+            if stack_set != stage_names:
+                raise ValueError(
+                    "CompiledManifest.stack_order must be a permutation of stage names; "
+                    f"got {sorted(stack_set)!r}, expected {sorted(stage_names)!r}"
                 )
 
 
