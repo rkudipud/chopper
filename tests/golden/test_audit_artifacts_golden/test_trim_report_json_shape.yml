@@ -20,12 +20,12 @@ summary:
   procs_removed: 0
   procs_surviving: 1
   procs_traced: 0
-  raw_lines_after: 4
-  raw_lines_before: 4
-  sloc_after: 3
-  sloc_before: 3
+  raw_lines_after: 3
+  raw_lines_before: 3
+  sloc_after: 2
+  sloc_before: 2
   sloc_removed: 0
-  total_domain_files: 3
+  total_domain_files: 2
   total_domain_procs: 1
 validation_results:
   phase1: pass

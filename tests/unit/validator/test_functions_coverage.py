@@ -589,14 +589,14 @@ def test_glob_has_matches_regex_pattern_skips_non_matching_file() -> None:
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
-    # foo.py does not match **/*.tcl; bar.tcl does — so the loop must iterate past foo.py
-    fs.write_text(DOMAIN / "foo.py", "")
-    fs.write_text(DOMAIN / "bar.tcl", "")
+    # aaa.py sorts before zzz.tcl — regex skips aaa.py then matches zzz.tcl
+    fs.write_text(DOMAIN / "aaa.py", "")
+    fs.write_text(DOMAIN / "zzz.tcl", "")
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
     result = _glob_has_matches(ctx2, "**/*.tcl")
-    assert result is True  # bar.tcl matches after skipping foo.py
+    assert result is True  # zzz.tcl matches after skipping aaa.py
 
 
 def test_glob_has_matches_fnmatchcase_no_match_continues() -> None:
@@ -612,6 +612,16 @@ def test_glob_has_matches_fnmatchcase_no_match_continues() -> None:
     # Non-** pattern → glob_to_regex returns None, _fnmatchcase("foo.py", "*.tcl") is False
     result = _glob_has_matches(ctx2, "*.tcl")
     assert result is False
+
+
+def test_brace_delta_full_line_comment_skipped() -> None:
+    """_brace_delta skips braces in full-line comments (lines 672-674)."""
+    from chopper.validator.functions import _brace_delta
+
+    # Comment line contains unmatched braces — they must not affect the count
+    text = "# this is a comment with { and }\nset x {hello}\n"
+    result = _brace_delta(text)
+    assert result == 0  # balanced: one { one } from set x {hello}
 
 
 def test_brace_delta_unclosed_quote_at_end_of_text() -> None:

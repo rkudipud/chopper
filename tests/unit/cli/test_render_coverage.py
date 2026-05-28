@@ -444,3 +444,68 @@ def test_render_trim_stats_reads_backup_source_for_artifact(tmp_path) -> None:
     render_trim_stats(ctx2, result, stream=out)
     # Should have rendered a table with the backup content
     assert len(out.getvalue()) > 0
+
+
+def test_render_trim_stats_excludes_json_outcome(tmp_path: Path) -> None:
+    """render_trim_stats skips outcomes whose path is an excluded artifact (.json)."""
+    from chopper.cli.render import render_trim_stats
+    from chopper.core.models_common import FileTreatment
+
+    domain_root = tmp_path / "dom"
+    backup_root = tmp_path / "dom_backup"
+    backup_root.mkdir(parents=True)
+    domain_root.mkdir(parents=True)
+    (backup_root / "base.json").write_text("{}")
+    (backup_root / "lib.tcl").write_text("proc foo {} {}")
+    (domain_root / "lib.tcl").write_text("proc foo {} {}")
+
+    cfg = RunConfig(
+        domain_root=domain_root,
+        backup_root=backup_root,
+        audit_root=domain_root / ".chopper",
+        strict=False,
+        dry_run=False,
+    )
+    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    json_outcome = _make_file_outcome("base.json", FileTreatment.FULL_COPY, bytes_out=10)
+    tcl_outcome = _make_file_outcome("lib.tcl", FileTreatment.FULL_COPY, bytes_out=50)
+    trim_report = _make_trim_report(json_outcome, tcl_outcome)
+    result = _make_run_result(trim_report=trim_report)
+    out = io.StringIO()
+    render_trim_stats(ctx2, result, stream=out)
+    # base.json should NOT appear in the output table
+    assert "base.json" not in out.getvalue()
+    assert "lib.tcl" in out.getvalue()
+
+
+def test_render_trim_stats_excludes_generated_json_artifact(tmp_path: Path) -> None:
+    """render_trim_stats skips generated artifacts whose path is excluded."""
+    from chopper.cli.render import render_trim_stats
+    from chopper.core.models_common import FileTreatment
+    from chopper.core.models_trimmer import GeneratedArtifact
+
+    domain_root = tmp_path / "dom"
+    backup_root = tmp_path / "dom_backup"
+    domain_root.mkdir(parents=True)
+    backup_root.mkdir(parents=True)
+    (domain_root / "stage.tcl").write_text("source x")
+
+    cfg = RunConfig(
+        domain_root=domain_root,
+        backup_root=backup_root,
+        audit_root=domain_root / ".chopper",
+        strict=False,
+        dry_run=True,
+    )
+    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    tcl_artifact = GeneratedArtifact(path=Path("stage.tcl"), kind="tcl", content="source x\n", source_stage="stage")
+    json_artifact = GeneratedArtifact(path=Path("instructions.md"), kind="tcl", content="# hi\n", source_stage="s2")
+    outcome = _make_file_outcome("stage.tcl", FileTreatment.FULL_COPY, bytes_out=20)
+    trim_report = _make_trim_report(outcome)
+    result = _make_run_result(trim_report=trim_report, generated_artifacts=(tcl_artifact, json_artifact))
+    out = io.StringIO()
+    render_trim_stats(ctx2, result, stream=out)
+    # instructions.md artifact should NOT appear
+    assert "instructions.md" not in out.getvalue()

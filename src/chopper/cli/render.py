@@ -20,6 +20,7 @@ from typing import TextIO
 from chopper.audit.sloc import count_sloc
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
+from chopper.core.fs_walk import EXCLUDED_FILENAMES, EXCLUDED_SUFFIXES
 from chopper.core.models_audit import RunResult
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_trimmer import TrimReport
@@ -132,6 +133,18 @@ def render_trim_stats(
     _render_table(out, rows, totals, width=width)
 
 
+def _is_excluded_artifact(rel: Path) -> bool:
+    """Return ``True`` when ``rel`` is an authoring artifact, not a domain file.
+
+    Mirrors :mod:`chopper.core.fs_walk` so the live console table, the
+    LOC reporter, and the audit ``trim_stats.json`` agree on the set
+    of files that contribute to before/after deltas.  See
+    ARCHITECTURE.md \u00a75.5.13.
+    """
+
+    return rel.name in EXCLUDED_FILENAMES or rel.suffix.lower() in EXCLUDED_SUFFIXES
+
+
 def _collect_rows(ctx: ChopperContext, report: TrimReport) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     backup_root: Path = ctx.config.backup_root
@@ -139,6 +152,8 @@ def _collect_rows(ctx: ChopperContext, report: TrimReport) -> list[dict[str, obj
     dry_run = ctx.config.dry_run
 
     for outcome in report.outcomes:
+        if _is_excluded_artifact(outcome.path):
+            continue
         # In dry-run no backup is taken; the pre-trim source still
         # lives at ``domain_root`` (the trimmer never wrote). Prefer
         # the backup when present so both modes report the same
@@ -189,6 +204,8 @@ def _collect_generated_rows(
 
     for artifact in artifacts:
         rel: Path = artifact.path
+        if _is_excluded_artifact(rel):
+            continue
         if dry_run:
             # No filesystem write happened — the artifact content is
             # the authoritative "after" payload.

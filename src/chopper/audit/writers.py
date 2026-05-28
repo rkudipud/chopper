@@ -921,13 +921,32 @@ def _resolve_before_path(ctx: ChopperContext, record: RunRecord, rel_path: Path)
 
 
 def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:
-    """Return the root the parser actually read from.
+    """Return the root containing the pristine pre-trim source.
 
-    On re-trim (Case 2) the backup is the pristine source; on first-trim
-    (Case 1) the parser read the domain before the trimmer rebuilt it.
+    Mirrors :func:`chopper.parser.service.ParserService._source_root`
+    and :func:`chopper.cli.loc_report._source_root`: the backup tree is
+    the authoritative "before" whenever it exists on disk at P7 audit
+    time, otherwise the domain tree is the "before".
+
+    The check uses ``ctx.fs.exists`` rather than the P0
+    :class:`DomainState.backup_exists` flag because on a first live
+    trim (Case 1) P0 sees ``backup_exists == False``, but the live
+    trimmer creates ``<domain>_backup/`` during P5 before P7 audit
+    runs.  Using the stale P0 snapshot would point both "before" and
+    "after" at the rebuilt domain tree, collapsing the delta to zero
+    (the symptom reported in production).  On ``--dry-run`` no backup
+    is taken, so this function falls back to ``domain_root`` and the
+    before / after sets are equal by construction \u2014 which is the
+    correct dry-run contract.
     """
 
+    if ctx.fs.exists(ctx.config.backup_root):
+        return ctx.config.backup_root
     if record.state is not None and record.state.backup_exists:
+        # Defensive fallback: if the state recorded backup_exists but
+        # the filesystem disagrees (manually removed between P0 and
+        # P7), still prefer the configured backup_root so the audit
+        # surfaces the absence rather than silently collapsing.
         return ctx.config.backup_root
     return ctx.config.domain_root
 

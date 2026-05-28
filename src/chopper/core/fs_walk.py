@@ -32,7 +32,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from chopper.core.protocols import FileSystemPort
 
-__all__ = ["TEXT_LIKE_EXTENSIONS", "walk_files"]
+__all__ = [
+    "EXCLUDED_FILENAMES",
+    "EXCLUDED_SUFFIXES",
+    "TEXT_LIKE_EXTENSIONS",
+    "walk_files",
+]
 
 
 # Extensions for which SLOC counting is meaningful.  Kept in sync with
@@ -41,6 +46,11 @@ __all__ = ["TEXT_LIKE_EXTENSIONS", "walk_files"]
 # doubt prefer adding an extension here over special-casing inside
 # callers — symmetry between "before" and "after" walks is what
 # guarantees the delta math is honest.
+#
+# ``.json`` is intentionally NOT in this set: JSON files are authoring
+# inputs (base / feature / project JSONs and the preserved ``jsons/``
+# subtree), not domain runtime code.  See ARCHITECTURE.md §5.5.13
+# "Authoring artifacts excluded from all LOC accounting".
 TEXT_LIKE_EXTENSIONS = frozenset(
     {
         ".tcl",
@@ -53,7 +63,6 @@ TEXT_LIKE_EXTENSIONS = frozenset(
         ".bash",
         ".zsh",
         ".ksh",
-        ".json",
         ".csv",
         ".md",
         ".rst",
@@ -63,6 +72,15 @@ TEXT_LIKE_EXTENSIONS = frozenset(
         ".yaml",
     }
 )
+
+
+# Hard exclusions applied to **every** ``walk_files`` call regardless
+# of the ``extensions`` filter.  These represent authoring metadata
+# Chopper itself consumes (JSON config) or that ships alongside the
+# domain as a README (``instructions.md``) and must never be counted
+# as domain source.  See ARCHITECTURE.md §5.5.13.
+EXCLUDED_SUFFIXES = frozenset({".json"})
+EXCLUDED_FILENAMES = frozenset({"instructions.md"})
 
 
 def walk_files(
@@ -132,6 +150,15 @@ def walk_files(
                 if child.name in excluded:
                     continue
                 frontier.append(child)
+                continue
+            # Hard authoring-artifact exclusion (ARCHITECTURE.md §5.5.13):
+            # apply BEFORE the optional extension filter so a caller
+            # passing ``extensions=None`` (raw file-count walk) and a
+            # caller passing ``TEXT_LIKE_EXTENSIONS`` (SLOC walk) both
+            # observe the same exclusion semantics.
+            if child.name in EXCLUDED_FILENAMES:
+                continue
+            if rel.suffix.lower() in EXCLUDED_SUFFIXES:
                 continue
             if ext_set is not None and rel.suffix.lower() not in ext_set:
                 continue

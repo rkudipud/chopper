@@ -1933,8 +1933,8 @@ Pure numbers for dashboards and trend tracking across multiple trim runs.
 | `run_id` | string | Correlates with other artifacts |
 | `domain` | string | Domain identifier |
 | `timestamp` | string | ISO 8601 UTC |
-| `files_before` | integer | Total files in domain |
-| `files_after` | integer | Surviving files |
+| `files_before` | integer | Total files in domain (see §5.5.13 authoring-artifact exclusions) |
+| `files_after` | integer | Surviving files (same exclusions) |
 | `procs_before` | integer | Total procs in domain |
 | `procs_after` | integer | Surviving procs |
 | `sloc_before` | integer | Logical source lines before trim (see §5.5.13) |
@@ -1945,6 +1945,8 @@ Pure numbers for dashboards and trend tracking across multiple trim runs.
 | `trim_ratio_files` | number | `files_after / files_before` |
 | `trim_ratio_procs` | number | `procs_after / procs_before` |
 | `trim_ratio_sloc` | number | `sloc_after / sloc_before` |
+
+**Before-root selection.** The "before" tree is `<domain>_backup/` whenever it exists on disk at P7 audit time, otherwise `<domain>/`. The check uses the live filesystem (`ctx.fs.exists`), not the P0 `DomainState`: on a first live trim, P0 sees `backup_exists == False` but P5 creates the backup before P7 runs, so the audit must use the backup as the pristine "before". This mirrors the parser's `_source_root()` and `cli/loc_report._source_root()` so all three reporters agree on the baseline. On `--dry-run` no backup is taken; before-root collapses to `<domain>/` and the before/after numbers are equal (the trimmer never wrote).
 
 #### 5.5.9 Input preservation contract
 
@@ -2016,8 +2018,16 @@ All line-count fields labeled `sloc_*` report **logical source lines** — langu
 | **Perl** | `.pl`, `.pm` extension | Lines where the first non-whitespace token is `#`; `=pod`..`=cut` block comments | Lines containing only whitespace |
 | **Shell** | `.sh`, `.csh`, `.bash` extension | Lines where the first non-whitespace token is `#` (not `#!` shebang on line 1) | Lines containing only whitespace |
 | **CSV** | `.csv` extension | No comment syntax; all non-blank lines are data lines | Lines containing only whitespace or only commas |
-| **JSON** | `.json` extension | No comments in JSON; all non-blank lines count | Lines containing only whitespace |
 | **Other/unknown** | No recognized extension | **Fallback:** count all non-blank lines as SLOC | Lines containing only whitespace |
+
+**Authoring artifacts excluded from all LOC accounting.** The following inputs are *authoring metadata*, not domain source code, and are skipped by every walk (`chopper loc`, `chopper trim` audit `trim_stats.json`, and the live console table). They never appear in `files_before` / `files_after` and contribute zero SLOC.
+
+| Filter | What it excludes |
+|---|---|
+| Suffix `.json` (any case) | All `.json` files anywhere under the domain — Chopper's own base/feature/project inputs, the preserved `jsons/` subtree, and any user-authored JSON config. JSON is an authoring surface, not a runtime artifact. |
+| Basename `instructions.md` (exact, case-sensitive) | Any file named `instructions.md` at any depth — the conventional domain-authoring README that ships alongside `jsons/`. Other `.md` files are still subject to the normal counted-types table. |
+
+The exclusion is enforced centrally in `src/chopper/core/fs_walk.py` (`EXCLUDED_SUFFIXES`, `EXCLUDED_FILENAMES`) so every consumer — LOC report, audit before/after, live console — uses the same predicate.
 
 **Rules:**
 
@@ -2123,11 +2133,12 @@ Files present in the source domain but absent from `manifest.file_decisions` are
 | Counted? | Extensions | Notes |
 |---|---|---|
 | Yes | `.tcl`, `.py`, `.pl`, `.pm`, `.sh`, `.bash`, `.csh`, `.tcsh`, `.zsh`, `.ksh` | Hash-comment family: SLOC excludes blank lines and full-`#`-leading lines; shell-family `#!` shebang on line 1 counts as SLOC. |
-| Yes | `.json` | No comment syntax — SLOC equals raw non-blank line count. |
 | Yes | `.csv` | A line counts only if it contains at least one non-comma, non-whitespace token. |
+| No | `.json` (any path) | Authoring/metadata surface; see §5.5.13 "Authoring artifacts excluded". Never counted in any phase. |
+| No | Basename `instructions.md` (any path) | Authoring README; see §5.5.13. Other `.md` files are not in the counted list anyway. |
 | No | Everything else (`.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, binaries, etc.) | Skipped by the enumerator; never appears in any treatment bucket. |
 
-Generated artifacts are language-detected the same way (by artifact path suffix). A generated `<stage>.tcl` follows hash-comment SLOC rules; a hypothetical generated `.json` would fall back to non-blank-line counting.
+Generated artifacts are language-detected the same way (by artifact path suffix). A generated `<stage>.tcl` follows hash-comment SLOC rules. A hypothetical generated `.json` would be excluded by the authoring-artifact filter and would not appear in any LOC bucket.
 
 **Source-root resolution and `_backup` interaction.** `cli/loc_report._source_root(ctx)` mirrors the parser: it returns `ctx.config.backup_root` when that path exists on disk, and `ctx.config.domain_root` otherwise. Consequence: on a re-run after `chopper trim` has already produced `<domain>_backup/`, `chopper loc` enumerates the **backup** (the original pre-trim source), so "before" reflects what the parser actually sees — not the already-trimmed output. This matches the dry-run pipeline by construction.
 

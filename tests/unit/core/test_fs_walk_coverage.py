@@ -152,6 +152,24 @@ def test_walk_files_relative_to_valueerror_skips_child() -> None:
     assert result == []
 
 
+def test_walk_files_excludes_json_and_instructions_md() -> None:
+    """walk_files excludes .json files and instructions.md per ARCHITECTURE.md §5.5.13."""
+    from chopper.core.fs_walk import walk_files
+
+    fs = InMemoryFS()
+    fs.write_text(DOMAIN / "base.json", "{}")
+    fs.write_text(DOMAIN / "sub" / "feature.json", "{}")
+    fs.write_text(DOMAIN / "instructions.md", "# howto")
+    fs.write_text(DOMAIN / "lib.tcl", "proc foo {} {}")
+
+    result = walk_files(fs, DOMAIN)
+    posix = [p.as_posix() for p in result]
+    assert "lib.tcl" in posix
+    assert "base.json" not in posix
+    assert "sub/feature.json" not in posix
+    assert "instructions.md" not in posix
+
+
 def test_walk_files_chopper_direct_child_of_root_skipped() -> None:
     """walk_files skips .chopper/ when it is a DIRECT child of root (parts[0] check, line 126)."""
     from chopper.core.fs_walk import walk_files
