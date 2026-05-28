@@ -344,6 +344,13 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 3.5.0 — 2026-05-23
+
+- **Optional flow-action stage targets (`skip_if_no_stage`).** Each entry in `flow_actions` now accepts an optional boolean `skip_if_no_stage` (default `false`). When `true` and the target stage is absent from the compiled stage sequence (typically because the partial project composition did not load it), the resolver emits new `VI-05 flow-action-skipped-no-stage` (info, exit 0) and skips the action silently instead of failing with `VE-05`. Step-level miss inside a present stage still emits `VE-05` — stage existence and step existence remain distinct contracts. Backward-compatible: omitting the field preserves the strict `VE-05` behaviour.
+- **Use case.** Cross-cutting features (e.g. a `sequential_const_check` injecting a constraint step into every gate-level stage that *might* be loaded) can now declare their injections optional per action — without forcing the project author to redeclare them as feature-level or project-level opt-ins.
+- **Implementation.** Per-action field threaded through `feature-v1.schema.json`, every `FlowAction` dataclass in [src/chopper/core/models_config.py](src/chopper/core/models_config.py), [src/chopper/config/loaders.py](src/chopper/config/loaders.py), and all seven stage-miss sites in [src/chopper/compiler/flow_resolver.py](src/chopper/compiler/flow_resolver.py). `VI-05` registered in [src/chopper/core/_diagnostic_registry.py](src/chopper/core/_diagnostic_registry.py) and [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md). Architecture doc §6.7 documents the contract under "Optional Stage Targets".
+- Version bumped 3.4.2 → 3.5.0.
+
 ### 3.4.2 — 2026-05-22
 
 - **Fix: `options.cross_validate` now honored.** The flag in `BaseOptions` was loaded from JSON but never consumed; `_check_stage_steps()` ran VW-14/VW-15/VW-16 unconditionally. Threaded through `validate_post` → `_check_stage_steps` → `_classify_and_emit`. When `cross_validate: false`, VW-14/15/16 are suppressed entirely; VW-17 (external-path advisory) still fires because it does not depend on manifest lookups. See [src/chopper/validator/functions.py](src/chopper/validator/functions.py) and [src/chopper/orchestrator/runner.py](src/chopper/orchestrator/runner.py).

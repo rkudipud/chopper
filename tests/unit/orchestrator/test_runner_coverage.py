@@ -82,7 +82,6 @@ def test_flow_resolver_apply_add_step_silent_when_reference_unresolved() -> None
 
 def test_flow_resolver_replace_stage_rejects_duplicate_name() -> None:
     from chopper.compiler.flow_resolver import _apply_replace_stage, _MutableStage  # type: ignore[attr-defined]
-    from chopper.core.errors import ChopperError
     from chopper.core.models_config import ReplaceStageAction, StageDefinition
 
     a = _MutableStage.from_definition(StageDefinition(name="a", load_from="base", steps=("s1",)))
@@ -90,8 +89,12 @@ def test_flow_resolver_replace_stage_rejects_duplicate_name() -> None:
     # Replacing 'a' with a stage named 'b' would create a duplicate.
     new_def = StageDefinition(name="b", load_from="base", steps=("s3",))
     action = ReplaceStageAction(action="replace_stage", reference="a", replacement=new_def)
-    with pytest.raises(ChopperError, match="duplicate stage"):
-        _apply_replace_stage([a, b], action)
+    ctx = _ctx()
+    _apply_replace_stage(ctx, [a, b], action, feature_name="feat")
+    # Action is skipped (VE-08 emitted); both stages remain unchanged.
+    assert "VE-08" in _codes(ctx)
+    assert a.steps == ["s1"]
+    assert b.steps == ["s2"]
 
 
 # ---------------------------------------------------------------------------

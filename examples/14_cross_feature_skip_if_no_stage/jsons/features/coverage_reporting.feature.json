@@ -1,0 +1,35 @@
+{
+  "$schema": "feature-v1",
+  "name": "coverage_reporting",
+  "domain": "my_domain",
+  "description": "Cross-cutting feature: injects coverage reporting steps into dft_check and power_check stages. Uses skip_if_no_stage because those stages are created by separate features and may not be loaded.",
+  "metadata": {
+    "owner": "methodology-team",
+    "tags": ["coverage", "cross-cutting"]
+  },
+  "files": {
+    "include": ["procs/coverage_procs.tcl"]
+  },
+  "flow_actions": [
+    {
+      "action": "add_step_after",
+      "stage": "main",
+      "reference": "run_main_flow",
+      "items": ["report_main_coverage"]
+    },
+    {
+      "action": "add_step_after",
+      "stage": "dft_check",
+      "reference": "verify_scan",
+      "items": ["report_dft_coverage"],
+      "skip_if_no_stage": true
+    },
+    {
+      "action": "add_step_after",
+      "stage": "power_check",
+      "reference": "report_power_summary",
+      "items": ["report_power_coverage"],
+      "skip_if_no_stage": true
+    }
+  ]
+}

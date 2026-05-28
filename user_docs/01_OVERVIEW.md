@@ -120,6 +120,7 @@ Emit `<stage>.tcl` run scripts (and optional `<stage>.stack` scheduler files) fr
 - A stage that sets `standalone_stack: true` emits a `<stage>.stack` with the authored `steps` verbatim (useful for wrapper stages that encode scheduler-format records directly). The standalone stack suppresses that stage's `<stage>.tcl` — see [example 13](../examples/13_base_with_standalone_stack/).
 - Stage step references (procs, sourced files) are validated post-trim when `options.cross_validate` is `true` (default) — broken refs become `VW-14`/`VW-15`/`VW-16` warnings.
 - Features can extend stages with `flow_actions` (`add_stage_after`, `replace_steps`, etc.). Feature **order** matters here.
+- Cross-cutting features can safely target stages created by other features using `"skip_if_no_stage": true` — absent stages emit `VI-05` (info) and the action is skipped, rather than failing with `VE-05`.
 
 ---
 

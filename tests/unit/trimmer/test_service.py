@@ -812,3 +812,36 @@ def test_case2_sync_creates_backup_jsons_when_absent() -> None:
 
     # Sync must have created backup/jsons/ from domain's content.
     assert fs.read_text(BACKUP / "jsons" / "base.json") == '{"domain":"d","fresh":true}'
+
+
+# ---------------------------------------------------------------------------
+# PROC_TRIM with no procs to remove → VW-22
+# ---------------------------------------------------------------------------
+
+
+def test_proc_trim_no_procs_to_remove_emits_vw22() -> None:
+    """When a file is marked PROC_TRIM but all declared procs survive,
+    VW-22 is emitted to warn that the backup is already post-trim."""
+    content = "proc a {} {}\nproc b {} {}\n"
+    fs = InMemoryFS({DOMAIN / "m.tcl": content})
+    ctx, sink = make_ctx(fs=fs)
+
+    manifest = _manifest(
+        {"m.tcl": FileTreatment.PROC_TRIM},
+        {"m.tcl::a": "procedures.include", "m.tcl::b": "procedures.include"},
+    )
+    parsed = _parsed(
+        {
+            "m.tcl": [
+                _proc("m.tcl", "a", start=1, end=1),
+                _proc("m.tcl", "b", start=2, end=2),
+            ],
+        }
+    )
+    state = _state(1, domain_exists=True, backup_exists=False)
+
+    report = TrimmerService().run(ctx, manifest, parsed, state)
+
+    assert sink.codes() == ["VW-22"]
+    assert report.files_trimmed == 1
+    assert report.procs_removed_total == 0

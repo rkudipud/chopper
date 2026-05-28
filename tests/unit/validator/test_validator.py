@@ -850,9 +850,7 @@ def test_validate_post_ignores_blank_and_comment_stage_steps() -> None:
 
 def test_validate_post_cross_validate_false_suppresses_vw14_15_16() -> None:
     """When cross_validate=False, VW-14/15/16 are suppressed but VW-17 still fires."""
-    manifest = _make_manifest(
-        stages=(_stage(steps=("missing.tcl", "run_flow", "source lib/x.tcl", "/abs/path.tcl")),)
-    )
+    manifest = _make_manifest(stages=(_stage(steps=("missing.tcl", "run_flow", "source lib/x.tcl", "/abs/path.tcl")),))
     ctx = _ctx()
 
     validate_post(ctx, manifest, _empty_graph(), rewritten=(), cross_validate=False)

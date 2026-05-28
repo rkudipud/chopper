@@ -45,11 +45,22 @@ follow last-layer-wins semantics, which is consistent with R1.
 
 Diagnostics emitted:
 
+* ``VE-05 missing-action-target`` — a flow_action ``stage`` or step
+  ``reference`` cannot be found in the working stage sequence (e.g.
+  whitespace mismatch in a ``replace_step.reference``, or a stage
+  name introduced by an unselected prerequisite feature).
+* ``VE-08 duplicate-stage-names`` — ``add_stage_*`` or
+  ``replace_stage`` would create a stage whose name already exists.
 * ``VE-10 occurrence-suffix-overflow`` — ``@n`` with *n* exceeding the
   number of matching steps in the stage.
 * ``VE-19 occurrence-suffix-zero`` — ``@0``; indices are 1-based.
 * ``VE-20 ambiguous-step-target`` — a step-level action with no ``@n``
   where the step string appears more than once in the stage.
+* ``VI-05 flow-action-skipped-no-stage`` — an action declared
+  ``"skip_if_no_stage": true`` and the named stage is not present in
+  the working sequence; the action is skipped silently. Step-level
+  miss inside a present stage is **not** softened; that still emits
+  ``VE-05``.
 
 Programmer-error conditions (missing stage target, unknown action kind)
 raise :class:`ChopperError` and the runner maps that to exit 3.
@@ -239,29 +250,39 @@ def _apply_action(
     elif isinstance(action, ReplaceStepAction):
         _apply_replace_step(ctx, working, action, feature_name=feature_name)
     elif isinstance(action, AddStageAction):
-        _apply_add_stage(working, action, stage_after_offsets=stage_after_offsets)
+        _apply_add_stage(ctx, working, action, feature_name=feature_name, stage_after_offsets=stage_after_offsets)
     elif isinstance(action, RemoveStageAction):
-        _apply_remove_stage(working, action)
+        _apply_remove_stage(ctx, working, action, feature_name=feature_name)
     elif isinstance(action, ReplaceStageAction):
-        _apply_replace_stage(working, action)
+        _apply_replace_stage(ctx, working, action, feature_name=feature_name)
     elif isinstance(action, LoadFromAction):
-        _apply_load_from(working, action)
+        _apply_load_from(ctx, working, action, feature_name=feature_name)
     else:  # pragma: no cover — exhaustive dispatch
         raise ChopperError(f"unknown FlowAction variant: {type(action).__name__}")
 
 
-def _find_stage(working: list[_MutableStage], name: str) -> _MutableStage:
+def _find_stage(working: list[_MutableStage], name: str) -> _MutableStage | None:
+    """Return the stage named ``name`` or ``None`` if absent.
+
+    Lookup is non-raising; callers emit ``VE-05`` (missing-action-target)
+    and skip the action when the result is ``None``.
+    """
     for stage in working:
         if stage.name == name:
             return stage
-    raise ChopperError(f"flow_action references missing stage {name!r}")
+    return None
 
 
-def _find_stage_index(working: list[_MutableStage], name: str) -> int:
+def _find_stage_index(working: list[_MutableStage], name: str) -> int | None:
+    """Return the index of the stage named ``name`` or ``None`` if absent.
+
+    Lookup is non-raising; callers emit ``VE-05`` (missing-action-target)
+    and skip the action when the result is ``None``.
+    """
     for i, stage in enumerate(working):
         if stage.name == name:
             return i
-    raise ChopperError(f"flow_action references missing stage {name!r}")
+    return None
 
 
 def _resolve_step_index(
@@ -300,10 +321,15 @@ def _resolve_step_index(
         return matches[suffix - 1]
 
     if len(matches) == 0:
-        raise ChopperError(
-            f"flow_action {action_kind} in feature {feature_name!r} references step "
-            f"{reference!r} not found in stage {stage.name!r}"
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action=action_kind,
+            target_kind="step",
+            target=reference,
+            stage=stage.name,
         )
+        return None
     if len(matches) > 1:
         _emit_ve20(
             ctx,
@@ -329,6 +355,18 @@ def _apply_add_step(
     step_after_offsets: dict[tuple[str, str, int | None], int],
 ) -> None:
     stage = _find_stage(working, action.stage)
+    if stage is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action=action.action, target=action.stage)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action=action.action,
+            target_kind="stage",
+            target=action.stage,
+        )
+        return
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind=action.action)
     if idx is None:
         return
@@ -363,6 +401,18 @@ def _apply_remove_step(
     feature_name: str,
 ) -> None:
     stage = _find_stage(working, action.stage)
+    if stage is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action="remove_step", target=action.stage)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action="remove_step",
+            target_kind="stage",
+            target=action.stage,
+        )
+        return
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind="remove_step")
     if idx is None:
         return
@@ -377,6 +427,18 @@ def _apply_replace_step(
     feature_name: str,
 ) -> None:
     stage = _find_stage(working, action.stage)
+    if stage is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action="replace_step", target=action.stage)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action="replace_step",
+            target_kind="stage",
+            target=action.stage,
+        )
+        return
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind="replace_step")
     if idx is None:
         return
@@ -387,16 +449,36 @@ def _apply_replace_step(
 
 
 def _apply_add_stage(
+    ctx: ChopperContext,
     working: list[_MutableStage],
     action: AddStageAction,
     *,
+    feature_name: str,
     stage_after_offsets: dict[str, int],
 ) -> None:
     ref_idx = _find_stage_index(working, action.reference)
+    if ref_idx is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action=action.action, target=action.reference)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action=action.action,
+            target_kind="stage",
+            target=action.reference,
+        )
+        return
     new_stage = _MutableStage.from_definition(action.stage)
     # Disallow duplicate stage name.
     if any(s.name == new_stage.name for s in working):
-        raise ChopperError(f"flow_action {action.action} would create duplicate stage {new_stage.name!r}")
+        _emit_ve08(
+            ctx,
+            feature=feature_name,
+            action=action.action,
+            stage_name=new_stage.name,
+        )
+        return
     if action.action == "add_stage_before":
         # Mirrors ``add_step_before``: each insertion shifts the
         # reference stage down, so subsequent same-anchor inserts land
@@ -412,17 +494,59 @@ def _apply_add_stage(
     working.insert(insertion, new_stage)
 
 
-def _apply_remove_stage(working: list[_MutableStage], action: RemoveStageAction) -> None:
+def _apply_remove_stage(
+    ctx: ChopperContext,
+    working: list[_MutableStage],
+    action: RemoveStageAction,
+    *,
+    feature_name: str,
+) -> None:
     idx = _find_stage_index(working, action.reference)
+    if idx is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action="remove_stage", target=action.reference)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action="remove_stage",
+            target_kind="stage",
+            target=action.reference,
+        )
+        return
     del working[idx]
 
 
-def _apply_replace_stage(working: list[_MutableStage], action: ReplaceStageAction) -> None:
+def _apply_replace_stage(
+    ctx: ChopperContext,
+    working: list[_MutableStage],
+    action: ReplaceStageAction,
+    *,
+    feature_name: str,
+) -> None:
     idx = _find_stage_index(working, action.reference)
+    if idx is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action="replace_stage", target=action.reference)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action="replace_stage",
+            target_kind="stage",
+            target=action.reference,
+        )
+        return
     old_name = working[idx].name
     replacement = _MutableStage.from_definition(action.replacement)
     if replacement.name != old_name and any(s.name == replacement.name for s in working):
-        raise ChopperError(f"flow_action replace_stage would create duplicate stage {replacement.name!r}")
+        _emit_ve08(
+            ctx,
+            feature=feature_name,
+            action="replace_stage",
+            stage_name=replacement.name,
+        )
+        return
     working[idx] = replacement
     # Rewrite existing load_from references from the old stage name to
     # the replacement's name so later actions see the new graph
@@ -433,8 +557,26 @@ def _apply_replace_stage(working: list[_MutableStage], action: ReplaceStageActio
                 stage.load_from = replacement.name
 
 
-def _apply_load_from(working: list[_MutableStage], action: LoadFromAction) -> None:
+def _apply_load_from(
+    ctx: ChopperContext,
+    working: list[_MutableStage],
+    action: LoadFromAction,
+    *,
+    feature_name: str,
+) -> None:
     stage = _find_stage(working, action.stage)
+    if stage is None:
+        if action.skip_if_no_stage:
+            _emit_vi05_skipped(ctx, feature=feature_name, action="load_from", target=action.stage)
+            return
+        _emit_ve05(
+            ctx,
+            feature=feature_name,
+            action="load_from",
+            target_kind="stage",
+            target=action.stage,
+        )
+        return
     stage.load_from = action.reference
 
 
@@ -515,6 +657,90 @@ def _emit_ve20(
                 f"({action} stage={stage!r} reference={reference!r}): {count} matches found"
             ),
             hint="Disambiguate with an @n instance suffix (e.g. 'step.tcl@2')",
+        )
+    )
+
+
+def _emit_ve05(
+    ctx: ChopperContext,
+    *,
+    feature: str,
+    action: str,
+    target_kind: str,
+    target: str,
+    stage: str | None = None,
+) -> None:
+    """Emit ``VE-05 missing-action-target`` for a flow_action that names
+    a non-existent stage or step.
+
+    ``target_kind`` is ``"stage"`` or ``"step"``; ``stage`` (the stage
+    being acted upon) is included only for step-level misses to disambiguate
+    where the search failed.
+    """
+    where = f" in stage {stage!r}" if (target_kind == "step" and stage is not None) else ""
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-05",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"flow_action {action!r} in feature {feature!r} references missing {target_kind} {target!r}{where}"
+            ),
+            hint=(
+                "Verify the target exists in the compiled stage sequence. Check spelling, "
+                "whitespace (step strings are matched literally), and that any prerequisite "
+                "feature that introduces the target is selected before this one."
+            ),
+        )
+    )
+
+
+def _emit_vi05_skipped(
+    ctx: ChopperContext,
+    *,
+    feature: str,
+    action: str,
+    target: str,
+) -> None:
+    """Emit ``VI-05 flow-action-skipped-no-stage`` for an action that
+    declared ``skip_if_no_stage: true`` and whose stage target is absent.
+
+    Architecture doc §6.7 'Optional Stage Targets'. Severity is info
+    (exit 0); ``--strict`` does **not** escalate ``VI-*`` codes.
+    """
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VI-05",
+            phase=Phase.P3_COMPILE,
+            message=(
+                f"flow_action {action!r} in feature {feature!r} skipped: "
+                f"target stage {target!r} not present in compiled sequence "
+                f"and action declared skip_if_no_stage=true"
+            ),
+            hint=(
+                "No action required if the silent skip matches the author's intent. "
+                "If the stage should be present, add the feature that introduces it. "
+                "To restore strict behaviour, remove skip_if_no_stage from this action."
+            ),
+        )
+    )
+
+
+def _emit_ve08(
+    ctx: ChopperContext,
+    *,
+    feature: str,
+    action: str,
+    stage_name: str,
+) -> None:
+    """Emit ``VE-08 duplicate-stage-names`` when a flow_action would
+    create a stage whose name already exists in the working sequence.
+    """
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-08",
+            phase=Phase.P3_COMPILE,
+            message=(f"flow_action {action!r} in feature {feature!r} would create duplicate stage {stage_name!r}"),
+            hint="Rename one of the conflicting stages, or remove the action that creates the duplicate.",
         )
     )
 

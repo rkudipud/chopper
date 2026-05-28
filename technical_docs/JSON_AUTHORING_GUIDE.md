@@ -494,6 +494,37 @@ If a step string appears multiple times, use `@n` to target the nth instance:
 }
 ```
 
+### Optional stage targets with `skip_if_no_stage`
+
+Cross-cutting features often inject steps into stages that may not be loaded in every project composition. By default, targeting an absent stage is a hard error (`VE-05`). To make the injection optional, add `"skip_if_no_stage": true`:
+
+```json
+{
+  "action": "add_step_after",
+  "stage": "eco_pre_synth",
+  "reference": "#Anchor for SEQ_CONST_CHECK if enabled\n",
+  "items": ["set verification_assume_reg_init None\n"],
+  "skip_if_no_stage": true
+}
+```
+
+**Behaviour:**
+- **Stage absent + flag `true`:** Emits `VI-05 flow-action-skipped-no-stage` (info, exit 0), action skipped.
+- **Stage present + flag `true`:** Action runs normally (identical to the strict path).
+- **Stage absent + flag `false` (default):** Emits `VE-05 missing-action-target` (error, exit 1).
+- **Step miss inside a present stage:** Always `VE-05` regardless of the flag. `skip_if_no_stage` softens only the *stage-not-found* path.
+
+**When to use:**
+- The action targets a stage created by another feature (not the base).
+- The feature is intended to work in partial compositions (user selects only a subset of features).
+- Example: `sequential_const_check` injects into `eco_pre_synth` (created by `fm_eco`). When `fm_eco` is not selected, the injection is correctly skipped.
+
+**When NOT to use:**
+- The action targets a base stage (always present — no skip needed).
+- The action targets a stage created earlier in the same feature (intra-feature chaining — always present by top-to-bottom application).
+
+`skip_if_no_stage` is accepted on every flow_action variant: `add_step_before`, `add_step_after`, `remove_step`, `replace_step`, `add_stage_before`, `add_stage_after`, `remove_stage`, `replace_stage`, `load_from`.
+
 ---
 
 ## 8. Authoring Rules and Constraints

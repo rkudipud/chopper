@@ -2935,6 +2935,35 @@ The same contract holds for `add_stage_after` keyed on the `reference` stage nam
 
 `add_step_before` and `add_stage_before` already preserve selected feature order naturally — each insertion sits immediately before a (now-shifted) anchor — so no offset bookkeeping is required for the `_before` family. The order-independent F3 actions (`replace_step`, `replace_stage`, `remove_step`, `remove_stage`, `load_from`) follow last-layer-wins semantics, which is consistent with R1 across F1, F2, and F3.
 
+#### Optional Stage Targets — `skip_if_no_stage`
+
+Cross-cutting features (e.g. a `sequential_const_check` that injects a constraint step into every gate-level stage that happens to be present) frequently target a *set* of stages that varies with the project selection. When the user composes a partial project (`--features` with only a subset of the stages loaded), a flow_action that names a stage which is not in the current compiled sequence is, by default, an authoring error (`VE-05 missing-action-target`, exit 1).
+
+This default is correct when the action's stage name is the author's contract. It is wrong when the author's intent is *"apply this step everywhere the stage exists; otherwise leave the flow alone"*. To express that intent, every flow_action object accepts an optional boolean:
+
+```json
+{
+  "action": "add_step_after",
+  "stage": "fev_fm_gate2gate",
+  "reference": "step_pre_eco.tcl",
+  "items": ["step_sequential_const_check.tcl"],
+  "skip_if_no_stage": true
+}
+```
+
+**Semantics:**
+
+- **Field:** `skip_if_no_stage: boolean`, default `false`. Applies to every action variant whose `stage` or `reference` names a base stage: `add_step_before`, `add_step_after`, `add_stage_before`, `add_stage_after`, `remove_step`, `remove_stage`, `replace_step`, `replace_stage`, `load_from`.
+- **Scope:** **per-action.** Not per-feature, not per-project. Each action declares its own optionality so an author can opt one injection in and keep the rest hard.
+- **Behaviour when `true` and the target stage is absent:** the resolver emits `VI-05 flow-action-skipped-no-stage` (info, exit 0) and skips the action. The working stage sequence is unchanged. Downstream P5 / P6 see exactly what they would have seen if the action had never been declared.
+- **Behaviour when `true` and the target stage is present:** identical to `false`. The action runs normally; step-level resolution still applies, and a missing step inside a present stage still emits `VE-05` (see below).
+- **Behaviour when `false` (the default):** unchanged. A missing stage emits `VE-05` and blocks output.
+- **Step-level miss is unaffected.** `skip_if_no_stage: true` softens only the *stage-not-found* path. If the stage exists but the named step `reference` does not, that is still `VE-05` (exit 1). Rationale: stage existence is a structural property of which features the user selected; step existence inside a present stage is an authoring contract between this feature and the stage author. The two failure modes have different root causes and must remain separately observable.
+- **`load_from`** uses `skip_if_no_stage` to gate the *modified* stage (`action.stage`), not the new predecessor (`action.reference`). A `load_from` whose `stage` is absent is skipped; a `load_from` whose `reference` predecessor is absent emits `VE-05` (the predecessor is a structural promise of the flow).
+- **`add_stage_*`** uses `skip_if_no_stage` to gate the anchor (`action.reference`), since the new stage being inserted does not yet exist by definition.
+
+`VI-05` carries the feature name, the action keyword, and the missing stage name in its diagnostic context so a `run_result.json` reader can summarise *which* injections degraded silently in this project composition. The info severity ensures `--strict` does not flip it into a failure (per `VI-*` policy): silent-skip is the author's explicitly chosen contract, and elevating it would defeat its purpose.
+
 ### 6.8 Dry-Run Output Model
 
 `chopper trim --dry-run` runs the full pipeline and emits these artifacts without writing or modifying any domain files. This is the primary authoring feedback loop.
@@ -3384,6 +3413,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-05-21 | **3.3.0 — F3 aggregate `<domain>.stack` + per-stage `standalone_stack`.** Aggregate stack corrected to one file per flow (matches production EDA artifact contract — pre-3.3 per-stage stacks were wrong). Record-line order `N → J → L → I → O → D → (R parallel)`. `standalone_stack: true` is orthogonal and additive (per-stage verbatim emission). Three new diagnostics: `VE-28`, `VE-29`, `VW-23`. Hard cutover, no shim. |
 | 2026-05-21 | **3.4.0 — Topological aggregate stack + `standalone_stack` suppresses `<stage>.tcl`.** Aggregate records now emitted in topological order over `dependencies ∪ {load_from}` (Kahn's algorithm, authored-position tiebreaker) — deterministic, preserves unrelated-subgraph authoring intent. Materialized on `CompiledManifest.stack_order`. `standalone_stack: true` now emits **only** `<stage>.stack` (was both `.tcl` and `.stack`). `VE-30 stage-dependency-cycle` / `VE-31 stage-dependency-unresolved` added. |
 | 2026-05-22 | **3.4.1 — P5d companion-file sync (FD-15 ADOPTED).** `CompanionSyncService` runs after P5c. For every `PROC_TRIM` `default_rules.<sfx>.tcl`, filters sibling `default_config.<sfx>.csv` (column 0) and `default_milestone.<sfx>.tcl` (`change_config <ProcName>` lines) against surviving proc short-names. `VW-24 companion-file-missing` and `VI-04 companion-sync-applied` added. |
+| 2026-05-23 | **3.5.0 — Optional flow-action stage targets (`skip_if_no_stage`).** Cross-cutting features (e.g. `sequential_const_check`) inject steps into N stages; in partial-project compositions, missing stages previously aborted with `VE-05`. Added per-action boolean `skip_if_no_stage` (default `false`, backward-compatible). When `true` and the target stage is absent, resolver emits new `VI-05 flow-action-skipped-no-stage` (info, exit 0) and skips silently. Step-level miss inside a present stage still emits `VE-05` — stage existence and step existence are distinct contracts. Rejected alternatives: feature-level `optional: true` (too coarse — author cannot opt one injection in); project-level allow-list (couples authoring to project shape); silent fallthrough on every `VE-05` (loses authoring-bug detection). §6.7 updated; `VI-05` registered; feature-v1 schema accepts the new field on every flow_action variant. |
 | 2026-05-22 | **3.4.2 — Honor `options.cross_validate` + doc declutter.** The `cross_validate` flag was loaded but never consumed — VW-14/15/16 ran unconditionally. Threaded through `validate_post` → `_check_stage_steps` → `_classify_and_emit`; when `false`, VW-14/15/16 suppressed entirely; VW-17 still fires (does not depend on manifest lookups). Aggressive trim of this revision-history table (the canonical release log lives in git + README.md changelog). `IMPLEMENTATION.md` Appendix A removed (scope-lock in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) already covers OOS items); Appendix B → main-body "Future Considerations" section. |
 
 ---

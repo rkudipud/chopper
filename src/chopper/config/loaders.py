@@ -134,6 +134,7 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
     function is called; we dispatch purely on ``action``.
     """
     action: str = raw["action"]
+    skip: bool = bool(raw.get("skip_if_no_stage", False))
 
     if action in ("add_step_before", "add_step_after"):
         return AddStepAction(
@@ -141,6 +142,7 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             stage=raw["stage"],
             reference=raw["reference"],
             items=tuple(raw["items"]),
+            skip_if_no_stage=skip,
         )
 
     if action in ("add_stage_before", "add_stage_after"):
@@ -161,6 +163,7 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             action=action,  # type: ignore[arg-type]
             reference=raw["reference"],
             stage=stage_def,
+            skip_if_no_stage=skip,
         )
 
     if action == "remove_step":
@@ -168,13 +171,23 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             action="remove_step",
             stage=raw["stage"],
             reference=raw["reference"],
+            skip_if_no_stage=skip,
         )
 
     if action == "remove_stage":
-        return RemoveStageAction(action="remove_stage", reference=raw["reference"])
+        return RemoveStageAction(
+            action="remove_stage",
+            reference=raw["reference"],
+            skip_if_no_stage=skip,
+        )
 
     if action == "load_from":
-        return LoadFromAction(action="load_from", stage=raw["stage"], reference=raw["reference"])
+        return LoadFromAction(
+            action="load_from",
+            stage=raw["stage"],
+            reference=raw["reference"],
+            skip_if_no_stage=skip,
+        )
 
     if action == "replace_step":
         return ReplaceStepAction(
@@ -182,6 +195,7 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             stage=raw["stage"],
             reference=raw["reference"],
             replacement=raw["with"],
+            skip_if_no_stage=skip,
         )
 
     if action == "replace_stage":
@@ -189,6 +203,7 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             action="replace_stage",
             reference=raw["reference"],
             replacement=_load_stage_def(raw["with"]),
+            skip_if_no_stage=skip,
         )
 
     # Unreachable if schema validation ran first.

@@ -7,8 +7,6 @@ for shared fixtures.
 
 from __future__ import annotations
 
-import pytest
-
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
@@ -20,24 +18,20 @@ from tests.unit._coverage_helpers import (  # noqa: F401
 )
 
 
-def test_flow_resolver_find_stage_index_raises_for_unknown() -> None:
+def test_flow_resolver_find_stage_index_returns_none_for_unknown() -> None:
     from chopper.compiler.flow_resolver import _find_stage_index, _MutableStage  # type: ignore[attr-defined]
-    from chopper.core.errors import ChopperError
     from chopper.core.models_config import StageDefinition
 
     s = _MutableStage.from_definition(StageDefinition(name="a", load_from="base", steps=("step1",)))
-    with pytest.raises(ChopperError, match="missing stage"):
-        _find_stage_index([s], "nope")
+    assert _find_stage_index([s], "nope") is None
 
 
-def test_flow_resolver_find_stage_raises_for_unknown() -> None:
+def test_flow_resolver_find_stage_returns_none_for_unknown() -> None:
     from chopper.compiler.flow_resolver import _find_stage, _MutableStage  # type: ignore[attr-defined]
-    from chopper.core.errors import ChopperError
     from chopper.core.models_config import StageDefinition
 
     s = _MutableStage.from_definition(StageDefinition(name="a", load_from="base", steps=("step1",)))
-    with pytest.raises(ChopperError, match="missing stage"):
-        _find_stage([s], "nope")
+    assert _find_stage([s], "nope") is None
 
 
 def test_replace_stage_with_identical_name_skips_load_from_rewrite() -> None:
@@ -60,7 +54,8 @@ def test_replace_stage_with_identical_name_skips_load_from_rewrite() -> None:
         reference="alpha",
         replacement=replacement_def,
     )
-    _apply_replace_stage(working, action)
+    ctx = _ctx()
+    _apply_replace_stage(ctx, working, action, feature_name="feat")
 
     # Replacement installed at the same index, same name.
     assert working[0].name == "alpha"

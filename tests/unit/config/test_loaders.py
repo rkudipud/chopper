@@ -232,6 +232,45 @@ class TestLoadFeature:
         assert isinstance(action, AddStepAction)
         assert action.action == "add_step_after"
 
+    def test_skip_if_no_stage_round_trips_true(self) -> None:
+        """Architecture doc §6.7: ``skip_if_no_stage: true`` on a
+        flow_action hydrates onto the dataclass."""
+        raw = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_step_after",
+                    "stage": "maybe_present",
+                    "reference": "anchor.tcl",
+                    "items": ["injected.tcl"],
+                    "skip_if_no_stage": True,
+                }
+            ],
+        }
+        feat, _ = _collect_feat(raw)
+        action = feat.flow_actions[0]
+        assert isinstance(action, AddStepAction)
+        assert action.skip_if_no_stage is True
+
+    def test_skip_if_no_stage_defaults_to_false_when_omitted(self) -> None:
+        """Backward-compat: omitting ``skip_if_no_stage`` defaults to
+        ``False`` on the hydrated dataclass."""
+        raw = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_step_after",
+                    "stage": "s",
+                    "reference": "r",
+                    "items": ["i"],
+                }
+            ],
+        }
+        feat, _ = _collect_feat(raw)
+        assert feat.flow_actions[0].skip_if_no_stage is False
+
     def test_add_stage_after_action(self) -> None:
         raw = {
             "$schema": "feature-v1",

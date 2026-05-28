@@ -26,13 +26,13 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-35 | 31 | 4 | 35 | Schema, path, action, ordering, filesystem failures — block output |
 | `VW` Validation Warnings | VW-01–VW-30 | 22 | 6 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing (2 retired slots: VW-18, VW-19) |
-| `VI` Validation Info | VI-01–VI-05 | 4 | 1 | 5 | Advisory notices; no action required |
+| `VI` Validation Info | VI-01–VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **81** | **42** | **125** | |
+| **Total** | | **82** | **41** | **125** | |
 
 ---
 
@@ -121,7 +121,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VI-02 | `top-level-tcl-only` | 5 | trimmer | 0 | File survived trim with only top-level Tcl; no proc definitions were present | Informational; no action needed |
 | VI-03 | `domain-suffix-strip-applied` | 1 | cli | 0 | Resolution candidate (from `--domain` or cwd) ended in `_backup` and a stripped sibling exists as a directory; the operational domain root was redirected to that sibling, and the original candidate is treated as the previous-run snapshot. The redirect is single-shot and conditional — a `_backup`-suffixed path with no live sibling is honored as-is. The diagnostic carries the original candidate path and the resolved domain root in its context. | If the redirect was unintended (i.e. the user genuinely meant the `_backup` path and the sibling collision is coincidental), rename the live sibling to break the collision, or run from inside the intended domain. Otherwise no action is required — the run will proceed against the real domain. |
 | VI-04 | `companion-sync-applied` | 5 | trimmer | 0 | P5d companion-file sync successfully filtered a companion file (`default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl`) to match the surviving proc set of the paired `default_rules.<sfx>.tcl` file. Informational only; no action needed. | No action required. |
-| — | — | — | — | — | **VI-05 reserved** | — |
+| VI-05 | `flow-action-skipped-no-stage` | 3 | compiler | 0 | A `flow_actions` entry that declared `"skip_if_no_stage": true` named a stage that is not present in the compiled stage sequence (typically because the partial project composition did not load it). The action was skipped; the working stage sequence is unchanged. This is the **author-sanctioned** counterpart of `VE-05`: stage-not-found becomes advisory when (and only when) the action opts in. Step-level miss inside a present stage still emits `VE-05`. | No action required if the silent skip matches the author's intent. If the stage *should* be present, add the feature that introduces it (or fix the typo). To restore strict behaviour for this action, remove the `"skip_if_no_stage": true` field. |
 
 > **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc §2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* A `VI-03 domain-hand-edited` code was proposed and rejected during pre-1.0 design (see [`ENGINEERING.md`](ENGINEERING.md) §16 closed decisions). The `VI-03` slot was later reused in 1.2.0 for `domain-suffix-strip-applied` (above) per the registry's lowest-available-slot convention.
 

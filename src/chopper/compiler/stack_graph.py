@@ -7,12 +7,19 @@ union of
 * ``P -> S`` for every ``P`` in ``S.dependencies``;
 * ``S.load_from -> S`` when ``S.load_from`` is non-empty.
 
-Cycles and dangling references are hard errors regardless of
+Cycles and dangling references are user errors regardless of
 ``options.generate_stack``:
 
 * ``VE-30 stage-dependency-cycle`` — any cycle (including a self-loop).
 * ``VE-31 stage-dependency-unresolved`` — any edge whose source is not a
   defined stage in the resolved flow.
+
+Both surface as :class:`~chopper.core.diagnostics.Diagnostic` emissions
+on ``ctx.diag``; the function then returns an empty tuple so the rest of
+the compile phase can complete and the post-phase validator can report
+the accumulated errors and exit 1. The function does **not** raise on
+user-input errors — that would short-circuit the pipeline to an internal
+error (exit 3), which is reserved for programmer mistakes.
 
 When the graph is well-formed, :func:`compute_stack_order` returns a
 topological ordering of stage names produced by Kahn's algorithm with
@@ -27,7 +34,6 @@ import heapq
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
-from chopper.core.errors import ChopperError
 from chopper.core.models_compiler import StageSpec
 
 __all__ = ["compute_stack_order"]
@@ -36,9 +42,10 @@ __all__ = ["compute_stack_order"]
 def compute_stack_order(ctx: ChopperContext, stages: tuple[StageSpec, ...]) -> tuple[str, ...]:
     """Return the topological order of stage names for aggregate stack emission.
 
-    Raises :class:`ChopperError` after emitting ``VE-30`` (cycle) or
-    ``VE-31`` (unresolved reference). Returns an empty tuple when
-    ``stages`` is empty.
+    Emits ``VE-30`` (cycle) or ``VE-31`` (unresolved reference) and
+    returns an empty tuple when the graph is malformed; the post-phase
+    validator exits 1 from the accumulated diagnostic state. Returns an
+    empty tuple when ``stages`` is empty.
     """
 
     if not stages:
@@ -58,9 +65,9 @@ def compute_stack_order(ctx: ChopperContext, stages: tuple[StageSpec, ...]) -> t
             _emit_ve31(ctx, referrer=stage.name, unresolved=stage.load_from, field_name="load_from")
             unresolved_emitted = True
     if unresolved_emitted:
-        raise ChopperError(
-            "F3 stage dependency graph contains unresolved references; see VE-31 diagnostics for details"
-        )
+        # User-input error; diagnostic is already emitted. Skip ordering;
+        # the validator will exit 1 from the diagnostic summary.
+        return ()
 
     # ---- Build edge set: predecessor -> successor --------------------
     successors: dict[str, list[str]] = {name: [] for name in stage_names}
@@ -102,7 +109,9 @@ def compute_stack_order(ctx: ChopperContext, stages: tuple[StageSpec, ...]) -> t
     if len(order) != len(stages):
         cycle = _extract_cycle(successors, in_degree)
         _emit_ve30(ctx, cycle)
-        raise ChopperError("F3 stage dependency graph contains a cycle; see VE-30 diagnostic for details")
+        # User-input error; diagnostic is already emitted. Skip ordering;
+        # the validator will exit 1 from the diagnostic summary.
+        return ()
 
     return tuple(order)
 

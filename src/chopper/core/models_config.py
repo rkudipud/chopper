@@ -87,6 +87,7 @@ class AddStepAction:
     stage: str
     reference: str
     items: tuple[str, ...]
+    skip_if_no_stage: bool = False
 
     def __post_init__(self) -> None:
         if not self.items:
@@ -100,6 +101,7 @@ class AddStageAction:
     action: Literal["add_stage_before", "add_stage_after"]
     reference: str
     stage: StageDefinition
+    skip_if_no_stage: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,7 @@ class RemoveStepAction:
     action: Literal["remove_step"]
     stage: str
     reference: str
+    skip_if_no_stage: bool = False
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,7 @@ class RemoveStageAction:
 
     action: Literal["remove_stage"]
     reference: str
+    skip_if_no_stage: bool = False
 
 
 @dataclass(frozen=True)
@@ -126,6 +130,7 @@ class LoadFromAction:
     action: Literal["load_from"]
     stage: str
     reference: str
+    skip_if_no_stage: bool = False
 
 
 @dataclass(frozen=True)
@@ -136,6 +141,7 @@ class ReplaceStepAction:
     stage: str
     reference: str
     replacement: str
+    skip_if_no_stage: bool = False
 
 
 @dataclass(frozen=True)
@@ -145,6 +151,7 @@ class ReplaceStageAction:
     action: Literal["replace_stage"]
     reference: str
     replacement: StageDefinition
+    skip_if_no_stage: bool = False
 
 
 FlowAction = (

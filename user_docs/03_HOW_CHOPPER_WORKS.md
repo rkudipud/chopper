@@ -280,6 +280,10 @@ Read-only by design. No network surface means no inadvertent destructive remote 
 
 When `true` (default), P6 checks every step string in every surviving stage against the files and procs that survived trimming. Missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) — all warnings, never errors. Set to `false` if your stages intentionally reference content outside the trimmed domain (e.g. cross-domain sources). `VW-17 external-reference` is always emitted regardless of this flag.
 
+### My feature injects steps into stages created by another feature. How do I avoid VE-05 when that feature is not loaded?
+
+Add `"skip_if_no_stage": true` to each flow_action that targets the feature-created stage. When the stage is absent from the compiled sequence, Chopper emits `VI-05` (info, exit 0) and skips the action silently. When the stage is present, the action runs normally. This is the canonical pattern for cross-cutting features in modular domains. See [JSON_AUTHORING_GUIDE.md §7 "Optional stage targets"](../technical_docs/JSON_AUTHORING_GUIDE.md) and [ARCHITECTURE.md §6.7](../technical_docs/ARCHITECTURE.md).
+
 ### What is `p4_commands.txt` in `.chopper/`?
 
 A ready-to-execute Perforce command list correlating each file-treatment decision to the `p4` command needed to record the change against the depot. Three sections: `p4 edit` for PROC_TRIM/overwritten files, `p4 add` for newly GENERATED files, `p4 delete` for removed files. Chopper never invokes `p4` itself — review and `p4 submit` manually.

@@ -1250,6 +1250,11 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
         instead of <code>TW-02 unresolved-proc-call</code>, keeping the dependency graph clean for
         vendor builtins like <code>read_db</code>, <code>create_clock</code>, <code>setup_design</code>.
       </div>
+      <div class="callout" style="margin-top:8px">
+        <strong>Cross-feature stage injection:</strong> when a feature injects steps into a stage created by <em>another</em> optional feature,
+        add <code>"skip_if_no_stage": true</code> to the flow_action. If the target stage is absent, Chopper emits
+        <code>VI-05</code> (info, exit&nbsp;0) and skips — no hard error. See <code>examples/14_cross_feature_skip_if_no_stage/</code>.
+      </div>
     </div>
 
     <div>
@@ -2153,6 +2158,7 @@ treatment.GENERATED.files: 0</pre>
         <li><code>examples/02_base_procs_only/</code></li>
         <li><code>examples/07_base_full/</code></li>
         <li><code>examples/09_base_plus_multiple_features/</code></li>
+        <li><code>examples/14_cross_feature_skip_if_no_stage/</code></li>
         <li><code>schemas/base-v1.schema.json</code></li>
         <li><code>schemas/feature-v1.schema.json</code></li>
         <li><code>schemas/project-v1.schema.json</code></li>

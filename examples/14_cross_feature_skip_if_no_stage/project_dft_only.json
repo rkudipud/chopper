@@ -1,0 +1,17 @@
+{
+  "$schema": "project-v1",
+  "project": "PROJECT_DFT_COVERAGE",
+  "domain": "my_domain",
+  "owner": "integration-team",
+  "base": "jsons/base.json",
+  "features": [
+    "jsons/features/dft.feature.json",
+    "jsons/features/coverage_reporting.feature.json"
+  ],
+  "notes": [
+    "This project loads DFT but NOT power.",
+    "coverage_reporting injects into main (always present) and dft_check (present via dft).",
+    "The power_check injection is silently skipped (VI-05) because power.feature.json is not loaded.",
+    "Result: exit 0 with a VI-05 diagnostic for the skipped power_check action."
+  ]
+}

@@ -632,3 +632,15 @@ def test_looks_like_bare_proc_returns_false_for_file_extension() -> None:
     assert _looks_like_bare_proc("run_setup.py") is False
     # Non-file-extension → bare proc
     assert _looks_like_bare_proc("my_proc") is True
+
+
+def test_looks_like_bare_proc_returns_false_for_variable_refs_and_braces() -> None:
+    """_looks_like_bare_proc returns False for Tcl variable refs ($var) and syntax artifacts."""
+    from chopper.validator.functions import _looks_like_bare_proc
+
+    # Variable reference — not a bare proc call
+    assert _looks_like_bare_proc("$env(HOME)") is False
+    assert _looks_like_bare_proc("$var") is False
+    # Syntax artifacts
+    assert _looks_like_bare_proc("}") is False
+    assert _looks_like_bare_proc("{") is False

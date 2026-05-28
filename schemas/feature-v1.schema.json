@@ -181,6 +181,11 @@
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
           "description": "Step strings to insert"
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the target `stage` is not present in the compiled stage sequence, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -253,6 +258,11 @@
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
           "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the anchor `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -275,6 +285,11 @@
           "minLength": 1,
           "pattern": "^[^@]+(@[1-9][0-9]*)?$",
           "description": "Step string to remove. Use @n for instance targeting (e.g., step.tcl@2)."
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -291,6 +306,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Stage name to remove"
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -312,6 +332,11 @@
           "type": "string",
           "minLength": 1,
           "description": "New predecessor stage name"
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. A missing `reference` predecessor still fails with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -339,6 +364,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Replacement step string"
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -359,6 +389,11 @@
         "with": {
           "$ref": "#/$defs/stageDefinition",
           "description": "Replacement stage definition"
+        },
+        "skip_if_no_stage": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
         }
       }
     },

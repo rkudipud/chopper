@@ -58,9 +58,9 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-31, VW-01..VW-24, VI-01..VI-04, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 81 active + 2 retired (VW-18,
-# VW-19) = 83 registered entries; matches the Code Space Summary table
+# VE-01..VE-31, VW-01..VW-24, VI-01..VI-05, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 82 active + 2 retired (VW-18,
+# VW-19) = 84 registered entries; matches the Code Space Summary table
 # in the registry doc.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -142,6 +142,9 @@ _REGISTRY: dict[str, _Entry] = {
     "VI-02": _Entry(slug="top-level-tcl-only", severity=Severity.INFO, phase=5, source="trimmer", exit_code=0),
     "VI-03": _Entry(slug="domain-suffix-strip-applied", severity=Severity.INFO, phase=1, source="cli", exit_code=0),
     "VI-04": _Entry(slug="companion-sync-applied", severity=Severity.INFO, phase=5, source="trimmer", exit_code=0),
+    "VI-05": _Entry(
+        slug="flow-action-skipped-no-stage", severity=Severity.INFO, phase=3, source="compiler", exit_code=0
+    ),
     "TW-01": _Entry(slug="ambiguous-proc-match", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),
     "TW-02": _Entry(slug="unresolved-proc-call", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),
     "TW-03": _Entry(slug="dynamic-call-form", severity=Severity.WARNING, phase=4, source="compiler", exit_code=0),

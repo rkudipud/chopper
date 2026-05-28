@@ -20,7 +20,6 @@ import pytest
 
 from chopper.compiler.merge_service import CompilerService
 from chopper.compiler.stack_graph import compute_stack_order
-from chopper.core.errors import ChopperError
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, StageSpec
 from chopper.core.models_config import (
@@ -153,24 +152,21 @@ def test_ve30_emitted_on_two_node_cycle() -> None:
         _stage("a", load_from="b"),
         _stage("b", load_from="a"),
     )
-    with pytest.raises(ChopperError, match="cycle"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     assert "VE-30" in [d.code for d in sink.snapshot()]
 
 
 def test_ve30_emitted_on_self_loop_via_load_from() -> None:
     ctx, sink = make_ctx()
     stages = (_stage("a", load_from="a"),)
-    with pytest.raises(ChopperError, match="cycle"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     assert "VE-30" in [d.code for d in sink.snapshot()]
 
 
 def test_ve30_emitted_on_self_loop_via_dependencies() -> None:
     ctx, sink = make_ctx()
     stages = (_stage("a", dependencies=("a",)),)
-    with pytest.raises(ChopperError, match="cycle"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     assert "VE-30" in [d.code for d in sink.snapshot()]
 
 
@@ -181,8 +177,7 @@ def test_ve30_emitted_on_three_node_cycle_mixing_fields() -> None:
         _stage("b", dependencies=("a",)),
         _stage("c", load_from="b"),
     )
-    with pytest.raises(ChopperError, match="cycle"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     assert "VE-30" in [d.code for d in sink.snapshot()]
 
 
@@ -200,8 +195,7 @@ def test_ve30_strips_residual_leaf_attached_to_cycle() -> None:
         _stage("y", load_from="z"),
         _stage("z", load_from="y"),
     )
-    with pytest.raises(ChopperError, match="cycle"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     diags = [d for d in sink.snapshot() if d.code == "VE-30"]
     assert len(diags) == 1
     # The reported cycle must contain only true cycle members (y, z) —
@@ -217,8 +211,7 @@ def test_ve30_strips_residual_leaf_attached_to_cycle() -> None:
 def test_ve31_emitted_on_unresolved_load_from() -> None:
     ctx, sink = make_ctx()
     stages = (_stage("a", load_from="ghost"),)
-    with pytest.raises(ChopperError, match="unresolved"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     codes = [d.code for d in sink.snapshot()]
     assert "VE-31" in codes
 
@@ -226,21 +219,19 @@ def test_ve31_emitted_on_unresolved_load_from() -> None:
 def test_ve31_emitted_on_unresolved_dependency() -> None:
     ctx, sink = make_ctx()
     stages = (_stage("a", dependencies=("ghost",)),)
-    with pytest.raises(ChopperError, match="unresolved"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     assert "VE-31" in [d.code for d in sink.snapshot()]
 
 
 def test_ve31_emitted_for_each_bogus_reference() -> None:
-    """Multiple unresolved references fire one VE-31 each before raising."""
+    """Multiple unresolved references fire one VE-31 each before returning."""
 
     ctx, sink = make_ctx()
     stages = (
         _stage("a", load_from="ghost1"),
         _stage("b", dependencies=("ghost2", "ghost3")),
     )
-    with pytest.raises(ChopperError, match="unresolved"):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     codes = [d.code for d in sink.snapshot()]
     assert codes.count("VE-31") == 3
 
@@ -248,8 +239,7 @@ def test_ve31_emitted_for_each_bogus_reference() -> None:
 def test_ve31_message_names_field() -> None:
     ctx, sink = make_ctx()
     stages = (_stage("a", load_from="ghost"),)
-    with pytest.raises(ChopperError):
-        compute_stack_order(ctx, stages)
+    assert compute_stack_order(ctx, stages) == ()
     msg = sink.snapshot()[0].message
     assert "'ghost'" in msg
     assert "load_from" in msg
@@ -297,18 +287,20 @@ def test_compiler_populates_stack_order_even_when_generate_stack_off() -> None:
     assert manifest.stack_order == ("a", "b")
 
 
-def test_compiler_raises_ve31_when_load_from_dangles() -> None:
+def test_compiler_emits_ve31_when_load_from_dangles() -> None:
     ctx, sink = make_ctx()
     base = _base(
         generate_stack=False,
         stages=(StageDefinition(name="a", load_from="ghost", steps=("a",)),),
     )
-    with pytest.raises(ChopperError):
-        CompilerService().run(ctx, LoadedConfig(base=base, features=(), project=None), _empty_parsed())
+    manifest = CompilerService().run(ctx, LoadedConfig(base=base, features=(), project=None), _empty_parsed())
     assert "VE-31" in [d.code for d in sink.snapshot()]
+    # User-input error: compiler completes the phase; stack_order is empty
+    # so the validator can report and exit 1.
+    assert manifest.stack_order == ()
 
 
-def test_compiler_raises_ve30_on_cycle() -> None:
+def test_compiler_emits_ve30_on_cycle() -> None:
     ctx, sink = make_ctx()
     base = _base(
         generate_stack=False,
@@ -317,9 +309,9 @@ def test_compiler_raises_ve30_on_cycle() -> None:
             StageDefinition(name="b", load_from="a", steps=("a",)),
         ),
     )
-    with pytest.raises(ChopperError):
-        CompilerService().run(ctx, LoadedConfig(base=base, features=(), project=None), _empty_parsed())
+    manifest = CompilerService().run(ctx, LoadedConfig(base=base, features=(), project=None), _empty_parsed())
     assert "VE-30" in [d.code for d in sink.snapshot()]
+    assert manifest.stack_order == ()
 
 
 def test_standalone_stack_stage_does_not_register_tcl() -> None:

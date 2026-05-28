@@ -1,0 +1,27 @@
+{
+  "$schema": "base-v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "description": "Base defines only the main stage. Other stages (dft_check, power_check) are created by optional features. Cross-cutting features use skip_if_no_stage to safely inject into stages that may not be loaded.",
+  "files": {
+    "include": [
+      "setup.tcl",
+      "vars.tcl",
+      "procs/core_procs.tcl"
+    ]
+  },
+  "stages": [
+    {
+      "name": "main",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T main",
+      "exit_codes": [0, 3],
+      "steps": [
+        "source setup.tcl",
+        "source vars.tcl",
+        "source procs/core_procs.tcl",
+        "run_main_flow"
+      ]
+    }
+  ]
+}

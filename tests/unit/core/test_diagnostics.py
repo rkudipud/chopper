@@ -14,10 +14,10 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 81 active +
-        # 2 retired (VW-18, VW-19) = 83 registered entries in 2.0.1
-        # (added VW-24 companion-file-missing, VI-04 companion-sync-applied).
-        assert len(all_codes()) == 83
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 82 active +
+        # 2 retired (VW-18, VW-19) = 84 registered entries in 3.5.0
+        # (added VI-05 flow-action-skipped-no-stage).
+        assert len(all_codes()) == 84
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")
