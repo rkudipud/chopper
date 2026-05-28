@@ -75,11 +75,14 @@ The `repo` scope is required. If the token is expired or missing, see
 
 ### Step 4 — Run the push script
 
-From the repo root:
+From the repo root (canonical location):
 
 ```tcsh
-python3 .github/skills/gh-api-push/gh_api_push.py
+python3 gh_api_push.py
 ```
+
+> The script also exists at `.github/skills/gh-api-push/gh_api_push.py` (kept
+> in sync). Either path works.
 
 Expected output for a single commit:
 
@@ -100,7 +103,7 @@ Commit 20efc4fd4ff0: 4 file(s)
 Pushed! refs/heads/main -> 8dd71fd10f19
 
 Sync local branch to the new remote SHA:
-  git fetch origin && git reset --hard origin/main
+  git fetch origin && git rebase origin/main
 ```
 
 ### Step 5 — Sync local branch (mandatory)
@@ -108,12 +111,28 @@ Sync local branch to the new remote SHA:
 The API rebuilds commits server-side, creating new SHAs. Without this sync,
 `git status` will still show "ahead by N" and `git push` will fail again.
 
+**Option A — rebase (preferred, preserves any local-only commits):**
+
+```tcsh
+git fetch origin
+git rebase origin/main
+```
+
+Git will detect the cherry-picked commits and skip them:
+
+```
+warning: skipped previously applied commit e059213
+Successfully rebased and updated refs/heads/main.
+```
+
+**Option B — hard reset (simpler, discards any local-only state):**
+
 ```tcsh
 git fetch origin
 git reset --hard origin/main
 ```
 
-After the reset, `git status` should show "nothing to commit, working tree clean".
+After either option, `git status` should show "nothing to commit, working tree clean".
 
 ---
 
@@ -191,7 +210,7 @@ The script tries these sources in order — no token is ever stored in the repo:
 ```tcsh
 /nfs/site/itools/em64t_SLES15/pkgs/github-cli/2.83.1/bin/gh auth status
 # Confirm: Logged in to github.com, Token scopes include 'repo'
-python3 .github/skills/gh-api-push/gh_api_push.py
+python3 gh_api_push.py
 ```
 
 > **Intel gh CLI paths** — the script probes these in order before falling back to `$PATH`:
@@ -202,7 +221,7 @@ python3 .github/skills/gh-api-push/gh_api_push.py
 
 ```tcsh
 setenv GITHUB_TOKEN ghp_...
-python3 .github/skills/gh-api-push/gh_api_push.py
+python3 gh_api_push.py
 ```
 
 ### 3. gh CLI — token expired, refresh it
@@ -213,7 +232,7 @@ The refresh uses device-flow: prints a one-time code and opens
 ```tcsh
 /nfs/site/itools/em64t_SLES15/pkgs/github-cli/2.83.1/bin/gh auth refresh -h github.com -s repo
 # Enter the code shown in the browser, then re-run the script
-python3 .github/skills/gh-api-push/gh_api_push.py
+python3 gh_api_push.py
 ```
 
 ### 4. Create a Personal Access Token (when gh is unavailable)
@@ -224,7 +243,7 @@ python3 .github/skills/gh-api-push/gh_api_push.py
 
 ```tcsh
 setenv GITHUB_TOKEN ghp_<paste-token-here>
-python3 .github/skills/gh-api-push/gh_api_push.py
+python3 gh_api_push.py
 ```
 
 ---
@@ -239,7 +258,7 @@ To use a different proxy:
 
 ```tcsh
 setenv HTTPS_PROXY http://proxy-chain.intel.com:912
-python3 .github/skills/gh-api-push/gh_api_push.py
+python3 gh_api_push.py
 ```
 
 ---
@@ -250,6 +269,15 @@ The API push rebuilds every commit server-side. The new GitHub commit SHAs will
 **differ** from the local SHAs even though the content is identical. Without
 syncing, `git status` will still show "ahead by N" and a second `git push` attempt
 will fail with 403 again (or diverged-history errors if somehow HTTPS push is tried).
+
+**Preferred (rebase — skips already-applied commits):**
+
+```tcsh
+git fetch origin
+git rebase origin/main
+```
+
+**Alternative (hard reset — discards any unpushed state):**
 
 ```tcsh
 git fetch origin
@@ -276,12 +304,18 @@ creates commits server-side and returns new object identifiers. Always run the
 sync step. Skipping it leaves the local repo in a confusing "ahead by N"
 state that looks like the push never happened.
 
-### Hardcoded REPO and BRANCH
+### Configurable REPO and BRANCH
 
-`REPO` and `BRANCH` at the top of `gh_api_push.py` are hardcoded to
-`rkudipud/chopper` and `main`. To push a different branch or repo, edit those
-two constants directly before running. There are no env var overrides for them
-in the current implementation.
+`REPO` and `BRANCH` default to `rkudipud/chopper` and `main` but can be
+overridden via environment variables:
+
+```tcsh
+setenv GH_API_PUSH_REPO  "owner/other-repo"
+setenv GH_API_PUSH_BRANCH "feature-branch"
+python3 gh_api_push.py
+```
+
+If unset, the script falls back to its hardcoded defaults.
 
 ### tcsh stderr redirect syntax
 
@@ -366,4 +400,5 @@ A file in the commit contains an embedded token or key. Steps to fix:
 | File | Purpose |
 |------|---------|
 | `SKILL.md` | This runbook |
-| `gh_api_push.py` | Push script — blob → tree → commit → update-ref via GitHub REST API |
+| `gh_api_push.py` | Push script (local copy, kept in sync with repo root) |
+| `../../gh_api_push.py` | Canonical push script at repo root — blob → tree → commit → update-ref via GitHub REST API |
