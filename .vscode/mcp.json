@@ -1,9 +1,23 @@
 {
-    "servers": {
-        "gitnexus": {
-            "type": "stdio",
-            "command": "npx",
-            "args": ["-y", "gitnexus@latest", "mcp"]
-        }
+  "servers": {
+    "gitnexus": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "gitnexus@latest",
+        "mcp"
+      ]
+    },
+    "mcp-atlassian": {
+      "type": "stdio",
+      "command": ".venv/bin/python3",
+      "args": [
+        ".vscode/run-confluence-mcp.py"
+      ],
+      "env": {
+        "WIKI_PERSONAL_TOKEN": ""
+      }
     }
+  }
 }
