@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+.vscode/mcp.json
+
 # Distribution / packaging
 .Python
 build/
@@ -229,3 +231,4 @@ test_out.txt
 test_run.txt
 mcp_out.txt
 dom/
+.vscode/mcp.json

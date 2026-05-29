@@ -116,18 +116,20 @@ usage: chopper loc [--domain PATH]
                    [--tool-commands PATH]... [global options]
 
 Print a read-only LOC report comparing the source domain against the
-planned trimmed domain. Runs the same P0–P4 + dry-run-P6 pipeline as
-`chopper trim --dry-run`, additionally invokes the F3 generator in
-no-write mode so generated stage `.tcl` content is countable, then
-emits a stdout table:
+rebuilt trimmed domain. Runs the same P0–P4 + dry-run-P6 pipeline as
+`chopper trim --dry-run`, then **replays the real P5 trim phases**
+(trim → generators → indentation → companion-sync) against an
+in-memory copy of the source tree and counts the *actual* rebuilt
+output, then emits a stdout table:
 
   - Files before / after / net change
   - Physical lines before / after / percent reduction
   - SLOC (non-blank, non-comment) before / after / percent reduction
   - Per-treatment breakdown (FULL_COPY / PROC_TRIM / REMOVE / GENERATED)
 
-Writes nothing to the filesystem — no domain modifications and no
-`.chopper/` audit bundle. Diagnostics emitted along the P0–P4 path are
+Writes nothing to the real filesystem — no domain modifications and no
+`.chopper/` audit bundle (the trim replay happens entirely in memory).
+Diagnostics emitted along the P0–P4 path are
 still summarized to stderr. Exit codes match `validate`: 0 clean,
 1 validation errors (or `--strict` with warnings), 2 CLI/environment
 error, 3 internal programmer error. `loc` cannot return 4.
@@ -164,22 +166,25 @@ Generated stage artifacts are language-detected the same way — a generated
 ### Caveats
 
 - **Source-root resolution.** If `<domain>_backup/` exists on disk (because
-  a prior `chopper trim` left it behind), `loc` enumerates the backup, not
+  a prior `chopper trim` left it behind), `loc` seeds the in-memory replay
+  from the backup, not
   the already-trimmed `<domain>/`. This mirrors the parser and keeps the
   "before" numbers stable across re-runs.
-- **PROC_TRIM after-count is reconstructed,** not measured: it masks the
-  `ProcEntry` line spans (body + leading DPA + leading comment block when
-  captured) from the source and recounts.
-- **P5c indentation pass is not modeled.** It is whitespace-only and does
-  not change SLOC; physical-line counts are unaffected in practice.
+- **PROC_TRIM after-count is the real trimmed file,** measured from the
+  in-memory replay of the production `ProcDropper` — not a span-masking
+  reconstruction.
+- **P5c indentation and P5d companion-sync are modeled.** The replay runs
+  the optional P5c whitespace-only indentation pass and the P5d companion
+  sync, exactly as live trim does.
 - **Default-exclude.** A counted-extension file under `<domain>/` that the
   merged manifest never names is reported under `treatment.REMOVE.*`.
 - **`.chopper/` is excluded** from the enumeration.
 - **Decode fallback.** Files that fail both UTF-8 and latin-1 decode are
   silently dropped from the report.
-- **No audit cross-check.** `loc` skips P7, so there is no
-  `trim_report.json` written to compare against; the numbers are a
-  planner-side projection.
+- **Byte-identical to a live trim.** Because `loc` reuses the production P5
+  services against an in-memory filesystem, its totals match `chopper trim`
+  and the audit bundle's `trim_stats.json` exactly — it is a real
+  (in-memory) trim, not a separate projection that could drift.
 
 ---
 

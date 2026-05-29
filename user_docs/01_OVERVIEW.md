@@ -119,8 +119,77 @@ Emit `<stage>.tcl` run scripts (and optional `<stage>.stack` scheduler files) fr
 - One `<stage>.tcl` is emitted per resolved stage. With `generate_stack: true`, Chopper also emits an aggregate `<domain>.stack` file containing one record per stage (topologically sorted by dependencies).
 - A stage that sets `standalone_stack: true` emits a `<stage>.stack` with the authored `steps` verbatim (useful for wrapper stages that encode scheduler-format records directly). The standalone stack suppresses that stage's `<stage>.tcl` — see [example 13](../examples/13_base_with_standalone_stack/).
 - Stage step references (procs, sourced files) are validated post-trim when `options.cross_validate` is `true` (default) — broken refs become `VW-14`/`VW-15`/`VW-16` warnings.
-- Features can extend stages with `flow_actions` (`add_stage_after`, `replace_steps`, etc.). Feature **order** matters here.
+- Features can extend stages with `flow_actions` (see §3.1). Feature **order** matters here.
 - Cross-cutting features can safely target stages created by other features using `"skip_if_no_stage": true` — absent stages emit `VI-05` (info) and the action is skipped, rather than failing with `VE-05`.
+
+#### Stage definition fields
+
+A stage object (in `base.stages[]`, in an `add_stage_*` action, or inside a `replace_stage`'s `with`) accepts:
+
+| Field | Required? | Stack line | Purpose |
+|---|---|---|---|
+| `name` | Yes | `N` | Stage name; becomes the generated `<name>.tcl` filename |
+| `steps` | Yes | — | Ordered list of step strings written verbatim into `<name>.tcl` |
+| `load_from` | Yes (in actions) | — | Predecessor stage the generated script loads data from (typically via `ivar(src_task)`) |
+| `command` | No | `J` | Execution command for the scheduler record |
+| `exit_codes` | No | `L` | Legal exit codes |
+| `dependencies` | No | `D` | Parent task names for the stack dependency graph (distinct from `load_from`) |
+| `inputs` | No | `I` | Input artifact markers |
+| `outputs` | No | `O` | Output artifact markers |
+| `run_mode` | No (`serial`) | `R` | `serial` (implicit) or `parallel` (emits `R parallel`) |
+| `language` | No (`tcl`) | — | `tcl` or `python` |
+| `standalone_stack` | No (`false`) | — | When `true`, emit `<name>.stack` from `steps` verbatim and suppress `<name>.tcl` |
+
+> `load_from` is the **data** predecessor (what the script reads). `dependencies` is the **scheduler** parent list (`D` in the stack). They are independent — set both when they differ.
+
+### 3.1 F3 flow actions — how features modify the stage flow
+
+A feature mutates the working stage sequence with an ordered `flow_actions` list. Actions apply top-to-bottom within a feature, and features apply in selected order (§5). Each action names a target by `action` type; step-level actions also match a step by its exact `reference` string.
+
+| Action | Required fields | Effect |
+|---|---|---|
+| `add_step_after` / `add_step_before` | `stage`, `reference`, `items` | Insert step(s) after / before a matched step |
+| `add_stage_after` / `add_stage_before` | `action`, `name`, `reference`, `load_from`, `steps` | Insert a new stage after / before a named reference stage |
+| `replace_step` | `stage`, `reference`, `with` | Replace one matched step with new text |
+| `remove_step` | `stage`, `reference` | Delete one matched step |
+| `replace_stage` | `reference`, `with` | Replace a whole stage definition |
+| `remove_stage` | `reference` | Delete a whole stage (and its generated `<stage>.tcl`) |
+| `load_from` | `stage`, `reference` | Repoint a stage's data predecessor |
+
+Every action also accepts the optional `skip_if_no_stage` flag.
+
+**Targeting a step that repeats — `@n`.** If the same step string appears more than once in a stage, append `@n` to the `reference` to pick the *n*-th occurrence (1-based: `@1` is the first). Ambiguous references fail loudly rather than guessing:
+
+- `@0` → `VE-19` occurrence-suffix-zero (indices start at 1)
+- `@n` past the last match → `VE-10` occurrence-suffix-overflow
+- a repeated step string with no `@n` → `VE-20` ambiguous-step-target
+
+**`skip_if_no_stage` — tolerant cross-cutting features.** A feature that injects into a stage *another* feature creates cannot assume that stage is always present. Setting `"skip_if_no_stage": true` makes a *missing stage* emit `VI-05` (info, exit 0) and skip the action instead of failing with `VE-05`. Note: it softens only a missing **stage** — if the stage is present but the step `reference` does not match, that is still a hard `VE-05`.
+
+```json
+{
+  "flow_actions": [
+    {
+      "action": "add_step_after",
+      "stage": "main",
+      "reference": "#Anchor for COVERAGE if enabled\n",
+      "items": ["report_main_coverage", "write_coverage_db"]
+    },
+    {
+      "action": "add_stage_after",
+      "name": "power_check",
+      "reference": "main",
+      "load_from": "main",
+      "command": "-xt vw Ishell -T power_check",
+      "exit_codes": [0],
+      "steps": ["run_power_checks", "report_power_summary"],
+      "skip_if_no_stage": true
+    }
+  ]
+}
+```
+
+> **Anchor comments are the stable insertion points.** Inject after a named anchor comment (e.g. `#Anchor for COVERAGE if enabled\n`) instead of guessing a line. The trailing `\n` is part of the anchor string and must match byte-for-byte. When several features inject at the *same* anchor, they land in selected feature order — which is why `project.features[]` order is authoritative.
 
 ---
 

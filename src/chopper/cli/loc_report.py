@@ -1,17 +1,24 @@
 """LOC report builder and renderer for ``chopper loc`` (FR-46).
 
 Per architecture doc §5.7: the LOC subcommand runs the same P0–P4 +
-dry-run-P6 pipeline as ``chopper trim --dry-run`` plus
-``GeneratorService`` in no-write mode, then prints a stdout table
-comparing the source domain against the planned trimmed domain.
+dry-run pipeline as ``chopper trim --dry-run``, then *replays the real
+P5 trim phases against an in-memory copy of the source tree* (see
+:mod:`chopper.orchestrator.simulate`) and prints a stdout table comparing
+the source domain against the actually-rebuilt trimmed domain.
+
+Because the replay reuses the production trimmer, generator,
+indentation, and companion-sync services unchanged, ``chopper loc``
+before/after totals are byte-for-byte identical to a live
+``chopper trim`` — there is no separate "estimate" to drift.
 
 This module owns:
 
-* the "before" enumeration (walk the source root for SLOC-relevant
-  source files, skipping ``.chopper/``);
-* the per-treatment "after" math (FULL_COPY → unchanged; PROC_TRIM →
-  source minus ``procs_removed`` line spans; REMOVE → 0; GENERATED →
-  rendered artifact content);
+* the per-treatment accounting that buckets each domain file by its
+  :class:`~chopper.core.models_common.FileTreatment` and reads the
+  actual before (backup tree) / after (rebuilt domain tree) counts
+  from the in-memory filesystem;
+* a baseline-only fallback for when the pipeline aborts before a
+  manifest is available;
 * the table renderer.
 
 Files present in the source domain but absent from
@@ -26,13 +33,13 @@ from collections import deque  # noqa: F401  (kept for backward-compat import pa
 from dataclasses import dataclass
 from pathlib import Path
 
-from chopper.audit.sloc import count_sloc, count_sloc_many
+from chopper.audit.sloc import count_sloc_many
 from chopper.core.context import ChopperContext
 from chopper.core.fs_walk import TEXT_LIKE_EXTENSIONS, walk_files
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_config import LoadedConfig
-from chopper.core.models_parser import ParseResult, ProcEntry
+from chopper.core.models_parser import ParseResult
 from chopper.core.models_trimmer import GeneratedArtifact
 
 __all__ = [
@@ -145,34 +152,32 @@ def _read(ctx: ChopperContext, rel: Path) -> str | None:
         return None
 
 
-def _proc_drop_span(proc: ProcEntry) -> tuple[int, int]:
-    """Return inclusive ``[first, last]`` line range to mask out for a dropped proc.
+def _count_tree(fs: object, root: Path) -> tuple[list[Path], dict[Path, int], dict[Path, int]]:
+    """Return ``(rels, lines_by_rel, sloc_by_rel)`` for every file under ``root``.
 
-    Mirrors the spans the trimmer would actually delete (proc body +
-    leading DPA + leading comment block, when ``ProcEntry`` records them).
+    ``rels`` is the full lex-sorted file set (``walk_files`` already
+    drops ``.chopper/`` and authoring artifacts). ``lines_by_rel`` maps
+    each file to its physical line count; ``sloc_by_rel`` maps only
+    text-like files to their logical-source-line count, computed in a
+    single batched ``cloc`` pass.
     """
-    first = proc.start_line
-    if proc.dpa_start_line is not None:
-        first = min(first, proc.dpa_start_line)
-    if proc.comment_start_line is not None:
-        first = min(first, proc.comment_start_line)
-    last = proc.end_line
-    return first, last
 
-
-def _proc_trim_after(text: str, dropped_procs: list[ProcEntry], path: Path) -> tuple[int, int]:
-    """Return ``(physical_lines_after, sloc_after)`` for a PROC_TRIM file."""
-    if not dropped_procs:
-        return len(text.splitlines()), count_sloc(path, text)
-
-    drop_set: set[int] = set()
-    for proc in dropped_procs:
-        first, last = _proc_drop_span(proc)
-        drop_set.update(range(first, last + 1))
-
-    kept_lines = [line for lineno, line in enumerate(text.splitlines(), start=1) if lineno not in drop_set]
-    kept_text = "\n".join(kept_lines)
-    return len(kept_lines), count_sloc(path, kept_text)
+    rels = walk_files(fs, root)  # type: ignore[arg-type]
+    lines_by_rel: dict[Path, int] = {}
+    sloc_items: list[tuple[Path, str]] = []
+    for rel in rels:
+        try:
+            text = fs.read_text(root / rel)  # type: ignore[attr-defined]
+        except (OSError, UnicodeDecodeError):
+            continue
+        lines_by_rel[rel] = len(text.splitlines())
+        if rel.suffix.lower() in _SLOC_EXTENSIONS:
+            sloc_items.append((rel, text))
+    sloc_by_rel: dict[Path, int] = {}
+    if sloc_items:
+        for (rel, _), n in zip(sloc_items, count_sloc_many(sloc_items), strict=True):
+            sloc_by_rel[rel] = n
+    return rels, lines_by_rel, sloc_by_rel
 
 
 def build_loc_report(
@@ -183,140 +188,88 @@ def build_loc_report(
     manifest: CompiledManifest,
     generated_artifacts: tuple[GeneratedArtifact, ...],
 ) -> LocReport:
-    """Compute the LOC report from a completed dry-run pipeline.
+    """Compute the LOC report by replaying the real trim in memory.
 
-    See module docstring for the per-treatment accounting contract.
+    Per ARCHITECTURE.md §5.7, ``chopper loc`` reports the SLOC impact of
+    a planned trim. Rather than *estimating* the trimmed output, this
+    builder replays the production P5 phases (trim → generators →
+    indentation → companion sync) against an in-memory copy of the
+    source tree via :func:`chopper.orchestrator.simulate.simulate_trim_in_memory`,
+    then counts the *actual* rebuilt files. The before/after totals are
+    therefore byte-for-byte identical to a live ``chopper trim`` (the
+    same services produce both), including companion-file sync (P5d)
+    and optional indentation normalization (P5c).
 
-    Implementation notes
-    --------------------
-    * **File counts walk the full domain** (no extension filter) so
-      ``files_before`` / ``files_after`` match the audit bundle's
-      ``total_domain_files`` field — S3/option-b fix from the
-      production-readiness review.
-    * **SLOC math is constrained to text-like extensions** (the
-      :data:`_SLOC_EXTENSIONS` set) and routed through
-      :func:`count_sloc_many` so the whole report is computed with a
-      single ``cloc`` subprocess invocation — S1/L2 fix.
+    File counts walk the full domain; SLOC math is constrained to
+    text-like extensions and routed through :func:`count_sloc_many` so
+    each tree is counted with a single ``cloc`` invocation.
     """
-    del loaded  # surface_files not needed; we walk the disk for "before".
+    from chopper.orchestrator.simulate import simulate_trim_in_memory
 
-    all_files = _enumerate_all_source_files(ctx)
-    sloc_files = [p for p in all_files if p.suffix.lower() in _SLOC_EXTENSIONS]
+    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    before_rels, before_lines, before_sloc = _count_tree(sim.fs, sim.backup_root)
+    _after_rels, after_lines, after_sloc = _count_tree(sim.fs, sim.domain_root)
 
-    # ---- single-batch SLOC for every text-like source file --------------
-    sloc_items: list[tuple[Path, str]] = []
-    text_by_rel: dict[Path, str] = {}
-    for rel in sloc_files:
-        text = _read(ctx, rel)
-        if text is None:
-            continue
-        text_by_rel[rel] = text
-        sloc_items.append((rel, text))
-    sloc_by_rel: dict[Path, int] = {}
-    if sloc_items:
-        for (rel, _), n in zip(sloc_items, count_sloc_many(sloc_items), strict=True):
-            sloc_by_rel[rel] = n
+    gen_paths: set[Path] = {art.path for art in generated_artifacts}
 
-    procs_kept_by_file: dict[Path, set[str]] = {}
-    for decision in manifest.proc_decisions.values():
-        procs_kept_by_file.setdefault(decision.source_file, set()).add(decision.canonical_name)
+    fc_files = fc_lb = fc_la = fc_sb = fc_sa = 0
+    pt_files = pt_lb = pt_la = pt_sb = pt_sa = 0
+    rm_files = rm_lb = rm_sb = 0
 
-    full_copy_files = full_copy_lines = full_copy_sloc = 0
-    proc_trim_files = 0
-    proc_trim_lines_b = proc_trim_lines_a = 0
-    proc_trim_sloc_b = proc_trim_sloc_a = 0
-    remove_files = remove_lines_b = remove_sloc_b = 0
-
-    for rel in all_files:
+    for rel in before_rels:
         treatment = manifest.file_decisions.get(rel)
-        text = text_by_rel.get(rel)
-        lines_b = len(text.splitlines()) if text is not None else 0
-        sloc_b = sloc_by_rel.get(rel, 0)
-
-        if treatment is None or treatment is FileTreatment.REMOVE:
-            remove_files += 1
-            remove_lines_b += lines_b
-            remove_sloc_b += sloc_b
+        if treatment is FileTreatment.GENERATED or rel in gen_paths:
+            # Regenerate-in-place source — accounted in the GENERATED
+            # bucket below so it is not double-counted here.
             continue
-        if treatment is FileTreatment.FULL_COPY:
-            full_copy_files += 1
-            full_copy_lines += lines_b
-            full_copy_sloc += sloc_b
-        elif treatment is FileTreatment.PROC_TRIM:
-            parsed_file = parsed.files.get(rel)
-            kept = procs_kept_by_file.get(rel, set())
-            dropped = [
-                p for p in (parsed_file.procs if parsed_file is not None else ()) if p.canonical_name not in kept
-            ]
-            if text is not None:
-                lines_a, sloc_a = _proc_trim_after(text, dropped, rel)
-            else:
-                lines_a, sloc_a = 0, 0
-            proc_trim_files += 1
-            proc_trim_lines_b += lines_b
-            proc_trim_lines_a += lines_a
-            proc_trim_sloc_b += sloc_b
-            proc_trim_sloc_a += sloc_a
-        # GENERATED: handled below via generated_artifacts.
+        lb = before_lines.get(rel, 0)
+        sb = before_sloc.get(rel, 0)
+        if treatment is None or treatment is FileTreatment.REMOVE:
+            rm_files += 1
+            rm_lb += lb
+            rm_sb += sb
+        elif treatment is FileTreatment.FULL_COPY:
+            fc_files += 1
+            fc_lb += lb
+            fc_sb += sb
+            fc_la += after_lines.get(rel, 0)
+            fc_sa += after_sloc.get(rel, 0)
+        else:
+            # The only remaining treatment is PROC_TRIM: GENERATED files
+            # are skipped above and None/REMOVE/FULL_COPY are handled in
+            # the branches before this one, so the enum is exhausted here.
+            pt_files += 1
+            pt_lb += lb
+            pt_sb += sb
+            pt_la += after_lines.get(rel, 0)
+            pt_sa += after_sloc.get(rel, 0)
 
-    gen_files = gen_lines_a = gen_sloc_a = 0
-    gen_lines_b = gen_sloc_b = 0
-    gen_paths: set[Path] = set()
-    # Batch SLOC for generated artifact content too.
-    gen_after_items: list[tuple[Path, str]] = [
-        (art.path, art.content) for art in generated_artifacts if art.path.suffix.lower() in _SLOC_EXTENSIONS
-    ]
-    gen_after_sloc: dict[Path, int] = {}
-    if gen_after_items:
-        for (rel, _), n in zip(gen_after_items, count_sloc_many(gen_after_items), strict=True):
-            gen_after_sloc[rel] = n
+    gen_files = gen_lb = gen_la = gen_sb = gen_sa = 0
+    regenerate_in_place = 0
     for art in generated_artifacts:
         gen_files += 1
-        gen_lines_a += len(art.content.splitlines())
-        gen_sloc_a += gen_after_sloc.get(art.path, count_sloc(art.path, art.content))
-        gen_paths.add(art.path)
-
-        # Regenerate-in-place: the source domain already contained a
-        # file at this path. Capture its pre-trim size as the GENERATED
-        # bucket's "before" baseline so the delta is real, not 0→N.
-        src_text = text_by_rel.get(art.path)
-        if src_text is None:
-            src_text = _read(ctx, art.path)
-        if src_text is not None:
-            gen_lines_b += len(src_text.splitlines())
-            gen_sloc_b += sloc_by_rel.get(art.path, count_sloc(art.path, src_text))
+        gen_la += after_lines.get(art.path, 0)
+        gen_sa += after_sloc.get(art.path, 0)
+        if art.path in before_lines:
+            # The source domain already contained a file at this path;
+            # capture its pre-trim size as the GENERATED "before".
+            regenerate_in_place += 1
+            gen_lb += before_lines.get(art.path, 0)
+            gen_sb += before_sloc.get(art.path, 0)
 
     buckets = (
-        TreatmentBucket(
-            "FULL_COPY",
-            full_copy_files,
-            full_copy_lines,
-            full_copy_lines,
-            full_copy_sloc,
-            full_copy_sloc,
-        ),
-        TreatmentBucket(
-            "PROC_TRIM",
-            proc_trim_files,
-            proc_trim_lines_b,
-            proc_trim_lines_a,
-            proc_trim_sloc_b,
-            proc_trim_sloc_a,
-        ),
-        TreatmentBucket("REMOVE", remove_files, remove_lines_b, 0, remove_sloc_b, 0),
-        TreatmentBucket("GENERATED", gen_files, gen_lines_b, gen_lines_a, gen_sloc_b, gen_sloc_a),
+        TreatmentBucket("FULL_COPY", fc_files, fc_lb, fc_la, fc_sb, fc_sa),
+        TreatmentBucket("PROC_TRIM", pt_files, pt_lb, pt_la, pt_sb, pt_sa),
+        TreatmentBucket("REMOVE", rm_files, rm_lb, 0, rm_sb, 0),
+        TreatmentBucket("GENERATED", gen_files, gen_lb, gen_la, gen_sb, gen_sa),
     )
 
-    # Pre-existing source files that GENERATED replaced are already
-    # accounted for in the GENERATED bucket's "before" — do not double
-    # count them under files_before.
-    regenerate_in_place = gen_paths.intersection(set(all_files))
-    files_before = full_copy_files + proc_trim_files + remove_files + len(regenerate_in_place)
-    files_after = full_copy_files + proc_trim_files + gen_files
-    lines_before = full_copy_lines + proc_trim_lines_b + remove_lines_b + gen_lines_b
-    lines_after = full_copy_lines + proc_trim_lines_a + gen_lines_a
-    sloc_before = full_copy_sloc + proc_trim_sloc_b + remove_sloc_b + gen_sloc_b
-    sloc_after = full_copy_sloc + proc_trim_sloc_a + gen_sloc_a
+    files_before = fc_files + pt_files + rm_files + regenerate_in_place
+    files_after = fc_files + pt_files + gen_files
+    lines_before = fc_lb + pt_lb + rm_lb + gen_lb
+    lines_after = fc_la + pt_la + gen_la
+    sloc_before = fc_sb + pt_sb + rm_sb + gen_sb
+    sloc_after = fc_sa + pt_sa + gen_sa
 
     return LocReport(
         files_before=files_before,

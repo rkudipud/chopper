@@ -207,6 +207,45 @@ def test_loc_report_read_unicode_error_then_oserror_returns_none() -> None:
     assert result is None
 
 
+def test_count_tree_skips_unreadable_and_non_sloc_files() -> None:
+    """_count_tree skips a file whose read raises (lines 171-172) and does
+    not add a non-text-extension file to the SLOC batch (branch 174->168)."""
+    from chopper.cli.loc_report import _count_tree
+
+    inner = InMemoryFS()
+    inner.write_text(DOMAIN / "good.tcl", "proc g {} {}\n")
+    inner.write_text(DOMAIN / "data.bin", "binary-ish\n")  # non-SLOC extension
+    inner.write_text(DOMAIN / "bad.tcl", "proc b {} {}\n")  # read will raise
+
+    class _RaisingFS:
+        """Delegates everything to ``inner`` but raises on reading bad.tcl."""
+
+        def exists(self, path: Path) -> bool:
+            return inner.exists(path)
+
+        def list(self, path: Path):
+            return inner.list(path)
+
+        def stat(self, path: Path):
+            return inner.stat(path)
+
+        def read_text(self, path: Path, encoding: str = "utf-8") -> str:
+            if path.name == "bad.tcl":
+                raise OSError("unreadable")
+            return inner.read_text(path, encoding=encoding)
+
+    rels, lines_by_rel, sloc_by_rel = _count_tree(_RaisingFS(), DOMAIN)
+
+    names = {r.name for r in rels}
+    assert names == {"good.tcl", "data.bin", "bad.tcl"}
+    # bad.tcl was skipped on read -> absent from line/sloc maps.
+    assert Path("bad.tcl") not in lines_by_rel
+    # data.bin is counted for physical lines but not SLOC (non-text ext).
+    assert Path("data.bin") in lines_by_rel
+    assert Path("data.bin") not in sloc_by_rel
+    assert Path("good.tcl") in sloc_by_rel
+
+
 def test_build_loc_report_baseline_only_empty_domain() -> None:
     """build_loc_report_baseline_only returns LocReport with 0 counts for empty domain."""
     from chopper.cli.loc_report import build_loc_report_baseline_only
@@ -254,16 +293,16 @@ def test_render_loc_report_writes_note_when_no_lines(capsys: pytest.CaptureFixtu
 def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
     """build_loc_report exercises every treatment-bucket branch when the
     manifest names FULL_COPY + PROC_TRIM + REMOVE + GENERATED files."""
-    from typing import cast as _cast
-
     from chopper.adapters.fs_local import LocalFS
     from chopper.cli.loc_report import build_loc_report
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
-    from chopper.core.models_config import LoadedConfig
+    from chopper.core.models_config import BaseJson, LoadedConfig
     from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
     from chopper.core.models_trimmer import GeneratedArtifact
+
+    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -354,7 +393,7 @@ def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
 
     report = build_loc_report(
         ctx=ctx,
-        loaded=_cast(LoadedConfig, None),
+        loaded=loaded,
         parsed=parsed,
         manifest=manifest,
         generated_artifacts=artifacts,
@@ -370,24 +409,22 @@ def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
 
 
 def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path: Path) -> None:
-    """Covers: _read returning None for sloc_files batch (212, 254), GENERATED
-    artifact for a path not in source (regenerate-in-place absent → 284), and
-    a non-.tcl generated artifact (270->273 false branch)."""
-    from typing import cast as _cast
-
+    """A GENERATED artifact whose path is absent from the source domain
+    must not contribute to the GENERATED bucket's "before" baseline
+    (regenerate-in-place branch not taken)."""
     from chopper.adapters.fs_local import LocalFS
     from chopper.cli import loc_report as lr
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
-    from chopper.core.models_config import LoadedConfig
+    from chopper.core.models_config import BaseJson, LoadedConfig
     from chopper.core.models_parser import ParseResult
     from chopper.core.models_trimmer import GeneratedArtifact
 
     domain = tmp_path / "d"
     domain.mkdir()
-    (domain / "unreadable.tcl").write_text("proc x {} {}\n", encoding="utf-8")
-    (domain / "trim.tcl").write_text("proc y {} {}\n", encoding="utf-8")
+    (domain / "keep.tcl").write_text("proc y {} {}\n", encoding="utf-8")
+    (domain / "gone.tcl").write_text("proc x {} {}\n", encoding="utf-8")
 
     cfg = RunConfig(
         domain_root=domain,
@@ -398,19 +435,20 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
 
-    unreadable = Path("unreadable.tcl")
-    trim_rel = Path("trim.tcl")
-    external_gen = Path("not_in_source.txt")  # non-.tcl, not on disk
+    keep_rel = Path("keep.tcl")
+    gone_rel = Path("gone.tcl")
+    external_gen = Path("not_in_source.bin")  # non-text, not on disk
 
+    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
     manifest = CompiledManifest(
         file_decisions={
-            trim_rel: FileTreatment.PROC_TRIM,
-            unreadable: FileTreatment.REMOVE,
+            gone_rel: FileTreatment.REMOVE,
+            keep_rel: FileTreatment.FULL_COPY,
         },
         proc_decisions={},
         provenance={
-            trim_rel: FileProvenance(path=trim_rel, treatment=FileTreatment.PROC_TRIM, reason="proc-trim"),
-            unreadable: FileProvenance(path=unreadable, treatment=FileTreatment.REMOVE, reason="excluded"),
+            gone_rel: FileProvenance(path=gone_rel, treatment=FileTreatment.REMOVE, reason="excluded"),
+            keep_rel: FileProvenance(path=keep_rel, treatment=FileTreatment.FULL_COPY, reason="included"),
         },
     )
     artifacts = (
@@ -422,23 +460,23 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
         ),
     )
 
-    # Force _read → None everywhere; that exercises both the sloc_files skip
-    # (lines 212-220, 363) and the PROC_TRIM text=None branch (line 254) and
-    # the GENERATED regenerate-in-place fallback _read None (line 284-285).
-    with patch.object(lr, "_read", return_value=None):
-        report = lr.build_loc_report(
-            ctx=ctx,
-            loaded=_cast(LoadedConfig, None),
-            parsed=ParseResult(files={}, index={}),
-            manifest=manifest,
-            generated_artifacts=artifacts,
-        )
+    report = lr.build_loc_report(
+        ctx=ctx,
+        loaded=loaded,
+        parsed=ParseResult(files={}, index={}),
+        manifest=manifest,
+        generated_artifacts=artifacts,
+    )
 
     bucket_by_name = {b.treatment: b for b in report.buckets}
-    # PROC_TRIM had text=None → lines_after == 0
-    assert bucket_by_name["PROC_TRIM"].lines_after == 0
-    # GENERATED bucket exists; regenerate-in-place could not read source
+    # GENERATED bucket exists for the external artifact, but with no
+    # before baseline since the source domain had no such file.
     assert bucket_by_name["GENERATED"].files == 1
+    assert bucket_by_name["GENERATED"].sloc_before == 0
+    assert bucket_by_name["FULL_COPY"].files == 1
+    assert bucket_by_name["REMOVE"].files == 1
+    # files_before counts COPY + REMOVE only (no regenerate-in-place).
+    assert report.files_before == 2
 
 
 def test_build_loc_report_baseline_only_skips_unreadable_file(tmp_path: Path) -> None:

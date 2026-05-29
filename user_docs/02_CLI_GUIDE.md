@@ -209,7 +209,7 @@ Just run `chopper trim` again. Chopper detects the existing backup, discards the
 
 ## `chopper loc`
 
-Read-only LOC report. Runs the same front half as `validate` (P0–P4 + manifest-only P6) plus the F3 stage generator in no-write mode, then prints a line-oriented report comparing the source domain against what `chopper trim` *would* produce. **Writes nothing** — no `.chopper/`, no rename, no rewrites.
+Read-only LOC report. Runs the same front half as `validate` (P0–P4 + manifest-only P6), then **replays the real P5 trim phases** (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and counts the actual rebuilt output. The result is byte-for-byte identical to what `chopper trim` produces. **Writes nothing** — no `.chopper/`, no rename, no rewrites.
 
 ```text
 chopper loc [--domain PATH]
@@ -262,10 +262,10 @@ treatment.GENERATED.sloc_after: 182
 
 | Treatment | Before | After |
 |---|---|---|
-| `FULL_COPY` | source file lines + SLOC | unchanged |
-| `PROC_TRIM` | source file lines + SLOC | source minus dropped-proc spans (incl. leading DPA + comment block) |
+| `FULL_COPY` | source file lines + SLOC | rebuilt file (companion-sync may prune some content) |
+| `PROC_TRIM` | source file lines + SLOC | the actual file `ProcDropper` produces (dropped body + leading DPA + comment block removed) |
 | `REMOVE` | source file lines + SLOC | 0 |
-| `GENERATED` | 0 (no source) | rendered stage `.tcl` content |
+| `GENERATED` | 0 (no source) | rendered stage `.tcl` content after P5c |
 
 `SLOC` (Source Lines Of Code) excludes blank lines and pure-comment lines via [`audit/sloc.py`](../src/chopper/audit/sloc.py).
 
@@ -286,13 +286,13 @@ Generated `<stage>.tcl` artifacts are language-detected by their path suffix, so
 
 ### Caveats & corner cases
 
-1. **`_backup` takes precedence as the "before" source.** If you have already run `chopper trim` once, `<domain>_backup/` exists. `chopper loc` will enumerate the **backup** (the original source) for its "before" totals — not the already-trimmed `<domain>/`. This is why running `chopper loc` immediately before and immediately after a `chopper trim` yields the same numbers.
-2. **PROC_TRIM "after" is a projection, not a measurement.** Because `loc` writes nothing, the post-trim line count for each `PROC_TRIM` file is reconstructed by masking out the dropped procs' line spans (proc body + leading `define_proc_attributes` (DPA) line + leading comment block when the parser captured one) from the source text and recounting. If two procs share a line (very rare), it is masked once. A real `chopper trim` produces the same numbers to within those captured spans.
+1. **`_backup` takes precedence as the "before" source.** If you have already run `chopper trim` once, `<domain>_backup/` exists. `chopper loc` will seed its in-memory replay from the **backup** (the original source) for its "before" totals — not the already-trimmed `<domain>/`. This is why running `chopper loc` immediately before and immediately after a `chopper trim` yields the same numbers.
+2. **PROC_TRIM "after" is the real trimmed file.** Because `loc` replays the production `ProcDropper` in memory, the post-trim line count for each `PROC_TRIM` file is the *actual* file a live trim would write — not a span-masking reconstruction. It matches `chopper trim` exactly.
 3. **All procs dropped → file shows up as REMOVE, not PROC_TRIM.** If a feature drops every proc in a file, the compiler downgrades the file to whole-file removal *before* `loc` sees the manifest. Such a file is counted under `treatment.REMOVE.*` with `after = 0`, not under `treatment.PROC_TRIM.*` with `after = 0`.
-4. **Indentation pass not modeled.** If your `base.json` sets `options.indent: true`, real `chopper trim` runs the P5c whitespace-only indentation pass. `loc` does not. P5c never adds or removes code lines, so SLOC is identical; physical-line counts may shift by a tiny margin in unusual layouts, but this is negligible.
+4. **Indentation and companion-sync are modeled.** If your `base.json` sets `options.indent: true`, the in-memory replay runs the P5c whitespace-only indentation pass, and it always runs the P5d companion-file sync — exactly as live trim does. So a `FULL_COPY` file whose companion is pruned shows its real after-size.
 5. **Default-exclude under R2.** A counted-extension file in `<domain>/` that none of the selected features (or `base.files.include`) names is reported as REMOVE with `after = 0`. This is the same default-exclude rule that the trimmer applies.
 6. **`.chopper/` and decode failures.** The enumerator never descends into `.chopper/`. Files that fail both UTF-8 and latin-1 decode are silently dropped from the report (rare for Tcl/JSON/CSV).
-7. **No audit bundle.** `chopper loc` writes nothing to disk — there is no `.chopper/` and no `trim_report.json`. If you need a per-file ledger, run `chopper trim --dry-run` instead (same pipeline; full audit bundle; still no domain rewrite).
+7. **Byte-identical to a live trim.** `chopper loc` writes nothing to disk, but its numbers come from a real (in-memory) trim using the production P5 services — so they match `chopper trim` and the audit bundle's `trim_stats.json` exactly. If you need an on-disk per-file ledger, run `chopper trim --dry-run` instead (same pipeline; full audit bundle; still no domain rewrite).
 
 ### Worked examples
 

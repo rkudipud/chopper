@@ -20,7 +20,7 @@ from typing import TextIO
 from chopper.audit.sloc import count_sloc
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
-from chopper.core.fs_walk import EXCLUDED_FILENAMES, EXCLUDED_SUFFIXES
+from chopper.core.fs_walk import EXCLUDED_FILENAMES, EXCLUDED_SUFFIXES, TEXT_LIKE_EXTENSIONS, walk_files
 from chopper.core.models_audit import RunResult
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_trimmer import TrimReport
@@ -125,6 +125,7 @@ def render_trim_stats(
 
     rows = _collect_rows(ctx, report)
     rows.extend(_collect_generated_rows(ctx, result.generated_artifacts))
+    rows.extend(_collect_dropped_rows(ctx, report, result.generated_artifacts))
     rows.sort(key=lambda r: str(r["path"]))
     if not rows:  # pragma: no cover - unreachable: outcomes non-empty ⇒ _collect_rows yields ≥1 row
         return
@@ -252,14 +253,65 @@ def _collect_generated_rows(
     return rows
 
 
-def _totals_row(rows: Sequence[dict[str, object]]) -> dict[str, object]:
-    """Aggregate row across all touched / generated files.
+def _collect_dropped_rows(
+    ctx: ChopperContext,
+    report: TrimReport,
+    artifacts: Sequence,
+) -> list[dict[str, object]]:
+    """Add DROP rows for domain files the trim removed entirely.
 
-    The row sums only files the trimmer rewrote, removed, or generated —
-    *not* every file in the domain. Full-domain totals live in the
-    audit bundle's ``trim_stats.json``. The label and the values are
-    intentionally identical between live and dry-run modes so the two
-    tables can be diffed byte-for-byte (A7).
+    The trimmer records outcomes only for files it rewrote or copied;
+    files dropped under default-exclude (R2) never appear in
+    ``report.outcomes``. To make the live console table cover the whole
+    domain — matching ``chopper loc`` and the audit
+    ``trim_stats.json`` — walk the pristine source tree
+    (``backup_root`` when present, else ``domain_root``) and emit a
+    DROP row for every source file not already accounted for as a
+    rewrite, copy, or generated artifact.
+    """
+
+    source_root: Path = ctx.config.backup_root if ctx.fs.exists(ctx.config.backup_root) else ctx.config.domain_root
+    accounted = {o.path.as_posix() for o in report.outcomes}
+    accounted |= {a.path.as_posix() for a in artifacts}
+
+    rows: list[dict[str, object]] = []
+    for rel in walk_files(ctx.fs, source_root):
+        # ``walk_files`` already hard-excludes authoring artifacts
+        # (``.json`` / ``instructions.md``) and the ``.chopper/`` tree,
+        # so no further artifact filtering is needed here.
+        if rel.as_posix() in accounted:
+            continue
+        try:
+            raw = (source_root / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        bytes_in = len(raw.encode("utf-8"))
+        sloc_in: int | None = count_sloc(rel, raw) if rel.suffix.lower() in TEXT_LIKE_EXTENSIONS else 0
+        rows.append(
+            {
+                "path": rel.as_posix(),
+                "treatment": "DROP",
+                "bytes_in": bytes_in,
+                "bytes_out": 0,
+                "sloc_in": sloc_in,
+                "sloc_out": 0,
+                "kept": 0,
+                "removed": 0,
+            }
+        )
+
+    return rows
+
+
+def _totals_row(rows: Sequence[dict[str, object]]) -> dict[str, object]:
+    """Aggregate row across every file in the domain.
+
+    The row sums all files the trim touched: rewrites (COPY/TRIM),
+    generated artifacts (GEN), and files dropped entirely (DROP). The
+    full-domain coverage means these totals match ``chopper loc`` and
+    the audit bundle's ``trim_stats.json`` byte-for-byte. The label and
+    the values are intentionally identical between live and dry-run
+    modes so the two tables can be diffed byte-for-byte (A7).
     """
 
     def _isum(key: str) -> int:
@@ -375,9 +427,12 @@ def _render_table(
 
     out.write("\n")
     out.write("Trim stats:\n")
+    rule = separator.join("-" * w for w in col_w)
+    out.write(rule + "\n")  # top border
     _emit(headers)
-    _emit(["-" * w for w in col_w])
+    out.write(rule + "\n")  # header / body separator
     for row in body[:-1]:
         _emit(row)
-    _emit(["-" * w for w in col_w])
-    _emit(body[-1])
+    out.write(rule + "\n")  # body / total separator
+    _emit(body[-1])  # TOTAL row
+    out.write(rule + "\n")  # bottom border (footer)

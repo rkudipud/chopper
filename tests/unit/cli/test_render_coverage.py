@@ -154,6 +154,99 @@ def test_render_trim_stats_dry_run_reads_domain_for_sloc_in(tmp_path: Path) -> N
     assert "Trim stats" in output
 
 
+def test_render_trim_stats_emits_drop_rows_for_unrecorded_domain_files(tmp_path: Path) -> None:
+    """Full-domain coverage: files dropped under default-exclude (R2) never
+    appear in ``report.outcomes``; render_trim_stats must still emit a DROP
+    row for each, walking the pristine source tree (backup_root)."""
+    from chopper.cli.render import render_trim_stats
+    from chopper.core.models_common import FileTreatment
+
+    domain = tmp_path / "d"
+    backup = tmp_path / "d_backup"
+    backup.mkdir()
+    domain.mkdir()
+    # Backup holds the pristine source: one rewritten file + two dropped.
+    (backup / "kept.tcl").write_text("proc keep {} {}\n", encoding="utf-8")
+    (backup / "dropped_a.tcl").write_text("proc a {} {}\nproc b {} {}\n", encoding="utf-8")
+    (backup / "dropped_b.tcl").write_text("proc c {} {}\n", encoding="utf-8")
+    # Rebuilt domain holds only the survivor.
+    (domain / "kept.tcl").write_text("proc keep {} {}\n", encoding="utf-8")
+
+    outcome = _make_file_outcome("kept.tcl", FileTreatment.FULL_COPY)
+    report = _make_trim_report(outcome)
+    result = _make_run_result(trim_report=report)
+
+    from chopper.adapters.fs_local import LocalFS
+    from chopper.core.context import ChopperContext, RunConfig
+
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=backup,
+        audit_root=domain / ".chopper",
+        strict=False,
+        dry_run=False,
+    )
+    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
+    buf = io.StringIO()
+    render_trim_stats(ctx, result, stream=buf)
+    output = buf.getvalue()
+    # Both dropped files appear as DROP rows; the survivor is COPY.
+    assert "dropped_a.tcl" in output
+    assert "dropped_b.tcl" in output
+    assert output.count("DROP") >= 2
+    # TOTAL row now spans all three domain files, not just the one outcome.
+    assert "3 files" in output
+
+
+def test_render_trim_stats_skips_unreadable_dropped_file(tmp_path: Path, monkeypatch) -> None:
+    """A source file that fails to read during the DROP-row walk is skipped
+    (defensive guard against a file vanishing between walk and read)."""
+    from pathlib import Path as _Path
+
+    from chopper.cli.render import render_trim_stats
+    from chopper.core.models_common import FileTreatment
+
+    domain = tmp_path / "d"
+    backup = tmp_path / "d_backup"
+    backup.mkdir()
+    domain.mkdir()
+    (backup / "kept.tcl").write_text("proc keep {} {}\n", encoding="utf-8")
+    (backup / "vanished.tcl").write_text("proc gone {} {}\n", encoding="utf-8")
+    (domain / "kept.tcl").write_text("proc keep {} {}\n", encoding="utf-8")
+
+    outcome = _make_file_outcome("kept.tcl", FileTreatment.FULL_COPY)
+    report = _make_trim_report(outcome)
+    result = _make_run_result(trim_report=report)
+
+    from chopper.adapters.fs_local import LocalFS
+    from chopper.core.context import ChopperContext, RunConfig
+
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=backup,
+        audit_root=domain / ".chopper",
+        strict=False,
+        dry_run=False,
+    )
+    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
+
+    _real_read_text = _Path.read_text
+
+    def _raising_read_text(self, *args, **kwargs):
+        if self.name == "vanished.tcl":
+            raise OSError("file vanished between walk and read")
+        return _real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(_Path, "read_text", _raising_read_text)
+
+    buf = io.StringIO()
+    render_trim_stats(ctx, result, stream=buf)
+    output = buf.getvalue()
+    # The unreadable file is silently dropped from the table.
+    assert "vanished.tcl" not in output
+    assert "kept.tcl" in output
+
+
 def test_render_trim_stats_long_path_is_truncated(tmp_path: Path) -> None:
     """A file path longer than the computed file_w must be left-truncated
     keeping the basename visible (the '…' ellipsis prefix pattern)."""

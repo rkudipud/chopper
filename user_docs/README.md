@@ -14,7 +14,7 @@ Welcome. This folder is the **single end-user entry point** for Chopper. It is w
 
 | # | Document | Read when | Time |
 |---|---|---|---|
-| 1 | [01_OVERVIEW.md](01_OVERVIEW.md) | Right after the onboarding deck — explains the problem, the solution, F1/F2/F3, JSON structure, options, and BKMs | ~25 min |
+| 1 | [01_OVERVIEW.md](01_OVERVIEW.md) | Right after the onboarding deck — explains the problem, the solution, F1/F2/F3, the full stage-field and flow-action reference, JSON structure, the overlay rules, options, and BKMs | ~25 min |
 | 2 | [02_CLI_GUIDE.md](02_CLI_GUIDE.md) | When you are about to run Chopper for the first time — every subcommand, every flag, deep examples | ~20 min |
 | 3 | [03_HOW_CHOPPER_WORKS.md](03_HOW_CHOPPER_WORKS.md) | When you want to understand the pipeline, decide where it fits, or troubleshoot a result | ~25 min |
 
