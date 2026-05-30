@@ -59,6 +59,7 @@ Each `.tcl` under `fixtures/edge_cases/` targets a pitfall (`P-xx`) or parser-sp
 | `parser_eda_complex_get_hier_summary.tcl` | Real EDA-style proc, complex body | — | §4.6 |
 | `parser_literal_quote_in_braced_word.tcl` | P-01a: literal `"` inside brace word (`set q {"}`) | — | §1.3.3 |
 | `parser_braced_word_multi_quote_pairs.tcl` | P-01a extension: brace word with multiple quote pairs (`string map {" " ""}`) | — | §1.3.3 |
+| `parser_braced_word_quote_space_quote.tcl` | P-01a extension: brace data word `{" "}` (quote-space-quote) stays literal; lone `}` in quoted word + TW-02 `;`-in-quote regression guards | — | §1.3.3 |
 | `parser_escaped_bracket_in_string.tcl` | P-46: escaped `\[` inside double-quoted string not treated as bracket substitution | — | §3.2 |
 | `parser_switch_brace_pattern.tcl` | P-47: brace-delimited switch pattern with `[...]` inside suppressed as opaque | — | §5.3 |
 | `indent_backslash_continuation.tcl` | P5c formatter — backslash continuation indent, multi-continuation runs, escaped `\\\\` not treated as continuation | — | trimmer §5.5 (P5c) |
@@ -70,7 +71,7 @@ Each `.tcl` under `fixtures/edge_cases/` targets a pitfall (`P-xx`) or parser-sp
 | Pitfall | Description | Fixture |
 |---|---|---|
 | P-01 | Quote context inside braced body | `parser_brace_in_string_literal.tcl` |
-| P-01a | Literal/adjacent quotes inside brace words | `parser_literal_quote_in_braced_word.tcl`, `parser_braced_word_multi_quote_pairs.tcl` |
+| P-01a | Literal/adjacent quotes inside brace words | `parser_literal_quote_in_braced_word.tcl`, `parser_braced_word_multi_quote_pairs.tcl`, `parser_braced_word_quote_space_quote.tcl` |
 | P-02 | Backslash line continuation | `parser_backslash_line_continuation.tcl` |
 | P-03 | Nested namespace resolution | `parser_nested_namespace_accumulates.tcl`, `parser_namespace_reset_after_block.tcl`, `parser_namespace_absolute_override.tcl` |
 | P-04 | Computed / dynamic proc name | `parser_computed_proc_name_skipped.tcl`, `parser_proc_inside_if_block.tcl` |

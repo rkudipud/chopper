@@ -153,10 +153,10 @@ class TestQuotedWords:
         # literal bytes. The opening ``"`` must NOT be treated as a
         # quoted-word opener; otherwise the matching ``}`` is consumed
         # as part of the phantom quote and the brace counter desyncs.
-        # Self-recovery: the in-quoted-word ``}``-handler detects that
-        # the close would drop below the depth at which the quote
-        # opened, abandons quoted-word state, and lets the structural
-        # branch process the ``}`` normally.
+        # Mechanism: the ``"`` is suppressed at open time because its
+        # immediately preceding byte is an unescaped structural ``{``
+        # (literal-data-word exception), so no quoted word is ever
+        # entered and the ``}`` is processed structurally.
         r = tokenize('set q {"}')
         assert r.final_brace_depth == 0
         assert r.errors == ()
@@ -235,6 +235,59 @@ class TestQuotedWords:
 
         fixture = (
             Path(__file__).resolve().parents[2] / "fixtures" / "edge_cases" / "parser_braced_word_multi_quote_pairs.tcl"
+        )
+        text = fixture.read_text(encoding="utf-8")
+        r = tokenize(text)
+        assert r.final_brace_depth == 0, f"final_brace_depth={r.final_brace_depth} (expected 0); errors={r.errors}"
+        assert r.errors == ()
+
+    def test_braced_word_quote_space_quote_is_literal(self) -> None:
+        # Bug repro: brace data word ``{" "}`` (quote, space, quote). The
+        # second ``"`` is preceded by a space (a word-boundary byte) but
+        # must stay literal because the whole brace word is literal data.
+        # Before the level-scoped literal-data-word fix this opened a
+        # phantom quoted word that swallowed the closing ``}`` and raised
+        # a false PE-02 unbalanced-braces. Real-world shape:
+        # ``regsub -all { \s+} $x {" "} y``.
+        src = 'proc p {} {\n    regsub -all { \\s+} $x {" "} y\n}\n'
+        r = tokenize(src)
+        assert r.final_brace_depth == 0, f"final_brace_depth={r.final_brace_depth}; errors={r.errors}"
+        assert r.errors == ()
+
+    def test_braced_word_quote_space_quote_minimal(self) -> None:
+        # Minimal standalone shapes that must all self-balance with no errors.
+        for src in ('set y {" "}\n', 'set y {""}\n', 'set q {"x"}\n', 'set y {a "b" c}\n'):
+            r = tokenize(src)
+            assert r.final_brace_depth == 0, f"{src!r}: depth={r.final_brace_depth}"
+            assert r.errors == (), f"{src!r}: errors={r.errors}"
+
+    def test_lone_close_brace_in_quoted_word_stays_literal(self) -> None:
+        # Regression guard for the {" "} fix: a lone ``}`` INSIDE a real
+        # quoted word (opened at a script-context word boundary) is
+        # literal and must NOT be treated as a structural close. Holds at
+        # depth 0 and inside a proc body (depth 1).
+        for src in ('puts "}"\n', 'proc p {} {\n    puts "end: }"\n}\n'):
+            r = tokenize(src)
+            assert r.final_brace_depth == 0, f"{src!r}: depth={r.final_brace_depth}"
+            assert r.errors == (), f"{src!r}: errors={r.errors}"
+
+    def test_quoted_semicolon_stays_literal_in_proc_body(self) -> None:
+        # TW-02 pin: ``;`` inside a quoted word in a proc body is literal,
+        # not a command separator. The {" "} fix must not regress this.
+        r = tokenize('proc p {} {\n    puts "a; b"\n}\n')
+        assert r.final_brace_depth == 0
+        assert r.errors == ()
+        word_values = [t.value for t in r.tokens if t.kind == TokenKind.WORD]
+        assert '"a; b"' in word_values
+
+    def test_real_world_fixture_quote_space_quote(self) -> None:
+        # Fixture covering the ``{" "}`` family plus the lone-``}``-in-quote
+        # and TW-02 regression guards. New real-domain tokenizer scenarios
+        # for this family should be appended to this fixture.
+        from pathlib import Path
+
+        fixture = (
+            Path(__file__).resolve().parents[2] / "fixtures" / "edge_cases" / "parser_braced_word_quote_space_quote.tcl"
         )
         text = fixture.read_text(encoding="utf-8")
         r = tokenize(text)

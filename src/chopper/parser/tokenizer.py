@@ -26,7 +26,12 @@ quoted word — the ``{`` opened a literal data word (Tcl Endekas
 rule 6: contents of ``{...}`` are literal bytes), so the ``"`` is the
 first literal character of that word, e.g. ``set q {"}``. Without this
 exception the matching ``}`` would be silently consumed as part of a
-phantom quoted word and brace counting would desync.
+phantom quoted word and brace counting would desync. The exception is
+**level-scoped**: once a brace word is known to carry literal quote
+bytes (it began with ``{"``), every ``"`` inside that same brace level
+is literal too — even one that follows an internal separator such as a
+space, e.g. ``{" "}`` (real-world ``regsub -all { \\s+} $x {" "} y``).
+The scoping is cleared when the matching ``}`` closes the brace word.
 
 Comment behavior: ``#`` at command position runs to end of line;
 braces inside comments are inert.
@@ -179,6 +184,11 @@ def tokenize(text: str) -> TokenizerResult:
     word_at_cmd_pos = False
     in_quoted_word = False  # True while scanning between matched ``"`` quotes
     quoted_bracket_depth = 0  # ``[...]`` nesting inside a quoted word
+    # Brace LEVELS that opened a quote-bearing literal data word (``{"...``).
+    # A ``"`` inside such a level is always literal — it never opens a
+    # quoted word — so the closing ``}`` is never swallowed by a phantom
+    # quote (covers ``{" "}``). Cleared on the matching ``}``.
+    data_quote_brace_levels: set[int] = set()
 
     def _flush_word(end_idx: int) -> None:
         nonlocal word_start, at_cmd_pos
@@ -329,6 +339,9 @@ def tokenize(text: str) -> TokenizerResult:
         # Close-brace `}` — unescaped → structural.
         if ch == "}" and not _is_escaped(text, i):
             _flush_word(i)
+            # Leaving this brace level — clear any quote-bearing-data flag
+            # recorded for it (see the double-quote dispatch below).
+            data_quote_brace_levels.discard(brace_depth)
             brace_depth -= 1
             if brace_depth < 0:
                 errors.append(TokenizerError(kind="negative_depth", line_no=line_no))
@@ -404,19 +417,34 @@ def tokenize(text: str) -> TokenizerResult:
         # * Real-world: Intel Caliber ``run_caliber.tcl`` line 418
         #   ``[string map {" " ""} ...]``; see
         #   tests/fixtures/edge_cases/parser_braced_word_multi_quote_pairs.tcl.
+        #
+        # Level-scoped literal-data-word recording: a ``"`` whose
+        # immediately preceding byte is an unescaped structural ``{`` is
+        # the first literal byte of a brace data word (``{"...}``). We
+        # record that brace LEVEL so every subsequent ``"`` inside the
+        # same level is also literal — even one separated from the ``{``
+        # by an internal space, e.g. ``{" "}`` (real-world
+        # ``regsub -all { \\s+} $x {" "} y``). Without this the second
+        # ``"`` (prefixed by a space) would open a phantom quoted word
+        # that swallows the closing ``}`` and desyncs brace counting.
         _word_boundary_prefix = " \t\n;["
-        if (
-            ch == '"'
-            and word_start == -1
-            and not _is_escaped(text, i)
-            and (i == 0 or text[i - 1] in _word_boundary_prefix)
-        ):
-            word_start = i  # include opening `"` in value
-            word_line = line_no
-            word_at_cmd_pos = at_cmd_pos
-            in_quoted_word = True
-            i += 1
-            continue
+        if ch == '"' and not _is_escaped(text, i):
+            prev = text[i - 1] if i > 0 else ""
+            if word_start == -1 and brace_depth > 0 and prev == "{" and not _is_escaped(text, i - 1):
+                data_quote_brace_levels.add(brace_depth)
+                # Fall through: the `"` accumulates as a literal character.
+            elif (
+                word_start == -1
+                and brace_depth not in data_quote_brace_levels
+                and (i == 0 or prev in _word_boundary_prefix)
+            ):
+                word_start = i  # include opening `"` in value
+                word_line = line_no
+                word_at_cmd_pos = at_cmd_pos
+                in_quoted_word = True
+                i += 1
+                continue
+            # else: literal `"`, handled by the generic-character branch.
 
         # Generic character — part of a word.
         if word_start == -1:
