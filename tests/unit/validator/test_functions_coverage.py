@@ -439,6 +439,60 @@ def test_brace_delta_quoted_string_with_escaped_quote() -> None:
     assert delta == 0
 
 
+def test_brace_delta_braced_word_quote_space_quote_is_literal() -> None:
+    """Brace-depth-aware fix: inside a ``{...}`` braced data word that opens
+    with a ``"``, EVERY ``"`` is a literal byte — including a second quote
+    separated by a space (``{" "}``).  The original checker special-cased
+    only the immediately-after-brace quote, so the second quote opened a
+    phantom quoted string that swallowed the closing ``}`` (false-positive
+    VE-16).  These must all return 0 now (ARCHITECTURE.md §5.4.9 /
+    IMPLEMENTATION.md P-01a; mirrors tokenizer ``data_quote_brace_levels``)."""
+    from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
+
+    assert _brace_delta('set q {" "}') == 0
+    assert _brace_delta('{" "}') == 0
+    # Real-world repro shape from fev_conformal default_procs.tcl:409.
+    assert _brace_delta('regsub -all { \\s+} $X {" "} X') == 0
+
+
+def test_brace_delta_regression_guards_for_legal_quote_constructs() -> None:
+    """Regression guards: the brace-depth fix must NOT change the previously
+    correct behaviours.  ``puts "{"`` opens a real quoted string at depth 0
+    (delta 0) and ``set q {"}`` keeps the immediately-after-brace literal
+    quote (delta 0)."""
+    from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
+
+    assert _brace_delta('puts "{"') == 0
+    assert _brace_delta('set q {"}') == 0
+
+
+def test_brace_delta_repro_fixture_yields_zero() -> None:
+    """The edge-case fixture capturing the ``{" "}`` braced-data-word
+    construct (the same shape that caused the live false-positive VE-16 on
+    the fev_conformal domain) must balance to delta 0 end-to-end."""
+    from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
+
+    fixture = (
+        Path(__file__).resolve().parents[2] / "fixtures" / "edge_cases" / "parser_braced_word_quote_space_quote.tcl"
+    )
+    assert _brace_delta(fixture.read_text(encoding="utf-8")) == 0
+
+
+def test_check_brace_balance_no_ve16_on_braced_word_quote_space_quote() -> None:
+    """End-to-end: a rewritten file containing the ``{" "}`` construct must
+    NOT emit VE-16 from the post-trim brace-balance check."""
+    from chopper.validator.functions import _check_brace_balance
+
+    fixture = (
+        Path(__file__).resolve().parents[2] / "fixtures" / "edge_cases" / "parser_braced_word_quote_space_quote.tcl"
+    )
+    ctx = _ctx()
+    target = DOMAIN / "default_procs.tcl"
+    ctx.fs.write_text(target, fixture.read_text(encoding="utf-8"))
+    _check_brace_balance(ctx, (target,))
+    assert "VE-16" not in _codes(ctx)
+
+
 def test_check_feature_domain_skips_feature_with_none_domain() -> None:
     """_check_feature_domain must skip features where domain is None (no VW-04 emitted)."""
     from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig

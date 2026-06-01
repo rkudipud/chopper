@@ -631,26 +631,43 @@ def _brace_delta(text: str) -> int:
     — but it must not false-positive on legal Tcl that the trimmer
     legitimately preserved.
 
-    Three constructs are skipped:
+    Four constructs are handled:
 
-    * ``\\{`` / ``\\}`` (and any other backslash-escape pair).
-    * Braces inside ``"..."`` quoted strings, e.g. ``puts "{"``.
-      Backslash-escaped characters inside the string are honoured so
-      ``"\\""`` does not terminate the string prematurely.
+    * ``\\{`` / ``\\}`` (and any other backslash-escape pair) are skipped.
+    * Braces inside ``"..."`` quoted strings, e.g. ``puts "{"``, are
+      skipped. Backslash-escaped characters inside the string are
+      honoured so ``"\\""`` does not terminate the string prematurely.
+    * Inside a ``{...}`` braced data word that begins with a ``"``
+      (e.g. ``{" "}``), **every** ``"`` is a literal byte and must not
+      open a quoted string. This is tracked by brace nesting depth:
+      when a ``"`` immediately follows a structural ``{`` the enclosing
+      brace *level* is recorded, and any later ``"`` at that level is
+      treated as literal until the matching ``}`` clears the level. This
+      mirrors the parser tokenizer's ``data_quote_brace_levels``
+      mechanism (``src/chopper/parser/tokenizer.py``) so the VE-16
+      counter never disagrees with the authoritative P2 brace checker.
+      Without it, the second ``"`` in ``{" "}`` would open a phantom
+      quoted string that swallows the closing ``}`` — the original
+      false-positive VE-16 bug.
     * Lines whose first non-whitespace character is ``#`` (full-line
-      Tcl comments).
+      Tcl comments) are skipped.
 
     Mid-line comments introduced by ``;#`` are not skipped because
     Tcl-style trailing comments are still parsed as commands by Tcl
     itself; counting their braces matches the parser's authoritative
-    behaviour. Likewise, braces inside ``{...}`` braced words are
-    counted normally — they participate in the balance.
+    behaviour.
     """
 
     depth = 0
     i = 0
     n = len(text)
     line_start = True  # Track whether we are at the start of a logical line.
+    # Brace LEVELS that opened a quote-bearing literal data word (``{"...``).
+    # A ``"`` inside such a level is always literal — it never opens a
+    # quoted string — so the closing ``}`` is never swallowed by a phantom
+    # quote (covers ``{" "}``). Cleared on the matching ``}``. Mirrors the
+    # tokenizer's ``data_quote_brace_levels`` set.
+    data_quote_brace_levels: set[int] = set()
     while i < n:
         ch = text[i]
 
@@ -674,16 +691,27 @@ def _brace_delta(text: str) -> int:
             continue
 
         # Quoted string: skip its contents (with backslash escapes).
-        # Literal-data-word exception (Tcl Endekas rule 6, mirrors the
-        # tokenizer's P-01a fix in src/chopper/parser/tokenizer.py): if
-        # the previous byte is an unescaped structural ``{``, the ``"``
-        # is the literal first content byte of a braced data word
-        # (e.g. ``set q {"}``), NOT the opening of a quoted string.
-        # Treating it as a quote-open would silently consume the
-        # matching ``}`` and produce a false-positive VE-16.
+        # Literal-data-word handling (Tcl Endekas rule 6, mirrors the
+        # tokenizer's ``data_quote_brace_levels`` mechanism in
+        # src/chopper/parser/tokenizer.py):
+        #
+        # * If the previous byte is an unescaped structural ``{``, the
+        #   ``"`` is the first literal content byte of a braced data
+        #   word (e.g. ``set q {"}`` / ``{" "}``). Record the enclosing
+        #   brace level so every later ``"`` at that level stays literal.
+        # * If the current depth is already a recorded data-word level,
+        #   this ``"`` is also literal — skip it without opening a quote.
+        # * Otherwise the ``"`` opens a quoted string at depth 0 (or a
+        #   non-data brace level) and we skip to the matching close
+        #   quote, e.g. ``puts "{"``.
         if ch == '"':
             prev_is_open_brace = i > 0 and text[i - 1] == "{" and (i < 2 or text[i - 2] != "\\")
-            if prev_is_open_brace:
+            if depth > 0 and prev_is_open_brace:
+                data_quote_brace_levels.add(depth)
+                i += 1
+                line_start = False
+                continue
+            if depth in data_quote_brace_levels:
                 i += 1
                 line_start = False
                 continue
@@ -708,6 +736,9 @@ def _brace_delta(text: str) -> int:
         if ch == "{":
             depth += 1
         elif ch == "}":
+            # Leaving this brace level — clear any quote-bearing-data
+            # flag recorded for it (mirrors the tokenizer's discard).
+            data_quote_brace_levels.discard(depth)
             depth -= 1
         i += 1
     return depth

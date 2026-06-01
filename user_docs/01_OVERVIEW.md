@@ -417,6 +417,7 @@ Copy the nearest example into your domain root, replace placeholders, validate, 
 | Project-mode without features | [../examples/11_project_base_only/](../examples/11_project_base_only/) |
 | Aggregate scheduler stack (`generate_stack`) | [../examples/12_base_with_aggregate_stack/](../examples/12_base_with_aggregate_stack/) |
 | Aggregate + per-stage standalone stack | [../examples/13_base_with_standalone_stack/](../examples/13_base_with_standalone_stack/) |
+| Cross-feature `skip_if_no_stage` injection | [../examples/14_cross_feature_skip_if_no_stage/](../examples/14_cross_feature_skip_if_no_stage/) |
 
 ---
 

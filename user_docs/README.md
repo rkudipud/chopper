@@ -39,7 +39,7 @@ Ready-made prompts live under [.github/prompts/](../.github/prompts/).
 
 | Resource | Use for |
 |---|---|
-| [../examples/](../examples/) | 13 progressive worked JSON examples (file-only → full pipeline with stacks) |
+| [../examples/](../examples/) | 14 progressive worked JSON examples (file-only → full pipeline with stacks → cross-feature `skip_if_no_stage`) |
 | [../schemas/](../schemas/) | Authoritative JSON schemas |
 | [../technical_docs/JSON_AUTHORING_GUIDE.md](../technical_docs/JSON_AUTHORING_GUIDE.md) | Complete JSON field reference |
 | [../technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md) | Every diagnostic code |

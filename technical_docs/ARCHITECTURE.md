@@ -286,7 +286,7 @@ This includes:
 
 ## 3. Core Concepts and Capability Model
 
-> **Canonical JSON reference:** All schemas live in `schemas/`, 11 progressive examples in `examples/`, and the full authoring guide in [`technical_docs/JSON_AUTHORING_GUIDE.md`](JSON_AUTHORING_GUIDE.md). The examples below are sourced from that set.
+> **Canonical JSON reference:** All schemas live in `schemas/`, 14 progressive examples in `examples/`, and the full authoring guide in [`technical_docs/JSON_AUTHORING_GUIDE.md`](JSON_AUTHORING_GUIDE.md). The examples below are sourced from that set.
 
 ### 3.1 Base JSON
 
@@ -2381,7 +2381,7 @@ Chopper is a Python ≥ 3.13 CLI. The rules below are authoritative for every fi
 
 #### 5.12.8 Testing Standards
 
-Coverage gates, fixture conventions, and the integration-test harness are defined in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md). Parser fixture catalog is in [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md). Minimum line coverage is 99% overall; parser 85%, compiler 80%, trimmer 80%, config 85%, core 80%.
+Coverage gates, fixture conventions, and the integration-test harness are defined in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md). Parser fixture catalog is in [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md). The full suite (`make ci`) is held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99% line.
 
 #### 5.12.9 Permitted Cross-Phase Exception: Validator Imports Parser (VW-10 Proc-Set Reconciliation)
 
@@ -3426,6 +3426,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-05-22 | **3.4.1 — P5d companion-file sync (FD-15 ADOPTED).** `CompanionSyncService` runs after P5c. For every `PROC_TRIM` `default_rules.<sfx>.tcl`, filters sibling `default_config.<sfx>.csv` (column 0) and `default_milestone.<sfx>.tcl` (`change_config <ProcName>` lines) against surviving proc short-names. `VW-24 companion-file-missing` and `VI-04 companion-sync-applied` added. |
 | 2026-05-23 | **3.5.0 — Optional flow-action stage targets (`skip_if_no_stage`).** Cross-cutting features (e.g. `sequential_const_check`) inject steps into N stages; in partial-project compositions, missing stages previously aborted with `VE-05`. Added per-action boolean `skip_if_no_stage` (default `false`, backward-compatible). When `true` and the target stage is absent, resolver emits new `VI-05 flow-action-skipped-no-stage` (info, exit 0) and skips silently. Step-level miss inside a present stage still emits `VE-05` — stage existence and step existence are distinct contracts. Rejected alternatives: feature-level `optional: true` (too coarse — author cannot opt one injection in); project-level allow-list (couples authoring to project shape); silent fallthrough on every `VE-05` (loses authoring-bug detection). §6.7 updated; `VI-05` registered; feature-v1 schema accepts the new field on every flow_action variant. |
 | 2026-05-22 | **3.4.2 — Honor `options.cross_validate` + doc declutter.** The `cross_validate` flag was loaded but never consumed — VW-14/15/16 ran unconditionally. Threaded through `validate_post` → `_check_stage_steps` → `_classify_and_emit`; when `false`, VW-14/15/16 suppressed entirely; VW-17 still fires (does not depend on manifest lookups). Aggressive trim of this revision-history table (the canonical release log lives in git + README.md changelog). `IMPLEMENTATION.md` Appendix A removed (scope-lock in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) already covers OOS items); Appendix B → main-body "Future Considerations" section. |
+| 2026-05-23 | **3.5.1 — 100% coverage enforced on the full-suite gate.** The aggregate `test` target (run by `make ci`) now passes `--cov-fail-under=100`; the codebase already hit every reachable line, so this locks it against silent regressions. The fast unit-only gate (`make check`) keeps `--cov-fail-under=99` because unit tests intentionally cover only part of `src/`. §5.12.8 wording updated; rejected alternative: forcing unit-only to 100% (would require contrived unit tests duplicating the integration suite, violating the deliberate suite separation). No code or behavior change. |
 
 ---
 

@@ -48,13 +48,17 @@ test-property:
 	pytest tests/property/ -v --no-cov
 
 # Aggregate test target: runs every suite in a single pytest invocation so
-# the `--cov-fail-under=78` threshold in pyproject.toml is checked against
-# the union of covered statements, not re-checked per suite. The per-suite
-# `test-*` targets above pass `--no-cov` for exactly this reason — running
-# them individually would otherwise fail a green codebase because each
-# suite exercises only part of src/.
+# coverage is checked against the union of covered statements, not re-checked
+# per suite. The per-suite `test-*` targets above pass `--no-cov` for exactly
+# this reason — running them individually would otherwise fail a green codebase
+# because each suite exercises only part of src/.
+#
+# This target enforces 100% line+branch coverage across the board (overriding
+# the per-invocation `--cov-fail-under=99` default in pyproject.toml, which is
+# the floor for the fast unit-only `make check` gate). The full suite hits
+# every reachable line, so the authoritative gate holds it at 100%.
 test:
-	pytest tests/unit/ tests/integration/ tests/golden/ tests/property/ -v
+	pytest tests/unit/ tests/integration/ tests/golden/ tests/property/ -v --cov-fail-under=100
 
 test-all: test
 

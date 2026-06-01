@@ -156,6 +156,7 @@ The project JSON can also sit outside the domain — in a separate `configs/` di
 | `09_base_plus_multiple_features/` | Base + two independent features |
 | `10_chained_features_depends_on/` | Features with `depends_on` ordering |
 | `11_project_base_only/` | Project file referencing base only (no features) |
+| `14_cross_feature_skip_if_no_stage/` | Cross-cutting feature injecting steps into stages other features create, using `skip_if_no_stage` |
 
 Copy the nearest example into your domain root, replace every placeholder, then validate with `python schemas/scripts/validate_jsons.py <domain_root>/`. Full field reference is in [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md).
 
@@ -306,7 +307,7 @@ All end-user documentation lives under [user_docs/](user_docs/) — a consolidat
 | Just want the thesis | [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md) — problem, solution, F1/F2/F3, JSON, BKMs, ownership |
 | About to run the CLI | [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md) — every subcommand, every flag, deep examples |
 | Want to understand the pipeline | [user_docs/03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) — P0–P7, design rules, where Chopper fits, FAQ |
-| JSON schemas and examples | [schemas/](schemas/) and [examples/](examples/) — authoritative schemas and 11 worked examples; see [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) |
+| JSON schemas and examples | [schemas/](schemas/) and [examples/](examples/) — authoritative schemas and 14 worked examples; see [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) |
 | Authoritative specification | [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) — workflow, quality gates, scope rules |
 
@@ -343,6 +344,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 3.5.1 — 2026-05-23
+
+- **100% coverage enforced on the full-suite gate.** The aggregate `test` target (run by `make ci`) now passes `--cov-fail-under=100`, locking the codebase at 100% line + branch coverage across every module — the full suite already reached every reachable line, so this prevents silent regressions. The fast unit-only gate (`make check`) keeps the pyproject default `--cov-fail-under=99`, since unit tests intentionally exercise only part of `src/` (integration/golden/property suites cover the rest). Stale Makefile comment (`78`) corrected. Coverage policy cascaded into [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md), [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) §5.12.8, and the project instructions. No code or behavior change.
+- **User-facing docs synced to the 14th example.** Example maps and counts updated for `examples/14_cross_feature_skip_if_no_stage/` (the canonical `skip_if_no_stage` demo) across [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md), [user_docs/README.md](user_docs/README.md), [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), this README, and the Chopper Agent doc (stale "11 scenarios" → 14). Full `src/` was reviewed against the technical docs: no drift, no scope-lock violations.
+- Version bumped 3.5.0 → 3.5.1.
 
 ### 3.5.0 — 2026-05-23
 

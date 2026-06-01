@@ -163,7 +163,7 @@ Before invoking shell commands or Chopper subcommands, an agent **must** detect 
 | `make format` | Auto-format with Ruff |
 | `make type-check` | mypy static type check |
 
-**Coverage Requirement:** Minimum 99% line coverage (parser 85%, compiler 80%, trimmer 80%, enforced via pytest).
+**Coverage Requirement:** Full suite (`make ci`) held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99% line. Enforced via pytest.
 
 **Pre-Commit Gate:**
 
@@ -386,7 +386,7 @@ Full details in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md).
 
 **Testing Standards:**
 
-- Minimum 99% line coverage
+- 100% line + branch coverage on the full suite (`make ci`); ≥ 99% line on the fast unit-only gate (`make check`)
 - Unit tests isolated, use `tmp_path` fixture
 - Integration tests use fixtures from `tests/fixtures/`
 - Property tests with hypothesis (500 examples)
@@ -407,10 +407,8 @@ Full details in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md).
 
 **Coverage Thresholds:**
 
-- Overall: 99%
-- Parser: 85%
-- Compiler: 80%
-- Trimmer: 80%
+- Full suite (`make ci`): 100% line + branch
+- Fast unit-only gate (`make check`): ≥ 99% line
 
 ---
 

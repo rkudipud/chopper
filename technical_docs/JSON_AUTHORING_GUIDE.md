@@ -55,6 +55,7 @@ Use the example folders as templates, not as production-ready inputs. Pick the c
 | Feature chains with `depends_on` | `examples/10_chained_features_depends_on/` |
 | Aggregate scheduler stack (`generate_stack`) | `examples/12_base_with_aggregate_stack/` |
 | Aggregate + per-stage standalone stack | `examples/13_base_with_standalone_stack/` |
+| Cross-feature `skip_if_no_stage` injection | `examples/14_cross_feature_skip_if_no_stage/` |
 
 Recommended sequence:
 
