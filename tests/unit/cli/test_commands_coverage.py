@@ -293,16 +293,6 @@ def test_cmd_cleanup_removes_existing_backup(tmp_path: Path) -> None:
     assert not backup.exists()
 
 
-def test_cmd_mcp_serve_delegates_to_run_stdio_server() -> None:
-    """cmd_mcp_serve imports run_stdio_server and returns its exit code."""
-    from chopper.cli.commands import cmd_mcp_serve
-
-    with patch("chopper.mcp.run_stdio_server", return_value=0) as mock_serve:
-        rc = cmd_mcp_serve(MagicMock())
-    assert rc == 0
-    mock_serve.assert_called_once()
-
-
 def test_warn_if_cwd_will_be_renamed_no_warning_when_cwd_outside(tmp_path: Path) -> None:
     """_warn_if_cwd_will_be_renamed emits no warning when cwd is not under domain_root."""
     from chopper.cli.commands import _warn_if_cwd_will_be_renamed

@@ -728,29 +728,11 @@ All examples below assume Chopper is invoked from the domain root (or with an ex
 | **F2 + F3** | Proc trimming plus generated run files |
 | **F1 + F2 + F3** | Full Chopper capability set |
 
-### 3.9 MCP Integration (stdio, read-only) — 0.4.0+
+### 3.9 MCP Integration — removed (out of scope as of 4.0.0)
 
-Chopper ships a **Model Context Protocol** server that lets MCP-capable clients (e.g. Claude Desktop, Claude Code, any conforming MCP host) interact with the tool as a subprocess over stdio JSON-RPC. The surface is deliberately minimal and **read-only**.
+Chopper previously shipped a stdio-only, read-only **Model Context Protocol** server (`chopper mcp-serve`, the `src/chopper/mcp/` package, and the `PE-04 mcp-protocol-error` diagnostic). It was **removed in 4.0.0**. There is no MCP surface of any kind: no `mcp-serve` subcommand, no `src/chopper/mcp/` package, no `mcp` runtime dependency, and no exit code `4`. `PE-04` is retired (slot preserved, never reused).
 
-**Transport.** Stdio only. The server reads JSON-RPC frames on stdin, writes responses on stdout, and logs to stderr. There is no TCP socket, no HTTP endpoint, no WebSocket, no daemon mode, and no discovery beacon. This is a subprocess protocol, not a network service, so the "no networked services" rule remains intact.
-
-**Invocation.** `chopper mcp-serve` starts the server and blocks until the client disconnects (stdin EOF) or sends SIGINT. Exit code `0` on clean shutdown, `3` on programmer error, `4` on MCP protocol error.
-
-**Tools exposed.** The server advertises exactly three tools via `tools/list`. No other tool is registered under any condition; the destructive-tool guard is enforced in code and asserted by test.
-
-| Tool | Parameters | Returns | Maps to |
-|---|---|---|---|
-| `chopper.validate` | `{ domain_root: str, base?: str, features?: str[], project?: str, strict?: bool }` | `RunResult` JSON (exit code, diagnostics array, artifact paths) | The same code path as `chopper validate` on the CLI |
-| `chopper.explain_diagnostic` | `{ code: str }` (e.g. `"VE-06"`) | Registry entry: `{ code, slug, severity, phase, source, exit_code, description, recovery_hint }` | Lookup against `technical_docs/DIAGNOSTIC_CODES.md`, parsed at server startup |
-| `chopper.read_audit` | `{ bundle_path: str }` | The **full** JSON contents of every file under the `.chopper/` bundle, keyed by relative path | Direct read of the audit bundle |
-
-**Tools explicitly NOT exposed.** `chopper.trim` and `chopper.cleanup` are destructive and are **never** registered on the server. A test (`tests/integration/test_mcp_stdio_e2e.py`) asserts they are absent from `tools/list` output. The MCP surface cannot cause filesystem mutation under any parameter combination.
-
-**Dependency.** The `mcp` Python SDK is a **hard runtime dependency** declared in `pyproject.toml` `[project].dependencies`. The server imports it lazily inside the `mcp-serve` command handler so that core CLI operations (`validate`, `trim`, `cleanup`) remain unaffected by MCP-side changes.
-
-**Diagnostic surface.** Protocol-level failures (malformed frames, unknown tool, bad parameter shape) emit `PE-04 mcp-protocol-error` (severity error, exit code 4). This code is emitted **only** from `src/chopper/mcp/`. All other diagnostics surfaced inside an MCP tool response are the same codes the underlying CLI path would have produced.
-
-**Scope-lock alignment.** This section is the single authoritative spec for the MCP surface. The closed items in `.github/instructions/project.instructions.md` §1 — destructive MCP tools, `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code, HTTP/TCP/WebSocket transports — remain closed. See §1.1 of the same file for the narrowed-closure wording.
+MCP is a **closed decision**. No MCP surface — read-only or destructive, stdio or networked — may be reintroduced without explicit user approval and an architecture-doc-first cascade. See `.github/instructions/project.instructions.md` §1 (Closed Decisions) for the authoritative rejection record.
 
 ### 3.10 Tool-Command Pool — 0.5.0+
 
@@ -2126,7 +2108,7 @@ Dry-run emits:
 | `REMOVE` | 0 (the file is never copied into the rebuilt domain). |
 | `GENERATED` | The artifact written by `GeneratorService` (P5b), after the optional P5c indentation pass. |
 
-Files present in the source domain but absent from `manifest.file_decisions` are treated as REMOVE for the after totals (default-exclude under R2). The output table reports files-before, files-after, lines-before, lines-after, SLOC-before, SLOC-after, and the percentage reduction for each. Diagnostics emitted along the P0–P4 path are still summarized to stderr; exit-code policy matches `validate` (0/1/2/3, no `4` because `loc` cannot enter the MCP path).
+Files present in the source domain but absent from `manifest.file_decisions` are treated as REMOVE for the after totals (default-exclude under R2). The output table reports files-before, files-after, lines-before, lines-after, SLOC-before, SLOC-after, and the percentage reduction for each. Diagnostics emitted along the P0–P4 path are still summarized to stderr; exit-code policy matches `validate` (0/1/2/3).
 
 **Counted file types.** The source-domain walk in `cli/loc_report.py` accepts a closed extension allow-list mirrored from the SLOC counter language table. Files whose extension is **not** in this list are silently skipped — they neither contribute to "before" totals nor count as REMOVE candidates:
 
@@ -2191,7 +2173,7 @@ The detailed validation check matrix, diagnostics contract, and exit semantics a
 
 ### 5.9 CLI Contract, Diagnostics, and Exit Semantics
 
-Chopper exposes the `validate`, `trim`, `loc`, and `cleanup` subcommands as first-class user interfaces. (`mcp-serve` is the read-only stdio MCP surface; see §3.9.)
+Chopper exposes the `validate`, `trim`, `loc`, and `cleanup` subcommands as first-class user interfaces.
 
 Chopper supports three input modes: base-only (`--base`), base-plus-features (`--base --features`), and project JSON (`--project`). Project JSON mode packages the same selection decisions into a single auditable file without changing trim semantics. `--project` is mutually exclusive with `--base`/`--features`.
 
@@ -3043,11 +3025,11 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-39 | All public result objects are JSON-serializable via a single canonical serializer; round-trip (serialize → deserialize → compare) produces structurally equivalent values. |
 | FR-40 | Progress and log events are emitted through a `ProgressSink` protocol; the CLI attaches a renderer, but library code never binds to a concrete sink. (There is no internal structured-logging channel; see §5.12.4.) |
 | FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
-| FR-42 | `chopper mcp-serve` starts a stdio-only Model Context Protocol server that exposes exactly three read-only tools — `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit` — and never registers destructive tools (`chopper.trim`, `chopper.cleanup`). Protocol-level failures emit `PE-04 mcp-protocol-error` with exit code 4. See §3.9. |
+| FR-42 | **Removed in 4.0.0.** Previously: `chopper mcp-serve` started a stdio-only read-only Model Context Protocol server. The MCP surface (subcommand, `src/chopper/mcp/`, the `mcp` dependency, and `PE-04`/exit-code 4) was removed entirely and is a closed decision. See §3.9. |
 | FR-43 | `chopper validate --features` accepts directory entries in its comma-separated list; each directory expands in place to the sorted (lexicographic), non-recursive set of its immediate `*.json` children. `chopper trim` and `--project` (in any subcommand) still require explicit per-file paths. See §5.1. |
 | FR-44 | P4 maintains a **tool-command pool** (§3.10) — the union of built-in `.commands` files under `src/chopper/data/tool_commands/` and user-supplied files passed via the repeatable CLI flag `--tool-commands <path>`. When a call token fails namespace resolution and its raw or leaf name is in the pool, the tracer emits `TI-01 known-tool-command` instead of `TW-02 unresolved-proc-call` and records an `Edge` with `status = "tool_command"`. The pool is not surfaced in any JSON (base / feature / project); CLI flag is the sole user extension. The pool never affects file-level (F1), proc-level (F2), or run-file (F3) decisions. |
 | FR-45 | `chopper --version` prints `chopper <version>` to stdout and exits 0. The version string is sourced from the installed package metadata (`importlib.metadata`) with a `pyproject.toml` fallback for source checkouts. `--version` is a top-level global flag; it does not require a subcommand. |
-| FR-46 | `chopper loc` runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, then replays the real P5 trim phases (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and emits a stdout LOC report comparing the source domain against the actually-rebuilt trimmed domain (files-before/after, physical-lines-before/after, SLOC-before/after, percent reduction). Because the replay reuses the production trim services, the totals are byte-for-byte identical to a live `chopper trim`. The subcommand accepts the same input flags as `validate`/`trim` (`--base [--features]` or `--project`). It writes nothing to the real filesystem — no domain modifications and no `.chopper/` audit bundle (the runner suppresses P7 audit when `command == "loc"`). Exit-code policy matches `validate` (0/1/2/3); `loc` cannot return `4`. See §5.7. |
+| FR-46 | `chopper loc` runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, then replays the real P5 trim phases (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and emits a stdout LOC report comparing the source domain against the actually-rebuilt trimmed domain (files-before/after, physical-lines-before/after, SLOC-before/after, percent reduction). Because the replay reuses the production trim services, the totals are byte-for-byte identical to a live `chopper trim`. The subcommand accepts the same input flags as `validate`/`trim` (`--base [--features]` or `--project`). It writes nothing to the real filesystem — no domain modifications and no `.chopper/` audit bundle (the runner suppresses P7 audit when `command == "loc"`). Exit-code policy matches `validate` (0/1/2/3). See §5.7. |
 | FR-47 | The P7 audit bundle includes `.chopper/p4_commands.txt`: a deterministic, sorted, ready-to-execute Perforce command list correlating each file-treatment decision to a `p4 edit -t text+x` / `p4 add -t text+x` / `p4 delete` invocation. Emitted on both live trim and `--dry-run`; not emitted by `validate`, `loc`, or `cleanup`. Chopper never invokes `p4` itself — operators review the file and run `p4 submit` manually. See §5.5.14. |
 
 ### 7.2 Non-Functional Requirements
@@ -3427,6 +3409,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-05-23 | **3.5.0 — Optional flow-action stage targets (`skip_if_no_stage`).** Cross-cutting features (e.g. `sequential_const_check`) inject steps into N stages; in partial-project compositions, missing stages previously aborted with `VE-05`. Added per-action boolean `skip_if_no_stage` (default `false`, backward-compatible). When `true` and the target stage is absent, resolver emits new `VI-05 flow-action-skipped-no-stage` (info, exit 0) and skips silently. Step-level miss inside a present stage still emits `VE-05` — stage existence and step existence are distinct contracts. Rejected alternatives: feature-level `optional: true` (too coarse — author cannot opt one injection in); project-level allow-list (couples authoring to project shape); silent fallthrough on every `VE-05` (loses authoring-bug detection). §6.7 updated; `VI-05` registered; feature-v1 schema accepts the new field on every flow_action variant. |
 | 2026-05-22 | **3.4.2 — Honor `options.cross_validate` + doc declutter.** The `cross_validate` flag was loaded but never consumed — VW-14/15/16 ran unconditionally. Threaded through `validate_post` → `_check_stage_steps` → `_classify_and_emit`; when `false`, VW-14/15/16 suppressed entirely; VW-17 still fires (does not depend on manifest lookups). Aggressive trim of this revision-history table (the canonical release log lives in git + README.md changelog). `IMPLEMENTATION.md` Appendix A removed (scope-lock in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) already covers OOS items); Appendix B → main-body "Future Considerations" section. |
 | 2026-05-23 | **3.5.1 — 100% coverage enforced on the full-suite gate.** The aggregate `test` target (run by `make ci`) now passes `--cov-fail-under=100`; the codebase already hit every reachable line, so this locks it against silent regressions. The fast unit-only gate (`make check`) keeps `--cov-fail-under=99` because unit tests intentionally cover only part of `src/`. §5.12.8 wording updated; rejected alternative: forcing unit-only to 100% (would require contrived unit tests duplicating the integration suite, violating the deliberate suite separation). No code or behavior change. |
+| 2026-06-05 | **4.0.0 — MCP surface removed (re-closed).** The stdio-only read-only Model Context Protocol server added in 0.4.0 (`chopper mcp-serve`, `src/chopper/mcp/`, the `mcp>=1.0,<2` runtime dependency, `PE-04 mcp-protocol-error`, and exit code `4`) is removed in full. MCP returns to a **closed decision** — no read-only or destructive, stdio or networked surface may be reintroduced without explicit user approval and an architecture-doc-first cascade. `PE-04` retired (slot preserved, never reused); exit-code surface narrows to `0/1/2/3` across `RunResult`/`RunRecord`/`AuditManifest` and `run-result-v1.schema.json`. Scope-lock §1 in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) restored to fully closed (§1.1 read-only exception deleted). §3.9 retained as a closure record only. |
 
 ---
 

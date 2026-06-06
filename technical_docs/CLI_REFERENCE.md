@@ -8,7 +8,7 @@
 
 ```text
 usage: chopper [-h] [--version] [-v] [-q] [--plain] [--strict]
-               {validate,trim,loc,cleanup,mcp-serve} ...
+               {validate,trim,loc,cleanup} ...
 
 Chopper — EDA TFM domain trimming tool.
 
@@ -17,12 +17,11 @@ configuration. Supports whole-file (F1), proc-level (F2), and run-file
 generation (F3) capabilities.
 
 positional arguments:
-  {validate,trim,loc,cleanup,mcp-serve}
+  {validate,trim,loc,cleanup}
     validate            Validate JSON inputs against domain structure
     trim                Execute the full trim pipeline
     loc                 Print a read-only LOC report (no `.chopper/` written)
     cleanup             Remove domain backup after the trim window
-    mcp-serve           Start a stdio-only read-only MCP server
 
 options:
   -h, --help            show this help message and exit
@@ -132,7 +131,7 @@ Writes nothing to the real filesystem — no domain modifications and no
 Diagnostics emitted along the P0–P4 path are
 still summarized to stderr. Exit codes match `validate`: 0 clean,
 1 validation errors (or `--strict` with warnings), 2 CLI/environment
-error, 3 internal programmer error. `loc` cannot return 4.
+error, 3 internal programmer error.
 
 options:
   --domain PATH        Domain root path (default: current directory).
@@ -199,23 +198,6 @@ This operation is irreversible. Requires --confirm flag.
 options:
   --domain PATH   Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
   --confirm       Required confirmation flag (cleanup refuses to run without it)
-```
-
----
-
-## `chopper mcp-serve`
-
-```text
-usage: chopper mcp-serve [global options]
-
-Start a stdio-only Model Context Protocol server. Exposes exactly three
-read-only tools: chopper.validate, chopper.explain_diagnostic, chopper.read_audit.
-Never registers chopper.trim or chopper.cleanup. Reads JSON-RPC frames on
-stdin, writes responses on stdout, logs to stderr. Exits 0 on clean shutdown
-(stdin EOF / SIGINT), 3 on programmer error, 4 on MCP protocol error.
-
-No options specific to this subcommand. See `technical_docs/ARCHITECTURE.md`
-§3.9 for the authoritative contract and tool parameter schemas.
 ```
 
 ---

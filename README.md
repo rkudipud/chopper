@@ -239,64 +239,6 @@ The bundle is designed to be machine-readable. The `run-result-v1.schema.json` a
 
 ---
 
-## MCP Server (`chopper mcp-serve`)
-
-Since 0.4.0, Chopper ships a **Model Context Protocol** server so MCP-capable clients — Claude Desktop, Claude Code, or any conforming MCP host — can inspect a domain without a shell. The surface is intentionally small, **read-only**, and stdio-only.
-
-### What it is (and isn't)
-
-| Property | Value |
-| --- | --- |
-| Transport | **stdio JSON-RPC only** — reads frames on stdin, writes responses on stdout, logs to stderr |
-| Network exposure | **None** — no TCP, no HTTP, no WebSocket, no daemon, no discovery beacon |
-| Side effects | **None** — the server cannot trim, cleanup, or otherwise mutate the filesystem under any parameter combination |
-| Runtime dependency | Hard dependency on the `mcp` Python SDK (declared in [pyproject.toml](pyproject.toml)) |
-| Lifecycle | Starts on `chopper mcp-serve`, blocks until the client disconnects (stdin EOF) or SIGINT |
-| Exit codes | `0` clean shutdown · `3` programmer error · `4` MCP protocol error (`PE-04 mcp-protocol-error`) |
-
-### Tools exposed
-
-The server advertises **exactly three** tools via `tools/list`. A runtime guard plus an integration test (`tests/integration/test_mcp_stdio_e2e.py`) assert that nothing else is ever registered.
-
-| Tool | Parameters | Returns |
-| --- | --- | --- |
-| `chopper.validate` | `{ domain_root, base?, features?, project?, strict? }` | Typed `RunResult` JSON — exit code, diagnostics array, artifact paths. Same code path as `chopper validate` on the CLI. |
-| `chopper.explain_diagnostic` | `{ code }` (e.g. `"VE-06"`) | Registry entry: `{ code, slug, severity, phase, source, exit_code, description, recovery_hint }` sourced from [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md). |
-| `chopper.read_audit` | `{ bundle_path }` | Full JSON contents of every file under the `.chopper/` bundle, keyed by relative path. |
-
-**Explicitly NOT exposed:** `chopper.trim` and `chopper.cleanup`. These destructive operations are never registered on the MCP server — by design, by code, and by test.
-
-### Running it
-
-```text
-chopper mcp-serve
-```
-
-That's the whole invocation. The process stays in the foreground, speaking JSON-RPC on stdin/stdout. Point any MCP client at it as a subprocess command.
-
-#### Example: Claude Desktop `claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "chopper": {
-      "command": "chopper",
-      "args": ["mcp-serve"]
-    }
-  }
-}
-```
-
-Once connected, ask the client to validate a domain or explain a diagnostic — the calls route through the three tools above.
-
-### Diagnostics
-
-Protocol-level failures (malformed frames, unknown tool name, bad parameter shape) surface as `PE-04 mcp-protocol-error` with exit code `4`. Diagnostics returned inside a tool response use the same codes the underlying CLI path would have produced — the MCP surface does not invent or rewrite codes.
-
-The authoritative specification for the MCP surface is [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) §3.9.
-
----
-
 ## Documentation
 
 All end-user documentation lives under [user_docs/](user_docs/) — a consolidated three-part guide designed to take you from the onboarding deck to a working trim in 60–90 minutes.
@@ -344,6 +286,13 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 4.0.0 — 2026-06-05
+
+- **MCP surface removed.** The stdio-only read-only Model Context Protocol server added in 0.4.0 is gone: the `chopper mcp-serve` subcommand, the `src/chopper/mcp/` package, the `mcp>=1.0,<2` runtime dependency, the `PE-04 mcp-protocol-error` diagnostic, and process exit code `4` are all removed. Chopper now ships **four** subcommands (`validate`, `trim`, `loc`, `cleanup`) and depends only on `jsonschema` at runtime.
+- **Scope re-closed.** MCP returns to a closed decision — no read-only or destructive, stdio or networked surface may be reintroduced without explicit user approval and an architecture-doc-first cascade. `PE-04` is retired (slot preserved, never reused); the `RunResult` / `RunRecord` / `AuditManifest` exit-code surface and [schemas/run-result-v1.schema.json](schemas/run-result-v1.schema.json) narrow to `0/1/2/3`.
+- **Docs cascaded.** [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) §3.9 retained as a closure record; ENGINEERING.md §7/§16 Q1, CLI_REFERENCE.md, DIAGNOSTIC_CODES.md (active codes 82 → 81), user docs, the scope-lock in [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md), and the bundle/CTH Makefile targets all updated.
+- Version bumped 3.5.1 → 4.0.0.
 
 ### 3.5.1 — 2026-05-23
 
@@ -436,7 +385,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 2.6.0 — 2026-05-11
 
-- **New `chopper loc` read-only LOC report subcommand.** Fifth user-facing subcommand (joining `validate`, `trim`, `cleanup`, `mcp-serve`). Same input flags as `validate`/`trim` (`--base [--features]` or `--project`). Runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, additionally invokes `GeneratorService` in no-write mode so generated stage `.tcl` content is countable, then prints a stdout LOC table comparing the source domain against the planned trimmed domain: files before/after, physical lines before/after, SLOC before/after, percent reduction, plus a per-treatment breakdown (FULL_COPY / PROC_TRIM / REMOVE / GENERATED). Writes **nothing** to the filesystem — no domain modifications and no `.chopper/` audit bundle. The runner now branches on `command == "loc"` to (a) run `GeneratorService` even in dry-run mode and (b) skip the P7 audit `finally` block. Per-treatment line accounting: `FULL_COPY` reuses source line count; `PROC_TRIM` masks out `procs_removed` line spans (body + DPA + leading comment when present); `REMOVE` is 0; `GENERATED` counts the rendered artifact content. Files present in the source domain but absent from `manifest.file_decisions` are treated as REMOVE for the after totals (default-exclude under R2). Exit-code policy matches `validate` (0/1/2/3); `loc` cannot return 4. New `src/chopper/cli/loc_report.py` module owns the math and table render. **FR-46** added in the architecture doc; §5.1.1 example block, §5.7 dry-run section, §5.9 subcommand enumeration, and CLI_REFERENCE.md top-level + new `## chopper loc` section all cascaded. No diagnostic-registry, schema, or audit-bundle surface changes.
+- **New `chopper loc` read-only LOC report subcommand.** Same input flags as `validate`/`trim` (`--base [--features]` or `--project`). Runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, additionally invokes `GeneratorService` in no-write mode so generated stage `.tcl` content is countable, then prints a stdout LOC table comparing the source domain against the planned trimmed domain: files before/after, physical lines before/after, SLOC before/after, percent reduction, plus a per-treatment breakdown (FULL_COPY / PROC_TRIM / REMOVE / GENERATED). Writes **nothing** to the filesystem — no domain modifications and no `.chopper/` audit bundle. The runner branches on `command == "loc"` to (a) run `GeneratorService` even in dry-run mode and (b) skip the P7 audit `finally` block. Per-treatment line accounting: `FULL_COPY` reuses source line count; `PROC_TRIM` masks out `procs_removed` line spans (body + DPA + leading comment when present); `REMOVE` is 0; `GENERATED` counts the rendered artifact content. Files present in the source domain but absent from `manifest.file_decisions` are treated as REMOVE for the after totals (default-exclude under R2). Exit-code policy matches `validate` (0/1/2/3). New `src/chopper/cli/loc_report.py` module owns the math and table render. **FR-46** added in the architecture doc; §5.1.1 example block, §5.7 dry-run section, §5.9 subcommand enumeration, and CLI_REFERENCE.md top-level + new `## chopper loc` section all cascaded. No diagnostic-registry, schema, or audit-bundle surface changes.
 
 ### 2.5.0 — 2026-05-09
 
@@ -556,8 +505,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 0.7.0 — 2026-05-01
 
-- **Programmer-error contract closed end-to-end.** A 2026-05-01 audit found three coupled drifts: [schemas/run-result-v1.schema.json](schemas/run-result-v1.schema.json) declared an `internal_error` field on `RunResult` but the model had no such field; the runner caught only `ChopperError` so any other unhandled exception escaped as a raw Python traceback; and `RunResult.exit_code` rejected `4` even though `PE-04 mcp-protocol-error` in the registry declares `exit_code=4`. All three are fixed in this release. New `InternalError` frozen dataclass `{kind, message, log_path}` lives in [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py); `RunResult.internal_error` and `RunRecord.internal_error` are populated by a new [src/chopper/audit/internal_error.py](src/chopper/audit/internal_error.py) writer that emits `.chopper/internal-error.log` (run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig) per architecture doc §5.5.10. The runner now catches both `ChopperError` and generic `Exception` (both → exit 3 + log); the CLI gained a top-level `try/except Exception` for pre-runner failures (exit 1, ctx-less log fallback). Exit-code validators on `RunResult` / `RunRecord` / `AuditManifest` widened to `{0, 1, 2, 3, 4}` and the schema enum widened to match (`4` only from `mcp-serve`).
-- **`PE-04` is now a real `Diagnostic`.** Previously [src/chopper/mcp/server.py](src/chopper/mcp/server.py) printed the code as a free-form string; both per-call and fatal protocol-error paths now construct the canonical `Diagnostic.build("PE-04", ...)` via a new `_build_pe04()` helper so code/slug/severity/phase stay in lockstep with [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md). The lone `print(..., file=sys.stderr)` was replaced with `sys.stderr.write(...)` (architecture doc §5.12.4 — no `print()` in library code).
+- **Programmer-error contract closed end-to-end.** A 2026-05-01 audit found two coupled drifts: [schemas/run-result-v1.schema.json](schemas/run-result-v1.schema.json) declared an `internal_error` field on `RunResult` but the model had no such field, and the runner caught only `ChopperError` so any other unhandled exception escaped as a raw Python traceback. Both are fixed in this release. New `InternalError` frozen dataclass `{kind, message, log_path}` lives in [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py); `RunResult.internal_error` and `RunRecord.internal_error` are populated by a new [src/chopper/audit/internal_error.py](src/chopper/audit/internal_error.py) writer that emits `.chopper/internal-error.log` (run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig) per architecture doc §5.5.10. The runner catches both `ChopperError` and generic `Exception` (both → exit 3 + log); the CLI gained a top-level `try/except Exception` for pre-runner failures (exit 1, ctx-less log fallback).
 - **Audit failures are no longer silent.** New `VW-20 audit-write-failed` (warning, phase 7, source `audit`, exit 0) — emitted from [src/chopper/audit/service.py](src/chopper/audit/service.py) when an artifact under `.chopper/` fails to write (`OSError`: disk full, permission denied, etc.). The previous behaviour silently swallowed the exception and produced a partial bundle with no signal to the user (NFR-13 violation). Active diagnostic-code count: **70 → 71**. The runner's `finally` audit hook also lost its bare `except Exception: pass`; audit-code bugs now surface to stderr as `[chopper] internal: audit bundle failed to write: ...`.
 - **Tcl-aware brace counter.** [src/chopper/validator/functions.py](src/chopper/validator/functions.py) `_brace_delta` (the post-trim VE-16 internal-consistency check) was previously a naive `text.count('{') - text.count('}')` that would false-positive on legal Tcl such as `puts "{"` and trip exit 3. Rewritten as a small Tcl tokenizer that honours backslash escapes, skips braces inside `"..."` quoted strings, and skips full-line `#` comments. Mid-line `;#` trailing comments are intentionally not skipped (Tcl-correct: trailing comments after `;` still parse as commands; counting their braces matches the parser's authoritative behaviour at P2).
 - **Python version policy aligned.** Spec §5.12 had said "≥ 3.13" while [pyproject.toml](pyproject.toml) said `>=3.11` and ruff/mypy targeted 3.11 — three-way drift. Spec narrative reconciled to "≥ 3.11 (3.13 preferred)"; pyproject / ruff / mypy unchanged (already 3.11). 3.11 is the floor so Chopper installs cleanly on long-lived workstations; 3.13 is the recommended target where available. PEP 695 type-parameter syntax remains forbidden in `src/`.
@@ -605,9 +553,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 0.4.0 — 2026-04-24
 
-- **`chopper mcp-serve` — read-only stdio MCP surface.** Chopper now ships a stdio-only Model Context Protocol server, letting MCP-aware clients (Claude Desktop, Claude Code, etc.) inspect a domain without a shell. Exactly three read-only tools are advertised: `chopper.validate` (run `chopper validate` and return the typed RunResult JSON), `chopper.explain_diagnostic` (look up any code in the diagnostic registry), and `chopper.read_audit` (return the full contents of a `.chopper/` audit bundle). The destructive subcommands (`trim`, `cleanup`) are intentionally **not** exposed over MCP — an in-process guard and an integration test block any attempt to advertise them. Malformed frames or unknown tool names surface as the new diagnostic `PE-04 mcp-protocol-error` (exit code 4).
-- **New hard runtime dependency: `mcp>=1.0,<2`.** The MCP SDK is required even for users who never run `mcp-serve` — this keeps the CLI surface predictable and avoids conditional-import complexity.
-- **Docs cascade.** Architecture Doc §3.9 specifies the MCP contract authoritatively. The scope-lock in [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md) was amended with a new §1.1 "Narrowed from a prior closure (read-only MCP)" subsection — the original "no MCP" closure is narrowed, not removed. [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md), [technical_docs/CLI_REFERENCE.md](technical_docs/CLI_REFERENCE.md), and [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) were all updated in the same pass.
+- **Historical note: read-only MCP surface introduced, then removed in 4.0.0.** This release originally added a stdio-only read-only MCP surface and a hard `mcp>=1.0,<2` runtime dependency. That surface was removed in 4.0.0: Chopper no longer has an MCP subcommand, MCP source package, MCP dependency, MCP diagnostic, or exit code 4. The 4.0.0 changelog entry above is the current contract.
 
 ### 0.3.3 — 2026-04-24
 

@@ -163,12 +163,11 @@ Chopper deliberately optimises for determinism and auditability over raw through
 
 ## 8. Error model
 
-Four layers:
+Three layers:
 
 1. **User-visible outcomes** — always a `Diagnostic` emitted via `ctx.diag`. Exit codes 0, 1, 2.
 2. **Programmer errors** — `ChopperError` subclasses raised from within services. Caught by the runner's final `except`, surfaced as exit `3`. `.chopper/internal-error.log` is written with run ID, traceback, diagnostic snapshot, and `RunConfig`. `RunResult.internal_error` is also populated so GUIs / CI can inspect the failure without reading the log file.
 3. **Unexpected exceptions** — same path as (2). The CLI's top-level `try/except` is a second safety net for pre-runner failures.
-4. **MCP protocol errors** — malformed JSON-RPC frames or unknown tool names from `mcp-serve` surface as `PE-04 mcp-protocol-error` with exit `4`. Only `mcp-serve` ever produces exit 4.
 
 No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
@@ -192,8 +191,7 @@ src/chopper/
 ├── data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
 ├── orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
 ├── adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
-├── mcp/          Stdio-only read-only MCP server                             (mcp-serve)
-└── cli/          argparse, render helpers, five subcommand handlers           (user)
+└── cli/          argparse, render helpers, four subcommand handlers           (user)
 ```
 
 Each service depends only on `core/` and its own submodules. The lone permitted exception is the validator importing the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`) — documented in `technical_docs/ARCHITECTURE.md` §5.12.9.
@@ -271,10 +269,6 @@ Yes. The parser handles standard Tcl (`proc`, `namespace eval`, `source`, contro
 ### How do I quiet a flood of `TW-02` warnings?
 
 Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) and loaded automatically. For site-local or additional tool pools, pass `--tool-commands <path>` for each extra file. Matches surface as `TI-01` (info, exit 0) instead of `TW-02` (warning).
-
-### Why `mcp-serve` only over stdio?
-
-Read-only by design. No network surface means no inadvertent destructive remote calls and no auth/transport complexity. Destructive subcommands (`trim`, `cleanup`) are never advertised over MCP.
 
 ### What does `options.cross_validate` do?
 

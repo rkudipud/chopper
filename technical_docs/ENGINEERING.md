@@ -159,13 +159,9 @@ src/chopper/
 │   ├── domain_state.py          # DomainStateService (P0)
 │   └── gates.py                 # Phase-boundary gating logic
 │
-├── mcp/                         # Read-only stdio MCP server (0.4.0+; see arch doc §3.9)
-│   ├── server.py                # JSON-RPC stdio loop
-│   └── tools.py                 # chopper.validate / chopper.explain_diagnostic / chopper.read_audit
-│
 └── cli/                         # Stage 5 — thin CLI (no business logic)
     ├── main.py                  # argparse entrypoint
-    ├── commands.py              # validate / trim / loc / cleanup / mcp-serve handlers
+    ├── commands.py              # validate / trim / loc / cleanup handlers
     ├── loc_report.py            # LOC report builder (chopper loc)
     └── render.py                # Rich-based output formatting
 ```
@@ -183,7 +179,7 @@ adapters ───────────────────────�
 - `adapters` import from `core` and third-party libs.
 - `orchestrator` imports from `core` + every service + selects adapters.
 - `cli` imports from `core` + `orchestrator` only.
-- **No `plugins/`, no `advisor/` directory exists or is planned.** These are not v1-deferred features — they are permanently excluded (see §16 Q1). Any PR that creates such a directory is rejected without review. The `src/chopper/mcp/` directory is the **narrow, read-only** MCP surface introduced in 0.4.0 (architecture doc §3.9) and is permitted by an explicit amendment to the scope-lock; it does not open the door to `adapters/mcp_*.py` or any destructive MCP surface.
+- **No `plugins/`, no `advisor/`, no `mcp/` directory exists or is planned.** These are not v1-deferred features — they are permanently excluded (see §16 Q1). Any PR that creates such a directory is rejected without review. The read-only stdio MCP server that briefly existed under `src/chopper/mcp/` (0.4.0–3.5.x) was **removed in 4.0.0**; MCP is a closed decision and `adapters/mcp_*.py` or any MCP surface remains forbidden.
 
 Circular imports, inter-service imports, and reverse imports (service importing orchestrator or cli) are all rejected at CI.
 
@@ -419,11 +415,7 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 
 ## 7. Extension Seams (Not Applicable)
 
-**Chopper has no general extension seams.** There is no plugin host, no plugin loader, no observer fan-out, no MCP client, no AI advisor, no `X*` diagnostic family, no `adapters/mcp_*.py`, no `plugins/` package. These are not stubs, not reserved, not "architecturally enabled" for a later release — they are **permanently out of scope** (see §16 Q1).
-
-### 7.1 Narrowed MCP surface (0.4.0+)
-
-One narrow exception exists as of 0.4.0: a **read-only, stdio-only** MCP server at `src/chopper/mcp/`, invoked via `chopper mcp-serve`. It is not an extension seam in the extensible-by-third-parties sense — it is a first-party, fixed, read-only tool surface specified in the architecture doc (`technical_docs/ARCHITECTURE.md` §3.9) and enforced by the destructive-tool guard. The closed identifiers in the scope-lock (`.github/instructions/project.instructions.md` §1) stay closed: no `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no HTTP/TCP/WebSocket transport, no MCP tool exposing `chopper.trim` or `chopper.cleanup`.
+**Chopper has no general extension seams.** There is no plugin host, no plugin loader, no observer fan-out, no MCP server, no MCP client, no AI advisor, no `X*` diagnostic family, no `adapters/mcp_*.py`, no `mcp/` package, no `plugins/` package. These are not stubs, not reserved, not "architecturally enabled" for a later release — they are **permanently out of scope** (see §16 Q1). The read-only stdio MCP server introduced in 0.4.0 was removed in 4.0.0 and MCP is again a closed decision.
 
 **Why this is stated explicitly.** Previous drafts reserved MCP/plugin seams "for future use." Experience showed that reservations drift into implementations: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a feature the project never approved ships anyway. Scope-lock requires the absence of reservations, not a list of them.
 
@@ -832,15 +824,13 @@ def make_test_context(
 
 Questions raised during planning. All are resolved for v1.
 
-### Q1 — Plugin host / AI advisor / destructive MCP (CLOSED) — read-only stdio MCP (NARROWED)
+### Q1 — Plugin host / AI advisor / MCP (CLOSED)
 
 **Closed permanently.** Chopper has no plugin system, no AI advisor, and no reserved extension seams. There is no `PluginHost`, no `X*` diagnostic family, no `plugins/` or `advisor/` module, and no "stage 6" on the roadmap for any of these. Previous drafts reserved these concepts "for future use"; that reservation is withdrawn. PRs that add plugin or advisor scaffolding are rejected at review.
 
-**Closed permanently — destructive MCP surface.** No `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no MCP client code inside Chopper, no HTTP/TCP/WebSocket MCP transports, no MCP tool exposing `chopper.trim` or `chopper.cleanup`, no MCP-driven filesystem mutation.
+**Closed permanently — MCP surface (all kinds).** No MCP surface of any kind exists. A read-only, stdio-only MCP server (`chopper mcp-serve`, the `src/chopper/mcp/` package, the `mcp` runtime dependency, and `PE-04`/exit-code 4) was briefly permitted in 0.4.0 and **removed in 4.0.0**. There is no `MCPDiagnosticSink`, no `MCPProgressBridge`, no `adapters/mcp_*.py`, no MCP client code, no read-only or destructive MCP tools, no HTTP/TCP/WebSocket/stdio MCP transport, and no `mcp` dependency.
 
-**Narrowed (permitted) — read-only stdio MCP.** The `chopper mcp-serve` subcommand and the `src/chopper/mcp/` package are permitted: a stdio-only JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon) exposing read-only tools (`chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). Specified in the architecture doc at [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §3.9; the canonical scope-lock list lives in [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) §1.1.
-
-**Rationale.** Reserving open-ended extension points (plugins, advisors, destructive MCP) invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The narrowed read-only MCP, by contrast, is a concrete, bounded surface with a fixed tool list and a single transport — the open-ended scope was the problem, not MCP itself.
+**Rationale.** Reserving open-ended extension points (plugins, advisors, MCP) invites drift: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a surface the project never approved ships. The narrowed read-only MCP shipped in 0.4.0 carried ongoing dependency and maintenance cost for a surface that was not used, so it was removed and the decision re-closed. Reintroduction requires explicit user approval and an architecture-doc-first cascade.
 
 ### Q2 — Hand-edit preservation (CLOSED — not supported)
 

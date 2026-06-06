@@ -206,7 +206,6 @@ The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODE
 | `1` | validation surfaced errors (or `--strict` saw warnings) | read `diagnostics.json` |
 | `2` | CLI / environment error (bad flags, missing domain, `VE-21` Case 4) | fix the invocation |
 | `3` | internal programmer error — any uncaught exception escaping a service | read `.chopper/internal-error.log`, attach to bug report via `report-chopper-bug` |
-| `4` | `PE-04 mcp-protocol-error` — only from `chopper mcp-serve` | malformed JSON-RPC frame or unknown tool name |
 
 ---
 
@@ -240,16 +239,6 @@ Use this mode when the user has a working Chopper install and wants a complete l
 
 **Never jump straight to live `chopper trim` without a clean dry-run first**, regardless of mode.
 
-### Calling Chopper from an MCP client (0.4.0+)
-
-Chopper ships a stdio-only Model Context Protocol server: `chopper mcp-serve`. Point a Claude Desktop / Claude Code / compatible MCP client at that command and it will connect over stdio. The server exposes exactly three **read-only** tools and no others:
-
-- `chopper.validate` — runs `chopper validate` against a domain and returns the typed RunResult JSON.
-- `chopper.explain_diagnostic` — looks up any `VE-/VW-/VI-/TW-/PE-/PW-/PI-` code in the diagnostic registry.
-- `chopper.read_audit` — reads the full contents of a `.chopper/` audit bundle.
-
-The destructive subcommands (`trim`, `cleanup`) are **not** exposed over MCP and never will be; they remain CLI-only. If a client ever sees `chopper.trim` advertised, that is a bug — file it. Protocol-level errors (unknown tool, malformed params) surface as `PE-04 mcp-protocol-error`.
-
 ---
 
 ## Primary Jobs
@@ -281,7 +270,7 @@ You have read access to the entire Chopper specification surface. Always cite th
 | **Engineering / how it's built** | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) | Module layout, service catalog (§9.2), port surface, closed decisions (§16) |
 | **Implementation guide & pitfalls** | [`technical_docs/IMPLEMENTATION.md`](../../technical_docs/IMPLEMENTATION.md) | Parser internals (§1), risks & pitfalls (P-01…P-44, TC-xx), Future Considerations `FD-xx` future-deferred ideas |
 | **Diagnostic registry** | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) | The only legal source for any `VE-/VW-/VI-/TW-/PE-/PW-/PI-` code — slug, phase, source, exit, recovery hint |
-| **CLI surface** | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) | `validate`, `trim`, `loc`, `cleanup`, `mcp-serve` flags and exit codes |
+| **CLI surface** | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) | `validate`, `trim`, `loc`, `cleanup` flags and exit codes |
 | **JSON authoring (user-facing)** | [`technical_docs/JSON_AUTHORING_GUIDE.md`](../../technical_docs/JSON_AUTHORING_GUIDE.md) + [`schemas/`](../../schemas/) | Domain owners writing `base.json`, `*.feature.json`, `project.json` |
 | **User docs — overview / thesis** | [`user_docs/01_OVERVIEW.md`](../../user_docs/01_OVERVIEW.md) | Problem, solution, F1/F2/F3, JSON structure, BKMs, ownership |
 | **User docs — CLI guide** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | Every subcommand, every flag, deep examples, troubleshooting |

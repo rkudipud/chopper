@@ -44,7 +44,7 @@ UNIT_DIR = REPO_ROOT / "tests" / "unit"
 #   # cli/commands.py  lines ...
 HEADER_RE = re.compile(
     r"^#\s+(?:src/chopper/)?"
-    r"(adapters|audit|cli|compiler|config|core|generators|mcp|orchestrator|parser|trimmer|validator)"
+    r"(adapters|audit|cli|compiler|config|core|generators|orchestrator|parser|trimmer|validator)"
     r"/([a-z_][a-z0-9_]*)\.py\b"
 )
 

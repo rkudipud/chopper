@@ -28,7 +28,7 @@ from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.protocols import ProgressSink
 from chopper.orchestrator import ChopperRunner
 
-__all__ = ["cmd_cleanup", "cmd_loc", "cmd_mcp_serve", "cmd_trim", "cmd_validate"]
+__all__ = ["cmd_cleanup", "cmd_loc", "cmd_trim", "cmd_validate"]
 
 
 # ---------------------------------------------------------------------------
@@ -450,18 +450,3 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     shutil.rmtree(backup_root)
     render_cleanup_message(f"chopper cleanup: removed {backup_root.as_posix()}")
     return 0
-
-
-def cmd_mcp_serve(args: argparse.Namespace) -> int:
-    """Start the stdio MCP server.
-
-    Lazy-imports :mod:`chopper.mcp` so importing :mod:`chopper.cli.commands`
-    does not pull in the `mcp` SDK during `chopper validate` / `trim` /
-    `cleanup` runs. Blocks until the client disconnects (stdin EOF) or
-    SIGINT. See ``technical_docs/ARCHITECTURE.md`` §3.9.
-    """
-
-    del args  # MCP server takes no subcommand arguments; globals are ignored.
-    from chopper.mcp import run_stdio_server
-
-    return run_stdio_server()

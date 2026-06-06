@@ -26,10 +26,6 @@ def test_build_parser_has_four_subcommands() -> None:
     assert ns.command == "cleanup"
     assert ns.confirm is True
 
-    ns = parser.parse_args(["mcp-serve"])
-    assert ns.command == "mcp-serve"
-    assert callable(ns.func)
-
 
 def test_trim_accepts_dry_run_flag() -> None:
     ns = build_parser().parse_args(["trim", "--base", "base.json", "--dry-run"])
@@ -96,10 +92,10 @@ def test_main_pre_runner_exception_writes_internal_error(
     def _fake_internal_error(ctx, *, run_id, exc):  # noqa: ANN001, ARG001
         return InternalError(kind=type(exc).__name__, message=str(exc), log_path=Path(".chopper/internal-error.log"))
 
-    monkeypatch.setattr(main_module, "cmd_mcp_serve", _boom)
+    monkeypatch.setattr(main_module, "cmd_cleanup", _boom)
     monkeypatch.setattr(main_module, "write_internal_error_log", _fake_internal_error)
 
-    assert main_module.main(["mcp-serve"]) == 1
+    assert main_module.main(["cleanup"]) == 1
     captured = capsys.readouterr()
     assert "[chopper] fatal: RuntimeError: synthetic setup failure" in captured.err
     assert (

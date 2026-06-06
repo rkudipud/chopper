@@ -353,7 +353,7 @@ def render_loc_report(report: LocReport) -> None:
 
     Output is intentionally line-oriented (no ASCII tables, no column
     alignment) so downstream consumers — pipes, ``grep``, harness
-    captures, MCP clients — can parse it deterministically. Each line
+    captures — can parse it deterministically. Each line
     is a ``label: value`` pair; per-treatment subtotals are namespaced
     with ``treatment.<NAME>.<field>``.
     """

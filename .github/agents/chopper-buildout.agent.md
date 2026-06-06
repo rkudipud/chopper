@@ -125,15 +125,14 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 |-----------|-----|
 | `LockPort`, `.chopper/.lock` | Rejected in ENGINEERING.md §16 Q3 |
 | `--preserve-hand-edits` | Rejected in ENGINEERING.md §16 Q2 |
-| `chopper scan` subcommand | Only `validate`, `trim`, `loc`, `cleanup`, `mcp-serve` exist |
+| `chopper scan` subcommand | Only `validate`, `trim`, `loc`, `cleanup` exist |
 | `PluginHost`, `EntryPointPluginHost` | No plugin system in the current design |
-| `MCPDiagnosticSink`, `MCPProgressBridge`, `chopper.trim` over MCP | The MCP surface is **read-only** (see project.instructions.md §1.1); destructive tools and diagnostic-sink/progress adapters are still closed |
-| Networked MCP transports (TCP / HTTP / WebSocket / daemon) | `mcp-serve` is **stdio only** |
+| `chopper mcp-serve`, `src/chopper/mcp/`, `MCPDiagnosticSink`, `MCPProgressBridge`, the `mcp` dependency, `PE-04`, exit code 4 | MCP (read-only **or** destructive, stdio **or** networked) removed in 4.0.0; closed per project.instructions.md §1 |
 | `advisor/`, AI advisor | Closed per ENGINEERING.md §7, §16 Q1 |
 | `XE-`, `XW-`, `XI-` diagnostic codes | No X* family exists |
 | Thread pool, `--jobs N` | No parallelism inside Chopper |
 
-**Narrowed-but-permitted (since 0.4.0):** `chopper mcp-serve` + `src/chopper/mcp/` (stdio-only, read-only tools `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`). See [.github/instructions/project.instructions.md](../instructions/project.instructions.md) §1.1 for the exact permitted surface.
+**MCP is fully closed (since 4.0.0):** the read-only stdio surface that briefly existed (`chopper mcp-serve` + `src/chopper/mcp/`) was removed. No MCP surface of any kind may be reintroduced without explicit user approval and an architecture-doc-first cascade. See [.github/instructions/project.instructions.md](../instructions/project.instructions.md) §1 (MCP row).
 
 **If you find yourself implementing any forbidden item above:** STOP. You have drifted.
 
@@ -399,7 +398,6 @@ pytest tests/unit/validator/ -v
 | `validate` | Pre-trim JSON validation | 0/1/2/3 |
 | `trim` | Execute full pipeline | 0/1/2/3 |
 | `cleanup` | Remove `.chopper/` and `*_backup/` | 0/2/3 |
-| `mcp-serve` | Stdio-only read-only MCP server | 0/3/4 |
 
 **Exit-code policy** (architecture doc §5.10, schema [schemas/run-result-v1.schema.json](../../schemas/run-result-v1.schema.json)):
 
@@ -407,7 +405,6 @@ pytest tests/unit/validator/ -v
 - `1` — validation surfaced errors (or `--strict` saw warnings).
 - `2` — CLI / environment error (bad flags, missing domain, `VE-21` Case 4).
 - `3` — internal programmer error (any uncaught exception escaping a service). When this is returned, `RunResult.internal_error` is populated and `.chopper/internal-error.log` has been written. Both the runner and the top-level CLI guard write the log.
-- `4` — `PE-04 mcp-protocol-error`, only from `mcp-serve` (other subcommands never return 4).
 
 **Quality Gate:**
 ```bash

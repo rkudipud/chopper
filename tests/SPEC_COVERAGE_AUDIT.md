@@ -45,7 +45,6 @@ Generated 2026-05-07. Refresh this file when spec sections move or new tests lan
 | `VE-21` exits 2 when neither domain nor backup exists | §2.8 Case 4 | [tests/unit/orchestrator/test_runner.py](unit/orchestrator/test_runner.py#L63), [tests/unit/orchestrator/test_domain_state.py](unit/orchestrator/test_domain_state.py#L54) |
 | `VE-17` is case-insensitive (`casefold()`) | §5.1 | [tests/unit/validator/test_validator.py](unit/validator/test_validator.py#L250) |
 | Cycle in tracing emits `TW-04` and terminates via visited-set | §5.4 | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L421) |
-| MCP destructive guard: `chopper.trim` / `chopper.cleanup` never registered | §3.9 | [tests/unit/mcp/test_tools.py](unit/mcp/test_tools.py#L36), [tests/integration/test_mcp_stdio_e2e.py](integration/test_mcp_stdio_e2e.py#L148) |
 | BFS frontier sort determinism under input shuffling | §5.4 | [tests/property/test_determinism.py](property/test_determinism.py#L154) |
 | `--strict` + warning escalates to exit 1 | §5.2 | [tests/unit/orchestrator/test_runner.py](unit/orchestrator/test_runner.py#L169) |
 | Cleanup without `--confirm` exits 2 | §2.8 / cleanup | [tests/integration/test_cli_e2e.py](integration/test_cli_e2e.py) `TestCleanupSubcommand` |
@@ -132,7 +131,7 @@ The registry has 72 active codes. Per code-family parity is enforced by `schemas
 | `TW-01` / `TW-02` / `TW-03` / `TW-04` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L623) |
 | `TI-01` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L286) |
 | `PE-01` | parser tests |
-| `PE-04` | [tests/unit/mcp/test_server.py](unit/mcp/test_server.py#L25), [tests/integration/test_mcp_stdio_e2e.py](integration/test_mcp_stdio_e2e.py#L166) |
+| `PE-04` | RETIRED in 4.0.0 (was `mcp-protocol-error`; emitted only from the removed `src/chopper/mcp/` package; slot preserved per registry policy) |
 | `PW-11` | [tests/unit/parser/test_proc_extractor.py](unit/parser/test_proc_extractor.py#L348) |
 
 ### Gap

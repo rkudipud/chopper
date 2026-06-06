@@ -41,14 +41,13 @@ chopper --version
 
 ---
 
-## The five subcommands
+## The four subcommands
 
 ```text
 chopper validate      # read-only analysis
 chopper trim          # full pipeline; rebuilds the trimmed domain on disk
 chopper loc           # read-only LOC report (no .chopper/, no rewrites)
 chopper cleanup       # delete <domain>_backup/ permanently
-chopper mcp-serve     # stdio-only read-only Model Context Protocol server
 ```
 
 | Command | Reads JSONs? | Parses Tcl? | Compiles? | Traces? | Rewrites disk? | Writes `.chopper/`? |
@@ -58,7 +57,6 @@ chopper mcp-serve     # stdio-only read-only Model Context Protocol server
 | `trim` (live) | yes | yes | yes | yes | **yes** | yes |
 | `loc` | yes | yes | yes | yes | **no** | **no** |
 | `cleanup --confirm` | no | no | no | no | yes (deletes backup) | no |
-| `mcp-serve` | on request | on request | on request | on request | **never** | on request |
 
 > **Global flags must come before the subcommand.** Example: `chopper --plain --strict trim --project project.json`. `--version` prints the installed version and exits.
 
@@ -364,43 +362,6 @@ Use it when the team agrees the trim window is closed. Once `<domain>_backup/` i
 
 ---
 
-## `chopper mcp-serve`
-
-```text
-chopper mcp-serve
-```
-
-Starts a **stdio-only** JSON-RPC Model Context Protocol server. Reads frames on stdin, writes responses on stdout, logs to stderr. No TCP, no HTTP, no daemon, no discovery beacon. Blocks until the client disconnects (stdin EOF) or SIGINT.
-
-### Tools exposed (exactly three, all read-only)
-
-| Tool | Parameters | Returns |
-|---|---|---|
-| `chopper.validate` | `{ domain_root, base?, features?, project?, strict? }` | Typed `RunResult` JSON — same code path as the CLI. |
-| `chopper.explain_diagnostic` | `{ code }` (e.g. `"VE-06"`) | Registry entry (slug, severity, phase, source, exit code, description, recovery hint) |
-| `chopper.read_audit` | `{ bundle_path }` | Full JSON contents of every file under the `.chopper/` bundle, keyed by relative path |
-
-`chopper.trim` and `chopper.cleanup` are **never** advertised over MCP — by design, by code, and by an enforcing integration test.
-
-### Example: Claude Desktop config
-
-```json
-{
-  "mcpServers": {
-    "chopper": {
-      "command": "chopper",
-      "args": ["mcp-serve"]
-    }
-  }
-}
-```
-
-### MCP-specific exit code
-
-`4` — `PE-04 mcp-protocol-error` (malformed JSON-RPC frame or unknown tool name). Only `mcp-serve` ever produces exit 4.
-
----
-
 ## Exit codes
 
 | Code | Meaning |
@@ -409,7 +370,6 @@ Starts a **stdio-only** JSON-RPC Model Context Protocol server. Reads frames on 
 | `1` | One or more user-visible errors, or `--strict` escalated warnings to non-zero |
 | `2` | CLI / environment precondition failure (bad flag, unrecoverable domain state) |
 | `3` | Internal programmer error. `.chopper/internal-error.log` has the full traceback. File a bug. |
-| `4` | `PE-04 mcp-protocol-error`. Only from `mcp-serve`. |
 
 > **CI tip:** `chopper --strict trim --project project.json` returns `1` on any warning — wire that into your build to surface drift early.
 
@@ -551,7 +511,6 @@ After `chopper trim --base jsons/base.json`:
 | Dry-run still created `.chopper/` | Expected. Dry-run skips domain rebuild, not audit/report writing. |
 | "Hand edits discarded" | You edited `<domain>/` directly between runs. Move edits to source JSONs or to `<domain>_backup/`. |
 | Exit code 3 | Internal bug. Save `.chopper/internal-error.log`, `.chopper/chopper_run.json`, and `.chopper/diagnostics.json`. Use the `report-chopper-bug` Copilot prompt or file an issue manually. |
-| Exit code 4 | Only from `mcp-serve` — malformed/unknown MCP request. Inspect the client's JSON-RPC frame. |
 
 Full diagnostic registry: [../technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md).
 

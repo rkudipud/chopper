@@ -20,10 +20,10 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 |---|---|---|
 | Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q3 |
 | Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q2 |
-| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `loc`, `cleanup`, `mcp-serve` exist) |
+| `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `loc`, `cleanup` exist) |
 | Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §8.2 rule 4; `--strict` is exit-code policy only |
 | Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
-| MCP — destructive surface (closed) | `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client code inside Chopper, HTTP/TCP/WebSocket MCP transports, MCP tool exposing `chopper.trim` or `chopper.cleanup`, MCP-driven filesystem mutation | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
+| MCP (all kinds — closed) | `chopper mcp-serve`, `src/chopper/mcp/`, `mcp_server`, the `mcp` runtime dependency, `PE-04 mcp-protocol-error`, exit code `4`, `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client/server code inside Chopper, read-only **or** destructive MCP tools, HTTP/TCP/WebSocket/stdio MCP transports, MCP-driven filesystem mutation | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1; removed in 4.0.0 |
 | AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
 | `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
 | Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §15 |
@@ -33,16 +33,6 @@ Chopper's scope is intentionally narrow. The list below names decisions that are
 If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
 
 #### 1.1 Narrowed from prior closures
-
-**Read-only MCP (narrowed in 0.4.0):** The MCP row above was **narrowed** (not removed). The following MCP surface is **permitted** and is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §3.9:
-
-- `chopper mcp-serve` subcommand.
-- `src/chopper/mcp/` package containing a **stdio-only** JSON-RPC server (no TCP, no HTTP, no WebSocket, no daemon).
-- Read-only tools only: `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`.
-- Hard dependency on the `mcp` Python SDK (declared in `pyproject.toml` `[project].dependencies`).
-- `PE-04 mcp-protocol-error` in the diagnostic registry, emitted **only** from `src/chopper/mcp/`.
-
-Everything else in the MCP row stays closed: no destructive tools over MCP, no progress/diagnostic sinks mounted to MCP, no adapters that bridge Chopper internals to MCP, no networked transports, no MCP client code.
 
 **Validator imports parser for post-trim validation (permitted in 0.4.0+):** The validator module is permitted to import `parse_file` from the parser service (`src/chopper/validator/functions` → `src/chopper/parser/service.parse_file`) for the **sole purpose** of post-trim proc-set reconciliation (VW-10 check). This is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §5.12.9. This is the only permitted cross-phase import in the codebase; all other phase-boundary imports remain forbidden. The rationale: re-parsing is the cleanest and most reliable way to verify that the trimmer correctly preserved exactly the proc set promised in the `CompiledManifest` and `TrimReport`. The parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
@@ -85,12 +75,13 @@ Before committing any change, grep the repo for the forbidden-identifier tokens 
 ```text
 LockPort | preserve-hand-edits | chopper scan | PluginHost | MCPProgressBridge |
 EntryPointPluginHost | MCPDiagnosticSink | advisor/ | XE- | XW- | XI- |
+mcp-serve | mcp_server | src/chopper/mcp | mcp-protocol-error |
 \.chopper/\.lock | \.chopper/hand_edits
 ```
 
 Every hit outside a negative assertion (a sentence like "there is no `LockPort`") is a regression to fix before the commit lands. Docs are allowed to name a forbidden concept **only** in the context of saying it is forbidden.
 
-> `mcp_server` is no longer in the forbidden list because the `src/chopper/mcp/` package is the permitted read-only stdio surface introduced in 0.4.0. See §1.1 above for what remains closed.
+> `mcp_server`, `chopper mcp-serve`, and the `src/chopper/mcp/` package are forbidden again: the read-only stdio MCP surface introduced in 0.4.0 was **removed in 4.0.0**. MCP is a closed decision (see §1, MCP row). The `mcp` runtime dependency and `PE-04`/exit-code 4 are likewise gone.
 
 ### 5. Decision Tree When Adding Anything
 
@@ -199,12 +190,11 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 | `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place; P5c indentation normalization; P5d companion-file sync; P5a-tail JSON input preservation | `service.py`, `file_writer.py`, `proc_dropper.py`, `indentation.py`, `companion_sync.py`, `input_preserver.py` | P5 |
 | `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `functions.py` (validate_pre, validate_post) | P1, P6 |
 | `config/` | JSON schema loading, path resolution, feature `depends_on` topo-sort | `service.py`, `loaders.py`, `schema.py` | P1 |
-| `cli/` | Command-line interface layer (subcommands: `validate`, `trim`, `loc`, `cleanup`, `mcp-serve`) | `main.py`, `commands.py`, `loc_report.py`, `render.py` | User layer |
+| `cli/` | Command-line interface layer (subcommands: `validate`, `trim`, `loc`, `cleanup`) | `main.py`, `commands.py`, `loc_report.py`, `render.py` | User layer |
 | `core/` | Shared frozen dataclasses, errors, diagnostics, protocols, context, serialization, glob helpers, tool-command index, filesystem walker, permission helpers, generated-file header | `models_*.py`, `errors.py`, `diagnostics.py`, `_diagnostic_registry.py`, `protocols.py`, `context.py`, `serialization.py`, `globs.py`, `tool_commands.py`, `fs_walk.py`, `file_perms.py`, `header.py` | All |
 | `audit/` | Write `.chopper/` bundle on every run (success and failure); SLOC accounting (cloc + fallback); internal-error log | `service.py`, `writers.py`, `hashing.py`, `sloc.py`, `cloc_backend.py`, `internal_error.py`, `vendor/cloc.pl` | P7 |
 | `generators/` | F3 run-file (`<stage>.tcl`) and optional stack-file emission | `service.py`, `stage_emitter.py`, `stack_emitter.py` | P5 |
 | `data/` | Bundled static data: vendor tool-command pools (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) | `tool_commands/*.commands` | P4 (pool lookup) |
-| `mcp/` | Read-only stdio JSON-RPC server (3 tools: `chopper.validate`, `chopper.explain_diagnostic`, `chopper.read_audit`) | `server.py`, `tools.py` | `mcp-serve` subcommand |
 | `orchestrator/` | Phase loop, domain-state detection, phase-gate logic | `runner.py`, `domain_state.py`, `gates.py` | All |
 | `adapters/` | Concrete port implementations (filesystem, diagnostic sink, progress) | `fs_local.py`, `fs_memory.py`, `sink_collecting.py`, `progress_rich.py`, `progress_silent.py` | All |
 
@@ -298,7 +288,7 @@ All authoritative documentation lives under [technical_docs/](../../technical_do
 2. **[technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
 3. **[technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
 4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
-5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `loc`, `cleanup`, `mcp-serve`, flags, examples.
+5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `loc`, `cleanup`, flags, examples.
 
 Other key docs:
 

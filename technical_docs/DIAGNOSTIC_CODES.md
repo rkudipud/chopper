@@ -29,10 +29,10 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | `VI` Validation Info | VI-01–VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
-| `PE` Parse Errors | PE-01–PE-10 | 4 | 6 | 10 | Fatal parse failures; file skipped or partial. PE-04 is emitted from `src/chopper/mcp/` only. |
+| `PE` Parse Errors | PE-01–PE-10 | 3 | 6 | 10 | Fatal parse failures; file skipped or partial (1 retired slot: PE-04) |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **82** | **41** | **125** | |
+| **Total** | | **81** | **41** | **125** | |
 
 ---
 
@@ -161,7 +161,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | PE-01 | `duplicate-proc-definition` | parser | 1 | Duplicate proc definition in the same source file; last definition wins for index | Remove one definition or rename the proc to avoid silent shadowing | §1.6.3 |
 | PE-02 | `unbalanced-braces` | parser | 1 | Unbalanced braces in file; proc boundaries cannot be reliably determined | Fix brace matching in the Tcl source file; use an editor brace-matching tool | §1.3 |
 | PE-03 | `ambiguous-short-name` | parser | 1 | A file defines two procs that collapse to the same `short_name` once namespace stripping is applied; F2 cannot disambiguate by short name alone | Rename one proc or reference it by namespace-qualified name in `procedures.include` | §1.4.3 |
-| PE-04 | `mcp-protocol-error` | mcp | **4** | MCP stdio server received a malformed JSON-RPC frame, an unknown tool name, or a tool-call parameter shape that does not match the tool's declared schema. Emitted only from `src/chopper/mcp/`. | Check the MCP client's request against the tool schemas advertised by `tools/list`; see `technical_docs/ARCHITECTURE.md` §3.9 | — |
+| PE-04 | `RETIRED` | — | — | **RETIRED in 4.0.0** — was `mcp-protocol-error` (exit 4), emitted only from the `src/chopper/mcp/` package. The read-only stdio MCP server was removed in 4.0.0; the slot is preserved per registry policy and never reused. | — | — |
 | — | — | — | — | **PE-05 through PE-10 reserved** | — | — |
 
 ---

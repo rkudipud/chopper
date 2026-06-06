@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "3.5.1"
+version = "4.0.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.13. ruff's `target-version` and
 # mypy's `python_version` below are both pinned to 3.13 so the lint /
@@ -14,7 +14,6 @@ authors = [
 
 dependencies = [
     "jsonschema>=4.0,<5",
-    "mcp>=1.0,<2",
 ]
 
 [project.optional-dependencies]

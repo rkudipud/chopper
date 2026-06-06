@@ -15,7 +15,7 @@ from collections.abc import Sequence
 
 from chopper import __version__
 from chopper.audit.internal_error import write_internal_error_log
-from chopper.cli.commands import cmd_cleanup, cmd_loc, cmd_mcp_serve, cmd_trim, cmd_validate
+from chopper.cli.commands import cmd_cleanup, cmd_loc, cmd_trim, cmd_validate
 
 __all__ = ["build_parser", "main"]
 
@@ -89,13 +89,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Required confirmation flag (cleanup refuses to run without it)",
     )
     p_cleanup.set_defaults(func=cmd_cleanup)
-
-    # --- mcp-serve ---------------------------------------------------------
-    p_mcp = subparsers.add_parser(
-        "mcp-serve",
-        help="Start a stdio-only Model Context Protocol server (read-only tools)",
-    )
-    p_mcp.set_defaults(func=cmd_mcp_serve)
 
     return parser
 

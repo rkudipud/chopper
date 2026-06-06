@@ -62,8 +62,8 @@ class AuditManifest:
     def __post_init__(self) -> None:
         if not self.run_id:
             raise ValueError("AuditManifest.run_id must be non-empty")
-        if self.exit_code not in (0, 1, 2, 3, 4):
-            raise ValueError(f"AuditManifest.exit_code must be 0/1/2/3/4, got {self.exit_code}")
+        if self.exit_code not in (0, 1, 2, 3):
+            raise ValueError(f"AuditManifest.exit_code must be 0/1/2/3, got {self.exit_code}")
         if self.ended_at < self.started_at:
             raise ValueError("AuditManifest.ended_at must be >= started_at")
         names = [a.name for a in self.artifacts]
@@ -98,8 +98,8 @@ class RunRecord:
     def __post_init__(self) -> None:
         if not self.run_id:
             raise ValueError("RunRecord.run_id must be non-empty")
-        if self.exit_code not in (0, 1, 2, 3, 4):
-            raise ValueError(f"RunRecord.exit_code must be 0/1/2/3/4, got {self.exit_code}")
+        if self.exit_code not in (0, 1, 2, 3):
+            raise ValueError(f"RunRecord.exit_code must be 0/1/2/3, got {self.exit_code}")
         if self.ended_at < self.started_at:
             raise ValueError("RunRecord.ended_at must be >= started_at")
 
@@ -120,5 +120,5 @@ class RunResult:
     internal_error: InternalError | None = None
 
     def __post_init__(self) -> None:
-        if self.exit_code not in (0, 1, 2, 3, 4):
-            raise ValueError(f"RunResult.exit_code must be 0/1/2/3/4, got {self.exit_code}")
+        if self.exit_code not in (0, 1, 2, 3):
+            raise ValueError(f"RunResult.exit_code must be 0/1/2/3, got {self.exit_code}")
