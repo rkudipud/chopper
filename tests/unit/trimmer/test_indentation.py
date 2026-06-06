@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from chopper.adapters import InMemoryFS
+from chopper.adapters.fs_local import LocalFS
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance
 from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, TrimReport
@@ -149,6 +150,26 @@ def test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl() -> None
     assert outcomes["trim.tcl"].bytes_out == len(fs.read_text(DOMAIN / "trim.tcl").encode("utf-8"))
     assert outcomes["note.txt"].bytes_out == len(note_text.encode("utf-8"))
     assert updated_artifacts[0].content == fs.read_text(DOMAIN / "stage.tcl")
+
+
+def test_service_formats_read_only_proc_trim_file_and_restores_mode(tmp_path: Path) -> None:
+    domain = tmp_path / "domain"
+    target = domain / "trim.tcl"
+    target.parent.mkdir()
+    target.write_text("proc kept {} {\nputs kept\n}\n", encoding="utf-8")
+    target.chmod(0o555)
+
+    ctx, sink = make_ctx(fs=LocalFS(), domain_root=domain, backup_root=tmp_path / "domain_backup")
+    manifest = _manifest({"trim.tcl": FileTreatment.PROC_TRIM})
+    report = _report(_outcome("trim.tcl", FileTreatment.PROC_TRIM, bytes_out=target.stat().st_size))
+
+    updated_report, _, rewritten = TclIndentationService().run(ctx, manifest, report, ())
+
+    assert sink.codes() == []
+    assert rewritten == (target,)
+    assert target.read_text(encoding="utf-8") == "proc kept {} {\n    puts kept\n}\n"
+    assert target.stat().st_mode & 0o777 == 0o555
+    assert updated_report.outcomes[0].bytes_out == target.stat().st_size
 
 
 # -- Fixture-based tests (real-world patterns) --

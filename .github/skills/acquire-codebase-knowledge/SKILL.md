@@ -19,7 +19,7 @@ argument-hint: 'Optional: specific area to focus on, e.g. "architecture only", "
 
 Produces seven populated documents in `technical_docs/codebase/` covering everything needed to work effectively on the project. Only document what is verifiable from files or terminal output — never infer or assume.
 
-Use GitNexus MCP resources (`gitnexus://repos`, `gitnexus://repo/{name}/context`, clusters, processes) when the current client exposes them. If GitNexus MCP is unavailable, read the relevant `.github/agent_memory/*.md` file and continue with the bundled scan script plus local search/read tools.
+Read the relevant `.github/agent_memory/*.md` file and continue with the bundled scan script plus local search/read tools. Use only verifiable local repository evidence.
 
 ## Output Contract (Required)
 

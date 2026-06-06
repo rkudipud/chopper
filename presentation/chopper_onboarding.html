@@ -1538,7 +1538,7 @@ R serial</div>
     .toolItem.cmd .tIcon   { color: var(--accent-3); }
     .toolItem.trace .tIcon { color: var(--accent-2); }
     .toolItem.diag .tIcon  { color: var(--bad); }
-    .toolItem.mcp .tIcon   { color: var(--good); }
+    .toolItem.loc .tIcon   { color: var(--good); }
   </style>
 
   <div class="bento">
@@ -1618,7 +1618,7 @@ R serial</div>
 
     <div class="tile toolset">
       <div class="tLab">Toolset</div>
-      <h3 class="tTitle">Three commands.<br/>One audit bundle.</h3>
+      <h3 class="tTitle">Four commands.<br/>One audit bundle.</h3>
       <div class="toolsGrid">
         <div class="toolItem cmd">
           <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -1636,9 +1636,9 @@ R serial</div>
           <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="8" y1="18" x2="16" y2="18"/><line x1="18" y1="8" x2="18" y2="16"/></svg></div>
           <div><div class="tName">BFS trace</div><div class="tSub">Reporting-only graph</div></div>
         </div>
-        <div class="toolItem mcp">
-          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
-          <div><div class="tName">mcp-serve</div><div class="tSub">Read-only stdio</div></div>
+        <div class="toolItem loc">
+          <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l3-3 3 2 5-7"/></svg></div>
+          <div><div class="tName">loc</div><div class="tSub">Read-only LOC delta</div></div>
         </div>
         <div class="toolItem diag">
           <div class="tIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
@@ -1896,7 +1896,7 @@ R serial</div>
 
   <div class="cards c2">
     <div>
-      <h3>Five subcommands</h3>
+      <h3>Four subcommands</h3>
 <pre class="code mono" style="font-size:13px;line-height:1.5"><span class="c"># validate — read-only; never touches disk</span>
 <span class="p">$</span> chopper validate --project project.json
 
@@ -1907,10 +1907,7 @@ R serial</div>
 <span class="p">$</span> chopper loc --project project.json
 
 <span class="c"># cleanup — remove &lt;domain&gt;_backup/ when happy</span>
-<span class="p">$</span> chopper cleanup --confirm
-
-<span class="c"># mcp-serve — read-only MCP stdio server (0.4.0+)</span>
-<span class="p">$</span> chopper mcp-serve</pre>
+<span class="p">$</span> chopper cleanup --confirm</pre>
 
       <h3>Useful flags</h3>
       <table class="tbl" style="margin-top:4px;font-size:13px">
@@ -1941,11 +1938,6 @@ R serial</div>
         <li>Cleanup is explicit; <code>--confirm</code> required</li>
       </ul>
 
-      <div class="callout good" style="margin-top:8px">
-        <strong>MCP read-only surface (0.4.0).</strong> <code>mcp-serve</code> is stdio-only and exposes exactly three tools:
-        <code>chopper.validate</code>, <code>chopper.explain_diagnostic</code>, <code>chopper.read_audit</code>.
-        Destructive tools (<code>trim</code>, <code>cleanup</code>) are never exposed over MCP — protocol errors emit <code>PE-04</code>.
-      </div>
     </div>
   </div>
 
@@ -2089,13 +2081,6 @@ treatment.GENERATED.files: 0</pre>
       <strong style="color:var(--good);font-size:16px">report-chopper-bug + package-bug-artifacts</strong>
       <p style="font-size:14px;margin:4px 0 0;line-height:1.4">Draft a complete report and package logs/artifacts for upload.</p>
     </div>
-  </div>
-
-  <div class="callout" style="margin-top:10px;padding:10px 14px;font-size:15px;line-height:1.45">
-    <strong>Plus &mdash; MCP read-only surface.</strong>
-    <code>chopper mcp-serve</code> exposes three stdio tools:
-    <strong>chopper.validate</strong>, <strong>chopper.explain_diagnostic</strong>, <strong>chopper.read_audit</strong>.
-    Destructive tools (<code>trim</code>, <code>cleanup</code>) are CLI-only.
   </div>
 
   <div class="foot"><span>chopper &middot; companion agent</span><span>16 / 17</span></div>

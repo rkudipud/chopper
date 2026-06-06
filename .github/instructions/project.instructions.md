@@ -526,15 +526,13 @@ Agents in this repository use workspace-local memory files under `.github/agent_
 - Update it after milestones, validations, and important decisions.
 - Do not rely on external memory systems or proprietary memory tooling.
 
-### GitNexus MCP and Memory Fallback
+### Local Search and Memory Fallback
 
-GitNexus is configured for this workspace, but agents must treat it as conditionally available:
+Agents in this workspace must use local repository tools for code intelligence:
 
-- Use GitNexus MCP graph tools/resources (`gitnexus://...`, `query`, `context`, `impact`, `detect_changes`, `rename`, or client-namespaced equivalents) when the current editor session exposes them.
-- If GitNexus MCP is unavailable, read the relevant `.github/agent_memory/*.md` file first, then use local `search/*`, `read/*`, `search/usages`, and `search/changes` tools.
-- CLI availability is not MCP availability. A successful `npx gitnexus status` permits status/index/wiki commands only; it does not mean the active agent can call MCP tools.
-- Official MCP command: `npx -y gitnexus@latest mcp`; the workspace config lives at `.vscode/mcp.json`.
-- When refreshing this repo's index, prefer `npx gitnexus analyze --skip-agents-md` so GitNexus does not overwrite curated `AGENTS.md` / `CLAUDE.md` guidance.
+- Read the relevant `.github/agent_memory/*.md` file first when prior project context is needed.
+- Use local `search/*`, `read/*`, `search/usages`, and `search/changes` tools to explore code, map references, verify impact, and review changed scope.
+- Do not rely on external repository-index services for Chopper-specific code intelligence.
 
 ### No Addendums
 

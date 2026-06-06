@@ -6,8 +6,6 @@ __pycache__/
 # C extensions
 *.so
 
-.vscode/mcp.json
-
 # Distribution / packaging
 .Python
 build/
@@ -212,7 +210,6 @@ __marimo__/
 # MemPalace per-project files (issue #185)
 mempalace.yaml
 entities.json
-.gitnexus
 
 # Node.js
 node_modules/
@@ -229,6 +226,4 @@ pnpm-lock.yaml
 *.tgz
 test_out.txt
 test_run.txt
-mcp_out.txt
 dom/
-.vscode/mcp.json

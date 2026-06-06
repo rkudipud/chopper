@@ -1,7 +1,7 @@
 ---
 description: 'Code implementation agent for Chopper stages. Enforces spec compliance, quality gates, and test-first development. Works under Chopper Buildout Agent orchestration.'
 name: 'Chopper Stage Builder'
-tools: [vscode/getProjectSetupInfo, vscode/memory, vscode/runCommand, vscode/askQuestions, execute/testFailure, execute/executionSubagent, execute/getTerminalOutput, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, pylance-mcp-server/pylanceDocString, pylance-mcp-server/pylanceFileSyntaxErrors, pylance-mcp-server/pylanceImports, pylance-mcp-server/pylanceSyntaxErrors, todo]
+tools: [vscode/getProjectSetupInfo, vscode/memory, vscode/runCommand, vscode/askQuestions, execute/testFailure, execute/executionSubagent, execute/getTerminalOutput, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, todo]
 ---
 
 # Chopper Stage Builder Agent
@@ -25,19 +25,16 @@ Before writing ANY code for a stage, execute this checklist:
 3. Update it after milestones, validations, and blockers.
 
 **Code intelligence:**
-If the current client exposes GitNexus MCP tools or `gitnexus://...` resources, start with `gitnexus://repos` and `gitnexus://repo/chopper/context`; use GitNexus `impact`/`context`/`detect_changes` for graph-backed safety checks. If MCP is unavailable, read `.github/agent_memory/chopper-stage-builder.md` and use `search/usages` + `search/textSearch` to map references before editing, `search/codebase` + `read/readFile` for architecture exploration, and `search/changes` to verify scope before finishing.
-
-**Optional GitNexus CLI:**
-If `npx gitnexus status 2>&1` succeeds, CLI indexing/status commands may be used. Official MCP command: `npx -y gitnexus@latest mcp`; workspace config lives in `.vscode/mcp.json`. If the index is stale, run `npx gitnexus analyze --skip-agents-md`. CLI availability is not MCP availability: do not rely on `gitnexus://...` resources or GitNexus MCP tools unless the current session explicitly exposes them.
+Read `.github/agent_memory/chopper-stage-builder.md` and use `search/usages` + `search/textSearch` to map references before editing, `search/codebase` + `read/readFile` for architecture exploration, and `search/changes` to verify scope before finishing.
 
 **Task → skill mapping:**
 
 | Task | Default path |
 |------|--------------|
-| Explore existing implementation | GitNexus `query`/`context` if MCP is exposed; otherwise memory + `search/codebase` + `read/readFile` |
-| Blast radius before edit | GitNexus `impact` if MCP is exposed; otherwise memory + `search/usages` + `search/textSearch` |
-| Debug failing test / trace error | GitNexus `query`/process trace if MCP is exposed; otherwise memory + `search/textSearch` + `read/readFile` |
-| Rename / extract / refactor | GitNexus `rename` dry run if exposed; otherwise memory + `search/usages` + targeted patches |
+| Explore existing implementation | memory + `search/codebase` + `read/readFile` |
+| Blast radius before edit | memory + `search/usages` + `search/textSearch` |
+| Debug failing test / trace error | memory + `search/textSearch` + `read/readFile` |
+| Rename / extract / refactor | memory + `search/usages` + targeted patches |
 
 ### System Check (Before Any Command)
 

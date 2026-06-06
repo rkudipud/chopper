@@ -1,4 +1,4 @@
-.PHONY: lint format format-check type-check imports-check docs-gate test test-unit test-integration test-golden test-property test-all check ci install-dev install-all clean bundle clean-bundle release-cth clean-cth install-cth
+.PHONY: lint format format-check type-check imports-check docs-gate test test-unit test-integration test-golden test-property test-all check ci install-dev install-all clean bundle clean-bundle release-cth clean-cth install-cth test-cth-ward
 
 # Determinism: pin the hash seed so dict/set iteration order is stable across
 # runs. Any test that depends on hash ordering leaking into output is a
@@ -236,6 +236,7 @@ release-cth: clean-cth
 	@echo "  Remember to merge $(CTH_DIR)/requirements.chopper.txt into the py-flow requirements.txt"
 
 # Install the staged ward subtree into a real ward checkout. Requires WARD=.
+# Removes any previous Chopper installation before copying the fresh build.
 install-cth:
 	@test -n "$(WARD)" \
 	    || (echo "ERROR: set WARD=/path/to/ward, e.g. make install-cth WARD=\$$ward"; exit 1)
@@ -243,7 +244,42 @@ install-cth:
 	    || (echo "ERROR: $(CTH_DIR)/global not found — run 'make release-cth' first."; exit 1)
 	@test -d "$(WARD)/global/eouFW/bin" \
 	    || (echo "ERROR: $(WARD)/global/eouFW/bin not found — is WARD a valid ward?"; exit 1)
+	@echo "Removing previous Chopper installation from ward (if any)..."
+	rm -rf  $(WARD)/global/common/chopper
+	rm -f   $(WARD)/global/eouFW/bin/chopper
 	@echo "Installing chopper into ward: $(WARD)"
 	rsync -a $(CTH_DIR)/global/ $(WARD)/global/
 	@echo "Done. On a flow host:  rehash ; chopper --version"
 	@echo "Then merge requirements.chopper.txt into the py-flow requirements.txt and submit to eou_sandbox_pydev."
+
+# Run the full pytest suite from the CTH ward against the installed Chopper source.
+# Tests in tests/unit/scripts/ are excluded because schemas/scripts is a dev-only
+# helper set that is intentionally not shipped in the CTH bundle.
+# Requires WARD= (same path used for install-cth) and a dev venv at .venv/.
+#
+#   make test-cth-ward WARD=/path/to/ward
+#
+CTH_WARD_PYTHON ?= $(CURDIR)/.venv/bin/python
+
+test-cth-ward:
+	@test -n "$(WARD)" \
+	    || (echo "ERROR: set WARD=/path/to/ward, e.g. make test-cth-ward WARD=\$$ward"; exit 1)
+	@test -d "$(WARD)/global/common/chopper/src" \
+	    || (echo "ERROR: Chopper not installed in $(WARD). Run make release-cth then make install-cth WARD=$(WARD) first."; exit 1)
+	@test -f "$(CTH_WARD_PYTHON)" \
+	    || (echo "ERROR: $(CTH_WARD_PYTHON) not found. Run 'source setup.csh' to create .venv, or set CTH_WARD_PYTHON=/path/to/python."; exit 1)
+	@echo "[1/3] Copying test suite into ward Chopper package (temporary)..."
+	rsync -a tests/ $(WARD)/global/common/chopper/tests/
+	@echo "[2/3] Running pytest against ward-installed Chopper source..."
+	@( cd $(WARD)/global/common/chopper && \
+	   $(CTH_WARD_PYTHON) -m pytest tests \
+	       -q \
+	       --ignore=tests/unit/scripts \
+	       --cov=src/chopper \
+	       --cov-report=term-missing \
+	       --cov-fail-under=99 \
+	); STATUS=$$?; \
+	rm -rf $(WARD)/global/common/chopper/tests; \
+	find $(WARD)/global/common/chopper -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true; \
+	echo "[3/3] Cleaned up test artifacts from ward."; \
+	exit $$STATUS

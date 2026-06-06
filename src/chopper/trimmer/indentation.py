@@ -14,6 +14,7 @@ file (see issue #22 / `technical_docs/IMPLEMENTATION.md` Pitfall P-44
 from __future__ import annotations
 
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -83,7 +84,7 @@ class TclIndentationService:
                 text = ctx.fs.read_text(target)
                 formatted = format_tcl_indentation(text, tab_space=self.tab_space)
                 if formatted != text:
-                    ctx.fs.write_text(target, formatted)
+                    _write_text_preserving_mode(ctx, target, formatted)
             except (OSError, UnicodeDecodeError) as exc:
                 _emit_ve25(ctx, rel_path, f"Tcl indentation normalization failed: {exc}")
                 return _mark_interrupted(current_report), current_artifacts, tuple(rewritten)
@@ -198,6 +199,20 @@ def format_tcl_indentation(text: str, *, tab_space: int = 4) -> str:
             is_continuation = line.endswith("\\") and not line.endswith("\\\\")
 
     return "\n".join(output) + "\n"
+
+
+def _write_text_preserving_mode(ctx: ChopperContext, target: Path, text: str) -> None:
+    """Write ``text`` even when prior P5 steps already restored read-only mode."""
+
+    mode: int | None = None
+    try:
+        if target.is_file():
+            mode = stat.S_IMODE(target.stat().st_mode)
+            target.chmod(mode | stat.S_IWUSR)
+        ctx.fs.write_text(target, text)
+    finally:
+        if mode is not None:
+            target.chmod(mode)
 
 
 def _tcl_output_paths(manifest: CompiledManifest) -> tuple[Path, ...]:

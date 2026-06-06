@@ -277,6 +277,114 @@ If you are in VS Code, ask the Chopper Agent to `report-chopper-bug`. It now pac
 
 ---
 
+## CTH Ward Deployment
+
+This section covers every step a release engineer needs to build a production-ready Chopper CTH package, install it into a ward, and verify it behaves correctly before submission to `eou_sandbox_pydev`.
+
+### Prerequisites
+
+- Active chopper dev venv (`source setup.csh` in the repo root creates `.venv`).
+- A working CTH ward created with `cth_psetup`. The ward path is referred to as `$ward` below.
+
+### Step 1 — Build the CTH release payload
+
+Run from the **chopper repo root**:
+
+```tcsh
+cd /path/to/chopper
+source setup.csh
+make release-cth
+```
+
+This stages everything under `dist/chopper-cth/global/` and prints `chopper 4.0.0` as a smoke test. Review `dist/chopper-cth/RELEASE_CTH.txt` for a full layout description.
+
+### Step 2 — Install into the ward (clean install)
+
+`install-cth` **removes any previous Chopper installation** from the ward before copying the fresh build, so re-running it is always safe.
+
+```tcsh
+make install-cth WARD=/path/to/your/r2g.xxxx_dev
+```
+
+To avoid typing the full path each time, export the variable first:
+
+```tcsh
+setenv ward /nfs/site/disks/<disk>/global_dev/turn_in/r2g.1278_dev   # tcsh
+make install-cth WARD=$ward
+```
+
+What this installs and removes:
+
+| Action | Path under `$ward` |
+|--------|-------------------|
+| Removes previous source | `global/common/chopper/` (entire tree) |
+| Removes previous launcher | `global/eouFW/bin/chopper` |
+| Installs new source | `global/common/chopper/src/`, `schemas/`, `pyproject.toml` |
+| Installs new launcher | `global/eouFW/bin/chopper` |
+
+### Step 3 — Verify the installed CLI
+
+Enter a CTH shell and confirm the installed binary works:
+
+```tcsh
+# Enter the CTH shell (adjust project / cfg / tech as needed)
+setenv CTH_DISABLE_VSCODE 1
+/p/hdk/bin/cth_psetup -proj pesg/2026.06.plus -cfg 78p6_i0m_opt17.cth \
+    -x '$SETUP_R2G -w r2g.1278_dev -t eou_dev_1278 -tech 1278.6'
+
+# Inside the CTH shell:
+rehash
+which chopper          # should resolve to $ward/global/eouFW/bin/chopper
+chopper --version      # should print: chopper 4.0.0
+```
+
+Optionally run a quick validate against a real domain:
+
+```tcsh
+cd $ward/global/snps/fev_formality
+chopper validate --domain . --base jsons/base.json --features jsons/features
+```
+
+Exit 0 with no errors confirms the installed package is functional.
+
+### Step 4 — Run the pytest suite from the ward
+
+From the **chopper repo root** (not the CTH shell), run:
+
+```tcsh
+make test-cth-ward WARD=$ward
+```
+
+This target:
+1. Copies the test suite into the ward package temporarily.
+2. Runs pytest with `--cov=src/chopper` pointed at the ward-installed source.
+3. Removes the temporary test tree after the run.
+
+Tests in `tests/unit/scripts/` are skipped because `schemas/scripts` is a developer-only set and is not shipped in the CTH bundle. All other tests must pass and coverage must reach the configured threshold.
+
+Expected output on a clean install:
+
+```text
+[1/3] Copying test suite into ward Chopper package (temporary)...
+[2/3] Running pytest against ward-installed Chopper source...
+...
+Required test coverage of 99% reached. Total coverage: 99.XX%
+14XX passed in XX.XXs
+[3/3] Cleaned up test artifacts from ward.
+```
+
+If anything fails, fix the root cause in the repo, rebuild with `make release-cth`, reinstall with `make install-cth WARD=...`, and rerun `make test-cth-ward WARD=...`.
+
+### Step 5 — Production deployment
+
+Once all checks pass:
+
+1. Merge `dist/chopper-cth/requirements.chopper.txt` entries into the py-flow `requirements.txt` for the `eou_sandbox_pydev` venv.
+2. Submit the ward changelist to `eou_sandbox_pydev`.
+3. On a flow host after the submit, run `rehash; chopper --version` as a final sanity check.
+
+---
+
 ## Contributing
 
 Contributor workflow, local quality gates, working rules, and the pull-request checklist live in [CONTRIBUTING.md](CONTRIBUTING.md). The short version: run `make check` before opening a pull request, and read the spec before adding anything new.
@@ -311,7 +419,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 - **Fix: `options.cross_validate` now honored.** The flag in `BaseOptions` was loaded from JSON but never consumed; `_check_stage_steps()` ran VW-14/VW-15/VW-16 unconditionally. Threaded through `validate_post` → `_check_stage_steps` → `_classify_and_emit`. When `cross_validate: false`, VW-14/15/16 are suppressed entirely; VW-17 (external-path advisory) still fires because it does not depend on manifest lookups. See [src/chopper/validator/functions.py](src/chopper/validator/functions.py) and [src/chopper/orchestrator/runner.py](src/chopper/orchestrator/runner.py).
 - **Docs decluttered.** Aggressive trim of the architecture-doc revision history (the canonical release log is git + this changelog). Removed `IMPLEMENTATION.md` Appendix A (out-of-scope items already covered by scope-lock in [.github/instructions/project.instructions.md](.github/instructions/project.instructions.md)). Renamed Appendix B → main-body "Future Considerations" section; dropped ADOPTED FD-14/FD-15 entries; compressed remaining `FD-xx` entries.
-- **System review.** Full code-vs-spec audit confirmed all 5 CLI subcommands, all 83 diagnostic codes, all audit artifacts, MCP read-only surface, generator outputs (aggregate + standalone), all 4 P5 sub-phases, and exit-code policy match the architecture doc. Only gap found was `cross_validate` (fixed above).
+- **System review.** Full code-vs-spec audit confirmed the then-current CLI surface, all 83 diagnostic codes, all audit artifacts, generator outputs (aggregate + standalone), all 4 P5 sub-phases, and exit-code policy match the architecture doc. Only gap found was `cross_validate` (fixed above).
 - Tests: 1506 passed, 100% coverage. Version bumped 3.4.1 → 3.4.2.
 
 ### 3.4.1 — 2026-05-22
@@ -345,7 +453,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 3.0.0 — 2026-05-15
 
-- **Test-coverage hardening — 99.92% across all source files.** Distributed 30+ surgical `test_*_coverage.py` unit tests into their native `tests/unit/<module>/` locations, covering defensive branches, OSError/ValueError handlers, MCP per-call error paths, and edge cases across every pipeline phase (parser, compiler, trimmer, validator, orchestrator, CLI, audit, MCP, adapters, core). Added `[tool.coverage.report].exclude_also` block to `pyproject.toml` so standard `# pragma: no cover` markers properly exclude unreachable defensive guards. Four targeted pragma annotations placed on provably-unreachable branches in `merge_service.py` and `proc_extractor.py`. Final gate: **1368 tests passing, 0 failed; total coverage 99.92%** (5454 lines, 0 missed lines, 6 partial branches — all pragma-annotated). `make ci` fully green across all six quality stages. Version bumped 2.10.0 → 3.0.0.
+- **Test-coverage hardening — 99.92% across all source files.** Distributed 30+ surgical `test_*_coverage.py` unit tests into their native `tests/unit/<module>/` locations, covering defensive branches, OSError/ValueError handlers, protocol error paths, and edge cases across every pipeline phase (parser, compiler, trimmer, validator, orchestrator, CLI, audit, adapters, core). Added `[tool.coverage.report].exclude_also` block to `pyproject.toml` so standard `# pragma: no cover` markers properly exclude unreachable defensive guards. Four targeted pragma annotations placed on provably-unreachable branches in `merge_service.py` and `proc_extractor.py`. Final gate: **1368 tests passing, 0 failed; total coverage 99.92%** (5454 lines, 0 missed lines, 6 partial branches — all pragma-annotated). `make ci` fully green across all six quality stages. Version bumped 2.10.0 → 3.0.0.
 - **R1 ordered-overlay + FlowAction torture suite.** `tests/integration/test_cli_chained_actions.py` (19 scenarios A1–O) and `tests/integration/test_cli_chained_overlay.py` (16 scenarios) added as permanent regression anchors. Scenarios exercise all 7 `FlowAction` kinds × F1 (FE/FI) × F2 (PE/PI) interactions, including ambiguous-anchor `VE-20`, instance-index overflow `VE-10`, F3-vs-FI collision (exit 3), add+remove net-zero, replace-step last-layer-wins, and chained `add_*_after` order-preservation across three features.
 
 ### 2.10.0 — 2026-05-14
@@ -458,7 +566,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 0.9.1 — 2026-05-06
 
 - **Documentation restructure.** Renamed `CLI_HELP_TEXT_REFERENCE.md` → `CLI_REFERENCE.md`, `ARCHITECTURE_PLAN.md` → `ENGINEERING.md`, and `chopper_description.md` → `ARCHITECTURE.md`. Consolidated `TCL_PARSER_SPEC.md`, `RISKS_AND_PITFALLS.md`, `IMPLEMENTATION_DECISION_LOG.md`, and `FUTURE_PLANNED_DEVELOPMENTS.md` into `IMPLEMENTATION.md` (parser §1, pitfalls §2–3, Appendix B `FD-xx`).
-- **Cross-reference + semantic doc-vs-code validation.** Eight-stage sweep cleaned every stale citation across `src/`, `doc/`, `examples/`, `schemas/`, `tests/`, and `.github/`; fixed four behavioral drifts (MCP §3.9 wording, audit-bundle table, module table, fixture-catalog references).
+- **Cross-reference + semantic doc-vs-code validation.** Eight-stage sweep cleaned every stale citation across `src/`, `doc/`, `examples/`, `schemas/`, `tests/`, and `.github/`; fixed four behavioral drifts (scope-lock wording, audit-bundle table, module table, fixture-catalog references).
 - **Agent consolidation.** Deleted four redundant `.github/agents/*.agent.md` files (`devils-advocate`, `principal-software-engineer`, `swe-subagent`, `Thinking-Beast-Mode`) and absorbed their behaviors into the surviving agents as internalized personas. Renamed `chopper-domain-companion.agent.md` → `chopper-agent.agent.md`.
 - **System Check.** Added a System Check section to `.github/instructions/project.instructions.md` and to every active agent so they detect tcsh (Unix primary) / PowerShell (Windows secondary) / cmd.exe / bash-zsh (fallback) before issuing shell commands.
 - **Chopper Agent upgrade.** Rewrote `chopper-agent.agent.md` with a Documentation Index, an explicit conversational style (one focused question + 2–3 active suggestions per turn), and a strengthened bug-reporting flow that funnels users to the GitHub issue template.
@@ -499,7 +607,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 0.8.0 — 2026-05-01
 
 - **Wave B refactor completion (O5/O6).** The core model god-module and parser call-extractor monolith were split into direct, readable modules with no compatibility shims. Frozen dataclasses now live only in phase-owned modules: [src/chopper/core/models_common.py](src/chopper/core/models_common.py), [src/chopper/core/models_parser.py](src/chopper/core/models_parser.py), [src/chopper/core/models_config.py](src/chopper/core/models_config.py), [src/chopper/core/models_compiler.py](src/chopper/core/models_compiler.py), [src/chopper/core/models_trimmer.py](src/chopper/core/models_trimmer.py), and [src/chopper/core/models_audit.py](src/chopper/core/models_audit.py). Code imports from the module that owns the model.
-- **Parser call extraction modularized.** Parser call extraction now uses focused direct modules: [src/chopper/parser/call_extractor_body.py](src/chopper/parser/call_extractor_body.py) owns `extract_body_refs`, [src/chopper/parser/call_extractor_constants.py](src/chopper/parser/call_extractor_constants.py) owns the public suppression sets, and the classification/source/structural helpers live beside them. The high-risk `extract_body_refs` dependency path identified by GitNexus is covered by parser tests after the import rewrite.
+- **Parser call extraction modularized.** Parser call extraction now uses focused direct modules: [src/chopper/parser/call_extractor_body.py](src/chopper/parser/call_extractor_body.py) owns `extract_body_refs`, [src/chopper/parser/call_extractor_constants.py](src/chopper/parser/call_extractor_constants.py) owns the public suppression sets, and the classification/source/structural helpers live beside them. The high-risk `extract_body_refs` dependency path is covered by parser tests after the import rewrite.
 - **Setup scripts refresh proxy, reinstall cleanly, and validate handoff.** [setup.ps1](setup.ps1), [setup.sh](setup.sh), [setup.csh](setup.csh), and [setup.bat](setup.bat) now update proxy settings for the current shell plus pip/Git using `CHOPPER_PROXY` or the default Intel proxy, uninstall any stale `chopper` package from the venv before reinstalling editable dev dependencies, validate both `sys.prefix` and `chopper --help`, and finish by handing control back with the venv active.
 - **Validation.** Focused gates passed after each split: core model tests (186 passed), parser extraction/service tests (143 passed), mypy for affected packages, and all import-linter contracts. Final validation: static/docs/import gates passed, unit coverage stayed well above threshold (91.52% total coverage vs 78% required), and the full functional matrix passed (895 passed, 6 skipped).
 
@@ -553,7 +661,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 0.4.0 — 2026-04-24
 
-- **Historical note: read-only MCP surface introduced, then removed in 4.0.0.** This release originally added a stdio-only read-only MCP surface and a hard `mcp>=1.0,<2` runtime dependency. That surface was removed in 4.0.0: Chopper no longer has an MCP subcommand, MCP source package, MCP dependency, MCP diagnostic, or exit code 4. The 4.0.0 changelog entry above is the current contract.
+- **Historical note.** This release originally added a temporary protocol surface that was fully removed in 4.0.0. The 4.0.0 changelog entry above is the current contract.
 
 ### 0.3.3 — 2026-04-24
 
