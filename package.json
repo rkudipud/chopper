@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "@ladybugdb/core": "^0.16.0",
-    "gitnexus": "^1.6.3",
-    "ladybug": "^0.0.1"
-  }
-}

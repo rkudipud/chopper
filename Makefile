@@ -83,6 +83,7 @@ install-all:
 	pip install -e ".[dev,rich]"
 
 clean:
+	rm -rf build
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
@@ -113,13 +114,17 @@ clean-bundle:
 	rm -rf $(BUNDLE_DIR)
 
 bundle: clean-bundle
-	@echo "[1/6] Staging package source, schemas, technical_docs, pyproject.toml..."
+	@echo "[1/5] Staging package source, schemas, and pyproject.toml..."
 	mkdir -p $(BUNDLE_DIR)/bin
 	cp -r src            $(BUNDLE_DIR)/
 	cp -r schemas        $(BUNDLE_DIR)/
-	cp -r technical_docs $(BUNDLE_DIR)/
 	cp pyproject.toml    $(BUNDLE_DIR)/
-	@echo "[2/6] Installing runtime deps into vendor/ via $(BUNDLE_PYTHON)..."
+	rm -rf $(BUNDLE_DIR)/schemas/scripts
+	find $(BUNDLE_DIR)/src $(BUNDLE_DIR)/schemas -type d \( -name __pycache__ -o -name "*.egg-info" \) -exec rm -rf {} +
+	@echo "[2/5] Writing requirements snippet and installing runtime deps into vendor/ via $(BUNDLE_PYTHON)..."
+	@( echo "# Chopper runtime dependencies"; \
+	   grep -E '^\s*"(jsonschema)' pyproject.toml | sed -E 's/^\s*"([^"]+)".*/\1/'; \
+	) > $(BUNDLE_DIR)/requirements.chopper.txt
 	@$(BUNDLE_PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" \
 	    || (echo "ERROR: $(BUNDLE_PYTHON) is < 3.13. Activate setup.csh venv or set BUNDLE_PYTHON."; exit 1)
 	$(BUNDLE_PYTHON) -m pip install \
@@ -127,38 +132,15 @@ bundle: clean-bundle
 	    --no-compile \
 	    --quiet \
 	    .
+	rm -rf build
 	rm -rf $(BUNDLE_DIR)/vendor/chopper
 	rm -rf $(BUNDLE_DIR)/vendor/chopper-*.dist-info
 	@! ls $(BUNDLE_DIR)/vendor/ 2>/dev/null | grep -iqE '^(pytest|_pytest|hypothesis|mypy|ruff|coverage)' \
 	    || (echo "ERROR: dev/test deps leaked into vendor/"; exit 1)
-	@echo "[3/6] Installing tcsh launcher..."
+	@echo "[3/5] Installing tcsh launcher..."
 	cp scripts/dist/chopper.launcher.csh $(BUNDLE_DIR)/bin/chopper
 	chmod +x $(BUNDLE_DIR)/bin/chopper
-	@echo "[4/6] Staging Copilot agent overlay (agent + prompts + skills + instructions)..."
-	mkdir -p $(BUNDLE_DIR)/copilot/.github/agents
-	mkdir -p $(BUNDLE_DIR)/copilot/.github/prompts
-	mkdir -p $(BUNDLE_DIR)/copilot/.github/instructions
-	mkdir -p $(BUNDLE_DIR)/copilot/.github/skills
-	cp .github/agents/chopper-agent.agent.md $(BUNDLE_DIR)/copilot/.github/agents/
-	cp .github/prompts/bisect-feature-breakage.prompt.md  $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp .github/prompts/bootstrap-domain.prompt.md         $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp .github/prompts/explain-last-run.prompt.md         $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp .github/prompts/package-bug-artifacts.prompt.md    $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp .github/prompts/report-chopper-bug.prompt.md       $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp .github/prompts/validate-my-jsons.prompt.md        $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp .github/prompts/why-was-dropped.prompt.md          $(BUNDLE_DIR)/copilot/.github/prompts/
-	cp scripts/dist/chopper.instructions.md $(BUNDLE_DIR)/copilot/.github/instructions/
-	cp -r .github/skills/acquire-codebase-knowledge $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/context-map                $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-cli               $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-debugging         $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-exploring         $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-guide             $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-impact-analysis   $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-refactoring       $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/fallback-venv              $(BUNDLE_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gh-api-push                $(BUNDLE_DIR)/copilot/.github/skills/
-	@echo "[5/6] Writing bundle manifest..."
+	@echo "[4/5] Writing bundle manifest..."
 	@( echo "Chopper bundle manifest"; \
 	   echo "built: $$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
 	   echo "version: $$(grep -E '^version' pyproject.toml | head -1)"; \
@@ -169,18 +151,14 @@ bundle: clean-bundle
 	   echo "  src/                        -> chopper package source"; \
 	   echo "  vendor/                     -> runtime deps (no test packages)"; \
 	   echo "  schemas/                    -> JSON schemas"; \
-	   echo "  technical_docs/             -> reference docs incl. DIAGNOSTIC_CODES.md"; \
-	   echo "  copilot/.github/agents/     -> Chopper Agent (single user-facing agent)"; \
-	   echo "  copilot/.github/prompts/    -> 7 user-facing prompts"; \
-	   echo "  copilot/.github/instructions/ -> chopper.instructions.md (user-facing)"; \
-	   echo "  copilot/.github/skills/     -> Chopper-relevant skills"; \
+	   echo "  requirements.chopper.txt    -> runtime dependency list"; \
 	) > $(BUNDLE_DIR)/MANIFEST.txt
-	@echo "[6/6] Smoke test: chopper --help"
+	@echo "[5/5] Smoke test: chopper --help"
 	$(BUNDLE_DIR)/bin/chopper --help >/dev/null
+	find $(BUNDLE_DIR) -type d -name __pycache__ -exec rm -rf {} +
 	@echo ""
 	@echo "Bundle ready: $(BUNDLE_DIR)/"
 	@echo "Ship the entire $(BUNDLE_DIR)/ directory; users invoke $(BUNDLE_DIR)/bin/chopper"
-	@echo "Copilot users: copy $(BUNDLE_DIR)/copilot/.github/ contents into their workspace .github/"
 
 # ────────────────────────────────────────────────────────────
 # CTH Ward Release (FB-style: shared py-flow venv, no vendoring)
@@ -213,47 +191,24 @@ clean-cth:
 	rm -rf $(CTH_DIR)
 
 release-cth: clean-cth
-	@echo "[1/6] Staging chopper package into global/common/chopper/..."
+	@echo "[1/5] Staging chopper package into global/common/chopper/..."
 	mkdir -p $(FLOW_DIR)
 	mkdir -p $(BIN_DIR)
 	cp -r src            $(FLOW_DIR)/
 	cp -r schemas        $(FLOW_DIR)/
-	cp -r technical_docs $(FLOW_DIR)/
 	cp pyproject.toml    $(FLOW_DIR)/
-	@echo "[2/6] Emitting requirements snippet for the py-flow venv..."
+	rm -rf $(FLOW_DIR)/schemas/scripts
+	find $(FLOW_DIR)/src $(FLOW_DIR)/schemas -type d \( -name __pycache__ -o -name "*.egg-info" \) -exec rm -rf {} +
+	@echo "[2/5] Emitting requirements snippet for the py-flow venv..."
 	@( echo "# Chopper runtime dependencies — merge into the py-flow requirements.txt"; \
 	   echo "# (chopper itself is NOT pip-installed; it runs from"; \
 	   echo "#  global/common/chopper/src via PYTHONPATH set by the launcher)"; \
 	   grep -E '^\s*"(jsonschema)' pyproject.toml | sed -E 's/^\s*"([^"]+)".*/\1/'; \
 	) > $(CTH_DIR)/requirements.chopper.txt
-	@echo "[3/6] Installing tcsh launcher into global/eouFW/bin/chopper..."
+	@echo "[3/5] Installing tcsh launcher..."
 	cp scripts/dist/chopper.cth.csh $(BIN_DIR)/chopper
 	chmod +x $(BIN_DIR)/chopper
-	@echo "[4/6] Staging Copilot agent overlay (agent + prompts + skills + instructions)..."
-	mkdir -p $(CTH_DIR)/copilot/.github/agents
-	mkdir -p $(CTH_DIR)/copilot/.github/prompts
-	mkdir -p $(CTH_DIR)/copilot/.github/instructions
-	mkdir -p $(CTH_DIR)/copilot/.github/skills
-	cp .github/agents/chopper-agent.agent.md $(CTH_DIR)/copilot/.github/agents/
-	cp .github/prompts/bisect-feature-breakage.prompt.md  $(CTH_DIR)/copilot/.github/prompts/
-	cp .github/prompts/bootstrap-domain.prompt.md         $(CTH_DIR)/copilot/.github/prompts/
-	cp .github/prompts/explain-last-run.prompt.md         $(CTH_DIR)/copilot/.github/prompts/
-	cp .github/prompts/package-bug-artifacts.prompt.md    $(CTH_DIR)/copilot/.github/prompts/
-	cp .github/prompts/report-chopper-bug.prompt.md       $(CTH_DIR)/copilot/.github/prompts/
-	cp .github/prompts/validate-my-jsons.prompt.md        $(CTH_DIR)/copilot/.github/prompts/
-	cp .github/prompts/why-was-dropped.prompt.md          $(CTH_DIR)/copilot/.github/prompts/
-	cp scripts/dist/chopper.instructions.md $(CTH_DIR)/copilot/.github/instructions/
-	cp -r .github/skills/acquire-codebase-knowledge $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/context-map                $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-cli               $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-debugging         $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-exploring         $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-guide             $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-impact-analysis   $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gitnexus-refactoring       $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/fallback-venv              $(CTH_DIR)/copilot/.github/skills/
-	cp -r .github/skills/gh-api-push                $(CTH_DIR)/copilot/.github/skills/
-	@echo "[5/6] Writing release manifest + submit notes..."
+	@echo "[4/5] Writing release manifest + submit notes..."
 	@( echo "Chopper CTH release"; \
 	   echo "built:   $$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
 	   echo "version: $$(grep -E '^version' pyproject.toml | head -1)"; \
@@ -261,14 +216,8 @@ release-cth: clean-cth
 	   echo "Ward subtree staged under $(CTH_DIR)/global/ :"; \
 	   echo "  global/common/chopper/src/            -> chopper package source"; \
 	   echo "  global/common/chopper/schemas/        -> JSON schemas"; \
-	   echo "  global/common/chopper/technical_docs/ -> reference docs"; \
+	   echo "  global/common/chopper/pyproject.toml  -> package metadata"; \
 	   echo "  global/eouFW/bin/chopper              -> tcsh launcher (on \$$PATH)"; \
-	   echo ""; \
-	   echo "Copilot overlay (copy into workspace .github/):"; \
-	   echo "  copilot/.github/agents/       -> Chopper Agent (single user-facing agent)"; \
-	   echo "  copilot/.github/prompts/      -> 7 user-facing prompts"; \
-	   echo "  copilot/.github/instructions/ -> chopper.instructions.md (user-facing)"; \
-	   echo "  copilot/.github/skills/       -> 10 Chopper-relevant skills"; \
 	   echo ""; \
 	   echo "Release steps:"; \
 	   echo "  1. make install-cth WARD=\$$ward    (rsync global/ into your ward)"; \
@@ -278,13 +227,13 @@ release-cth: clean-cth
 	   echo "  3. Submit the changelist to eou_sandbox_pydev."; \
 	   echo "  4. Verify on a flow host:  rehash ; chopper --version"; \
 	) > $(CTH_DIR)/RELEASE_CTH.txt
-	@echo "[6/6] Smoke test: chopper --version (via staged layout)"
+	@echo "[5/5] Smoke test: chopper --version (via staged layout)"
 	CHOPPER_PYTHON=$(CTH_SMOKE_PYTHON) $(BIN_DIR)/chopper --version
+	find $(CTH_DIR) -type d -name __pycache__ -exec rm -rf {} +
 	@echo ""
 	@echo "CTH release staged: $(CTH_DIR)/"
 	@echo "  Review $(CTH_DIR)/RELEASE_CTH.txt, then:  make install-cth WARD=<your-ward>"
 	@echo "  Remember to merge $(CTH_DIR)/requirements.chopper.txt into the py-flow requirements.txt"
-	@echo "  Copilot users: copy $(CTH_DIR)/copilot/.github/ contents into their workspace .github/"
 
 # Install the staged ward subtree into a real ward checkout. Requires WARD=.
 install-cth:

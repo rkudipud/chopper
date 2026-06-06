@@ -1,14 +1,5 @@
 {
   "servers": {
-    "gitnexus": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "gitnexus@latest",
-        "mcp"
-      ]
-    },
     "mcp-atlassian": {
       "type": "stdio",
       "command": ".venv/bin/python3",
