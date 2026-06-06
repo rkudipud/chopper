@@ -385,6 +385,44 @@ Once all checks pass:
 
 ---
 
+### Running Chopper from the CTH ward
+
+Within the CTH shell / ward, follow these commands:
+
+```tcsh
+# Refresh PATH so the installed binary is visible
+rehash
+
+# Confirm which chopper is active
+which chopper
+
+# Check the version
+chopper --version
+
+# Validate a domain (read-only, no disk changes)
+chopper validate --domain /path/to/domain --base jsons/base.json --features jsons/features
+
+# Report lines-of-code reduction before trimming
+chopper loc --domain /path/to/domain --base jsons/base.json --features jsons/features
+
+# Dry-run trim — simulate the full trim without writing anything
+chopper trim --dry-run --domain /path/to/domain --base jsons/base.json \
+    --features jsons/features/feature_a.feature.json,jsons/features/feature_b.feature.json
+
+# Live trim — rebuilds the domain on disk; creates <domain>_backup/ automatically
+chopper trim --domain /path/to/domain --base jsons/base.json \
+    --features jsons/features/feature_a.feature.json,jsons/features/feature_b.feature.json
+
+# Remove the backup after confirming the trim result
+chopper cleanup --domain /path/to/domain --confirm
+```
+
+> **Tip:** `validate` and `loc` accept a directory for `--features` (e.g. `jsons/features`).
+> `trim` requires a comma-separated list of feature JSON paths or a `--project` file.
+> Run from the domain directory to omit `--domain`.
+
+---
+
 ## Contributing
 
 Contributor workflow, local quality gates, working rules, and the pull-request checklist live in [CONTRIBUTING.md](CONTRIBUTING.md). The short version: run `make check` before opening a pull request, and read the spec before adding anything new.
