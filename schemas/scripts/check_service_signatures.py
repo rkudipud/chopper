@@ -1,17 +1,17 @@
 """Fail CI if any ``class *Service`` under ``src/chopper/`` has a ``run``
 signature that disagrees with the canonical table in
-``technical_docs/ENGINEERING.md`` §9.2.
+``technical_docs/ENGINEERING.md`` Sec.9.2.
 
-This is the doc↔code single-source-of-truth gate described in
+This is the doc<->code single-source-of-truth gate described in
 ``technical_docs/FINAL_HANDOFF_REVIEW.md`` PR-4. Agents that silently change a service
 signature (param order, types, return type) fail this check.
 
 Extraction approach:
 
-* Source side — parse every ``class *Service`` in ``src/chopper/`` with
+* Source side -- parse every ``class *Service`` in ``src/chopper/`` with
   ``ast`` and capture the ``run`` method's signature as a canonical string:
   ``run(self, ctx, ...) -> ReturnType``.
-* Docs side — scan ``technical_docs/ENGINEERING.md`` for the §9.2 service table
+* Docs side -- scan ``technical_docs/ENGINEERING.md`` for the Sec.9.2 service table
   and extract each row's signature string, normalised the same way.
 
 Both sides are normalised to the same shape before comparison, so comment
@@ -29,11 +29,11 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 ARCH_PLAN = ROOT / "technical_docs" / "ENGINEERING.md"
 SOURCE_ROOT = ROOT / "src" / "chopper"
 
-# Matches a row in the §9.2 service table. The current shape is:
-#   | `ServiceName.run` | `(ctx, ...) -> ReturnType` — optional prose |
+# Matches a row in the Sec.9.2 service table. The current shape is:
+#   | `ServiceName.run` | `(ctx, ...) -> ReturnType` -- optional prose |
 # where the first backtick cell holds the dotted method name and the second
 # holds the signature proper. Plain free functions use the same shape, e.g.
-#   | `validate_pre` | `(ctx, loaded) -> None` — ... |
+#   | `validate_pre` | `(ctx, loaded) -> None` -- ... |
 # so the regex accepts either a bare identifier or ``Identifier.run``.
 TABLE_ROW_RE = re.compile(r"^\|\s*`(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:\.run)?`\s*\|\s*`(?P<sig>[^`]+)`")
 
@@ -101,8 +101,8 @@ def main() -> int:
     source = load_source_signatures()
     if not documented:
         print(
-            "ERROR: no Service rows found in technical_docs/ENGINEERING.md §9.2. "
-            "The table layout likely changed — update scripts/check_service_signatures.py.",
+            "ERROR: no Service rows found in technical_docs/ENGINEERING.md Sec.9.2. "
+            "The table layout likely changed -- update scripts/check_service_signatures.py.",
             file=sys.stderr,
         )
         return 2
@@ -117,7 +117,7 @@ def main() -> int:
             mismatches.append((name, documented[name], src_sig))
 
     if not mismatches:
-        print(f"OK: {len(source)} service signatures match technical_docs/ENGINEERING.md §9.2")
+        print(f"OK: {len(source)} service signatures match technical_docs/ENGINEERING.md Sec.9.2")
         return 0
 
     print("ERROR: service signature drift between source and docs:", file=sys.stderr)
@@ -126,7 +126,7 @@ def main() -> int:
         print(f"    docs:   {doc_sig}", file=sys.stderr)
         print(f"    source: {src_sig}", file=sys.stderr)
     print(
-        "\nUpdate technical_docs/ENGINEERING.md §9.2 first, then reconcile the source. "
+        "\nUpdate technical_docs/ENGINEERING.md Sec.9.2 first, then reconcile the source. "
         "The architecture-doc-first cascade applies to this table too.",
         file=sys.stderr,
     )

@@ -3,8 +3,8 @@
 This directory contains a vendored copy of [cloc](https://github.com/AlDanial/cloc)
 by Al Danial.
 
-* `cloc.pl` — the cloc script (v2.09 at vendor time).
-* `LICENSE` — GNU General Public License v2.0.
+* `cloc.pl` -- the cloc script (v2.09 at vendor time).
+* `LICENSE` -- GNU General Public License v2.0.
 
 ## License notice
 
@@ -15,7 +15,7 @@ Vendoring `cloc.pl` into this tree means:
 
 * Anyone redistributing chopper together with this `vendor/` directory
   must comply with GPL-2 for the cloc portion.
-* Chopper's own code is **not** relicensed by this inclusion — only
+* Chopper's own code is **not** relicensed by this inclusion -- only
   the contents of this `vendor/` subdirectory are GPL-2.
 * `chopper.audit.cloc_backend` invokes `cloc.pl` as a subprocess (no
   source-level linking), which the FSF has historically considered a

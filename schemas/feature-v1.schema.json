@@ -185,7 +185,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present in the compiled stage sequence, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present in the compiled stage sequence, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
@@ -262,7 +262,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the anchor `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the anchor `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
@@ -289,7 +289,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
@@ -310,7 +310,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
@@ -336,7 +336,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. A missing `reference` predecessor still fails with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. A missing `reference` predecessor still fails with VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
@@ -368,7 +368,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
@@ -393,7 +393,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
+          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 'Optional Stage Targets'."
         }
       }
     },
