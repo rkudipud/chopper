@@ -248,7 +248,7 @@ install-cth:
 	rm -rf  $(WARD)/global/common/chopper
 	rm -f   $(WARD)/global/eouFW/bin/chopper
 	@echo "Installing chopper into ward: $(WARD)"
-	rsync -a $(CTH_DIR)/global/ $(WARD)/global/
+	rsync -a --exclude='__pycache__' --exclude='*.egg-info' $(CTH_DIR)/global/ $(WARD)/global/
 	@echo "Done. On a flow host:  rehash ; chopper --version"
 	@echo "Then merge requirements.chopper.txt into the py-flow requirements.txt and submit to eou_sandbox_pydev."
 
@@ -269,7 +269,7 @@ test-cth-ward:
 	@test -f "$(CTH_WARD_PYTHON)" \
 	    || (echo "ERROR: $(CTH_WARD_PYTHON) not found. Run 'source setup.csh' to create .venv, or set CTH_WARD_PYTHON=/path/to/python."; exit 1)
 	@echo "[1/3] Copying test suite into ward Chopper package (temporary)..."
-	rsync -a tests/ $(WARD)/global/common/chopper/tests/
+	rsync -a --exclude='__pycache__' tests/ $(WARD)/global/common/chopper/tests/
 	@echo "[2/3] Running pytest against ward-installed Chopper source..."
 	@( cd $(WARD)/global/common/chopper && \
 	   $(CTH_WARD_PYTHON) -m pytest tests \
