@@ -22,7 +22,7 @@
     "severity": {
       "type": "string",
       "enum": ["error", "warning", "info"],
-      "description": "Nominal severity. `--strict` does NOT rewrite this field; it only changes the process exit code. See architecture doc §5.9 and DIAGNOSTIC_CODES.md for the exit-code policy."
+      "description": "Nominal severity. `--strict` does NOT rewrite this field; it only changes the process exit code. See architecture doc Sec.5.9 and DIAGNOSTIC_CODES.md for the exit-code policy."
     },
     "phase": {
       "type": "string",
@@ -73,12 +73,12 @@
     "dedupe_bucket": {
       "type": "string",
       "default": "",
-      "description": "Optional namespace for multi-context emission. Empty string = default bucket, collapses duplicates globally. Services set distinct bucket values when they want multiple entries for the same (code, path, line_no, message). See ENGINEERING.md §8.1."
+      "description": "Optional namespace for multi-context emission. Empty string = default bucket, collapses duplicates globally. Services set distinct bucket values when they want multiple entries for the same (code, path, line_no, message). See ENGINEERING.md Sec.8.1."
     },
     "exit_code": {
       "type": ["integer", "null"],
       "enum": [null, 0, 1, 2, 3],
-      "description": "Nominal exit code contribution for this diagnostic, copied from DIAGNOSTIC_CODES.md. Advisory/informational — the process exit code is computed from the full diagnostic summary per architecture doc §5.9, not by picking the maximum over this field."
+      "description": "Nominal exit code contribution for this diagnostic, copied from DIAGNOSTIC_CODES.md. Advisory/informational -- the process exit code is computed from the full diagnostic summary per architecture doc Sec.5.9, not by picking the maximum over this field."
     }
   }
 }

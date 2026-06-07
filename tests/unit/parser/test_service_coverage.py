@@ -113,7 +113,7 @@ def test_parser_normalize_windows_absolute_outside_domain_returned_as_is() -> No
     ctx = _ctx()
     raw = Path("C:/elsewhere/x.tcl")
     out = ParserService._normalize(ctx, raw)
-    # Absolute path outside domain_root → returned unchanged.
+    # Absolute path outside domain_root -> returned unchanged.
     assert out.as_posix() == raw.as_posix()
 
 
@@ -165,7 +165,7 @@ def test_parser_full_domain_walk_skips_paths_outside_source_root() -> None:
             children = list(super().list(path, pattern=pattern))
             if not _LeakyFS._leaked and path == DOMAIN:
                 _LeakyFS._leaked = True
-                # Inject a path that is not under source_root → ValueError
+                # Inject a path that is not under source_root -> ValueError
                 # in relative_to().
                 children.append(Path("/elsewhere/leaked.tcl"))
             return tuple(children)
@@ -182,6 +182,6 @@ def test_parse_file_unbalanced_braces_no_diagnostic_callback() -> None:
     """parse_file returns [] with on_diagnostic=None when tokenizer has errors (branch 132->143)."""
     from chopper.parser.service import parse_file
 
-    # Unbalanced braces → tokenizer error → branch 132->143 (no emit)
+    # Unbalanced braces -> tokenizer error -> branch 132->143 (no emit)
     result = parse_file(Path("bad.tcl"), "proc foo { {", on_diagnostic=None)
     assert result == []

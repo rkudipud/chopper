@@ -1,13 +1,13 @@
 """Compiler-side tests for the 3.3.0 stack-file registration contract.
 
 Covers :func:`chopper.compiler.merge_service._register_generated_stage_files`
-via :class:`CompilerService.run` — the public entry point. Asserts:
+via :class:`CompilerService.run` -- the public entry point. Asserts:
 
 * Aggregate ``<domain-basename>.stack`` is registered as ``GENERATED``
   exactly once when ``options.generate_stack: true`` and at least one
   stage is resolved.
 * Per-stage ``<stage>.stack`` is registered only when the stage sets
-  ``standalone_stack: true`` — orthogonal to ``generate_stack``.
+  ``standalone_stack: true`` -- orthogonal to ``generate_stack``.
 * ``VE-28 aggregate-stack-collision`` fires when the aggregate path
   collides with an existing ``files.*`` entry, and the compiler then
   raises :class:`ChopperError`.
@@ -80,7 +80,7 @@ def test_aggregate_stack_registered_when_generate_stack_on() -> None:
     )
     manifest = CompilerService().run(ctx, LoadedConfig(base=base, features=(), project=None), _empty_parsed())
 
-    # Domain basename is "my_domain" → my_domain.stack.
+    # Domain basename is "my_domain" -> my_domain.stack.
     assert manifest.file_decisions[Path("my_domain.stack")] is FileTreatment.GENERATED
     # No per-stage .stack entries.
     assert Path("setup.stack") not in manifest.file_decisions
@@ -180,7 +180,7 @@ def test_aggregate_and_standalone_together() -> None:
 
 
 def test_ve28_emitted_when_aggregate_collides_with_files_entry() -> None:
-    """Aggregate path collides with a literal ``files.include`` entry →
+    """Aggregate path collides with a literal ``files.include`` entry ->
     ``VE-28`` + ``ChopperError``."""
 
     ctx, sink = make_ctx()
@@ -200,7 +200,7 @@ def test_ve28_emitted_when_aggregate_collides_with_files_entry() -> None:
 
 
 def test_ve29_emitted_when_standalone_collides_with_files_entry() -> None:
-    """Per-stage ``<stage>.stack`` collides with a ``files.include`` entry →
+    """Per-stage ``<stage>.stack`` collides with a ``files.include`` entry ->
     ``VE-29`` + ``ChopperError``."""
 
     ctx, sink = make_ctx()
@@ -224,7 +224,7 @@ def test_ve29_emitted_when_standalone_collides_with_files_entry() -> None:
 def test_ve29_emitted_when_standalone_path_equals_aggregate_path() -> None:
     """A stage whose name equals the domain basename produces a
     ``<stage>.stack`` path that collides with the aggregate
-    ``<domain-basename>.stack`` → ``VE-29`` + ``ChopperError``.
+    ``<domain-basename>.stack`` -> ``VE-29`` + ``ChopperError``.
 
     The compiler test context uses ``DOMAIN_ROOT = /dom/my_domain``; a
     stage literally named ``my_domain`` triggers the collision.

@@ -91,7 +91,7 @@ def test_with_updated_artifacts_unchanged_when_no_normalization() -> None:
 
     a = GeneratedArtifact(path=Path("x.tcl"), kind="stage", content="a\n", source_stage="s")
     b = GeneratedArtifact(path=Path("y.tcl"), kind="stage", content="b\n", source_stage="s")
-    # normalized dict has no overlap with artifact paths → no changes.
+    # normalized dict has no overlap with artifact paths -> no changes.
     result = _with_updated_artifacts((a, b), normalized={})
     # Must return original tuple unchanged when nothing updated.
     assert result == (a, b)
@@ -104,7 +104,7 @@ def test_indentation_normalizer_skips_write_when_unchanged() -> None:
     from chopper.trimmer.indentation import TclIndentationService
 
     fs = InMemoryFS()
-    # Write a file that is ALREADY correctly indented (4-space indent → no change)
+    # Write a file that is ALREADY correctly indented (4-space indent -> no change)
     content = "proc foo {} {\n    return 1\n}\n"
     fs.write_text(DOMAIN / "lib.tcl", content)
 

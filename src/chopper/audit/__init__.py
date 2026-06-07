@@ -1,4 +1,4 @@
-"""Audit package — Phase 7 (P7).
+"""Audit package -- Phase 7 (P7).
 
 Writes the ``.chopper/`` forensic bundle. Always runs, even when earlier
 phases aborted, so every invocation leaves a record on disk.

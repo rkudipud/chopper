@@ -39,7 +39,7 @@ __all__ = ["ChopperRunner"]
 
 
 class ChopperRunner:
-    """Sequence P0 → P7 for a single invocation.
+    """Sequence P0 -> P7 for a single invocation.
 
     The runner constructs no state of its own beyond what lives inside
     ``ctx``; every per-phase value is a local, so gate aborts are plain
@@ -66,7 +66,7 @@ class ChopperRunner:
         internal_error: InternalError | None = None
 
         try:
-            # P0 — Domain state.
+            # P0 -- Domain state.
             ctx.progress.phase_started(Phase.P0_STATE)
             state = DomainStateService().run(ctx)
             ctx.progress.phase_done(Phase.P0_STATE)
@@ -74,17 +74,17 @@ class ChopperRunner:
                 exit_code = 2
                 return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
 
-            # P1a — Config load.
+            # P1a -- Config load.
             ctx.progress.phase_started(Phase.P1_CONFIG)
             loaded = ConfigService().run(ctx, state)
-            # P1b — Pre-validation.
+            # P1b -- Pre-validation.
             validate_pre(ctx, loaded)
             ctx.progress.phase_done(Phase.P1_CONFIG)
             if has_errors(ctx, Phase.P1_CONFIG):
                 exit_code = 1
                 return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
 
-            # P2 — Parse.
+            # P2 -- Parse.
             ctx.progress.phase_started(Phase.P2_PARSE)
             # Paths are domain-relative throughout the pipeline; the
             # parser resolves against ``domain_root`` at the I/O
@@ -96,7 +96,7 @@ class ChopperRunner:
                 exit_code = 1
                 return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
 
-            # P3 — Compile.
+            # P3 -- Compile.
             ctx.progress.phase_started(Phase.P3_COMPILE)
             manifest = CompilerService().run(ctx, loaded, parsed)
             ctx.progress.phase_done(Phase.P3_COMPILE)
@@ -104,22 +104,22 @@ class ChopperRunner:
                 exit_code = 1
                 return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
 
-            # P4 — Trace (reporting-only; no gate).
+            # P4 -- Trace (reporting-only; no gate).
             ctx.progress.phase_started(Phase.P4_TRACE)
             graph = TracerService().run(ctx, manifest, parsed, loaded)
             ctx.progress.phase_done(Phase.P4_TRACE)
 
             if not ctx.config.dry_run:
-                # P5a — Trim.
+                # P5a -- Trim.
                 ctx.progress.phase_started(Phase.P5_TRIM)
                 trim_report = TrimmerService().run(ctx, manifest, parsed, state)
                 if has_errors(ctx, Phase.P5_TRIM):
                     ctx.progress.phase_done(Phase.P5_TRIM)
                     exit_code = 1
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
-                # P5b — Generators.
+                # P5b -- Generators.
                 artifacts = GeneratorService().run(ctx, manifest)
-                # P5c — Tcl indentation normalization. Off by default; opt
+                # P5c -- Tcl indentation normalization. Off by default; opt
                 # in via ``base.options.indent: true``. When disabled, the
                 # service is a no-op pass-through but still returns the
                 # rewritten-path set so P6's brace-balance check covers
@@ -135,12 +135,12 @@ class ChopperRunner:
                     ctx.progress.phase_done(Phase.P5_TRIM)
                     exit_code = 1
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
-                # P5d — Companion-file sync (FD-15 / ARCHITECTURE.md §5.5 P5d).
+                # P5d -- Companion-file sync (FD-15 / ARCHITECTURE.md Sec.5.5 P5d).
                 # Filters default_config.<sfx>.csv and default_milestone.<sfx>.tcl
                 # for every PROC_TRIM default_rules.<sfx>.tcl file.
                 trim_report = CompanionSyncService().run(ctx, manifest, trim_report)
-                # P5a tail — preserve selected JSON inputs in the rebuilt
-                # domain (ARCHITECTURE.md §5.6). Best-effort; OSError →
+                # P5a tail -- preserve selected JSON inputs in the rebuilt
+                # domain (ARCHITECTURE.md Sec.5.6). Best-effort; OSError ->
                 # VW-20, run continues.
                 from dataclasses import replace as _replace
 
@@ -151,7 +151,7 @@ class ChopperRunner:
                     trim_report = _replace(trim_report, inputs_preserved=preserved_count)
                 ctx.progress.phase_done(Phase.P5_TRIM)
 
-                # P6 — Post-validate final Tcl outputs rewritten during P5.
+                # P6 -- Post-validate final Tcl outputs rewritten during P5.
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
                 validate_post(
                     ctx,
@@ -174,7 +174,7 @@ class ChopperRunner:
                 # so the LOC reporter can count generated stage `.tcl`
                 # content. The generator already respects `dry_run` and
                 # performs no filesystem writes (see
-                # ARCHITECTURE.md §5.7).
+                # ARCHITECTURE.md Sec.5.7).
                 if command == "loc":
                     artifacts = GeneratorService().run(ctx, manifest)
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
@@ -201,7 +201,7 @@ class ChopperRunner:
                 ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
             )
         except ChopperError as exc:
-            # Internal programmer error explicitly raised by a service — exit 3.
+            # Internal programmer error explicitly raised by a service -- exit 3.
             exit_code = 3
             internal_error = write_internal_error_log(ctx, run_id=run_id, exc=exc)
             return self._build(
@@ -209,7 +209,7 @@ class ChopperRunner:
             )
         except Exception as exc:
             # Any other unhandled exception escaping a service is also a
-            # programmer error per architecture doc §5.12.5 — exit 3 +
+            # programmer error per architecture doc Sec.5.12.5 -- exit 3 +
             # internal-error.log so users have a deterministic recovery
             # artifact instead of a raw Python traceback.
             exit_code = 3
@@ -218,13 +218,13 @@ class ChopperRunner:
                 ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
             )
         finally:
-            # Audit always runs, even on failure — except for
+            # Audit always runs, even on failure -- except for
             # `chopper loc`, which is a stdout-only read-only report
             # and writes nothing to the filesystem (no `.chopper/`
-            # bundle). See ARCHITECTURE.md §5.7 and FR-46.
+            # bundle). See ARCHITECTURE.md Sec.5.7 and FR-46.
             #
             # Note: we deliberately do NOT `return` from this finally
-            # block — a bare `return` would clobber the RunResult that
+            # block -- a bare `return` would clobber the RunResult that
             # the `try` body already produced, replacing it with
             # ``None``. Instead, gate the audit work behind a check
             # and let the prior return value propagate normally.

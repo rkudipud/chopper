@@ -1,14 +1,14 @@
-"""CompilerService — P3 R1 ordered-overlay merge algorithm.
+"""CompilerService -- P3 R1 ordered-overlay merge algorithm.
 
 Implements the single-rule overlay specified in
-``technical_docs/ARCHITECTURE.md`` §4 (R1) and §5.3 (P3 algorithm). Layers
+``technical_docs/ARCHITECTURE.md`` Sec.4 (R1) and Sec.5.3 (P3 algorithm). Layers
 are applied in declared order ``(base, *features)`` to a running per-file
 signal map; the last layer that mentions a file or proc wins.
 
 Per-layer apply step (one file at a time):
 
 * Same-layer authoring conveniences (``VW-09``, ``VW-11``, ``VW-12``,
-  ``VW-13``) emit here exactly as before — they are local invariants and
+  ``VW-13``) emit here exactly as before -- they are local invariants and
   unchanged by the overlay model.
 * Layer transitions that change a prior decision emit ``VW-21``
   ``layer-shadowed`` with ``(layer, prior_layer, action)``; the same
@@ -16,14 +16,14 @@ Per-layer apply step (one file at a time):
   :attr:`FileProvenance.shadowed_by`.
 * No-op excludes (FE/PE entries that match nothing in the running set or
   via glob expansion at this layer) are emitted as ``VE-27
-  no-op-exclude`` directly from this service — the typo cases live
+  no-op-exclude`` directly from this service -- the typo cases live
   inline with the fold so the message can name the offending layer and
   entry exactly.
 
 Not this service's job:
 
-* trace (PI+) diagnostics — owned by :class:`TracerService` (P4);
-* filesystem existence (``VE-06``) or post-trim integrity (``VE-16``) —
+* trace (PI+) diagnostics -- owned by :class:`TracerService` (P4);
+* filesystem existence (``VE-06``) or post-trim integrity (``VE-16``) --
   owned by the validator.
 """
 
@@ -192,11 +192,11 @@ def _register_generated_stage_files(
     ``loaded.base.options.generate_stack`` is ``True`` and ``stages`` is
     non-empty. Diagnostics:
 
-    * ``VE-28 aggregate-stack-collision`` — aggregate path collides with
+    * ``VE-28 aggregate-stack-collision`` -- aggregate path collides with
       an existing ``files.*`` entry.
-    * ``VE-29 standalone-stack-collision`` — per-stage standalone path
+    * ``VE-29 standalone-stack-collision`` -- per-stage standalone path
       collides with ``files.*`` or with the aggregate path.
-    * ``VW-23 stack-stage-empty-command`` — a stage included in the
+    * ``VW-23 stack-stage-empty-command`` -- a stage included in the
       aggregate has an empty ``command``.
     """
 
@@ -413,7 +413,7 @@ def _extract_facts(
 
 
 def _collect_universe(parsed: ParseResult, facts_iter: Iterable[_SourceFacts]) -> list[Path]:
-    """Universe of files the manifest reasons over — lex-sorted by POSIX."""
+    """Universe of files the manifest reasons over -- lex-sorted by POSIX."""
     paths: set[Path] = set(parsed.files.keys())
     for facts in facts_iter:
         paths.update(facts.fi_literal)
@@ -422,11 +422,11 @@ def _collect_universe(parsed: ParseResult, facts_iter: Iterable[_SourceFacts]) -
 
 
 # ---------------------------------------------------------------------------
-# Ordered fold — apply one layer to the running set
+# Ordered fold -- apply one layer to the running set
 # ---------------------------------------------------------------------------
 
 
-def _apply_layer(  # noqa: PLR0915, PLR0912 — algorithm body kept inline
+def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
     ctx: ChopperContext,
     src: _SourceRef,
     facts: _SourceFacts,
@@ -697,14 +697,14 @@ def _classify_layer_intent(
     if is_fi_glob and not is_fi_literal and is_fe and not (pi_short or pe_short):
         return ("none",)
 
-    # FI + PI + PE → PI redundant, PE qualifies.
+    # FI + PI + PE -> PI redundant, PE qualifies.
     if fi_any and pi_short and pe_short:
         if is_fi_glob and not is_fi_literal and is_fe:  # pragma: no cover - VW-09 surfaced first
             return ("none",)
         new_keep = all_procs - pe_cn
         return ("trim-replace", new_keep, "fi-and-pe", "procedures.exclude", pi_cn, pe_cn)
 
-    # FI + PE (no PI) → TRIM(all - pe).
+    # FI + PE (no PI) -> TRIM(all - pe).
     if fi_any and pe_short and not pi_short:
         if is_fi_glob and not is_fi_literal and is_fe:  # pragma: no cover - VW-09 surfaced first
             return ("none",)
@@ -712,7 +712,7 @@ def _classify_layer_intent(
         reason = "fi-and-pe" if is_fi_literal else "pe-overlay"
         return ("trim-replace", new_keep, reason, "procedures.exclude", frozenset(), pe_cn)
 
-    # FI + PI (no PE) → WHOLE (PI redundant).
+    # FI + PI (no PE) -> WHOLE (PI redundant).
     if fi_any and pi_short and not pe_short:
         return ("whole", "fi-literal" if is_fi_literal else "fi-glob", "files.include")
 
@@ -752,15 +752,15 @@ def _record_replace_transition(
 ) -> None:
     """Record a ShadowEvent + emit VW-21 when a layer wholesale-replaces a prior decision.
 
-    Per ARCHITECTURE.md §4 row 2 (and the prose at lines 452 / 770 / 835):
+    Per ARCHITECTURE.md Sec.4 row 2 (and the prose at lines 452 / 770 / 835):
     ``VW-21`` fires only when a later layer **actually changes** an earlier
-    layer's decision. A redundant re-affirmation (WHOLE→WHOLE, or
-    TRIM→TRIM with an identical keep set) is a no-op transition and must
+    layer's decision. A redundant re-affirmation (WHOLE->WHOLE, or
+    TRIM->TRIM with an identical keep set) is a no-op transition and must
     not emit ``VW-21`` nor record a ``ShadowEvent``.
     """
     if prev is None or not prior_layer or prior_layer == layer_key:
         return
-    # Same-state short-circuit: prior decision is unchanged → no shadow.
+    # Same-state short-circuit: prior decision is unchanged -> no shadow.
     if isinstance(prev, _Whole) and new_kind == "whole":
         return
     if isinstance(prev, _Trim) and new_kind == "trim" and new_keep is not None and prev.keep == new_keep:
@@ -889,7 +889,7 @@ def _emit_vw09(ctx: ChopperContext, ref: _SourceRef, file_path: Path, *, pi_proc
             phase=Phase.P3_COMPILE,
             message=(
                 f"{ref.key!r}: {file_path.as_posix()!r} is in files.include and procedures.include; "
-                f"PI procs {procs_list} are redundant — file will be FULL_COPY regardless"
+                f"PI procs {procs_list} are redundant -- file will be FULL_COPY regardless"
             ),
             path=file_path,
             hint=(
@@ -937,7 +937,7 @@ def _emit_vw12(
             message=(
                 f"{ref.key!r}: {file_path.as_posix()!r} has procs in both "
                 f"procedures.include {pi_list} and procedures.exclude {pe_list}; "
-                f"PI takes precedence — keeping {pi_list}, PE ignored"
+                f"PI takes precedence -- keeping {pi_list}, PE ignored"
             ),
             path=file_path,
             hint="Choose one model per file at this layer: procedures.include or procedures.exclude, not both",

@@ -1,13 +1,13 @@
-"""Lock the active-scenario count in tests/TESTING_STRATEGY.md §5.
+"""Lock the active-scenario count in tests/TESTING_STRATEGY.md Sec.5.
 
 Per technical_docs/FINAL_HANDOFF_REVIEW.md PR-2, the scenario table in
-`tests/TESTING_STRATEGY.md` §5 is the single source of truth for the
+`tests/TESTING_STRATEGY.md` Sec.5 is the single source of truth for the
 integration-scenario roster. Deferred crash-injection scenarios remain named
 for planning purposes but are not part of the active gate.
 
 This test parses the scenario table directly and asserts the row count
 matches ``EXPECTED_SCENARIO_COUNT``. Adding, removing, or splitting a
-scenario forces a conscious edit here — which in turn forces a matching
+scenario forces a conscious edit here -- which in turn forces a matching
 edit in ``technical_docs/IMPLEMENTATION_ROADMAP.md`` M6.
 """
 
@@ -23,7 +23,7 @@ STRATEGY_DOC = ROOT / "tests" / "TESTING_STRATEGY.md"
 
 # Table row shape: "| <id> | <name> | <stage> | <key assertions> |"
 # <id> is an integer, optionally with a trailing letter suffix (11a, 11b, 11c),
-# or a range (5-9 or 5–9 with an en-dash). The leading cell may be bold
+# or a range (5-9 or 5-9 with an en-dash). The leading cell may be bold
 # (**22**). We accept both hyphen-minus (U+002D) and en-dash (U+2013)
 # because Markdown editors frequently auto-convert between them.
 ROW_RE = re.compile(
@@ -47,7 +47,7 @@ def _count_scenarios() -> int:
         if not match:
             continue
         identifier = match.group("id")
-        # A range like "5-9" or "5–9" expands to 5 rows; otherwise one row.
+        # A range like "5-9" or "5-9" expands to 5 rows; otherwise one row.
         range_sep = next((ch for ch in ("-", "\u2013") if ch in identifier and identifier[0].isdigit()), None)
         if range_sep is not None:
             lo, hi = (int(part) for part in identifier.split(range_sep, 1))
@@ -60,7 +60,7 @@ def _count_scenarios() -> int:
 def test_scenario_count_matches_roadmap() -> None:
     actual = _count_scenarios()
     assert actual == EXPECTED_SCENARIO_COUNT, (
-        f"TESTING_STRATEGY.md §5 lists {actual} scenarios; "
+        f"TESTING_STRATEGY.md Sec.5 lists {actual} scenarios; "
         f"roadmap M6 expects {EXPECTED_SCENARIO_COUNT}. "
         "Update EXPECTED_SCENARIO_COUNT and technical_docs/IMPLEMENTATION_ROADMAP.md M6 together."
     )

@@ -1,14 +1,14 @@
-"""Torture for :mod:`chopper.compiler.merge_service` — F3 stage handling
+"""Torture for :mod:`chopper.compiler.merge_service` -- F3 stage handling
 and rare R1 rows that synthetic toy domains don't naturally exercise.
 
 These tests target the missing-coverage hotspots:
 
-* L189-216, 220-222 — F3 stage emission, collision check, feature
+* L189-216, 220-222 -- F3 stage emission, collision check, feature
   flow_actions contributors.
-* L402, 405, 417, 420 — VW-09 / VW-13 in rows 8/10/15/16.
-* L506 — PE entries on a file the parser never saw (defensive skip).
-* L612 — VW-18 (PE vetoed by another source's include).
-* L822-823, 825 — _match_glob exception fallback.
+* L402, 405, 417, 420 -- VW-09 / VW-13 in rows 8/10/15/16.
+* L506 -- PE entries on a file the parser never saw (defensive skip).
+* L612 -- VW-18 (PE vetoed by another source's include).
+* L822-823, 825 -- _match_glob exception fallback.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def _feature_with_flow(feat: FeatureJson, flows: tuple) -> FeatureJson:
 
 
 # ---------------------------------------------------------------------------
-# F3 — stage emission, contributors, collision
+# F3 -- stage emission, contributors, collision
 # ---------------------------------------------------------------------------
 
 
@@ -63,8 +63,8 @@ def test_stage_definition_emits_generated_file_with_base_contributor() -> None:
 
 
 def test_stage_collision_with_existing_file_decision_raises() -> None:
-    """Architecture Doc §5.3 step 3: stage ``compile`` registers ``compile.tcl``;
-    if files.include already lists ``compile.tcl`` → ChopperError."""
+    """Architecture Doc Sec.5.3 step 3: stage ``compile`` registers ``compile.tcl``;
+    if files.include already lists ``compile.tcl`` -> ChopperError."""
     ctx, _ = make_ctx()
     parsed = make_parsed({"compile.tcl": ["x"]})
     base = _base_with_stages(
@@ -97,7 +97,7 @@ def test_feature_flow_action_appears_in_stage_input_sources() -> None:
 
 
 # ---------------------------------------------------------------------------
-# P-42 — Glob-matched non-Tcl files must reach the manifest (F1 is type-agnostic)
+# P-42 -- Glob-matched non-Tcl files must reach the manifest (F1 is type-agnostic)
 # ---------------------------------------------------------------------------
 
 
@@ -161,7 +161,7 @@ def test_compiler_service_glob_only_non_tcl_receives_full_copy() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VW-13 — PE prunes include to empty (row 9 / row 10)
+# VW-13 -- PE prunes include to empty (row 9 / row 10)
 # ---------------------------------------------------------------------------
 
 
@@ -180,7 +180,7 @@ def test_vw13_emitted_when_pe_excludes_every_proc_in_include(
 
 
 def test_vw13_with_pi_redundant_emits_vw09_too() -> None:
-    """Row 10 — FI + PI + PE where PE removes everything: both VW-09 and VW-13."""
+    """Row 10 -- FI + PI + PE where PE removes everything: both VW-09 and VW-13."""
     ctx, sink = make_ctx()
     parsed = make_parsed({"a.tcl": ["foo"]})
     base = make_base(
@@ -198,7 +198,7 @@ def test_vw13_with_pi_redundant_emits_vw09_too() -> None:
 
 
 # ---------------------------------------------------------------------------
-# PE entry on file absent from ParseResult — defensive `continue` (L506)
+# PE entry on file absent from ParseResult -- defensive `continue` (L506)
 # ---------------------------------------------------------------------------
 
 
@@ -215,7 +215,7 @@ def test_pe_on_unparsed_file_does_not_crash_aggregation() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VW-21 — layer-shadowed: a later layer overrides an earlier layer's decision
+# VW-21 -- layer-shadowed: a later layer overrides an earlier layer's decision
 # ---------------------------------------------------------------------------
 
 
@@ -310,7 +310,7 @@ def test_vw21_downgrade_whole_to_trim_message_names_kept_procs() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VE-27 — no-op excludes
+# VE-27 -- no-op excludes
 # ---------------------------------------------------------------------------
 
 
@@ -326,7 +326,7 @@ def test_ve27_emitted_for_literal_fe_no_match_in_running_set() -> None:
 
 
 def test_ve27_emitted_for_glob_fe_with_zero_matches() -> None:
-    """A glob ``files.exclude`` pattern that matches no surface file → VE-27."""
+    """A glob ``files.exclude`` pattern that matches no surface file -> VE-27."""
     ctx, sink = make_ctx()
     parsed = make_parsed({"a.tcl": ["foo"]})
     base = make_base(files=files_section(include=("a.tcl",)))
@@ -353,7 +353,7 @@ def test_ve27_not_emitted_for_same_layer_glob_include_then_exclude() -> None:
 
 
 def test_ve27_emitted_for_pe_proc_name_typo() -> None:
-    """PE proc-name that doesn't match any proc in the file → VE-27."""
+    """PE proc-name that doesn't match any proc in the file -> VE-27."""
     ctx, sink = make_ctx()
     parsed = make_parsed({"a.tcl": ["foo", "bar"]})
     base = make_base(
@@ -366,7 +366,7 @@ def test_ve27_emitted_for_pe_proc_name_typo() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VW-09/11/12/13 — message text names the specific procs involved
+# VW-09/11/12/13 -- message text names the specific procs involved
 # ---------------------------------------------------------------------------
 
 

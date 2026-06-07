@@ -21,7 +21,7 @@ __all__ = ["build_parser", "main"]
 
 
 _DESCRIPTION = (
-    "Chopper — EDA TFM domain trimming tool.\n"
+    "Chopper -- EDA TFM domain trimming tool.\n"
     "\n"
     "Trims EDA tool flow domains to project-specific subsets using JSON\n"
     "configuration. Supports whole-file (F1), proc-level (F2), and run-file\n"
@@ -114,7 +114,7 @@ def _add_input_args(sub: argparse.ArgumentParser) -> None:
             "(whitespace-separated, '#' line comments). Repeatable. Each file "
             "extends the built-in tool-command pool so P4 trace emits TI-01 "
             "known-tool-command instead of TW-02 unresolved-proc-call for "
-            "listed names. See architecture doc §3.10."
+            "listed names. See architecture doc Sec.3.10."
         ),
     )
 
@@ -126,7 +126,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     exceptions to exit 3 + ``.chopper/internal-error.log``. This outer
     guard catches anything escaping *before* the runner is entered
     (config parsing, ctx construction, importable misconfiguration,
-    etc.) and returns exit 1 — the failure is outside the runner's
+    etc.) and returns exit 1 -- the failure is outside the runner's
     contract so it cannot be exit 3, and a synthetic crash log is
     still written so the user has an artifact to attach to a bug
     report. ``argparse`` errors raise :class:`SystemExit` and bypass
@@ -147,12 +147,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         exit_code: int = args.func(args)
         return exit_code
     except SystemExit:
-        # argparse / explicit sys.exit — propagate without rewriting.
+        # argparse / explicit sys.exit -- propagate without rewriting.
         raise
-    except Exception as exc:  # noqa: BLE001 — last-resort guard
+    except Exception as exc:  # noqa: BLE001 -- last-resort guard
         # Pre-runner programmer error. We have no ChopperContext, so
         # the writer falls back to ``Path.cwd() / '.chopper'`` for the
-        # log location. Exit 1 (per IMPROVEMENTS.md D2) — the failure
+        # log location. Exit 1 (per IMPROVEMENTS.md D2) -- the failure
         # is outside the runner's exit-3 contract.
         run_id = uuid.uuid4().hex
         internal = write_internal_error_log(None, run_id=run_id, exc=exc)

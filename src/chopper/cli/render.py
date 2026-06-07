@@ -87,7 +87,7 @@ def render_result(
 def render_cleanup_message(message: str, stream: TextIO | None = None) -> None:
     """Write a user-facing ``chopper cleanup`` status line to ``stdout``.
 
-    Cleanup is a direct filesystem operation — it does not enter
+    Cleanup is a direct filesystem operation -- it does not enter
     :class:`~chopper.orchestrator.runner.ChopperRunner`, so there are no
     diagnostics to render. The caller provides the prose; this helper
     centralises the output channel (``stdout``) so ``cli/render.py``
@@ -127,7 +127,7 @@ def render_trim_stats(
     rows.extend(_collect_generated_rows(ctx, result.generated_artifacts))
     rows.extend(_collect_dropped_rows(ctx, report, result.generated_artifacts))
     rows.sort(key=lambda r: str(r["path"]))
-    if not rows:  # pragma: no cover - unreachable: outcomes non-empty ⇒ _collect_rows yields ≥1 row
+    if not rows:  # pragma: no cover - unreachable: outcomes non-empty => _collect_rows yields >=1 row
         return
 
     totals = _totals_row(rows)
@@ -195,7 +195,7 @@ def _collect_generated_rows(
     through the optional P5c indentation pass). If the same path
     existed in the source domain (now under ``backup_root``) its bytes
     are captured as the ``in`` baseline so the regenerate-in-place
-    case shows a real before→after delta.
+    case shows a real before->after delta.
     """
 
     rows: list[dict[str, object]] = []
@@ -208,7 +208,7 @@ def _collect_generated_rows(
         if _is_excluded_artifact(rel):
             continue
         if dry_run:
-            # No filesystem write happened — the artifact content is
+            # No filesystem write happened -- the artifact content is
             # the authoritative "after" payload.
             text = artifact.content
         else:
@@ -263,8 +263,8 @@ def _collect_dropped_rows(
     The trimmer records outcomes only for files it rewrote or copied;
     files dropped under default-exclude (R2) never appear in
     ``report.outcomes``. To make the live console table cover the whole
-    domain — matching ``chopper loc`` and the audit
-    ``trim_stats.json`` — walk the pristine source tree
+    domain -- matching ``chopper loc`` and the audit
+    ``trim_stats.json`` -- walk the pristine source tree
     (``backup_root`` when present, else ``domain_root``) and emit a
     DROP row for every source file not already accounted for as a
     rewrite, copy, or generated artifact.
@@ -359,15 +359,15 @@ def _fmt_int(n: int | None) -> str:
 
 
 def _fmt_pair(before: int | None, after: int | None) -> str:
-    """Format a ``before → after`` cell with delta tail."""
+    """Format a ``before -> after`` cell with delta tail."""
 
     b = _fmt_int(before)
     a = _fmt_int(after)
     if before is None or after is None or before == after:
-        return f"{b} → {a}"
+        return f"{b} -> {a}"
     delta = after - before
     sign = "+" if delta > 0 else ""
-    return f"{b} → {a} ({sign}{delta:,})"
+    return f"{b} -> {a} ({sign}{delta:,})"
 
 
 def _render_table(
@@ -377,7 +377,7 @@ def _render_table(
     *,
     width: int,
 ) -> None:
-    headers = ["File", "Op", "SLOC (in → out)", "Procs (kept/dropped)"]
+    headers = ["File", "Op", "SLOC (in -> out)", "Procs (kept/dropped)"]
 
     body: list[list[str]] = []
     for r in rows:
@@ -417,7 +417,7 @@ def _render_table(
             text = cell
             if i == 0 and len(text) > col_w[0]:
                 # Left-truncate the path so the basename stays visible.
-                text = "…" + text[-(col_w[0] - 1) :]
+                text = "..." + text[-(col_w[0] - 1) :]
             # Right-align numeric-ish columns; left-align file/op.
             if i in (0, 1):
                 cells.append(text.ljust(col_w[i]))

@@ -161,7 +161,7 @@ def test_count_sloc_perl_pod_block_excluded() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Writers — empty record (all phases aborted)
+# Writers -- empty record (all phases aborted)
 # ---------------------------------------------------------------------------
 
 
@@ -374,12 +374,12 @@ def test_render_files_removed_includes_default_excluded_files_not_in_manifest() 
     manifest explicitly marked ``FileTreatment.REMOVE``. Files that the
     trim physically deleted because they were matched by **no**
     ``files.include`` pattern (and therefore never entered the manifest
-    universe at all — most ``.pl`` / ``.csh`` / ``.py`` companion files
+    universe at all -- most ``.pl`` / ``.csh`` / ``.py`` companion files
     in real EDA domains) were silently absent from the artifact.
 
     This test stages a backup with three files but a manifest that only
     keeps one. The other two were never named by any JSON, so they don't
-    appear in ``manifest.file_decisions`` at all — and the audit artifact
+    appear in ``manifest.file_decisions`` at all -- and the audit artifact
     must still list them with ``default-exclude`` provenance.
     """
 
@@ -443,7 +443,7 @@ def test_render_files_removed_skips_top_level_chopper_dir() -> None:
 
 
 def test_render_files_removed_dry_run_walks_domain_root_when_no_backup() -> None:
-    """In a first-trim ``--dry-run``, no backup exists yet — walk ``domain_root``."""
+    """In a first-trim ``--dry-run``, no backup exists yet -- walk ``domain_root``."""
 
     fs = InMemoryFS()
     # First-trim dry-run: original files still in domain_root, no backup created.
@@ -481,9 +481,9 @@ def test_render_files_removed_dry_run_and_live_byte_identical() -> None:
     The two filesystems below stage the *same* original-file set in the
     *different* roots that each run mode produces at audit time:
 
-    * Dry-run first-trim  → originals live in ``domain_root`` (no backup
+    * Dry-run first-trim  -> originals live in ``domain_root`` (no backup
       ever created).
-    * Live trim at P7     → P5 has moved the originals to ``backup_root``
+    * Live trim at P7     -> P5 has moved the originals to ``backup_root``
       and rebuilt ``domain_root`` with only the surviving files; only the
       pre-existing ``backup_root`` contents matter for the deletion view.
 
@@ -545,8 +545,8 @@ def test_render_files_removed_dry_run_and_live_byte_identical() -> None:
 
 def test_render_files_kept_reports_contributed_by() -> None:
     """Under the R1 ordered overlay, ``files_kept.txt`` reports a single
-    ``contributed_by`` token — the last layer that positively contributed
-    to the file — not a comma-separated list of all touchers."""
+    ``contributed_by`` token -- the last layer that positively contributed
+    to the file -- not a comma-separated list of all touchers."""
     p = Path("shared/util.tcl")
     manifest = CompiledManifest(
         file_decisions={p: FileTreatment.PROC_TRIM},
@@ -931,7 +931,7 @@ def test_trim_stats_reflects_rich_record_with_fs_reads() -> None:
     fs.write_text(DOMAIN / "synth.tcl", "# generated\nsource lib/trim.tcl\n")
     # Before-tree: first-trim means parsed files read from domain too.
     # Both trim.tcl versions differ (before has drop_c too).
-    # We reuse the same file tree for this test — the point is that the reader branch executes.
+    # We reuse the same file tree for this test -- the point is that the reader branch executes.
     ctx = _make_ctx(fs=fs)
     record = _build_rich_record()
     _name, content = render_trim_stats(ctx, record)

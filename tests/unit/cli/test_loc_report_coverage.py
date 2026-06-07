@@ -129,7 +129,7 @@ def test_build_loc_report_baseline_only_returns_full_copy_bucket(
 
 def test_render_loc_report_outputs_one_line_per_metric(tmp_path: Path) -> None:
     """render_loc_report must print one ``key: value`` line per metric to
-    stdout (ARCHITECTURE.md §5.7).  Spot-check key names."""
+    stdout (ARCHITECTURE.md Sec.5.7).  Spot-check key names."""
     from chopper.adapters.fs_local import LocalFS
     from chopper.cli.loc_report import build_loc_report_baseline_only, render_loc_report
     from chopper.core.context import ChopperContext, RunConfig

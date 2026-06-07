@@ -1,8 +1,8 @@
-"""Stage emitter — renders a :class:`StageSpec` to ``<stage>.tcl`` text.
+"""Stage emitter -- renders a :class:`StageSpec` to ``<stage>.tcl`` text.
 
 Plain strings by design: each step is emitted verbatim on its own line,
 in declaration order. No templating, no variable expansion, no Tcl
-parsing — the authoring contract is that steps already contain valid
+parsing -- the authoring contract is that steps already contain valid
 Tcl (or the target language).
 
 The only interpretation performed:
@@ -35,7 +35,7 @@ def stage_output_path(stage: StageSpec) -> Path:
 def emit_stage_tcl(stage: StageSpec) -> GeneratedArtifact:
     """Render ``stage`` as a ``GeneratedArtifact`` of kind ``"tcl"``.
 
-    The returned artifact is purely a value record — no filesystem I/O
+    The returned artifact is purely a value record -- no filesystem I/O
     is performed here. :class:`~chopper.generators.GeneratorService`
     writes the content via :attr:`ChopperContext.fs`.
     """

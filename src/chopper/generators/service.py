@@ -1,10 +1,10 @@
-"""GeneratorService — Phase 5b run-file emitter.
+"""GeneratorService -- Phase 5b run-file emitter.
 
 For each :class:`StageSpec` in ``manifest.stages``:
 
 * If ``stage.standalone_stack`` is ``False``, emits ``<stage>.tcl``.
 * If ``stage.standalone_stack`` is ``True``, emits ``<stage>.stack``
-  (verbatim ``steps`` + Intel header) **instead of** ``<stage>.tcl`` —
+  (verbatim ``steps`` + Intel header) **instead of** ``<stage>.tcl`` --
   the standalone stack becomes the stage's sole driver.
 
 Additionally, when ``manifest.generate_stack`` is ``True`` and
@@ -29,7 +29,7 @@ Dry-run: the service still builds and returns the full artifact tuple
 but performs no filesystem writes.
 
 Emits no diagnostics in v1. Any error path (I/O failure,
-content-construction bug) raises :class:`ChopperError` — mapped to
+content-construction bug) raises :class:`ChopperError` -- mapped to
 exit 3 by the runner.
 """
 

@@ -65,7 +65,7 @@ class TestBasicCalls:
 
     def test_namespace_qualified_call(self) -> None:
         src = "proc foo {} {\n    ::ns::helper arg1\n}\n"
-        # Leading `::` stripped per §5.3 step 3b.
+        # Leading `::` stripped per Sec.5.3 step 3b.
         assert _calls(src) == ("ns::helper",)
 
     def test_relative_qualified_call(self) -> None:
@@ -86,13 +86,13 @@ class TestBasicCalls:
 
 
 # ---------------------------------------------------------------------------
-# Suppression (§5.5)
+# Suppression (Sec.5.5)
 # ---------------------------------------------------------------------------
 
 
 class TestSuppression:
     def test_tcl_builtins_suppressed(self) -> None:
-        # §5.5 — `set`, `if`, etc. must not surface as user procs.
+        # Sec.5.5 -- `set`, `if`, etc. must not surface as user procs.
         src = (
             "proc foo {} {\n"
             "    set x 1\n"
@@ -105,55 +105,55 @@ class TestSuppression:
         assert _calls(src) == ()
 
     def test_dynamic_call_suppressed(self) -> None:
-        # §5.2: `$cmd arg` — dynamic dispatch.
+        # Sec.5.2: `$cmd arg` -- dynamic dispatch.
         src = "proc foo {} {\n    $cmd arg1\n}\n"
         assert _calls(src) == ()
 
     def test_log_proc_suppresses_first_word(self) -> None:
-        # §5.5 Level 3: log-proc names not extracted as calls.
+        # Sec.5.5 Level 3: log-proc names not extracted as calls.
         src = 'proc foo {} {\n    iproc_msg -info "read_libs invoked"\n}\n'
         assert _calls(src) == ()
 
     def test_log_proc_string_arg_not_a_call(self) -> None:
-        # §5.5 Level 3: proc name mentioned inside a log string is NOT a call.
+        # Sec.5.5 Level 3: proc name mentioned inside a log string is NOT a call.
         src = 'proc foo {} {\n    iproc_msg -info "read_libs will now run"\n}\n'
         calls = _calls(src)
         assert "read_libs" not in calls
 
     def test_log_proc_embedded_bracket_is_real(self) -> None:
-        # §5.5 Level 3 exception: [real_call] inside log string is a real call.
+        # Sec.5.5 Level 3 exception: [real_call] inside log string is a real call.
         src = 'proc foo {} {\n    iproc_msg -info "result: [compute_metric $x]"\n}\n'
         assert "compute_metric" in _calls(src)
 
     def test_set_proc_name_suppresses_entire_command(self) -> None:
-        # §5.5 Level 2f: `set PROC read_libs` — the assigned value is NOT a call.
+        # Sec.5.5 Level 2f: `set PROC read_libs` -- the assigned value is NOT a call.
         src = "proc foo {} {\n    set PROC read_libs\n}\n"
         assert _calls(src) == ()
 
     def test_info_exists_suppressed(self) -> None:
-        # §5.5 Level 2g: `info exists <name>` — <name> is not a call.
+        # Sec.5.5 Level 2g: `info exists <name>` -- <name> is not a call.
         src = "proc foo {} {\n    info exists read_libs\n}\n"
         assert _calls(src) == ()
 
     def test_dpa_second_word_not_extracted(self) -> None:
-        # P-35 trap: `define_proc_attributes <name>` — <name> is NOT a call.
+        # P-35 trap: `define_proc_attributes <name>` -- <name> is NOT a call.
         src = 'proc foo {} {\n    define_proc_attributes read_libs -info "x"\n}\n'
         assert _calls(src) == ()
 
     def test_set_app_var_suppressed(self) -> None:
-        # §5.5 Level 2d.
+        # Sec.5.5 Level 2d.
         src = 'proc foo {} {\n    set_app_var search_path "/lib"\n}\n'
         assert _calls(src) == ()
 
 
 # ---------------------------------------------------------------------------
-# Bracket sub-calls (§5.3 step 4)
+# Bracket sub-calls (Sec.5.3 step 4)
 # ---------------------------------------------------------------------------
 
 
 class TestBracketCalls:
     def test_embedded_bracket_call(self) -> None:
-        # §5.3 step 4: `[helper_proc $x]` as an argument is a real call.
+        # Sec.5.3 step 4: `[helper_proc $x]` as an argument is a real call.
         src = "proc foo {} {\n    set x [helper_proc $y]\n}\n"
         # `set` is suppressed; the bracket call is still extracted.
         assert _calls(src) == ("helper_proc",)
@@ -164,7 +164,7 @@ class TestBracketCalls:
         assert _calls(src) == ("a_call", "b_call", "c_call")
 
     def test_bracket_call_builtin_suppressed(self) -> None:
-        # `[set x 1]` — bracket call's first word is a builtin, suppressed.
+        # `[set x 1]` -- bracket call's first word is a builtin, suppressed.
         src = "proc foo {} {\n    puts [set x 1]\n}\n"
         assert _calls(src) == ()
 
@@ -175,7 +175,7 @@ class TestBracketCalls:
 
 
 # ---------------------------------------------------------------------------
-# source / iproc_source extraction (§5.4)
+# source / iproc_source extraction (Sec.5.4)
 # ---------------------------------------------------------------------------
 
 
@@ -193,27 +193,27 @@ class TestSourceRefs:
         assert _source_refs(src) == ("a.tcl",)
 
     def test_iproc_source_with_use_hooks_flag(self) -> None:
-        # §5.4: hook-file discovery is a field concern — path is captured plainly.
+        # Sec.5.4: hook-file discovery is a field concern -- path is captured plainly.
         src = "proc foo {} {\n    iproc_source -file a.tcl -use_hooks\n}\n"
         assert _source_refs(src) == ("a.tcl",)
 
     def test_source_with_echo_verbose_flags(self) -> None:
-        # §5.4: strip option flags first, then extract path.
+        # Sec.5.4: strip option flags first, then extract path.
         src = "proc foo {} {\n    source -echo -verbose common/helpers.tcl\n}\n"
         assert _source_refs(src) == ("common/helpers.tcl",)
 
     def test_source_dynamic_path_dropped(self) -> None:
-        # §5.4: `source $var` — unresolvable, produces no source_ref.
+        # Sec.5.4: `source $var` -- unresolvable, produces no source_ref.
         src = "proc foo {} {\n    source $path\n}\n"
         assert _source_refs(src) == ()
 
     def test_source_not_a_call_edge(self) -> None:
-        # §5.4: `source` never becomes a call in `calls` — it is a file edge.
+        # Sec.5.4: `source` never becomes a call in `calls` -- it is a file edge.
         src = "proc foo {} {\n    source a.tcl\n}\n"
         assert _calls(src) == ()
 
     def test_multiple_sources_preserve_order(self) -> None:
-        # §6.1 invariant 6: source_refs preserves source order, no dedup.
+        # Sec.6.1 invariant 6: source_refs preserves source order, no dedup.
         src = "proc foo {} {\n    source a.tcl\n    source b.tcl\n    source a.tcl\n}\n"
         assert _source_refs(src) == ("a.tcl", "b.tcl", "a.tcl")
 
@@ -225,8 +225,8 @@ class TestSourceRefs:
 
 class TestEDAFlowCommands:
     def test_eda_flow_commands_extracted_not_suppressed(self) -> None:
-        # §5.5: EDA flow commands are extracted (they will produce TW-02 at
-        # trace time — that is the expected behaviour).
+        # Sec.5.5: EDA flow commands are extracted (they will produce TW-02 at
+        # trace time -- that is the expected behaviour).
         src = "proc foo {} {\n    current_design\n}\n"
         # `current_design` is in EDA_FLOW_COMMANDS but NOT in TCL_BUILTINS
         # and NOT in LOG_PROC_NAMES, so it surfaces as a candidate.
@@ -238,7 +238,7 @@ class TestEDAFlowCommands:
 
 
 # ---------------------------------------------------------------------------
-# Control-flow bodies are scanned (§5.3 step 3d)
+# Control-flow bodies are scanned (Sec.5.3 step 3d)
 # ---------------------------------------------------------------------------
 
 
@@ -252,13 +252,13 @@ class TestControlFlowBodies:
         assert "process_item" in _calls(src)
 
     def test_calls_inside_foreach_in_collection(self) -> None:
-        # §7.14: Synopsys iterator — body is scanned for calls.
+        # Sec.7.14: Synopsys iterator -- body is scanned for calls.
         src = "proc foo {} {\n    foreach_in_collection item [all_latches] {\n        process_cell $item\n    }\n}\n"
         assert "process_cell" in _calls(src)
 
 
 # ---------------------------------------------------------------------------
-# Real-world nested proc-call graph — verbatim from production Synopsys
+# Real-world nested proc-call graph -- verbatim from production Synopsys
 # Formality Tcl (``add_fm_td_constraints``).  This proc invokes four other
 # user procs (``swap_to_current_instance``, ``handle_change_direction``,
 # ``dangle_dont_verify``, ``dangle_dont_verify_par``) amid heavy builtin
@@ -373,13 +373,13 @@ class TestDeterminism:
         assert _calls(source) == _calls(source)
 
     def test_calls_sorted_and_dedup(self) -> None:
-        # §6.1 invariant 5.
+        # Sec.6.1 invariant 5.
         src = "proc foo {} {\n    z_call; a_call; m_call; a_call\n}\n"
         assert _calls(src) == ("a_call", "m_call", "z_call")
 
 
 # ---------------------------------------------------------------------------
-# extract_body_refs — direct unit tests
+# extract_body_refs -- direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -432,7 +432,7 @@ class TestConstants:
 
 
 # ---------------------------------------------------------------------------
-# Escaped brackets in string literals (issue #25 — Pitfall P-46)
+# Escaped brackets in string literals (issue #25 -- Pitfall P-46)
 # ---------------------------------------------------------------------------
 
 
@@ -445,18 +445,18 @@ class TestEscapedBracketCalls:
     escaped bracket.
 
     Regression guard: unescaped ``[`` must still be extracted normally, and
-    ``\\[`` (even backslash count → escaped backslash + real ``[``) must also
+    ``\\[`` (even backslash count -> escaped backslash + real ``[``) must also
     be extracted.
     """
 
     def test_ansi_escape_sequence_not_a_call(self) -> None:
-        # \x1b\[H\x1b\[2J — ANSI cursor-home + clear.
+        # \x1b\[H\x1b\[2J -- ANSI cursor-home + clear.
         # \[ is escaped; H and 2J are NOT proc calls (false-positive from issue #25).
         src = 'proc foo {} {\n    puts -nonewline "\\x1b\\[H\\x1b\\[2J"\n}\n'
         assert _calls(src) == ()
 
     def test_escaped_bracket_string_literal_not_a_call(self) -> None:
-        # \[flow_setup\] in a string — flow_setup is NOT a proc call.
+        # \[flow_setup\] in a string -- flow_setup is NOT a proc call.
         src = 'proc foo {} {\n    append status_str " \\[flow_setup\\]"\n}\n'
         assert _calls(src) == ()
 
@@ -466,13 +466,13 @@ class TestEscapedBracketCalls:
         assert _calls(src) == ("real_proc",)
 
     def test_double_backslash_bracket_extracted(self) -> None:
-        # \\[real_call $arg] — two backslashes (even count) cancel each other;
+        # \\[real_call $arg] -- two backslashes (even count) cancel each other;
         # the [ is a real command-substitution opener; real_call IS a proc call.
         src = 'proc foo {} {\n    puts "test \\\\[real_call $arg]"\n}\n'
         assert _calls(src) == ("real_call",)
 
     def test_multiple_escaped_brackets_all_suppressed(self) -> None:
-        # Multiple \[ in one word — all suppressed, no false positives.
+        # Multiple \[ in one word -- all suppressed, no false positives.
         src = 'proc foo {} {\n    set msg "\\[alpha\\] and \\[beta\\]"\n}\n'
         assert _calls(src) == ()
 
@@ -497,7 +497,7 @@ class TestEscapedBracketCalls:
 class TestSwitchBracePatterns:
     r"""Brace-delimited switch patterns with ``[...]`` must not yield false calls.
 
-    ``switch { {[a-z]+} body }`` — the ``{[a-z]+}`` is a literal pattern
+    ``switch { {[a-z]+} body }`` -- the ``{[a-z]+}`` is a literal pattern
     string, not command substitution.  Characters like ``a`` and ``z`` inside
     character-class brackets are NOT proc calls.  (P-47)
     """

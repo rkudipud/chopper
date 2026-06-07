@@ -1,4 +1,4 @@
-"""Unit tests for chopper.core.errors — the programmer-error hierarchy."""
+"""Unit tests for chopper.core.errors -- the programmer-error hierarchy."""
 
 from __future__ import annotations
 

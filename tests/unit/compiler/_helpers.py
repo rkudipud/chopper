@@ -43,7 +43,7 @@ class CollectingSink:
 
 
 class _NullFS:
-    """Placeholder FS — the compiler never reads from disk."""
+    """Placeholder FS -- the compiler never reads from disk."""
 
     def read_text(self, path: Path, *, encoding: str = "utf-8") -> str:  # pragma: no cover
         raise OSError("compiler must not read files")

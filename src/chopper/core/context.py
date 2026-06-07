@@ -2,8 +2,8 @@
 
 :class:`ChopperContext` is a **port bundle plus run config**, not an
 immutable data record. Its three port fields (``fs``, ``diag``,
-``progress``) are all effectful; only the ``config`` field — a
-:class:`RunConfig` of frozen flags and paths — is pure.
+``progress``) are all effectful; only the ``config`` field -- a
+:class:`RunConfig` of frozen flags and paths -- is pure.
 ``@dataclass(frozen=True)`` on the wrapper guarantees that **port
 bindings cannot be rebound mid-run**; it does not make the ports
 themselves pure. Readers should treat ``ctx.<port>.<method>(...)`` as
@@ -39,7 +39,7 @@ __all__ = ["ChopperContext", "PresentationConfig", "RunConfig"]
 class RunConfig:
     """Pure engine-behaviour config. No methods, no effects.
 
-    All fields are required — the CLI layer is responsible for resolving
+    All fields are required -- the CLI layer is responsible for resolving
     defaults (typically from :mod:`chopper.cli.main`) before constructing
     this record. Keeping the type strict means services never have to
     guard against ``None`` paths.
@@ -48,7 +48,7 @@ class RunConfig:
       trimmed). Must exist on disk when the runner starts; the P0 domain-
       state detector is responsible for producing a :class:`DomainState`
       before phases run.
-    * ``backup_root``: the shadow copy — ``<domain>_backup/`` — created
+    * ``backup_root``: the shadow copy -- ``<domain>_backup/`` -- created
       by the trim lifecycle.
     * ``audit_root``: the ``.chopper/`` bundle directory inside
       ``domain_root``.
@@ -59,7 +59,7 @@ class RunConfig:
       and diagnostic output still flow.
     * ``project_path``: path to a ``project-v1`` JSON when the
       CLI was invoked with ``--project``; ``None`` otherwise. Mutually
-      exclusive with ``base_path`` / ``feature_paths`` — the CLI enforces
+      exclusive with ``base_path`` / ``feature_paths`` -- the CLI enforces
       ``VE-11`` before :class:`RunConfig` is constructed, so services
       may assume at most one of the two modes is populated.
     * ``base_path``: path to the base JSON when invoked with ``--base``;
@@ -72,8 +72,8 @@ class RunConfig:
       command list files (from the repeatable CLI flag
       ``--tool-commands``). These extend the always-loaded built-in
       pool under ``src/chopper/data/tool_commands/`` (see
-      ``technical_docs/ARCHITECTURE.md`` §3.10). The order does
-      not affect behaviour — the pool is a set — but is preserved for
+      ``technical_docs/ARCHITECTURE.md`` Sec.3.10). The order does
+      not affect behaviour -- the pool is a set -- but is preserved for
       audit reproducibility.
     """
 
@@ -114,7 +114,7 @@ class PresentationConfig:
 class ChopperContext:
     """Port bundle + run config. Frozen bindings; ports are effectful.
 
-    Constructed exactly once per run — by ``cli/main.py`` in production,
+    Constructed exactly once per run -- by ``cli/main.py`` in production,
     by ``make_test_context()`` in tests.
     Services receive ``ctx`` plus the typed inputs they declare; nothing
     else. No module-level globals, no singletons, no thread-locals.

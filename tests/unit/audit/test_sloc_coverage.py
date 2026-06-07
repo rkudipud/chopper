@@ -49,7 +49,7 @@ def test_sloc_unknown_extension_falls_back_to_count_raw() -> None:
 
 
 def test_sloc_shell_shebang_counts_as_sloc(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Per ARCHITECTURE.md §5.10, a shebang line (``#!``) on line 1 of a
+    """Per ARCHITECTURE.md Sec.5.10, a shebang line (``#!``) on line 1 of a
     shell/Python/Perl file counts as a logical source line because it is
     executable interpreter directive, not a comment."""
     from chopper.audit.sloc import count_sloc
@@ -57,7 +57,7 @@ def test_sloc_shell_shebang_counts_as_sloc(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("CHOPPER_SLOC_BACKEND", "python")
     text = "#!/usr/bin/env tclsh\nproc foo {} {}\n# a comment\n"
     n = count_sloc(Path("run.sh"), text)
-    # shebang + proc → 2 SLOC; comment skipped.
+    # shebang + proc -> 2 SLOC; comment skipped.
     assert n == 2
 
 
@@ -73,7 +73,7 @@ def test_sloc_shell_hash_not_shebang_is_comment(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_sloc_csv_skips_comma_only_rows(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Per ARCHITECTURE.md §5.10, CSV rows that contain only commas/whitespace
+    """Per ARCHITECTURE.md Sec.5.10, CSV rows that contain only commas/whitespace
     are blank equivalents and must not count as SLOC."""
     from chopper.audit.sloc import count_sloc
 
@@ -88,7 +88,7 @@ def test_sloc_many_batch_path_uses_python_fallback_when_env_set(
 ) -> None:
     """When CHOPPER_SLOC_BACKEND=python, count_sloc_many must use the
     pure-Python fallback for every item, bypassing the cloc subprocess
-    entirely (ARCHITECTURE.md §5.10 override mechanism)."""
+    entirely (ARCHITECTURE.md Sec.5.10 override mechanism)."""
     from chopper.audit.sloc import count_sloc_many
 
     monkeypatch.setenv("CHOPPER_SLOC_BACKEND", "python")
@@ -103,7 +103,7 @@ def test_sloc_many_batch_path_uses_python_fallback_when_env_set(
 
 
 def test_sloc_many_empty_list_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    """count_sloc_many([]) → [] always, regardless of backend."""
+    """count_sloc_many([]) -> [] always, regardless of backend."""
     from chopper.audit.sloc import count_sloc_many
 
     monkeypatch.setenv("CHOPPER_SLOC_BACKEND", "python")

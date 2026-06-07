@@ -8,18 +8,18 @@ Counting strategy
 -----------------
 This module is a thin dispatcher with two backends:
 
-1. **cloc backend** (:mod:`chopper.audit.cloc_backend`) — preferred.
+1. **cloc backend** (:mod:`chopper.audit.cloc_backend`) -- preferred.
    Shells out to the vendored ``cloc.pl`` for industry-standard,
    language-aware counting that understands block comments
-   (``/* … */``, ``<!-- … -->``), Perl POD, Python module docstrings,
+   (``/* ... */``, ``<!-- ... -->``), Perl POD, Python module docstrings,
    HEREDOCs, and the long tail of language quirks. Used automatically
    when perl + ``cloc.pl`` are available.
-2. **Pure-Python fallback** — original implementation kept below as a
+2. **Pure-Python fallback** -- original implementation kept below as a
    safety net for environments without perl or where the vendored
    ``cloc.pl`` has been removed (e.g. to avoid bundling GPL-2 code).
    Handles hash-comment languages (Tcl, shell, Python, Perl), CSV,
    and JSON only; **does not** see block comments, POD, docstrings,
-   or HEREDOCs — those are billed as code.
+   or HEREDOCs -- those are billed as code.
 
 Override
 --------
@@ -29,9 +29,9 @@ SLOC numbers or for unit-test determinism.
 
 Public helpers
 --------------
-* :func:`count_sloc` — logical-line count (cloc when available; fallback
+* :func:`count_sloc` -- logical-line count (cloc when available; fallback
   otherwise).
-* :func:`count_raw` — non-blank line count, language-agnostic.
+* :func:`count_raw` -- non-blank line count, language-agnostic.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def count_raw(text: str) -> int:
     """Return the number of non-blank lines in ``text``.
 
     A blank line contains only whitespace. Trailing-newline semantics
-    don't matter — we count lines after splitting on newline and treat
+    don't matter -- we count lines after splitting on newline and treat
     an empty final element (from the trailing ``\\n``) as not a line.
     """
 
@@ -105,7 +105,7 @@ def count_sloc_many(items: Sequence[tuple[Path, str]]) -> list[int]:
     list is the same length as ``items`` and aligned by index.
 
     On a domain with thousands of files this turns an O(N)-subprocess
-    hot path into one subprocess fork — the perf fix called out by the
+    hot path into one subprocess fork -- the perf fix called out by the
     production-readiness review (S1/L2). Behaviour for any individual
     item is identical to :func:`count_sloc`.
     """

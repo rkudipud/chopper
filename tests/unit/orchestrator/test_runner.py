@@ -60,7 +60,7 @@ def _make_ctx(
 
 
 def test_runner_case4_exits_with_code_2() -> None:
-    """Neither domain nor backup exists → VE-21 → exit 2."""
+    """Neither domain nor backup exists -> VE-21 -> exit 2."""
 
     fs = InMemoryFS()
     ctx, sink = _make_ctx(fs, dry_run=False, base_path=None)
@@ -110,15 +110,15 @@ def test_runner_accepts_command_label(command: str) -> None:
 
 class TestP1ConfigGate:
     def test_missing_base_json_aborts_with_exit_1(self) -> None:
-        """P1 emits an error (missing base JSON) → gate → exit 1 short-circuit."""
+        """P1 emits an error (missing base JSON) -> gate -> exit 1 short-circuit."""
         fs = InMemoryFS()
         fs.mkdir(DOMAIN, parents=True, exist_ok=True)
-        # No base JSON written → ConfigService emits VE-*
+        # No base JSON written -> ConfigService emits VE-*
         ctx, sink = _make_ctx(fs, base_path=DOMAIN / "jsons" / "missing.json")
         result = ChopperRunner().run(ctx, command="validate")
 
         assert result.exit_code == 1
-        # P1 was reached; P2 (parser) was NOT — parsed should be None.
+        # P1 was reached; P2 (parser) was NOT -- parsed should be None.
         assert result.parsed is None
         assert result.manifest is None
         # An error diagnostic was emitted at P1.
@@ -126,7 +126,7 @@ class TestP1ConfigGate:
         assert any(c.startswith("VE-") for c in codes), codes
 
     def test_base_json_missing_domain_file_emits_ve06_aborts(self) -> None:
-        """File named in base.files.include that does not exist → VE-06 → abort."""
+        """File named in base.files.include that does not exist -> VE-06 -> abort."""
         fs = InMemoryFS()
         fs.mkdir(DOMAIN, parents=True, exist_ok=True)
         fs.write_text(
@@ -149,7 +149,7 @@ class TestP1ConfigGate:
 
 class TestP2ParseGate:
     def test_unbalanced_brace_emits_pe02_and_aborts(self) -> None:
-        """Architecture Doc §5.4.1: unbalanced braces → PE-02, returned proc list is empty → gate aborts."""
+        """Architecture Doc Sec.5.4.1: unbalanced braces -> PE-02, returned proc list is empty -> gate aborts."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         # Clobber helper.tcl with an unbalanced-brace disaster.
@@ -166,40 +166,40 @@ class TestP2ParseGate:
 
 class TestStrictMode:
     def test_strict_escalates_warnings_to_exit_1(self) -> None:
-        """--strict + any warning → exit 1 (severity untouched)."""
+        """--strict + any warning -> exit 1 (severity untouched)."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         # Add a file that will fire a warning: feature referencing a
-        # file via glob that matches nothing → VW-02 / VW-03 style warning.
-        # Easier path: hand-emit a warning via a pre-seeded diagnostic —
+        # file via glob that matches nothing -> VW-02 / VW-03 style warning.
+        # Easier path: hand-emit a warning via a pre-seeded diagnostic --
         # but the runner doesn't accept pre-seeded sinks, so use a
         # setup that produces a real warning.
         # Warning route: declare a feature with a glob that matches no
         # files. That should produce a warning somewhere in the pipeline.
         # Simpler: install a custom sink that injects a warning via a
         # hook? Easier to test: override a file to emit a warning.
-        # Use an 'exclude' that cannot match anything → VW-09 style is
+        # Use an 'exclude' that cannot match anything -> VW-09 style is
         # actually an info. Instead, hand-craft by emitting directly.
         ctx, sink = _make_ctx(fs, strict=True)
-        # Pre-inject a warning directly via sink.emit — simulates any
+        # Pre-inject a warning directly via sink.emit -- simulates any
         # phase having emitted a warning that should not gate, but
         # should trigger strict escalation at the final tallying.
         ctx.diag.emit(Diagnostic.build("VW-03", phase=Phase.P1_CONFIG, message="synthetic warn for strict test"))
         result = ChopperRunner().run(ctx, command="validate")
 
         # The pipeline succeeded on its own (no errors), but strict
-        # saw the warning → exit 1.
+        # saw the warning -> exit 1.
         assert result.exit_code == 1
         assert result.summary.errors == 0
         assert result.summary.warnings >= 1
 
     def test_strict_does_not_rewrite_warning_severity(self) -> None:
-        """``--strict`` is exit-code policy only — warning diagnostics keep
+        """``--strict`` is exit-code policy only -- warning diagnostics keep
         ``severity == Severity.WARNING`` in the sink, even when the run
         exits 1.
 
-        See ``technical_docs/ENGINEERING.md`` §8.2 rule 4 and
-        ``technical_docs/DIAGNOSTIC_CODES.md`` Notes — strict must not
+        See ``technical_docs/ENGINEERING.md`` Sec.8.2 rule 4 and
+        ``technical_docs/DIAGNOSTIC_CODES.md`` Notes -- strict must not
         mutate emitted records (``XE-*`` / severity rewriting is a
         closed decision).
         """
@@ -220,13 +220,13 @@ class TestStrictMode:
         matches = [d for d in sink.snapshot() if d.code == "VW-03" and d.message == "strict-must-not-rewrite-this"]
         assert len(matches) == 1, [d.code for d in sink.snapshot()]
         assert matches[0].severity is Severity.WARNING
-        # Code stays in the W-band — never silently re-banded to an E-code.
+        # Code stays in the W-band -- never silently re-banded to an E-code.
         assert matches[0].code.startswith("VW-")
 
 
 class TestChopperErrorPath:
     def test_chopper_error_yields_exit_3(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A service raising :class:`ChopperError` → exit 3 (programmer-error channel)."""
+        """A service raising :class:`ChopperError` -> exit 3 (programmer-error channel)."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         ctx, _sink = _make_ctx(fs)
@@ -296,7 +296,7 @@ def _inject_error_at(phase: Phase, code: str = "VE-01"):
     def _shim(self, ctx, *args, **kwargs):  # noqa: ANN001, ARG001
         ctx.diag.emit(Diagnostic.build(code, phase=phase, message=f"synthetic {code}"))
         # Still must return something plausible so the next line
-        # (``has_errors`` check) can read it. Returning None is fine —
+        # (``has_errors`` check) can read it. Returning None is fine --
         # runner uses the return value only after the gate.
         # For services whose return value IS used before the gate,
         # we return a sentinel that the gate fires on regardless.
@@ -307,7 +307,7 @@ def _inject_error_at(phase: Phase, code: str = "VE-01"):
 
 class TestP3CompileGate:
     def test_p3_error_aborts_pipeline_with_exit_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Compiler emits error → P3 gate → exit 1; P4+ never run."""
+        """Compiler emits error -> P3 gate -> exit 1; P4+ never run."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         ctx, sink = _make_ctx(fs)
@@ -329,13 +329,13 @@ class TestP3CompileGate:
         result = ChopperRunner().run(ctx, command="validate")
         assert result.exit_code == 1
         assert "VE-01" in [d.code for d in sink.snapshot()]
-        # P4 (trace) never ran → graph is None.
+        # P4 (trace) never ran -> graph is None.
         assert result.graph is None
 
 
 class TestP5TrimGate:
     def test_p5_error_aborts_live_trim_with_exit_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Trimmer emits error → P5 gate → exit 1; P6 never runs."""
+        """Trimmer emits error -> P5 gate -> exit 1; P6 never runs."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         ctx, sink = _make_ctx(fs, dry_run=False)
@@ -366,7 +366,7 @@ class TestP5TrimGate:
 
 class TestP6PostValidateGates:
     def test_p6_error_live_path_aborts_exit_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """validate_post emits error on live path → P6 gate → exit 1."""
+        """validate_post emits error on live path -> P6 gate -> exit 1."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         ctx, sink = _make_ctx(fs, dry_run=False)
@@ -384,7 +384,7 @@ class TestP6PostValidateGates:
         assert "VE-16" in [d.code for d in sink.snapshot()]
 
     def test_p6_error_dry_run_aborts_exit_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """validate_post emits error on dry-run path → P6 gate → exit 1."""
+        """validate_post emits error on dry-run path -> P6 gate -> exit 1."""
         fs = InMemoryFS()
         _seed_good_domain(fs)
         ctx, sink = _make_ctx(fs, dry_run=True)
@@ -428,12 +428,12 @@ def test_runner_writes_audit_bundle_in_dry_run() -> None:
     _seed_good_domain(fs)
     ctx, _ = _make_ctx(fs)
     ChopperRunner().run(ctx, command="validate")
-    # Audit service always runs — chopper_run.json is written.
+    # Audit service always runs -- chopper_run.json is written.
     assert fs.exists(DOMAIN / ".chopper" / "chopper_run.json")
 
 
 # ---------------------------------------------------------------------------
-# options.generate_stack — InMemoryFS end-to-end
+# options.generate_stack -- InMemoryFS end-to-end
 # ---------------------------------------------------------------------------
 
 
@@ -489,7 +489,7 @@ class TestGenerateStackPipeline:
         file_decisions = result.manifest.file_decisions
         assert file_decisions.get(Path("setup.tcl")) is FileTreatment.GENERATED
         assert file_decisions.get(Path("run.tcl")) is FileTreatment.GENERATED
-        # Aggregate: <domain-basename>.stack — DOMAIN basename is "dom".
+        # Aggregate: <domain-basename>.stack -- DOMAIN basename is "dom".
         assert file_decisions.get(Path(f"{DOMAIN.name}.stack")) is FileTreatment.GENERATED
         # No per-stage .stack entries (no stage sets standalone_stack=True).
         assert Path("setup.stack") not in file_decisions
@@ -548,7 +548,7 @@ class TestGenerateStackPipeline:
         # Single header at the top.
         assert content.count("#Intel Legal compliant copyright header") == 1
 
-        # setup record (first stage — bare D, serial → no R line).
+        # setup record (first stage -- bare D, serial -> no R line).
         assert "# Chopper-generated stack: setup\n" in content
         assert "N setup\n" in content
         assert "J shell -T setup\n" in content
@@ -584,7 +584,7 @@ class TestGenerateStackPipeline:
         """When ``generate_stack`` is absent (default false), no .stack files are written."""
 
         fs = InMemoryFS()
-        _seed_good_domain(fs)  # mini domain — no stages, generate_stack defaults to False
+        _seed_good_domain(fs)  # mini domain -- no stages, generate_stack defaults to False
         ctx, sink = _make_ctx(fs, dry_run=False)
         result = ChopperRunner().run(ctx, command="trim")
 

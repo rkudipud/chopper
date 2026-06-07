@@ -1,7 +1,7 @@
 """End-to-end :class:`CompilerService` tests.
 
 These exercise the full public surface: ``ChopperContext`` + ``LoadedConfig``
-+ ``ParseResult`` → frozen ``CompiledManifest`` with correct manifest
++ ``ParseResult`` -> frozen ``CompiledManifest`` with correct manifest
 invariants.
 """
 
@@ -78,10 +78,10 @@ class TestDeterminism:
 
     def test_diagnostic_emission_order_is_stable(self) -> None:
         """Two runs over the same inputs emit the same diagnostic codes in
-        the same order (architecture doc §5.3 emission determinism)."""
+        the same order (architecture doc Sec.5.3 emission determinism)."""
         parsed = make_parsed({"a.tcl": ["foo", "bar"], "b.tcl": ["baz"]})
         base = make_base(
-            # Row 8 (FI+PI → VW-09) on a.tcl; Row 7 (PI+PE → VW-12) on b.tcl.
+            # Row 8 (FI+PI -> VW-09) on a.tcl; Row 7 (PI+PE -> VW-12) on b.tcl.
             files=files_section(include=("a.tcl",)),
             procedures=procs_section(
                 include=(proc_ref("a.tcl", "foo"), proc_ref("b.tcl", "baz")),

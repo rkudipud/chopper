@@ -5,10 +5,10 @@ Closes T-01 from the 2026-04-23 spec-conformance audit. Architecture Doc NFR-03
 example unit tests. This module pins the *wire shape* of the four
 artifacts Chopper ships under ``.chopper/``:
 
-* ``chopper_run.json`` — architecture doc §5.5.2
-* ``compiled_manifest.json`` — architecture doc §5.5.3
-* ``dependency_graph.json`` — architecture doc §5.5.4
-* ``trim_report.json`` — architecture doc §5.5.5
+* ``chopper_run.json`` -- architecture doc Sec.5.5.2
+* ``compiled_manifest.json`` -- architecture doc Sec.5.5.3
+* ``dependency_graph.json`` -- architecture doc Sec.5.5.4
+* ``trim_report.json`` -- architecture doc Sec.5.5.5
 
 Approach: run ``chopper validate`` and ``chopper trim --dry-run``
 end-to-end against a seeded minimal domain; capture the four artifacts;
@@ -20,7 +20,7 @@ Updating goldens: run ``pytest tests/golden/ --force-regen`` **only**
 when the artifact shape change was approved in the architecture doc and cascaded
 per [project.instructions.md](../../.github/instructions/project.instructions.md)
 "Cascading Updates". Regenerating without a spec change is the
-anti-pattern objection #2 of the audit flagged — do not do it.
+anti-pattern objection #2 of the audit flagged -- do not do it.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import pytest
 from chopper.cli.main import main
 
 # ---------------------------------------------------------------------------
-# Fixture seeding — identical to test_cli_e2e._seed_valid_domain so the
+# Fixture seeding -- identical to test_cli_e2e._seed_valid_domain so the
 # golden shape matches the CLI-level smoke domain, keeping the contract
 # aligned with what operators actually exercise.
 # ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ def _seed_valid_domain(domain: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Normalisation — strip fields that legitimately vary between runs but are
+# Normalisation -- strip fields that legitimately vary between runs but are
 # not part of the shape contract.
 # ---------------------------------------------------------------------------
 
@@ -95,7 +95,7 @@ _VOLATILE_NUMERIC_FIELDS = {
 def _normalize(value: Any, *, key: str | None = None) -> Any:
     """Recursively replace volatile leaf values with stable sentinels.
 
-    Dict keys drive the substitution — a key named ``run_id`` whose value
+    Dict keys drive the substitution -- a key named ``run_id`` whose value
     looks like a UUID becomes ``"<run_id>"``. Values that *don't* match
     the expected volatile shape are preserved so an accidental shape
     drift (run_id suddenly becoming an int, for example) still fails the
@@ -109,7 +109,7 @@ def _normalize(value: Any, *, key: str | None = None) -> Any:
             return [f"<{key}[{i}]>" for i, _ in enumerate(value)]
         return [_normalize(v) for v in value]
     if key in _VOLATILE_STRING_FIELDS and isinstance(value, str):
-        # UUID, path, or timestamp — just pin that it *is* a string.
+        # UUID, path, or timestamp -- just pin that it *is* a string.
         if _UUID_RE.match(value):
             return f"<{key}:uuid>"
         if _ISO_RE.match(value):
@@ -118,7 +118,7 @@ def _normalize(value: Any, *, key: str | None = None) -> Any:
     if key in _VOLATILE_NUMERIC_FIELDS and isinstance(value, int | float):
         return f"<{key}:number>"
     # Paths embedded in non-volatile string fields (e.g. diagnostic
-    # `context` entries with tmp paths) — rewrite any run-specific tmp
+    # `context` entries with tmp paths) -- rewrite any run-specific tmp
     # prefix to a stable marker.
     if isinstance(value, str) and value.startswith(("/tmp/", "C:\\", "C:/", "/private/")):
         return "<tmp-path>"
@@ -131,7 +131,7 @@ def _load_artifact(domain: Path, name: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Golden tests — one per artifact, plus a combined manifest guard.
+# Golden tests -- one per artifact, plus a combined manifest guard.
 # ---------------------------------------------------------------------------
 
 
@@ -146,22 +146,22 @@ def trimmed_domain(tmp_path: Path) -> Path:
 
 
 def test_chopper_run_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Architecture Doc §5.5.2 — chopper_run.json shape is stable."""
+    """Architecture Doc Sec.5.5.2 -- chopper_run.json shape is stable."""
     data_regression.check(_load_artifact(trimmed_domain, "chopper_run.json"))
 
 
 def test_compiled_manifest_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Architecture Doc §5.5.3 — compiled_manifest.json shape is stable."""
+    """Architecture Doc Sec.5.5.3 -- compiled_manifest.json shape is stable."""
     data_regression.check(_load_artifact(trimmed_domain, "compiled_manifest.json"))
 
 
 def test_dependency_graph_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Architecture Doc §5.5.4 — dependency_graph.json shape is stable."""
+    """Architecture Doc Sec.5.5.4 -- dependency_graph.json shape is stable."""
     data_regression.check(_load_artifact(trimmed_domain, "dependency_graph.json"))
 
 
 def test_trim_report_json_shape(trimmed_domain: Path, data_regression) -> None:
-    """Architecture Doc §5.5.5 — trim_report.json shape is stable (dry-run variant).
+    """Architecture Doc Sec.5.5.5 -- trim_report.json shape is stable (dry-run variant).
 
     A live-trim run would additionally exercise the file-operation and
     proc-removal paths; the dry-run variant pins the no-op shape so a

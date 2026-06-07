@@ -90,7 +90,7 @@ def _base(
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — VI-01 empty base
+# validate_pre -- VI-01 empty base
 # ---------------------------------------------------------------------------
 
 
@@ -111,7 +111,7 @@ def test_validate_pre_skips_vi01_when_files_present() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — VE-06 literal path missing
+# validate_pre -- VE-06 literal path missing
 # ---------------------------------------------------------------------------
 
 
@@ -144,7 +144,7 @@ def test_validate_pre_accepts_literal_file_present_in_backup_for_rerun() -> None
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — VE-09 malformed glob
+# validate_pre -- VE-09 malformed glob
 # ---------------------------------------------------------------------------
 
 
@@ -177,7 +177,7 @@ def test_validate_pre_glob_matches_backup_for_rerun() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — VW-03 glob matches nothing
+# validate_pre -- VW-03 glob matches nothing
 # ---------------------------------------------------------------------------
 
 
@@ -201,7 +201,7 @@ def test_validate_pre_skips_vw03_when_exclude_has_no_matches() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — VW-04 feature domain mismatch
+# validate_pre -- VW-04 feature domain mismatch
 # ---------------------------------------------------------------------------
 
 
@@ -230,7 +230,7 @@ def test_validate_pre_skips_vw04_when_feature_domain_none() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — VE-17 / VE-18 project-level
+# validate_pre -- VE-17 / VE-18 project-level
 # ---------------------------------------------------------------------------
 
 
@@ -262,12 +262,12 @@ def test_validate_pre_ve17_is_case_insensitive() -> None:
 
 def test_validate_pre_ve17_uses_domain_root_basename_not_cwd(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """VE-17 compares against ``RunConfig.domain_root.name`` (per
-    ``technical_docs/ARCHITECTURE.md`` §5.1), never against
+    ``technical_docs/ARCHITECTURE.md`` Sec.5.1), never against
     ``Path.cwd().name``.
 
     Construct a context whose ``domain_root.name == 'my_domain'`` and
     chdir the test process into an unrelated directory. The project
-    JSON declaring ``domain == 'my_domain'`` must NOT trigger VE-17 —
+    JSON declaring ``domain == 'my_domain'`` must NOT trigger VE-17 --
     the cwd basename is irrelevant.
     """
     elsewhere = tmp_path / "not_the_domain"
@@ -302,7 +302,7 @@ def test_validate_pre_emits_ve18_for_duplicate_feature_path() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_post — VE-16 brace imbalance
+# validate_post -- VE-16 brace imbalance
 # ---------------------------------------------------------------------------
 
 
@@ -560,7 +560,7 @@ def test_validate_post_emits_vw10_when_live_output_is_directory() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_post — VW-05 / VW-06 dangling refs
+# validate_post -- VW-05 / VW-06 dangling refs
 # ---------------------------------------------------------------------------
 
 
@@ -752,7 +752,7 @@ def test_validate_post_accepts_resolved_call_to_surviving_proc() -> None:
 
 
 # ---------------------------------------------------------------------------
-# validate_post — F3 cross-validate (VW-14/15/16/17)
+# validate_post -- F3 cross-validate (VW-14/15/16/17)
 # ---------------------------------------------------------------------------
 
 
@@ -865,7 +865,7 @@ def test_validate_post_cross_validate_false_suppresses_vw14_15_16() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Issue #8 regression — VW-06 false positive for bare filenames in source
+# Issue #8 regression -- VW-06 false positive for bare filenames in source
 # ---------------------------------------------------------------------------
 
 

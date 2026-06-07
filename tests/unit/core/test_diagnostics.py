@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.core.diagnostics` and the registry façade."""
+"""Unit tests for :mod:`chopper.core.diagnostics` and the registry facade."""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ class TestDiagnosticBuild:
         ctx = {"key": "value"}
         d = Diagnostic.build("VE-06", phase=Phase.P1_CONFIG, message="x", context=ctx)
         assert d.context == {"key": "value"}
-        # The dataclass stored a copy — outside mutation does not leak in.
+        # The dataclass stored a copy -- outside mutation does not leak in.
         ctx["new"] = "x"
         assert "new" not in d.context
 
@@ -158,7 +158,7 @@ class TestDiagnosticImmutability:
         # Equal diagnostics share a hash bucket; set-containment works.
         assert d1 == d2
         # Mapping contexts compare equal when both empty; hash across
-        # default dict is not meaningful here — we only assert equality.
+        # default dict is not meaningful here -- we only assert equality.
 
 
 class TestDedupeKey:

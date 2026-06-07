@@ -4,7 +4,7 @@ A single entry point used by :class:`ChopperRunner` to decide whether
 to abort the pipeline after a given phase. Inspects the diagnostic
 snapshot and returns ``True`` iff any diagnostic with
 ``severity == ERROR`` and ``phase == <phase>`` is present. Severity is
-never rewritten by the gate — :attr:`RunConfig.strict` is exit-code
+never rewritten by the gate -- :attr:`RunConfig.strict` is exit-code
 policy only.
 """
 

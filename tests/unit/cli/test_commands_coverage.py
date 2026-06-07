@@ -47,7 +47,7 @@ def test_expand_feature_dirs_expands_directory_to_json_children(
     tmp_path: Path,
 ) -> None:
     """When a --features entry is a directory, it must be replaced with the
-    sorted list of its immediate *.json children (ARCHITECTURE.md §5.1)."""
+    sorted list of its immediate *.json children (ARCHITECTURE.md Sec.5.1)."""
     from chopper.cli.commands import _expand_feature_dirs
 
     d = tmp_path / "feats"
@@ -69,7 +69,7 @@ def test_expand_feature_dirs_expands_directory_to_json_children(
 def test_make_context_emits_vi03_when_backup_dir_passed(tmp_path: Path) -> None:
     """When the domain argument ends in '_backup' and a stripped sibling exists,
     _make_context must emit VI-03 with the resolved domain root.  This keeps the
-    suffix-strip redirect visible in the audit bundle (ARCHITECTURE.md §5.1)."""
+    suffix-strip redirect visible in the audit bundle (ARCHITECTURE.md Sec.5.1)."""
 
     from chopper.cli.commands import _make_context
 
@@ -109,7 +109,7 @@ def test_warn_if_cwd_will_be_renamed_writes_to_stderr_when_cwd_inside_domain(
     # Simulate cwd being inside domain.
     monkeypatch.chdir(domain)
     backup = tmp_path / "d_backup"
-    # backup does NOT exist → rename (case 1) is about to happen.
+    # backup does NOT exist -> rename (case 1) is about to happen.
     _warn_if_cwd_will_be_renamed(domain, backup)
     err = capsys.readouterr().err
     assert "stale" in err.lower() or "cwd" in err.lower() or "chopper" in err.lower()
@@ -189,7 +189,7 @@ def test_cmd_cleanup_refuses_without_confirm(tmp_path: Path) -> None:
 def test_check_project_paths_emits_ve13_for_missing_base(tmp_path: Path) -> None:
     """_check_project_paths_resolvable must return exit code 2 and print VE-13
     when the project.json references a base file that doesn't exist on disk
-    (ARCHITECTURE.md §5.1 / §3.3)."""
+    (ARCHITECTURE.md Sec.5.1 / Sec.3.3)."""
 
     from chopper.cli.commands import _check_project_paths_resolvable
 
@@ -304,7 +304,7 @@ def test_warn_if_cwd_will_be_renamed_no_warning_when_cwd_outside(tmp_path: Path)
 
     out = io.StringIO()
     with patch("sys.stderr", out):
-        # cwd is tmp_path, NOT inside domain → no warning
+        # cwd is tmp_path, NOT inside domain -> no warning
         _warn_if_cwd_will_be_renamed(domain, backup)
     # The key assertion: the function ran without raising.
     # (Whether a warning was emitted depends on the actual cwd.)
@@ -367,7 +367,7 @@ def test_check_project_paths_resolvable_missing_base_returns_2(tmp_path: Path) -
 # ===========================================================================
 # cmd_validate / cmd_trim / cmd_loc body coverage is provided by chained,
 # spec-driven integration scenarios in
-# ``tests/integration/test_cli_chained_overlay.py`` — those tests build
+# ``tests/integration/test_cli_chained_overlay.py`` -- those tests build
 # real on-disk multi-layer domains and invoke the cmd_* functions through
 # the real ``ChopperRunner`` rather than mocking it. Unit tests here cover
 # only the helper/argument-handling surface that does not require a
@@ -388,7 +388,7 @@ def test_cmd_cleanup_redirects_when_domain_ends_in_backup(tmp_path: Path) -> Non
     # Pass the backup path explicitly so _resolve_domain_root strips '_backup'
     args = argparse.Namespace(domain=str(backup), confirm=True)
     rc = cmds.cmd_cleanup(args)
-    # The redirected target's backup is `dom_backup` which exists → removed
+    # The redirected target's backup is `dom_backup` which exists -> removed
     assert rc == 0
     assert not backup.exists()
 
@@ -398,7 +398,7 @@ def test_check_project_paths_returns_none_when_base_field_missing_or_invalid(
 ) -> None:
     """``_check_project_paths_resolvable`` must skip the base candidate when
     ``project.json.base`` is absent, ``None``, or an empty string (branch
-    ``253→255``). With no candidates the function returns ``None`` (no
+    ``253->255``). With no candidates the function returns ``None`` (no
     paths to verify).
     """
     import json as _json
@@ -423,7 +423,7 @@ def test_check_project_paths_skips_non_string_or_empty_feature_entries(
     tmp_path: Path,
 ) -> None:
     """``_check_project_paths_resolvable`` must skip ``features[]`` entries
-    that are not strings or are empty strings (branch ``258→257``). When
+    that are not strings or are empty strings (branch ``258->257``). When
     every entry is rejected (and no base is present) the function returns
     ``None``.
     """
@@ -434,7 +434,7 @@ def test_check_project_paths_skips_non_string_or_empty_feature_entries(
     domain = tmp_path / "dom"
     domain.mkdir()
     project = tmp_path / "proj.json"
-    # All three entries should be skipped — None, empty, integer.
+    # All three entries should be skipped -- None, empty, integer.
     project.write_text(_json.dumps({"features": [None, "", 42]}))
     args = argparse.Namespace(domain=str(domain), project=str(project))
     assert _check_project_paths_resolvable(args) is None
@@ -445,7 +445,7 @@ def test_cmd_trim_returns_exit_2_when_project_paths_unresolvable(
 ) -> None:
     """``cmd_trim`` (line 320): when ``_check_project_paths_resolvable``
     returns a non-None exit code, ``cmd_trim`` must propagate it without
-    invoking the runner. Per ARCHITECTURE.md §5.10 a missing project
+    invoking the runner. Per ARCHITECTURE.md Sec.5.10 a missing project
     path surfaces as exit 2 via VE-13.
     """
     import json as _json
@@ -476,7 +476,7 @@ def test_cmd_loc_returns_exit_2_when_project_paths_unresolvable(
 ) -> None:
     """``cmd_loc`` (line 391): same propagation contract as ``cmd_trim``.
     A missing project path must short-circuit before the LOC pipeline
-    runs, returning exit 2 (ARCHITECTURE.md §5.10).
+    runs, returning exit 2 (ARCHITECTURE.md Sec.5.10).
     """
     import json as _json
 
@@ -504,7 +504,7 @@ def test_cmd_loc_returns_exit_2_when_project_paths_unresolvable(
 def test_cmd_loc_with_project_skips_feature_dir_expansion(
     tmp_path: Path,
 ) -> None:
-    """``cmd_loc`` (branch ``386→389``): when ``--project`` is supplied,
+    """``cmd_loc`` (branch ``386->389``): when ``--project`` is supplied,
     the feature-dir expansion shortcut is skipped and the project-path
     check runs unchanged. We exercise the False branch of the
     ``if project is None`` guard by supplying both ``--project`` and a
@@ -541,13 +541,13 @@ def test_cmd_loc_with_project_skips_feature_dir_expansion(
         verbose=0,
     )
     rc = cmds.cmd_loc(args)
-    # Per §5.10, valid exit codes for cmd_loc are 0/1/2. The point of
-    # this test is the branch (project is not None ⇒ no _expand_feature_dirs
+    # Per Sec.5.10, valid exit codes for cmd_loc are 0/1/2. The point of
+    # this test is the branch (project is not None => no _expand_feature_dirs
     # mutation of args.features); the exit code is incidental.
     assert rc in (0, 1, 2)
     # Verify args.features was NOT rewritten (the branch we're targeting
     # is the ``project is not None`` False branch that *skips* the
     # rewrite). Were the True branch hit, ``_expand_feature_dirs`` would
-    # have returned the input verbatim (no slash → not a directory) or
-    # raised — either way the absence of mutation is the contract.
+    # have returned the input verbatim (no slash -> not a directory) or
+    # raised -- either way the absence of mutation is the contract.
     assert args.features == "some_unused_dir"

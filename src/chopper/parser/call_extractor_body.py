@@ -23,9 +23,9 @@ def _bracket_is_escaped(text: str, bracket_pos: int) -> bool:
 
     Examples::
 
-        \\[H      → odd (1)  → escaped  → literal bracket, NOT a proc call
-        \\\\[H   → even (2) → not escaped → real command substitution
-        [H        → zero     → not escaped → real command substitution
+        \\[H      -> odd (1)  -> escaped  -> literal bracket, NOT a proc call
+        \\\\[H   -> even (2) -> not escaped -> real command substitution
+        [H        -> zero     -> not escaped -> real command substitution
     """
     count = 0
     j = bracket_pos - 1
@@ -71,7 +71,7 @@ def extract_body_refs(
                     calls.add(candidate)
         if token.kind is TokenKind.WORD and i not in consumed:
             for match in BRACKET_CALL_RE.finditer(token.value):
-                # P-46: skip escaped brackets — \[ is a literal character in a
+                # P-46: skip escaped brackets -- \[ is a literal character in a
                 # Tcl string, not a command-substitution opener.
                 if _bracket_is_escaped(token.value, match.start()):
                     continue

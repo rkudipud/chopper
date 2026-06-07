@@ -30,19 +30,19 @@ def test_namespace_tracker_post_init_skips_push_when_stack_nonempty() -> None:
 
 
 def test_namespace_tracker_rbrace_at_file_root_does_not_pop() -> None:
-    """RBRACE when top frame is FILE_ROOT → condition at line 309 is False → 309->319."""
+    """RBRACE when top frame is FILE_ROOT -> condition at line 309 is False -> 309->319."""
     from chopper.parser.namespace_tracker import ContextFrame, ContextKind, NamespaceTracker
     from chopper.parser.tokenizer import Token, TokenKind
 
     # Create a tracker with depth=1 but only FILE_ROOT on the stack.
     # This simulates a LBRACE that somehow didn't push a new frame.
-    # When RBRACE fires: depth→0, top=FILE_ROOT, condition False → 309->319.
+    # When RBRACE fires: depth->0, top=FILE_ROOT, condition False -> 309->319.
     tracker = NamespaceTracker(
         _stack=[ContextFrame(ContextKind.FILE_ROOT, 0)],
         _depth=1,
     )
     assert tracker.depth == 1
-    # Feed RBRACE → depth 0, top is FILE_ROOT → condition False at line 309
+    # Feed RBRACE -> depth 0, top is FILE_ROOT -> condition False at line 309
     tracker.feed(Token(kind=TokenKind.RBRACE, value="}", line_no=1, brace_depth=0, at_command_position=False))
     assert tracker.depth == 0
     # FILE_ROOT frame must still be on the stack (not popped)
@@ -51,7 +51,7 @@ def test_namespace_tracker_rbrace_at_file_root_does_not_pop() -> None:
 
 
 def test_namespace_tracker_rbrace_namespace_eval_empty_nsstack() -> None:
-    """RBRACE with NAMESPACE_EVAL top but empty _namespace_stack → 316->319 (no pop from empty)."""
+    """RBRACE with NAMESPACE_EVAL top but empty _namespace_stack -> 316->319 (no pop from empty)."""
     from chopper.parser.namespace_tracker import ContextFrame, ContextKind, NamespaceTracker
     from chopper.parser.tokenizer import Token, TokenKind
 
@@ -65,8 +65,8 @@ def test_namespace_tracker_rbrace_namespace_eval_empty_nsstack() -> None:
         _namespace_stack=[],
         _depth=1,
     )
-    # Feed RBRACE → depth becomes 0, top is NAMESPACE_EVAL at 0 → pop,
-    # then `if self._namespace_stack:` → False (empty) → 316->319, no crash
+    # Feed RBRACE -> depth becomes 0, top is NAMESPACE_EVAL at 0 -> pop,
+    # then `if self._namespace_stack:` -> False (empty) -> 316->319, no crash
     tracker.feed(Token(kind=TokenKind.RBRACE, value="}", line_no=1, brace_depth=0, at_command_position=False))
     assert tracker.depth == 0
     # NAMESPACE_EVAL frame was popped

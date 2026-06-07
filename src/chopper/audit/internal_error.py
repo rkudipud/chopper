@@ -1,6 +1,6 @@
 """``.chopper/internal-error.log`` writer (programmer-error path, exit 3).
 
-Per architecture doc §5.5.10 / §5.12.5, an unhandled exception that
+Per architecture doc Sec.5.5.10 / Sec.5.12.5, an unhandled exception that
 escapes a service must terminate the run with exit code 3 and leave a
 plain-text crash log under ``.chopper/`` so users have a deterministic
 artifact to attach to a bug report. The log is intentionally rendered
@@ -144,7 +144,7 @@ def _format_traceback(exc: BaseException) -> str:
 
 def _format_diagnostics(ctx: ChopperContext | None) -> list[str]:
     if ctx is None:
-        return ["(no context — crash occurred before runner started)"]
+        return ["(no context -- crash occurred before runner started)"]
     try:
         snapshot = ctx.diag.snapshot()
     except Exception as introspection_exc:  # pragma: no cover - defensive

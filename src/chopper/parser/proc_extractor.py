@@ -1,4 +1,4 @@
-"""Proc extractor — recognises ``proc`` definitions in the token stream.
+"""Proc extractor -- recognises ``proc`` definitions in the token stream.
 
 Walks the output of :func:`chopper.parser.tokenizer.tokenize`, drives a
 :class:`NamespaceTracker`, and emits one :class:`ProcEntry` per
@@ -53,12 +53,12 @@ __all__ = [
 
 
 ExtractorDiagnosticKind = Literal[
-    "computed-proc-name",  # PW-01 — $var / ${...} / [...] in proc name
-    "non-brace-body",  # PW-03 — proc body is not brace-delimited
-    "computed-namespace-name",  # PW-04 — pass-through from NamespaceTracker
-    "duplicate-proc-definition",  # PE-01 — two procs with same short_name in one file
-    "dpa-name-mismatch",  # PW-11 — define_proc_attributes name != preceding qualified_name
-    "dpa-orphan",  # PI-04 — define_proc_attributes with no preceding proc in file
+    "computed-proc-name",  # PW-01 -- $var / ${...} / [...] in proc name
+    "non-brace-body",  # PW-03 -- proc body is not brace-delimited
+    "computed-namespace-name",  # PW-04 -- pass-through from NamespaceTracker
+    "duplicate-proc-definition",  # PE-01 -- two procs with same short_name in one file
+    "dpa-name-mismatch",  # PW-11 -- define_proc_attributes name != preceding qualified_name
+    "dpa-orphan",  # PI-04 -- define_proc_attributes with no preceding proc in file
 ]
 
 
@@ -90,13 +90,13 @@ class ExtractorResult:
 # ---------------------------------------------------------------------------
 
 
-# §4.6: lookahead window of up to 3 blank lines after the proc close.
+# Sec.4.6: lookahead window of up to 3 blank lines after the proc close.
 _DPA_BLANK_LOOKAHEAD = 3
 
-# §4.6 DPA line recogniser.
+# Sec.4.6 DPA line recogniser.
 _DPA_LINE_RE = re.compile(r"^\s*define_proc_(attributes|arguments)\s+")
 
-# §4.6: boolean flags to strip before extracting the proc name.
+# Sec.4.6: boolean flags to strip before extracting the proc name.
 _DPA_BOOL_FLAGS = (
     "-permanent",
     "-hide_body",
@@ -106,7 +106,7 @@ _DPA_BOOL_FLAGS = (
     "-deprecated",
 )
 
-# §4.6: arg flags with values to strip before extracting the proc name.
+# Sec.4.6: arg flags with values to strip before extracting the proc name.
 _DPA_VALUE_FLAGS = (
     "-info",
     "-define_args",
@@ -115,10 +115,10 @@ _DPA_VALUE_FLAGS = (
     "-return",
 )
 
-# §4.7: comment-banner line test.
+# Sec.4.7: comment-banner line test.
 _COMMENT_LINE_RE = re.compile(r"^\s*#")
 
-# §4.3: a proc name is "computed" if it contains any of these substitution markers.
+# Sec.4.3: a proc name is "computed" if it contains any of these substitution markers.
 _COMPUTED_NAME_MARKERS = ("$", "[")
 
 
@@ -134,25 +134,25 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
         :class:`~chopper.core.models_parser.ProcEntry` (also feeds canonical-name
         construction).
     :param text: UTF-8 decoded source text with ``\\n`` line endings
-        (normalization is the service layer's responsibility — §Line endings).
+        (normalization is the service layer's responsibility -- Sec.Line endings).
     :returns: :class:`ExtractorResult` with the recognised procs (sorted by
         ``start_line``) and accumulated diagnostics in source order.
 
     The function is pure and deterministic: given the same ``source_file``
     and ``text`` it produces the same result. It never raises for malformed
-    Tcl — structural tokenizer errors (``negative_depth`` / ``unclosed_braces``)
+    Tcl -- structural tokenizer errors (``negative_depth`` / ``unclosed_braces``)
     short-circuit extraction and return an empty proc list, leaving the
     translation of those errors to ``PE-02`` for the service layer.
     """
     tok_result: TokenizerResult = tokenize(text)
     if tok_result.errors:
-        # §3.0 state table: structural brace errors → PE-02, parse_file returns [].
+        # Sec.3.0 state table: structural brace errors -> PE-02, parse_file returns [].
         # The service layer inspects the tokenizer errors separately; the
         # extractor simply produces no procs.
         return ExtractorResult(procs=(), diagnostics=())
 
     tokens = tok_result.tokens
-    # 0-indexed; source line N → lines[N-1].  Strip trailing ``\r`` so CRLF
+    # 0-indexed; source line N -> lines[N-1].  Strip trailing ``\r`` so CRLF
     # inputs do not leak ``\r`` into downstream continuation / DPA analyzers
     # (P-02 backslash continuation must match regardless of line-ending style).
     lines = [ln.rstrip("\r") for ln in text.split("\n")]
@@ -202,7 +202,7 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
                 diagnostics.extend(entry_diags)
                 if entry is not None:  # pragma: no branch
                     procs.append(entry)
-                    # §4.6 forward DPA scan.
+                    # Sec.4.6 forward DPA scan.
                     dpa_start, dpa_end, dpa_diags = _scan_dpa(
                         lines=lines,
                         proc_end_line=entry.end_line,
@@ -215,7 +215,7 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
                         dpa_covered_lines.update(range(dpa_start, dpa_end + 1))
                     pending_body_lbrace_idx = layout.body_lbrace_idx
             else:
-                # Malformed proc — distinguish PW-03 (non-brace body) from
+                # Malformed proc -- distinguish PW-03 (non-brace body) from
                 # other failure modes by re-inspecting the post-args token.
                 pw03 = _detect_non_brace_body(tokens, i, base_depth=tracker.depth)
                 if pw03 is not None:
@@ -240,14 +240,14 @@ def extract_procs(source_file: Path, text: str) -> ExtractorResult:
             )
         )
 
-    # §6.3: per-file duplicate short_name check. Emit PE-01 and drop earlier
+    # Sec.6.3: per-file duplicate short_name check. Emit PE-01 and drop earlier
     # duplicates so only the last definition survives in the returned list
     # (Invariant 4).
     procs, dup_diags = _deduplicate_short_names(procs)
     diagnostics.extend(dup_diags)
 
-    # §4.6: orphan DPA lines — define_proc_attributes lines not covered by
-    # any proc's dpa span → PI-04.
+    # Sec.4.6: orphan DPA lines -- define_proc_attributes lines not covered by
+    # any proc's dpa span -> PI-04.
     for lineno_0, line in enumerate(lines):
         if _DPA_LINE_RE.match(line) and (lineno_0 + 1) not in dpa_covered_lines:
             # Strip a trailing line-continuation backslash so the user-facing
@@ -317,7 +317,7 @@ def _scan_proc_layout(tokens: tuple[Token, ...], start_idx: int, base_depth: int
     """
     n = len(tokens)
 
-    # Step 1: find the name — skip NEWLINE (continuation permitted per §7.2).
+    # Step 1: find the name -- skip NEWLINE (continuation permitted per Sec.7.2).
     i = start_idx + 1
     while i < n and tokens[i].kind is TokenKind.NEWLINE:
         i += 1
@@ -336,7 +336,7 @@ def _scan_proc_layout(tokens: tuple[Token, ...], start_idx: int, base_depth: int
         return None
     i = args_end
 
-    # Step 3: the body MUST be brace-delimited (§4.1, §7.4 / PW-03).
+    # Step 3: the body MUST be brace-delimited (Sec.4.1, Sec.7.4 / PW-03).
     while i < n and tokens[i].kind is TokenKind.NEWLINE:
         i += 1
     if i >= n or tokens[i].kind is not TokenKind.LBRACE:
@@ -388,7 +388,7 @@ def _consume_brace_block(tokens: tuple[Token, ...], i: int, base_depth: int) -> 
 def _detect_non_brace_body(tokens: tuple[Token, ...], start_idx: int, base_depth: int) -> ExtractorDiagnostic | None:
     """Diagnose a ``proc NAME ARGS WORD`` form where the body is not braced.
 
-    §7.4 / ``PW-03``: ``proc foo args "return hello"`` — the third element
+    Sec.7.4 / ``PW-03``: ``proc foo args "return hello"`` -- the third element
     is a quoted WORD, not an ``LBRACE``. Return the diagnostic; the proc
     itself is skipped (no :class:`ProcEntry`).
     """
@@ -413,7 +413,7 @@ def _detect_non_brace_body(tokens: tuple[Token, ...], start_idx: int, base_depth
     if i >= n:
         return None
     if tokens[i].kind is TokenKind.WORD:
-        # Third element is a word, not a brace — non-brace body.
+        # Third element is a word, not a brace -- non-brace body.
         return ExtractorDiagnostic(
             kind="non-brace-body",
             line_no=name_tok.line_no,
@@ -437,7 +437,7 @@ def _build_entry(
     """Turn a :class:`_ProcLayout` into a :class:`ProcEntry` plus any diagnostics.
 
     Returns ``(None, [...])`` for a computed proc name (``PW-01``). The proc
-    is dropped from the index per §4.3 row 6.
+    is dropped from the index per Sec.4.3 row 6.
     """
     diagnostics: list[ExtractorDiagnostic] = []
 
@@ -462,20 +462,20 @@ def _build_entry(
     body_start_line = body_lbrace.line_no + 1
     body_end_line = body_rbrace.line_no - 1
 
-    # §6.2 edge case for one-line procs: `proc foo {} { return 1 }` — all on
+    # Sec.6.2 edge case for one-line procs: `proc foo {} { return 1 }` -- all on
     # the same line. The table mandates body_start_line == body_end_line ==
     # start_line. Clamp the derived window back into the proc span.
     if body_lbrace.line_no == body_rbrace.line_no:
         body_start_line = body_lbrace.line_no
         body_end_line = body_rbrace.line_no
 
-    # §4.7 backward comment-banner scan.
+    # Sec.4.7 backward comment-banner scan.
     comment_start, comment_end = _scan_comment_banner(lines, start_line)
 
     canonical_name = f"{source_file.as_posix()}::{qualified_name}"
 
     # Stage 1e: extract body references (calls + source_refs) now that the
-    # body span is known. Per §5.1, the extractor operates on the already-
+    # body span is known. Per Sec.5.1, the extractor operates on the already-
     # tokenized stream scoped to the body.
     calls, source_refs = extract_body_refs(
         tokens=tokens,
@@ -529,7 +529,7 @@ def _with_dpa(entry: ProcEntry, dpa_start: int, dpa_end: int) -> ProcEntry:
 
 
 # ---------------------------------------------------------------------------
-# Name resolution (§4.3 / §4.3.1)
+# Name resolution (Sec.4.3 / Sec.4.3.1)
 # ---------------------------------------------------------------------------
 
 
@@ -539,15 +539,15 @@ def _is_computed_name(raw_name: str) -> bool:
 
 
 def _resolve_qualified_name(raw_name: str, namespace_path: str) -> tuple[str, str]:
-    """Resolve a proc name per §4.3 rules. Return ``(short_name, qualified_name)``.
+    """Resolve a proc name per Sec.4.3 rules. Return ``(short_name, qualified_name)``.
 
-    * Leading ``::`` → absolute name, namespace context is overridden.
+    * Leading ``::`` -> absolute name, namespace context is overridden.
     * Otherwise the active ``namespace_path`` is prefixed if non-empty.
 
     ``short_name`` is the rightmost ``::``-separated segment of the resolved
     qualified name. This matches the JSON ``procs`` matching contract:
     ``common/helpers.tcl`` with
-    namespace ``["ns"]`` and name ``foo`` → ``short_name="foo"``,
+    namespace ``["ns"]`` and name ``foo`` -> ``short_name="foo"``,
     ``qualified_name="ns::foo"``.
     """
     if raw_name.startswith("::"):
@@ -561,14 +561,14 @@ def _resolve_qualified_name(raw_name: str, namespace_path: str) -> tuple[str, st
 
 
 # ---------------------------------------------------------------------------
-# Comment banner backward scan (§4.7)
+# Comment banner backward scan (Sec.4.7)
 # ---------------------------------------------------------------------------
 
 
 def _scan_comment_banner(lines: list[str], start_line: int) -> tuple[int | None, int | None]:
     """Return (comment_start_line, comment_end_line) or (None, None).
 
-    §4.7: contiguous ``^\\s*#`` lines immediately preceding ``start_line`` form
+    Sec.4.7: contiguous ``^\\s*#`` lines immediately preceding ``start_line`` form
     the banner. A blank line or non-comment line breaks the banner.
     """
     end_line_0 = start_line - 2  # 0-indexed: the line immediately above the proc
@@ -583,7 +583,7 @@ def _scan_comment_banner(lines: list[str], start_line: int) -> tuple[int | None,
 
 
 # ---------------------------------------------------------------------------
-# DPA forward scan (§4.6)
+# DPA forward scan (Sec.4.6)
 # ---------------------------------------------------------------------------
 
 
@@ -632,7 +632,7 @@ def _scan_dpa(
 def _scan_dpa_block_end(lines: list[str], dpa_start_0: int) -> int:
     """Return the last physical line belonging to the DPA command.
 
-    Per `technical_docs/IMPLEMENTATION.md` (parser section) §1.4.6, DPA metadata may span multiple physical
+    Per `technical_docs/IMPLEMENTATION.md` (parser section) Sec.1.4.6, DPA metadata may span multiple physical
     lines via both trailing backslash continuations and brace-delimited option
     payloads such as ``-define_args { ... }``. Real production files often
     stop using trailing backslash continuations once the outer
@@ -690,7 +690,7 @@ def _line_ends_with_continuation(line: str) -> bool:
     stripped = line.rstrip("\r")
     if not stripped.endswith("\\"):
         return False
-    # Count trailing backslashes — odd count means the final one is a continuation.
+    # Count trailing backslashes -- odd count means the final one is a continuation.
     k = 0
     while k < len(stripped) and stripped[-1 - k] == "\\":
         k += 1
@@ -700,7 +700,7 @@ def _line_ends_with_continuation(line: str) -> bool:
 def _extract_dpa_proc_name(line: str) -> str:
     """Extract the proc name from a joined ``define_proc_attributes`` line.
 
-    Tcl semantics: ``define_proc_attributes <proc_name> <option>...`` —
+    Tcl semantics: ``define_proc_attributes <proc_name> <option>...`` --
     the target proc name is the **first whitespace-delimited word**
     after the keyword. Anything after that (option flags, brace-quoted
     argument descriptors, possibly with nested ``{...}`` such as
@@ -722,7 +722,7 @@ def _extract_dpa_proc_name(line: str) -> str:
     if m:
         line = line[m.end() :]
     # The proc name is the first whitespace-delimited token. Strip a
-    # leading ``::`` per §4.3.1 absolute-name rule.
+    # leading ``::`` per Sec.4.3.1 absolute-name rule.
     name = line.split(None, 1)[0] if line else ""
     if name.startswith("::"):
         name = name[2:]
@@ -730,7 +730,7 @@ def _extract_dpa_proc_name(line: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Duplicate short-name dedup (§6.3)
+# Duplicate short-name dedup (Sec.6.3)
 # ---------------------------------------------------------------------------
 
 
@@ -760,7 +760,7 @@ def _deduplicate_short_names(
                     kind="duplicate-proc-definition",
                     line_no=last.start_line,
                     detail=(
-                        f"Duplicate proc '{short}' — first definition at line "
+                        f"Duplicate proc '{short}' -- first definition at line "
                         f"{first.start_line}, last definition at line {last.start_line} "
                         f"(used for index)"
                     ),

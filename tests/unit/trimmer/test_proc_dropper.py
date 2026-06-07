@@ -121,7 +121,7 @@ def test_multiple_procs_each_with_sequential_dpa_dropped_together() -> None:
 
 
 def test_descending_order_preserves_coords_with_multiple_drops() -> None:
-    """Drop two procs in any manifest order — output must be identical."""
+    """Drop two procs in any manifest order -- output must be identical."""
     lines = [
         "proc a {} {",  # 1
         "  body",  # 2
@@ -179,7 +179,7 @@ def test_drop_last_proc_leaves_no_trailing_blank() -> None:
 #
 # The guarantee under test: when Chopper drops some procs from a file, every
 # surviving proc (including its banner comment and any associated DPA block)
-# must appear in the output byte-identical to the input — same indentation
+# must appear in the output byte-identical to the input -- same indentation
 # (column-0 bodies, tab-indented bodies), same blank lines, same comments.
 # Snippets below are copied verbatim from production Synopsys Formality Tcl.
 # ---------------------------------------------------------------------------

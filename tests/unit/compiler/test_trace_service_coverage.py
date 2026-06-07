@@ -43,7 +43,7 @@ def test_trace_dynamic_tokens_short_circuit() -> None:
 
 
 def test_trace_resolve_token_skipped_for_dynamic() -> None:
-    """_resolve_token is not directly tested here — dynamic tokens are
+    """_resolve_token is not directly tested here -- dynamic tokens are
     consumed at the BFS layer. We just exercise the helper _is_dynamic."""
     from chopper.compiler.trace_service import _is_dynamic
 

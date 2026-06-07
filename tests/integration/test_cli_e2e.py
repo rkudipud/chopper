@@ -1,11 +1,11 @@
 """End-to-end CLI tests using real :class:`LocalFS` on a tmp_path.
 
 The :mod:`chopper.cli.main` entry point is tested here through
-:func:`main(argv)` — no argparse-only stubs, no InMemoryFS mocking.
+:func:`main(argv)` -- no argparse-only stubs, no InMemoryFS mocking.
 Each test seeds a real directory on disk, invokes ``main`` with
 argv as the user would type, and asserts the exit code + stdout /
 stderr capture. This pushes :mod:`chopper.cli.commands` from
-21 % → ≥95 % and exercises :mod:`chopper.cli.render` through the
+21 % -> >=95 % and exercises :mod:`chopper.cli.render` through the
 real path.
 """
 
@@ -150,7 +150,7 @@ class TestTrimSubcommand:
     ) -> None:
         """``--dry-run`` must not produce any domain-level mutation.
 
-        See ``technical_docs/ARCHITECTURE.md`` §3.7 (dry-run is the
+        See ``technical_docs/ARCHITECTURE.md`` Sec.3.7 (dry-run is the
         live-mutation gate). Snapshot the workspace before and after and
         assert the only new artifact is the audit bundle.
         """
@@ -164,7 +164,7 @@ class TestTrimSubcommand:
 
         after = {p.name for p in tmp_path.iterdir()}
         new_entries = after - before
-        # Allowed delta in the parent dir: nothing — the audit bundle
+        # Allowed delta in the parent dir: nothing -- the audit bundle
         # lives under <domain>/.chopper, not as a sibling.
         assert new_entries == set(), f"dry-run created sibling entries: {new_entries}"
         # Hard rule: no <domain>_backup/ may appear.
@@ -176,7 +176,7 @@ class TestTrimSubcommand:
         """The audit bundle is the *current* run's bookkeeping. When P5
         rebuilds the domain from ``<domain>_backup/`` (Case 2), the
         backup's ``.chopper/`` directory must never be copied into the
-        rebuilt domain — see ``technical_docs/ARCHITECTURE.md`` §2.4.
+        rebuilt domain -- see ``technical_docs/ARCHITECTURE.md`` Sec.2.4.
         """
         domain = tmp_path / "mini"
         _seed_valid_domain(domain)
@@ -215,7 +215,7 @@ class TestTrimSubcommand:
     ) -> None:
         """``files.include`` glob expansion must skip ``.chopper/``.
 
-        Architecture §2.4: the audit bundle is owned by Chopper; user
+        Architecture Sec.2.4: the audit bundle is owned by Chopper; user
         JSONs cannot pull files out of it via ``**`` patterns.
         """
         domain = tmp_path / "mini"
@@ -264,7 +264,7 @@ class TestTrimSubcommand:
     ) -> None:
         """``project.base`` and ``project.features`` are domain-relative.
 
-        See ``technical_docs/IMPLEMENTATION.md`` §1.10 P-25 / config
+        See ``technical_docs/IMPLEMENTATION.md`` Sec.1.10 P-25 / config
         service: paths in the project JSON resolve from the domain root
         (cwd), not from the project file's parent directory. This test
         places the project JSON in a sibling location whose parent does
@@ -312,7 +312,7 @@ class TestTrimSubcommand:
     ) -> None:
         """``--domain`` is the highest-priority resolution input.
 
-        Per ``technical_docs/ARCHITECTURE.md`` §5.1, when ``--domain``
+        Per ``technical_docs/ARCHITECTURE.md`` Sec.5.1, when ``--domain``
         is supplied the run uses ``Path(args.domain).resolve()`` and
         ignores cwd entirely. Run from an unrelated cwd and confirm
         the trim still succeeds and writes into the explicit domain.
@@ -336,7 +336,7 @@ class TestTrimSubcommand:
     ) -> None:
         """Selected JSON inputs that live under the domain root survive
         the live trim with byte-identical contents at their original
-        relative path. See ``technical_docs/ARCHITECTURE.md`` §5.5
+        relative path. See ``technical_docs/ARCHITECTURE.md`` Sec.5.5
         ("Preserved JSON inputs in the rebuilt domain")."""
         domain = tmp_path / "mini"
         base = _seed_valid_domain(domain)
@@ -355,7 +355,7 @@ class TestTrimSubcommand:
     ) -> None:
         """Out-of-tree selected JSON inputs land under
         ``<domain>/jsons/_external/<NN>_<basename>`` with byte-identical
-        contents. See ``technical_docs/ARCHITECTURE.md`` §5.5."""
+        contents. See ``technical_docs/ARCHITECTURE.md`` Sec.5.5."""
         domain = tmp_path / "mini"
         _seed_valid_domain(domain)
         external_base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
@@ -427,7 +427,7 @@ class TestTrimSubcommand:
 
     def test_trim_dry_run_does_not_preserve_jsons(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """Dry-run is the live-mutation gate; preservation does not run.
-        See ``technical_docs/ARCHITECTURE.md`` §5.5 (live-trim only)."""
+        See ``technical_docs/ARCHITECTURE.md`` Sec.5.5 (live-trim only)."""
         domain = tmp_path / "mini"
         _seed_valid_domain(domain)
         external_base = _write_base_json(tmp_path / "configs" / "base.json", domain_name=domain.name)
@@ -452,7 +452,7 @@ class TestCleanupSubcommand:
         rc = main(["cleanup", "--domain", str(domain)])
         captured = capsys.readouterr()
         assert rc == 2, "cleanup must refuse without --confirm"
-        # Friendly message routed through render_cleanup_message → stdout.
+        # Friendly message routed through render_cleanup_message -> stdout.
         assert "--confirm is required" in captured.out
 
     def test_cleanup_with_no_backup_returns_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -513,7 +513,7 @@ class TestGlobalFlags:
 
 
 # ---------------------------------------------------------------------------
-# Renderer direct tests — exercise render_diagnostics paths
+# Renderer direct tests -- exercise render_diagnostics paths
 # ---------------------------------------------------------------------------
 
 
@@ -580,7 +580,7 @@ class TestRenderDirect:
 
 
 # ---------------------------------------------------------------------------
-# Regression: issue #12 — files.include glob silent no-op
+# Regression: issue #12 -- files.include glob silent no-op
 # ---------------------------------------------------------------------------
 
 
@@ -654,10 +654,10 @@ class TestGlobFilesIncludeRegression:
         surviving = {d["path"] for d in manifest.get("files", []) if d.get("treatment") != "remove"}
 
         assert "server_reports/activity.tcl" in surviving, (
-            "server_reports/activity.tcl must survive — referenced only via glob server_reports/**"
+            "server_reports/activity.tcl must survive -- referenced only via glob server_reports/**"
         )
         assert "server_reports/power.tcl" in surviving, (
-            "server_reports/power.tcl must survive — referenced only via glob server_reports/**"
+            "server_reports/power.tcl must survive -- referenced only via glob server_reports/**"
         )
 
     def test_trim_glob_only_subdir_non_tcl_files_survive(
@@ -701,10 +701,10 @@ class TestGlobFilesIncludeRegression:
 
         assert "server_reports/activity.tcl" in surviving, "Tcl file must survive via glob"
         assert "server_reports/report.py" in surviving, (
-            "glob-matched .py file must survive — F1 is file-type agnostic (P-42)"
+            "glob-matched .py file must survive -- F1 is file-type agnostic (P-42)"
         )
         assert "server_reports/run.pl" in surviving, (
-            "glob-matched .pl file must survive — F1 is file-type agnostic (P-42)"
+            "glob-matched .pl file must survive -- F1 is file-type agnostic (P-42)"
         )
 
     def test_trim_multiple_procs_excluded_with_dpa_all_dropped_atomically(
@@ -808,14 +808,14 @@ class TestGlobFilesIncludeRegression:
         )
         captured = capsys.readouterr()
         assert rc == 0, f"validate should exit 0; stderr:\n{captured.err}"
-        # VW-03 must NOT fire — glob matches files on disk
+        # VW-03 must NOT fire -- glob matches files on disk
         assert "VW-03" not in captured.err
 
 
 class TestFullDomainProcIndex:
     """Option A: P2 builds a full-domain proc index so the P4 tracer can
     resolve a call from a surfaced file into a proc defined in a file
-    the user did not include — and ``dependency_graph.json`` records the
+    the user did not include -- and ``dependency_graph.json`` records the
     actual defining path.  Trace remains reporting-only: the non-surfaced
     file is **not** copied; it just appears in the graph so the user can
     add it to the JSON in the next iteration.
@@ -863,7 +863,7 @@ class TestFullDomainProcIndex:
         edges = graph.get("edges", [])
         foo_edges = [e for e in edges if e.get("from", "").endswith("::foo")]
         assert foo_edges, "expected at least one edge from foo in dependency_graph.json"
-        # Exactly one foo → bar edge, status resolved, callee = helper.tcl::bar.
+        # Exactly one foo -> bar edge, status resolved, callee = helper.tcl::bar.
         resolved = [e for e in foo_edges if e.get("status") == "resolved" and e.get("to") == "helper.tcl::bar"]
         assert resolved, (
             "expected a resolved edge from foo to helper.tcl::bar via the full-domain index; "
@@ -886,7 +886,7 @@ class TestFullDomainProcIndex:
         # foo.tcl survived; helper.tcl was NOT copied.
         assert (domain / "foo.tcl").exists()
         assert not (domain / "helper.tcl").exists(), (
-            "helper.tcl must NOT be copied — trace is reporting-only and the user did not include it"
+            "helper.tcl must NOT be copied -- trace is reporting-only and the user did not include it"
         )
 
         # compiled_manifest.json: helper.tcl absent (it was never in the

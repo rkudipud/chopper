@@ -1,6 +1,6 @@
 """Unit tests for :mod:`chopper.core.protocols`.
 
-Protocols are structural types — there is nothing to execute at module
+Protocols are structural types -- there is nothing to execute at module
 load beyond ``isinstance`` / attribute checks. These tests verify:
 
 * All three ports are exported.
@@ -114,7 +114,7 @@ class _MissingWriteFS:
     def read_text(self, path: Path, *, encoding: str = "utf-8") -> str:
         return ""
 
-    # No other methods — must fail isinstance check.
+    # No other methods -- must fail isinstance check.
 
 
 def test_incomplete_stub_fails_protocol() -> None:

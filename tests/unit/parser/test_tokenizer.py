@@ -69,7 +69,7 @@ class TestBraces:
     def test_nested_braces(self) -> None:
         r = tokenize("{ { } }")
         depths = [t.brace_depth for t in r.tokens if t.kind in (TokenKind.LBRACE, TokenKind.RBRACE)]
-        # outer{, inner{, inner}, outer}  →  0, 1, 1, 0
+        # outer{, inner{, inner}, outer}  ->  0, 1, 1, 0
         assert depths == [0, 1, 1, 0]
 
     def test_proc_skeleton(self) -> None:
@@ -90,7 +90,7 @@ class TestBraces:
         assert _kinds(r.tokens) == [TokenKind.WORD]
 
     def test_double_backslash_brace_is_structural(self) -> None:
-        # `\\{` — even backslash count → brace is NOT escaped.
+        # `\\{` -- even backslash count -> brace is NOT escaped.
         r = tokenize("\\\\{}")
         kinds = _kinds(r.tokens)
         assert TokenKind.LBRACE in kinds
@@ -118,7 +118,7 @@ class TestQuotedWords:
         assert _words(r.tokens) == [("set", 1, True), ("x", 1, False), ('"hello world"', 1, False)]
 
     def test_brace_inside_quoted_word_is_inert(self) -> None:
-        # §3.3.1: pre-body quoted word with braces inside does NOT change depth.
+        # Sec.3.3.1: pre-body quoted word with braces inside does NOT change depth.
         r = tokenize('proc foo "arg {arg2}" { body }')
         # Must see the quoted arg as ONE word, and the body braces as structural.
         word_values = [t.value for t in r.tokens if t.kind == TokenKind.WORD]
@@ -134,7 +134,7 @@ class TestQuotedWords:
     def test_quote_inside_braces_opens_quoted_word(self) -> None:
         # Tcl Endekas/Dodekalogue rule 5: a ``"`` at a word boundary opens
         # a quoted word at ANY brace depth. The contents of the quoted
-        # word — including unmatched ``{`` — are LITERAL until the
+        # word -- including unmatched ``{`` -- are LITERAL until the
         # matching ``"``. The example below is a well-formed proc whose
         # body contains a string literal carrying an unbalanced ``{``.
         # The outer braces remain balanced.
@@ -183,7 +183,7 @@ class TestQuotedWords:
     def test_braced_word_with_multiple_quote_pairs(self) -> None:
         # Tcl LRM rule 5: a ``"`` opens a quoted word only at a true word
         # boundary. After the closing ``"`` of a prior quoted pair, a
-        # following ``"`` cannot open a new quoted word — the prior
+        # following ``"`` cannot open a new quoted word -- the prior
         # implementation did, swallowing the closing ``}`` of the
         # enclosing braced data word.
         # Real-world repro: ``string map {" " ""}`` from Intel Caliber
@@ -193,7 +193,7 @@ class TestQuotedWords:
         assert r.errors == ()
 
     def test_braced_word_with_two_quoted_regex_fragments(self) -> None:
-        # ``{".*" ".*"}`` — two adjacent quoted regex fragments inside
+        # ``{".*" ".*"}`` -- two adjacent quoted regex fragments inside
         # one braced data word. The internal whitespace doesn't matter;
         # the closing ``}`` must be reached without phantom quote state.
         r = tokenize('regexp {".*" ".*"} $line')
@@ -305,13 +305,13 @@ class TestComments:
         assert TokenKind.COMMENT in _kinds(r.tokens)
 
     def test_braces_in_comment_are_inert(self) -> None:
-        # §3.4 rule 7: braces inside comments do not change depth.
+        # Sec.3.4 rule 7: braces inside comments do not change depth.
         r = tokenize("# { unbalanced {\nset x 1")
         assert r.final_brace_depth == 0
         assert r.errors == ()
 
     def test_hash_after_word_is_part_of_word(self) -> None:
-        # `#` is only a comment at command position. `set x #hash` — the
+        # `#` is only a comment at command position. `set x #hash` -- the
         # `#hash` is the third word, NOT a comment.
         r = tokenize("set x #hash")
         word_values = [t.value for t in r.tokens if t.kind == TokenKind.WORD]
@@ -332,7 +332,7 @@ class TestComments:
 
 class TestBackslashContinuation:
     def test_continuation_preserves_command(self) -> None:
-        # §3.2: `\<newline>` is a line continuation — does NOT reset cmd pos.
+        # Sec.3.2: `\<newline>` is a line continuation -- does NOT reset cmd pos.
         r = tokenize("proc \\\nfoo {} {}")
         words = _words(r.tokens)
         assert ("proc", 1, True) in words
@@ -352,10 +352,10 @@ class TestBackslashContinuation:
         assert r.errors == ()
 
     def test_double_backslash_newline_is_not_continuation(self) -> None:
-        # Even count → not an escape → regular newline ends the command.
+        # Even count -> not an escape -> regular newline ends the command.
         r = tokenize("a \\\\\nb")
         words = _words(r.tokens)
-        # `b` must be at command position — newline was real.
+        # `b` must be at command position -- newline was real.
         assert ("b", 2, True) in words
 
 
@@ -393,7 +393,7 @@ class TestEdgeCases:
     def test_continuation_at_cmd_pos_preserved(self) -> None:
         # Continuation between `;` and next command preserves cmd-pos.
         r = tokenize("a ; \\\nb")
-        # `b` is the first non-whitespace after `;` + continuation → cmd pos.
+        # `b` is the first non-whitespace after `;` + continuation -> cmd pos.
         words = _words(r.tokens)
         assert ("b", 2, True) in words
 
@@ -405,7 +405,7 @@ class TestEdgeCases:
         assert ("b", 2, True) in words
 
     def test_semicolon_inside_braces_still_emits_token(self) -> None:
-        # IMPLEMENTATION.md (parser section) §1.3.0 + §1.3.4 rule 3: brace-delimited blocks are
+        # IMPLEMENTATION.md (parser section) Sec.1.3.0 + Sec.1.3.4 rule 3: brace-delimited blocks are
         # treated as scripts. `;` inside braces is a command terminator
         # and `#` at the resulting cmd-pos activates a comment.
         r = tokenize("proc f {} { a ; b }")
@@ -415,7 +415,7 @@ class TestEdgeCases:
         assert semis[0].brace_depth == 1
 
     def test_comment_after_semicolon_inside_braces_activates(self) -> None:
-        # §3.4 rule 3: `#` at cmd-pos inside braces is a comment.
+        # Sec.3.4 rule 3: `#` at cmd-pos inside braces is a comment.
         r = tokenize("proc f {} { a ; # c\nb }")
         comments = [t for t in r.tokens if t.kind == TokenKind.COMMENT]
         assert len(comments) == 1
@@ -429,7 +429,7 @@ class TestEdgeCases:
         assert r.errors == ()
 
     def test_escaped_open_brace_in_word_stays_word(self) -> None:
-        # `abc\{def` — the `{` is escaped; the whole thing is one word.
+        # `abc\{def` -- the `{` is escaped; the whole thing is one word.
         r = tokenize("abc\\{def")
         words = _words(r.tokens)
         assert words == [("abc\\{def", 1, True)]

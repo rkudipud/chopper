@@ -4,7 +4,7 @@ Single helper consumed by both :mod:`chopper.audit.writers` and
 :mod:`chopper.cli.loc_report` so the two phases agree byte-for-byte on
 what counts as "a file in the domain". Prior to this module both
 phases shipped near-identical BFS loops with subtly different
-extension filters and exclude rules — a source of latent drift the
+extension filters and exclude rules -- a source of latent drift the
 production-readiness review flagged (A1).
 
 The walker is intentionally minimal:
@@ -13,7 +13,7 @@ The walker is intentionally minimal:
   so in-memory unit-test fixtures work unchanged;
 * yields paths relative to ``root``, lex-sorted by POSIX form;
 * always excludes the internal ``.chopper/`` directory;
-* optional ``extensions`` whitelist (suffix-lowercased) — when ``None``
+* optional ``extensions`` whitelist (suffix-lowercased) -- when ``None``
   every regular file is returned.
 
 The ``TEXT_LIKE_EXTENSIONS`` constant centralises the "files we are
@@ -44,12 +44,12 @@ __all__ = [
 # the legacy ``cli/loc_report._SLOC_EXTENSIONS`` set and extended with
 # the markup formats cloc handles natively (md / xml / yml). When in
 # doubt prefer adding an extension here over special-casing inside
-# callers — symmetry between "before" and "after" walks is what
+# callers -- symmetry between "before" and "after" walks is what
 # guarantees the delta math is honest.
 #
 # ``.json`` is intentionally NOT in this set: JSON files are authoring
 # inputs (base / feature / project JSONs and the preserved ``jsons/``
-# subtree), not domain runtime code.  See ARCHITECTURE.md §5.5.13
+# subtree), not domain runtime code.  See ARCHITECTURE.md Sec.5.5.13
 # "Authoring artifacts excluded from all LOC accounting".
 TEXT_LIKE_EXTENSIONS = frozenset(
     {
@@ -78,7 +78,7 @@ TEXT_LIKE_EXTENSIONS = frozenset(
 # of the ``extensions`` filter.  These represent authoring metadata
 # Chopper itself consumes (JSON config) or that ships alongside the
 # domain as a README (``instructions.md``) and must never be counted
-# as domain source.  See ARCHITECTURE.md §5.5.13.
+# as domain source.  See ARCHITECTURE.md Sec.5.5.13.
 EXCLUDED_SUFFIXES = frozenset({".json"})
 EXCLUDED_FILENAMES = frozenset({"instructions.md"})
 
@@ -95,7 +95,7 @@ def walk_files(
     Paths are returned **relative** to ``root`` (POSIX form). The walk
     is BFS so results are deterministic across runs given identical
     inputs. Read errors on individual directory listings are swallowed
-    (audit-style "last line of defence" — a missing subtree should not
+    (audit-style "last line of defence" -- a missing subtree should not
     crash the report builder).
 
     Parameters
@@ -151,7 +151,7 @@ def walk_files(
                     continue
                 frontier.append(child)
                 continue
-            # Hard authoring-artifact exclusion (ARCHITECTURE.md §5.5.13):
+            # Hard authoring-artifact exclusion (ARCHITECTURE.md Sec.5.5.13):
             # apply BEFORE the optional extension filter so a caller
             # passing ``extensions=None`` (raw file-count walk) and a
             # caller passing ``TEXT_LIKE_EXTENSIONS`` (SLOC walk) both

@@ -1,9 +1,9 @@
 """cloc-backed SLOC counting.
 
 Uses the vendored `cloc.pl` (under :mod:`chopper.audit.vendor`) to count
-logical source lines with industry-standard language rules — block
-comments (``/* … */``, ``<!-- … -->``), Perl POD (``=pod`` / ``=cut``),
-Python triple-quoted module docstrings, HEREDOCs, and many more — none
+logical source lines with industry-standard language rules -- block
+comments (``/* ... */``, ``<!-- ... -->``), Perl POD (``=pod`` / ``=cut``),
+Python triple-quoted module docstrings, HEREDOCs, and many more -- none
 of which the pure-Python fallback in :mod:`chopper.audit.sloc` handles.
 
 This module is *opportunistic*: if perl or `cloc.pl` is missing, or
@@ -15,7 +15,7 @@ runtime dependencies on the user's side.
 Caveats
 -------
 * cloc identifies languages by extension *and* shebang. It does **not**
-  recognize the Tcl ``if {0} { … }`` idiom as a block comment — that
+  recognize the Tcl ``if {0} { ... }`` idiom as a block comment -- that
   is a Tcl convention, not part of the language grammar.
 * cloc counts CSV rows differently than the pure-Python fallback (it
   treats ``,,,`` as code; the fallback treats it as blank). When cloc
@@ -45,7 +45,7 @@ __all__ = [
 # and falling back. cloc on a single small file usually finishes in <100 ms.
 _CLOC_TIMEOUT_SECONDS = 30.0
 
-# Batch invocation gets a larger budget — we still want to fall back to the
+# Batch invocation gets a larger budget -- we still want to fall back to the
 # pure-Python counter if cloc somehow stalls on a giant input set, but a
 # multi-thousand-file domain may legitimately take many seconds.
 _CLOC_BATCH_TIMEOUT_SECONDS = 300.0
@@ -93,7 +93,7 @@ def is_available() -> bool:
 def count_sloc_via_cloc(path: Path, text: str) -> int | None:
     """Count logical source lines in ``text`` using cloc.
 
-    ``path`` is used only for its suffix — the content actually analyzed
+    ``path`` is used only for its suffix -- the content actually analyzed
     is ``text``, written to a temporary file with the same extension so
     cloc can pick the right language profile. Returns ``None`` (so the
     caller can fall back) when:
@@ -103,19 +103,19 @@ def count_sloc_via_cloc(path: Path, text: str) -> int | None:
     * cloc could not identify the language (no ``SUM`` entry).
 
     Returns ``0`` (not ``None``) for empty / pure-blank input that cloc
-    successfully analyzed — that is a valid result, not a failure.
+    successfully analyzed -- that is a valid result, not a failure.
     """
     if not is_available():
         return None
 
     perl = _perl_executable()
     script = cloc_script_path()
-    if perl is None or script is None:  # pragma: no cover — guarded by is_available
+    if perl is None or script is None:  # pragma: no cover -- guarded by is_available
         return None
 
     # Empty / whitespace-only short-circuit: cloc emits no SUM block for an
     # empty file, which we can't distinguish from "language not recognized".
-    # Match the pure-Python contract (blank → 0).
+    # Match the pure-Python contract (blank -> 0).
     if not text.strip():
         return 0
 
@@ -194,7 +194,7 @@ def count_sloc_via_cloc_batch(items: list[tuple[Path, str]]) -> list[int | None]
 
     perl = _perl_executable()
     script = cloc_script_path()
-    if perl is None or script is None:  # pragma: no cover — guarded by is_available
+    if perl is None or script is None:  # pragma: no cover -- guarded by is_available
         return [None] * n
 
     # Per-slot result, pre-seeded with the empty-text short-circuit so we
@@ -275,7 +275,7 @@ def count_sloc_via_cloc_batch(items: list[tuple[Path, str]]) -> list[int | None]
     return result
 
 
-def _selftest() -> int:  # pragma: no cover — manual diagnostic
+def _selftest() -> int:  # pragma: no cover -- manual diagnostic
     """Tiny smoke test: ``python -m chopper.audit.cloc_backend``.
 
     Prints whether cloc is available and its SLOC count for a small

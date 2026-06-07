@@ -1,6 +1,6 @@
 """JSON-schema validation adapters for Chopper's three JSON schemas.
 
-This module provides :func:`validate_json` — a single entry point that
+This module provides :func:`validate_json` -- a single entry point that
 accepts a raw parsed dict and determines which Chopper schema to validate
 it against, then emits diagnostics via the supplied callback.
 
@@ -8,19 +8,19 @@ Schemas are read from ``schemas/`` relative to the *repo root*
 (the directory four levels above this source file). The authoritative
 schema files are:
 
-* ``schemas/base-v1.schema.json``     → ``$schema: base-v1``
-* ``schemas/feature-v1.schema.json``  → ``$schema: feature-v1``
-* ``schemas/project-v1.schema.json``  → ``$schema: project-v1``
+* ``schemas/base-v1.schema.json``     -> ``$schema: base-v1``
+* ``schemas/feature-v1.schema.json``  -> ``$schema: feature-v1``
+* ``schemas/project-v1.schema.json``  -> ``$schema: project-v1``
 
 Diagnostic mapping:
 
-* ``$schema`` field missing or unknown  → ``VE-01 missing-schema``
-* Required field missing (jsonschema)   → ``VE-02 missing-required-fields``
-* Project JSON schema failure           → ``VE-12 project-schema-invalid``
-* Any other jsonschema validation error → ``VE-02`` (base/feature) or
+* ``$schema`` field missing or unknown  -> ``VE-01 missing-schema``
+* Required field missing (jsonschema)   -> ``VE-02 missing-required-fields``
+* Project JSON schema failure           -> ``VE-12 project-schema-invalid``
+* Any other jsonschema validation error -> ``VE-02`` (base/feature) or
   ``VE-12`` (project) depending on schema kind.
 
-Only the *first* validation error per file is forwarded to the caller —
+Only the *first* validation error per file is forwarded to the caller --
 further errors on a malformed document are usually cascades of the same root
 cause, and overwhelming the user with them is unhelpful.
 """
@@ -49,7 +49,7 @@ _SCHEMA_ID_PROJECT = "project-v1"
 
 _KNOWN_SCHEMAS: frozenset[str] = frozenset([_SCHEMA_ID_BASE, _SCHEMA_ID_FEATURE, _SCHEMA_ID_PROJECT])
 
-# Maps $schema value → the filename under schemas/.
+# Maps $schema value -> the filename under schemas/.
 _SCHEMA_FILE: dict[str, str] = {
     _SCHEMA_ID_BASE: "base-v1.schema.json",
     _SCHEMA_ID_FEATURE: "feature-v1.schema.json",
@@ -66,12 +66,12 @@ def _schema_dir() -> Path:
     """Return the absolute path to ``schemas/`` at the repo root.
 
     Resolved relative to *this file* (``src/chopper/config/schema.py``):
-    go up 4 levels (config → chopper → src → repo-root) then into
+    go up 4 levels (config -> chopper -> src -> repo-root) then into
     ``schemas/``.  The path is validated at first call; a missing
     ``schemas/`` directory is a packaging error and raises immediately.
     """
     here = Path(__file__).resolve()
-    repo_root = here.parent.parent.parent.parent  # src/chopper/config/schema.py → repo root
+    repo_root = here.parent.parent.parent.parent  # src/chopper/config/schema.py -> repo root
     schemas = repo_root / "schemas"
     if not schemas.is_dir():
         raise RuntimeError(f"schemas/ not found at {schemas}; check the repo layout (schemas/ must sit alongside src/)")
@@ -116,7 +116,7 @@ def validate_json(
 
     :param raw: The already-parsed JSON object (as returned by
         ``json.loads``).
-    :param source_path: Domain-relative path of the source file — used
+    :param source_path: Domain-relative path of the source file -- used
         for diagnostic provenance only.
     :param on_diagnostic: Callback receiving exactly **one**
         :class:`~chopper.core.diagnostics.Diagnostic` on the first
@@ -148,7 +148,7 @@ def validate_json(
     code = "VE-12" if schema_id == _SCHEMA_ID_PROJECT else "VE-02"
 
     # Build a concise human-readable message from the jsonschema error.
-    path_str = " → ".join(str(p) for p in first.absolute_path) if first.absolute_path else "(root)"
+    path_str = " -> ".join(str(p) for p in first.absolute_path) if first.absolute_path else "(root)"
     on_diagnostic(
         Diagnostic.build(
             code,

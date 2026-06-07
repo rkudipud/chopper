@@ -1,6 +1,6 @@
 """Selected-JSON-input preservation in the rebuilt domain (P5a tail).
 
-Per ``technical_docs/ARCHITECTURE.md`` §5.6, after the per-file dispatch
+Per ``technical_docs/ARCHITECTURE.md`` Sec.5.6, after the per-file dispatch
 loop has succeeded and only on a live (non-dry-run) trim, the entire
 ``jsons/`` directory from the backup is mirrored into the rebuilt
 ``<domain>/jsons/``:
@@ -10,7 +10,7 @@ loop has succeeded and only on a live (non-dry-run) trim, the entire
   the domain. This ensures the backup always reflects the user's latest
   JSON edits, and the mirror step below restores them faithfully.
 * The whole ``<domain_backup>/jsons/`` subtree is copied verbatim so
-  every JSON that existed in the original domain — selected or not —
+  every JSON that existed in the original domain -- selected or not --
   is present in the rebuilt domain without ambiguity.
 * Out-of-tree inputs (absolute paths outside the domain root) are
   additionally copied to ``<domain>/jsons/_external/<NN>_<basename>``
@@ -20,7 +20,7 @@ loop has succeeded and only on a live (non-dry-run) trim, the entire
   external inputs share a basename.
 
 I/O failures during either copy step emit ``VW-20 audit-write-failed``
-(severity warning, exit 0) and the run continues — preservation is a
+(severity warning, exit 0) and the run continues -- preservation is a
 convenience, not a hard guarantee. The rebuilt domain remains the
 primary deliverable.
 """
@@ -45,7 +45,7 @@ def preserve_input_sources(ctx: ChopperContext, loaded: LoadedConfig) -> int:
 
     The entire backup ``jsons/`` directory is copied verbatim so the rebuilt
     domain is unambiguous: every JSON that existed under the original
-    ``<domain>/jsons/`` — selected or not — is present in the rebuilt
+    ``<domain>/jsons/`` -- selected or not -- is present in the rebuilt
     domain. Out-of-tree inputs are additionally placed in
     ``<domain>/jsons/_external/`` with a two-digit sequence prefix so they
     are accessible without consulting external paths.
@@ -75,7 +75,7 @@ def preserve_input_sources(ctx: ChopperContext, loaded: LoadedConfig) -> int:
                 )
             )
 
-    # --- Step 2: out-of-tree inputs → _external/<NN>_<basename> ---
+    # --- Step 2: out-of-tree inputs -> _external/<NN>_<basename> ---
     sources: list[Path] = []
     if loaded.project is not None:
         sources.append(loaded.project.source_path)

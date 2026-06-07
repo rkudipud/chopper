@@ -46,7 +46,7 @@ def test_generator_service_wraps_write_oserror() -> None:
 
 def test_generator_service_mirrors_perms_when_backup_src_exists(tmp_path: Path) -> None:
     """When a generated artifact's path exists under backup_root, the trimmer
-    must mirror the source permissions onto the new file (ARCHITECTURE.md §5.6)."""
+    must mirror the source permissions onto the new file (ARCHITECTURE.md Sec.5.6)."""
     from chopper.core.models_trimmer import GeneratedArtifact
     from chopper.generators.service import GeneratorService
 

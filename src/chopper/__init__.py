@@ -1,4 +1,4 @@
-"""Chopper — EDA TFM trimming tool for Cheetah R2G flows."""
+"""Chopper -- EDA TFM trimming tool for Cheetah R2G flows."""
 
 from __future__ import annotations
 

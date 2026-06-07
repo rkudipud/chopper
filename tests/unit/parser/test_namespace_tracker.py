@@ -49,7 +49,7 @@ class TestNamespaceEval:
         assert t.namespace_stack == ("a",)
         assert t.namespace_path == "a"
         assert t.can_define_proc() is True
-        # Now feed the RBRACE and the tail — namespace pops.
+        # Now feed the RBRACE and the tail -- namespace pops.
         for tok in tokens[rbrace_index:]:
             t.feed(tok)
         assert t.top.kind is ContextKind.FILE_ROOT
@@ -65,10 +65,10 @@ class TestNamespaceEval:
         assert t.top.kind is ContextKind.NAMESPACE_EVAL
 
     def test_sequential_namespace_blocks_reset(self) -> None:
-        # §4.5.1 worked example: namespace must reset completely between blocks.
+        # Sec.4.5.1 worked example: namespace must reset completely between blocks.
         src = "namespace eval a {\n    proc p1 {} { return 1 }\n}\nnamespace eval b {\n"
         t = _feed_all(src)
-        # After closing `a`, opening `b` → stack should be just ["b"], not ["a", "b"].
+        # After closing `a`, opening `b` -> stack should be just ["b"], not ["a", "b"].
         assert t.namespace_stack == ("b",)
 
     def test_absolute_namespace_stripped(self) -> None:
@@ -76,7 +76,7 @@ class TestNamespaceEval:
         assert t.namespace_stack == ("abs",)
 
     def test_computed_namespace_name_emits_diagnostic(self) -> None:
-        # §4.5 rule 7 — computed name is not parsed; PW-04 is emitted.
+        # Sec.4.5 rule 7 -- computed name is not parsed; PW-04 is emitted.
         t = _feed_all("namespace eval $prefix_ns {\n")
         diags = t.diagnostics
         assert len(diags) == 1
@@ -85,7 +85,7 @@ class TestNamespaceEval:
             line_no=1,
             detail="$prefix_ns",
         )
-        # Body context is OTHER, not NAMESPACE_EVAL — procs inside suppressed.
+        # Body context is OTHER, not NAMESPACE_EVAL -- procs inside suppressed.
         assert t.top.kind is ContextKind.OTHER
         assert t.can_define_proc() is False
         # No namespace was pushed.
@@ -128,7 +128,7 @@ class TestProcBodyMarking:
         # (OTHER), then the body opener (PROC_BODY via mark).
         t.feed(Token(kind=TokenKind.WORD, value="proc", line_no=1, brace_depth=0, at_command_position=True))
         t.feed(Token(kind=TokenKind.WORD, value="foo", line_no=1, brace_depth=0, at_command_position=False))
-        # Args word: `{}` — opens and closes at depth 0.
+        # Args word: `{}` -- opens and closes at depth 0.
         t.feed(Token(kind=TokenKind.LBRACE, value="{", line_no=1, brace_depth=0, at_command_position=False))
         assert t.top.kind is ContextKind.OTHER  # args block
         t.feed(Token(kind=TokenKind.RBRACE, value="}", line_no=1, brace_depth=1, at_command_position=False))
@@ -143,14 +143,14 @@ class TestProcBodyMarking:
         t.mark_proc_body_opening()
         t.feed(Token(kind=TokenKind.LBRACE, value="{", line_no=1, brace_depth=0, at_command_position=True))
         assert t.top.kind is ContextKind.PROC_BODY
-        # Second LBRACE — without a new mark — is OTHER.
+        # Second LBRACE -- without a new mark -- is OTHER.
         t.feed(Token(kind=TokenKind.LBRACE, value="{", line_no=1, brace_depth=1, at_command_position=False))
         assert t.top.kind is ContextKind.OTHER
 
 
 class TestOtherContext:
     def test_anonymous_brace_is_other(self) -> None:
-        # `set x {...}` — the `{` opens an OTHER frame, procs inside not
+        # `set x {...}` -- the `{` opens an OTHER frame, procs inside not
         # recognised.
         t = _feed_all("set x {\n")
         assert t.top.kind is ContextKind.OTHER
@@ -158,19 +158,19 @@ class TestOtherContext:
 
     def test_namespace_eval_inside_control_flow_still_pushes_ns(self) -> None:
         # Inside `if { ... }` body, a `namespace eval` pattern still triggers
-        # detection — though whether that's semantically correct for Tcl is
-        # academic; the spec §4.4 says procs inside CONTROL_FLOW are not
+        # detection -- though whether that's semantically correct for Tcl is
+        # academic; the spec Sec.4.4 says procs inside CONTROL_FLOW are not
         # recognised, but the namespace stack itself tracks syntactic nesting.
         # This test documents current behaviour.
         src = "if { $x } {\n    namespace eval inner {\n"
         t = _feed_all(src)
-        # Inside the `if` body, we see `namespace eval inner` → NS push.
+        # Inside the `if` body, we see `namespace eval inner` -> NS push.
         assert "inner" in t.namespace_stack
 
 
 class TestCommandReset:
     def test_newline_resets_pending_opener(self) -> None:
-        # `namespace eval a\n{` — newline between name and `{` breaks the
+        # `namespace eval a\n{` -- newline between name and `{` breaks the
         # sliding window; the `{` is then OTHER, not NAMESPACE_EVAL.
         src = "namespace eval a\n{\n"
         t = _feed_all(src)
@@ -204,7 +204,7 @@ class TestDepthTracking:
 
 class TestErrorHandling:
     def test_unbalanced_rbrace_raises(self) -> None:
-        # An RBRACE at depth 0 must raise — callers are expected to abort
+        # An RBRACE at depth 0 must raise -- callers are expected to abort
         # on tokenizer errors before feeding the tracker.
         t = NamespaceTracker()
         with pytest.raises(ValueError, match="negative_depth"):

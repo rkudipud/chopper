@@ -1,17 +1,17 @@
-"""Stack emitter — F3 scheduler-stack artifact rendering.
+"""Stack emitter -- F3 scheduler-stack artifact rendering.
 
 Two emission modes, exposed as two pure value functions (no I/O):
 
-* :func:`emit_flow_stack` — renders the aggregate ``<domain>.stack``
+* :func:`emit_flow_stack` -- renders the aggregate ``<domain>.stack``
   file produced when ``options.generate_stack: true``. The file contains
   a single Intel header followed by one N/J/L/I/O/D/(R) record per
   stage, with records separated by a single blank line and the Intel
   header appearing exactly once at the top.
 
-* :func:`emit_standalone_stack` — renders a per-stage ``<stage>.stack``
+* :func:`emit_standalone_stack` -- renders a per-stage ``<stage>.stack``
   file produced when the stage sets ``standalone_stack: true``. The
   body is the Intel header followed by a single blank line and then
-  the authored ``steps`` joined by ``"\\n"`` verbatim — no record
+  the authored ``steps`` joined by ``"\\n"`` verbatim -- no record
   derivation, no field interpretation.
 
 Per-record line order in the aggregate is fixed::
@@ -32,10 +32,10 @@ Per-record line order in the aggregate is fixed::
 2. Else if ``stage.load_from`` is non-empty, emit ``D <load_from>``.
 3. Else, emit a bare ``D`` line (first stage, no predecessor).
 
-The ``R`` line is omitted entirely for the default ``serial`` mode —
+The ``R`` line is omitted entirely for the default ``serial`` mode --
 matches the production stack-file convention.
 
-See ARCHITECTURE.md §3.6 for the authoritative behavior spec.
+See ARCHITECTURE.md Sec.3.6 for the authoritative behavior spec.
 """
 
 from __future__ import annotations

@@ -2,15 +2,15 @@
 
 Consumes the tokenizer stream and maintains two stacks:
 
-* **Context stack** — one :class:`ContextFrame` per open brace block plus
+* **Context stack** -- one :class:`ContextFrame` per open brace block plus
   an implicit :attr:`ContextKind.FILE_ROOT` bottom. Determines whether a
   ``proc`` keyword at command position is a real definition
   (only ``FILE_ROOT`` and ``NAMESPACE_EVAL`` allow it).
-* **Namespace stack** — tracks active ``namespace eval`` nesting so the
+* **Namespace stack** -- tracks active ``namespace eval`` nesting so the
   proc extractor can qualify proc names.
 
 Stateful utility driven by a caller feeding tokens one at a time. Owns
-**no** :class:`ChopperContext` knowledge — diagnostics are collected
+**no** :class:`ChopperContext` knowledge -- diagnostics are collected
 into :attr:`diagnostics` for the service layer to translate into
 ``PW-04 computed-namespace-name``.
 
@@ -22,7 +22,7 @@ Interaction with the proc extractor:
    :meth:`mark_proc_body_opening` **before** feeding the body ``LBRACE``.
    The resulting frame is labelled :attr:`ContextKind.PROC_BODY`.
 
-The tracker never emits ``PE-02`` — structural brace errors are the
+The tracker never emits ``PE-02`` -- structural brace errors are the
 tokenizer's responsibility.
 """
 
@@ -50,7 +50,7 @@ _CONTROL_FLOW_KEYWORDS: frozenset[str] = frozenset(
         "else",
         "for",
         "foreach",
-        "foreach_in_collection",  # Synopsys EDA iterator (§7.14, P-36)
+        "foreach_in_collection",  # Synopsys EDA iterator (Sec.7.14, P-36)
         "while",
         "switch",
         "catch",
@@ -72,7 +72,7 @@ class ContextKind(StrEnum):
     CONTROL_FLOW = "CONTROL_FLOW"
     PROC_BODY = "PROC_BODY"
     OTHER = "OTHER"
-    """Anonymous brace block — data literal, expression, args word, etc."""
+    """Anonymous brace block -- data literal, expression, args word, etc."""
 
 
 @dataclass(frozen=True)
@@ -200,7 +200,7 @@ class NamespaceTracker:
 
         :raises ValueError: if an ``RBRACE`` is fed when depth is already 0
             (which the tokenizer would have already flagged as a
-            ``negative_depth`` error — callers are expected to abort on
+            ``negative_depth`` error -- callers are expected to abort on
             tokenizer errors rather than pass them through to the tracker).
         """
         kind = token.kind
@@ -242,7 +242,7 @@ class NamespaceTracker:
                 self._pending_kind = None
                 self._in_control_flow_command = False
             return
-        # Continuation of the current command — extend the window.
+        # Continuation of the current command -- extend the window.
         if self._cmd_words:
             self._cmd_words.append(token)
             if len(self._cmd_words) > _MAX_TRACKED_WORDS:
@@ -267,7 +267,7 @@ class NamespaceTracker:
                     detail=raw_name,
                 )
             )
-            # Spec §4.5 rule 7: body is NOT parsed for procs. The next LBRACE
+            # Spec Sec.4.5 rule 7: body is NOT parsed for procs. The next LBRACE
             # pushes :attr:`ContextKind.OTHER` so proc recognition is suppressed.
             self._pending_kind = ContextKind.OTHER
             self._pending_namespace = None

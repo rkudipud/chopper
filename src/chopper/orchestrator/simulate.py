@@ -1,17 +1,17 @@
-"""In-memory trim replay for ``chopper loc`` (ARCHITECTURE.md §5.7).
+"""In-memory trim replay for ``chopper loc`` (ARCHITECTURE.md Sec.5.7).
 
 ``chopper loc`` reports the SLOC impact of a planned trim without
 mutating the real domain. To make its before/after numbers match a
 live ``chopper trim`` byte-for-byte, this module replays the real P5
-trim phases (P5a trim → P5b generators → P5c indentation → P5d
+trim phases (P5a trim -> P5b generators -> P5c indentation -> P5d
 companion sync) against an in-memory copy of the source tree and
 returns the resulting filesystem so the LOC reporter can count the
 *actual* trimmed output rather than estimating it.
 
-The replay reuses the production services unchanged — there is no
+The replay reuses the production services unchanged -- there is no
 parallel "estimator" to drift out of sync with the trimmer. The only
 inputs are the manifest and parse result already computed by the
-dry-run pipeline, so the heavy P0–P4 work is not repeated.
+dry-run pipeline, so the heavy P0-P4 work is not repeated.
 """
 
 from __future__ import annotations
@@ -40,9 +40,9 @@ __all__ = ["SimulatedTrim", "simulate_trim_in_memory"]
 class SimulatedTrim:
     """Result of an in-memory trim replay.
 
-    * ``fs`` — the in-memory filesystem after the trim completed.
-    * ``domain_root`` — holds the rebuilt, trimmed domain.
-    * ``backup_root`` — holds the pristine pre-trim source (moved aside
+    * ``fs`` -- the in-memory filesystem after the trim completed.
+    * ``domain_root`` -- holds the rebuilt, trimmed domain.
+    * ``backup_root`` -- holds the pristine pre-trim source (moved aside
       by the trimmer's Case-1 prep, exactly as on real disk).
     """
 
@@ -87,7 +87,7 @@ def simulate_trim_in_memory(
     as a clean Case-1 domain (domain present, no backup). The real P5
     services then run with ``dry_run=False`` so the in-memory domain is
     rebuilt identically to a live trim. Diagnostics and progress are
-    discarded — the caller already rendered them from the dry-run pass.
+    discarded -- the caller already rendered them from the dry-run pass.
     """
 
     domain_root = ctx.config.domain_root

@@ -39,7 +39,7 @@ __all__ = ["cmd_cleanup", "cmd_loc", "cmd_trim", "cmd_validate"]
 def _resolve_domain_root(args: argparse.Namespace) -> tuple[Path, Path | None]:
     """Resolve the operational domain root.
 
-    Per ``technical_docs/ARCHITECTURE.md`` §5.1 (Domain-root resolution),
+    Per ``technical_docs/ARCHITECTURE.md`` Sec.5.1 (Domain-root resolution),
     a single two-step rule applies:
 
     1. **Pick the candidate.** If ``--domain`` is provided, the candidate
@@ -53,7 +53,7 @@ def _resolve_domain_root(args: argparse.Namespace) -> tuple[Path, Path | None]:
        redirect is single-shot: ``foo_backup_backup`` redirects to
        ``foo_backup`` if and only if ``foo_backup/`` exists. If the
        stripped sibling does not exist on disk, the candidate is
-       returned unchanged — a coincidentally-named domain is honored
+       returned unchanged -- a coincidentally-named domain is honored
        as-is.
 
     Returns a ``(domain_root, original_candidate)`` tuple. The second
@@ -69,7 +69,7 @@ def _resolve_domain_root(args: argparse.Namespace) -> tuple[Path, Path | None]:
         except (FileNotFoundError, OSError) as exc:
             # Current working directory was deleted or is otherwise
             # inaccessible (common on NFS when a sibling process
-            # replaces the inode). We have no sensible fallback —
+            # replaces the inode). We have no sensible fallback --
             # ``--domain`` is the supported escape hatch.
             raise SystemExit(
                 "[chopper] fatal: cannot determine current working directory "
@@ -96,7 +96,7 @@ def _expand_feature_dirs(features: str | None) -> str | None:
     """Expand directory entries in a ``--features`` comma-separated list.
 
     Validate-only authoring convenience per
-    ``technical_docs/ARCHITECTURE.md`` §5.1: any entry that resolves
+    ``technical_docs/ARCHITECTURE.md`` Sec.5.1: any entry that resolves
     to a directory is replaced in place by the sorted (lexicographic),
     non-recursive list of its immediate ``*.json`` children. File entries
     pass through unchanged. Empty segments are preserved so that the
@@ -171,7 +171,7 @@ def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperCo
         progress=_make_progress(args),
     )
     if stripped_candidate is not None:
-        # Per ARCHITECTURE.md §5.1, emit VI-03 so the suffix-strip
+        # Per ARCHITECTURE.md Sec.5.1, emit VI-03 so the suffix-strip
         # redirect is visible in stderr and recorded in the audit
         # bundle. Info severity; --strict does not escalate.
         sink.emit(
@@ -208,13 +208,13 @@ def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
 
     When ``--project <project.json>`` is given, the project JSON's
     ``base`` and ``features`` entries are resolved relative to the
-    operational domain root (per ARCHITECTURE.md §3.3 and §5.1). If
+    operational domain root (per ARCHITECTURE.md Sec.3.3 and Sec.5.1). If
     the user runs Chopper from outside the domain (e.g. from the
     install/sbox directory) without passing ``--domain``, the
     domain root defaults to ``Path.cwd()`` and those relative paths
     silently resolve under the wrong directory. The downstream
     failure surfaces inside ``ConfigService`` as a generic VE-01
-    file-not-found error pointing at a path under the sbox — exit
+    file-not-found error pointing at a path under the sbox -- exit
     code 1 with no hint that ``--domain`` is the fix.
 
     This helper performs a fast pre-check after argument parsing but
@@ -227,7 +227,7 @@ def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
     Returns ``2`` when the check fires (caller must propagate as the
     process exit code), ``None`` otherwise. Returns ``None`` for
     structural problems with the project JSON (missing keys, malformed
-    JSON, schema violations) — those remain ``ConfigService``'s
+    JSON, schema violations) -- those remain ``ConfigService``'s
     responsibility (VE-01 / VE-04 / schema diagnostics).
     """
     project_arg = getattr(args, "project", None)
@@ -269,7 +269,7 @@ def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
         f"Resolved from domain root {domain_root.as_posix()!r} "
         f"(from {'--domain' if explicit_domain else 'cwd'}). "
         "Pass --domain <path-to-domain-root>, or 'cd' into the domain "
-        "root before running Chopper. See ARCHITECTURE.md §3.3."
+        "root before running Chopper. See ARCHITECTURE.md Sec.3.3."
     )
     diag = Diagnostic.build(
         "VE-13",
@@ -298,7 +298,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     """Run the pipeline in dry-run mode (validate only; no writes)."""
 
     # Validate-only convenience: expand any directory in ``--features`` to
-    # its sorted ``*.json`` children. See architecture doc §5.1.
+    # its sorted ``*.json`` children. See architecture doc Sec.5.1.
     if getattr(args, "project", None) is None:
         args.features = _expand_feature_dirs(getattr(args, "features", None))
 
@@ -342,7 +342,7 @@ def cmd_trim(args: argparse.Namespace) -> int:
 def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
     """Emit a stderr notice when cwd is inside a soon-to-be-renamed domain.
 
-    Only triggers when the backup does not yet exist (trim case 1 —
+    Only triggers when the backup does not yet exist (trim case 1 --
     the only case that issues ``rename(domain, backup)``). Pure UX;
     no diagnostic code, no audit-bundle entry.
     """
@@ -372,11 +372,11 @@ def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
 def cmd_loc(args: argparse.Namespace) -> int:
     """Run the read-only LOC report subcommand.
 
-    Per architecture doc §5.7 (and FR-46): runs the same P0–P4 +
+    Per architecture doc Sec.5.7 (and FR-46): runs the same P0-P4 +
     dry-run-P6 pipeline as ``chopper trim --dry-run``, additionally
     invokes ``GeneratorService`` in no-write mode, then renders a
     stdout LOC table comparing the source domain against the planned
-    trimmed domain. Writes nothing — no domain modifications and no
+    trimmed domain. Writes nothing -- no domain modifications and no
     ``.chopper/`` audit bundle (the runner suppresses P7 audit when
     ``command == "loc"``).
     """
@@ -401,7 +401,7 @@ def cmd_loc(args: argparse.Namespace) -> int:
     # buckets. Fallback path: pipeline aborted early (e.g. ``PE-01``
     # duplicate procs or ``PE-02`` unbalanced braces in P2). ``chopper
     # loc`` is read-only, so we still emit a baseline-only SLOC report
-    # — users get the on-disk numbers even when their domain has
+    # -- users get the on-disk numbers even when their domain has
     # quality issues that block trim planning.
     if result.manifest is not None and result.parsed is not None and result.loaded is not None:
         from chopper.cli.loc_report import build_loc_report, render_loc_report

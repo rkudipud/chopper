@@ -1,9 +1,9 @@
-"""TracerService — Phase 4 (P4) BFS trace expansion.
+"""TracerService -- Phase 4 (P4) BFS trace expansion.
 
-* **Seeds**: the PI set — every canonical proc name in
+* **Seeds**: the PI set -- every canonical proc name in
   ``manifest.proc_decisions``.
 * **Walk**: breadth-first, frontier always popped in lex order. The
-  frontier does not deduplicate on enqueue — every call-token
+  frontier does not deduplicate on enqueue -- every call-token
   occurrence becomes an :class:`Edge` record with its own line and
   token. Deduplication happens only at visited-set level.
 * **Resolution**: lexical namespace contract. For each raw token the
@@ -15,17 +15,17 @@
 
 Outputs on :class:`DependencyGraph`:
 
-* ``pi_seeds`` — the frontier's starting set (lex-sorted).
-* ``nodes`` — full transitive closure (PI+).
-* ``pt`` — ``nodes − pi_seeds`` (traced-only).
-* ``edges`` — every caller → callee record, sorted by
+* ``pi_seeds`` -- the frontier's starting set (lex-sorted).
+* ``nodes`` -- full transitive closure (PI+).
+* ``pt`` -- ``nodes - pi_seeds`` (traced-only).
+* ``edges`` -- every caller -> callee record, sorted by
   ``(caller, kind, line, token, callee)``.
-* ``unresolved_tokens`` — lex-sorted projection of non-resolved edges.
+* ``unresolved_tokens`` -- lex-sorted projection of non-resolved edges.
 
 Diagnostics: ``TW-01`` (ambiguous), ``TW-02`` (no match),
 ``TW-03`` (dynamic/unresolvable), ``TW-04`` (cycle). All warnings; P4
 never blocks P5. The tracer **never** mutates the
-manifest — it is frozen and the dataclass invariant guarantees mutation
+manifest -- it is frozen and the dataclass invariant guarantees mutation
 raises.
 """
 
@@ -65,9 +65,9 @@ class TracerService:
         loaded: LoadedConfig | None = None,
     ) -> DependencyGraph:
         # ``loaded`` is the source of the tool-command pool (see
-        # architecture doc §3.10 and FR-44). Accept ``None`` so unit
+        # architecture doc Sec.3.10 and FR-44). Accept ``None`` so unit
         # tests that exercise the tracer in isolation keep their
-        # existing call sites — an empty frozenset means no token will
+        # existing call sites -- an empty frozenset means no token will
         # ever be downgraded from TW-02 to TI-01, matching pre-0.5.0
         # behaviour exactly.
         tool_pool: frozenset[str] = loaded.tool_command_pool if loaded is not None else frozenset()
@@ -81,7 +81,7 @@ class TracerService:
         # Build a qualified-name index for O(1) candidate lookup.
         # ``qualified_name`` is namespace-qualified with leading ``::`` stripped
         # (see ProcEntry invariants). Multiple procs can share a qualified
-        # name across files → ambiguity (TW-01).
+        # name across files -> ambiguity (TW-01).
         qname_index: dict[str, list[str]] = defaultdict(list)
         for cn, entry in parsed.index.items():
             qname_index[entry.qualified_name].append(cn)
@@ -124,7 +124,7 @@ class TracerService:
                     frontier.append(edge.callee)
                     nodes.add(edge.callee)
 
-            # source / iproc_source edges — reporting-only file refs.
+            # source / iproc_source edges -- reporting-only file refs.
             for ref in caller_entry.source_refs:
                 edges.append(
                     Edge(
@@ -148,7 +148,7 @@ class TracerService:
         pt = tuple(sorted(set(sorted_nodes) - set(valid_seeds)))
         # ``unresolved_tokens`` reports genuinely-unresolved call tokens
         # (TW-01 / TW-02 / TW-03). ``tool_command`` edges are
-        # informational (TI-01) and do NOT belong here — they represent
+        # informational (TI-01) and do NOT belong here -- they represent
         # tokens that were intentionally downgraded via the pool.
         unresolved = tuple(
             sorted(
@@ -169,7 +169,7 @@ class TracerService:
 
 
 # ---------------------------------------------------------------------------
-# Call-token resolution — lexical namespace contract
+# Call-token resolution -- lexical namespace contract
 # ---------------------------------------------------------------------------
 
 
@@ -186,7 +186,7 @@ def _resolve_token(
 
     Returns exactly one :class:`Edge` per call site. Emits ``TW-01`` /
     ``TW-02`` / ``TW-03`` / ``TI-01`` diagnostics as side effects via
-    ``ctx.diag``. See architecture doc §5.4 for the full six-step ladder.
+    ``ctx.diag``. See architecture doc Sec.5.4 for the full six-step ladder.
     """
     caller_cn = caller.canonical_name
     caller_path = caller.source_file
@@ -195,7 +195,7 @@ def _resolve_token(
     # diagnostic still carries a non-null line in the audit bundle.
     line = caller.body_start_line
 
-    # TW-03 — dynamic / syntactically unresolvable call forms.
+    # TW-03 -- dynamic / syntactically unresolvable call forms.
     # A token is "dynamic" when the parser could not strip it to a pure
     # identifier chain: variable substitution (``$cmd``), bracket-command
     # substitution (``[expr ...]``), or empty after suppression.
@@ -221,7 +221,7 @@ def _resolve_token(
         if len(hits) == 1:
             matched_canonical = hits[0]
             break
-        # More than one canonical proc shares this qualified name → TW-01.
+        # More than one canonical proc shares this qualified name -> TW-01.
         _emit_tw01(ctx, caller_cn, token, caller_path, line, hits)
         return Edge(
             caller=caller_cn,
@@ -234,8 +234,8 @@ def _resolve_token(
         )
 
     if matched_canonical is None:
-        # Tool-command pool check (architecture doc §3.10). The pool is
-        # consulted ONLY on the TW-02 branch — after the lexical ladder
+        # Tool-command pool check (architecture doc Sec.3.10). The pool is
+        # consulted ONLY on the TW-02 branch -- after the lexical ladder
         # has failed to resolve the token to an in-domain canonical
         # proc. Matching is on raw token OR namespace-stripped leaf so
         # both ``get_app_var`` and ``::pt::get_app_var`` downgrade.
@@ -279,10 +279,10 @@ def _candidate_qnames(token: str, caller_namespace: str) -> tuple[str, ...]:
 
     Lexical namespace resolution:
 
-    * ``::ns::helper`` — absolute; single candidate ``ns::helper``.
-    * ``ns::helper`` — relative; try ``<caller_ns>::ns::helper`` then
+    * ``::ns::helper`` -- absolute; single candidate ``ns::helper``.
+    * ``ns::helper`` -- relative; try ``<caller_ns>::ns::helper`` then
       ``ns::helper``.
-    * ``helper`` — bare; try ``<caller_ns>::helper`` then ``helper``.
+    * ``helper`` -- bare; try ``<caller_ns>::helper`` then ``helper``.
     """
     # Strip leading ``::`` to get the "absolute" form test.
     if token.startswith("::"):
@@ -309,7 +309,7 @@ def _is_dynamic(token: str) -> bool:
     # Variable substitution or bracket-command substitution in the head.
     if "$" in token or "[" in token or "]" in token:
         return True
-    # Control tokens the parser leaves for the tracer — they are not proc names.
+    # Control tokens the parser leaves for the tracer -- they are not proc names.
     # (Example: ``eval`` / ``uplevel`` head words that the parser did not
     # rewrite; the parser drops them in practice, but be defensive.)
     if token in {"eval", "uplevel", "uplevel#0", "apply"}:
@@ -326,7 +326,7 @@ def _emit_cycle_diagnostics(ctx: ChopperContext, edges: Iterable[Edge]) -> None:
     """Walk the resolved-edge subgraph and emit ``TW-04`` for each cycle.
 
     Uses Tarjan-style DFS to find strongly connected components with size
-    ≥ 2 and also flags any node that calls itself directly.
+    >= 2 and also flags any node that calls itself directly.
     """
     adjacency: dict[str, list[str]] = defaultdict(list)
     nodes: set[str] = set()
@@ -388,12 +388,12 @@ def _emit_cycle_diagnostics(ctx: ChopperContext, edges: Iterable[Edge]) -> None:
     self_loops = {e.caller for e in edges if e.kind == "proc_call" and e.status == "resolved" and e.caller == e.callee}
     for component in sccs:
         if len(component) > 1:
-            path_str = " → ".join(sorted(component) + [sorted(component)[0]])
+            path_str = " -> ".join(sorted(component) + [sorted(component)[0]])
             anchor = sorted(component)[0]
             _emit_tw04(ctx, anchor, path_str, _path_from_canonical(anchor))
         elif component and component[0] in self_loops:
             proc = component[0]
-            _emit_tw04(ctx, proc, f"{proc} → {proc}", _path_from_canonical(proc))
+            _emit_tw04(ctx, proc, f"{proc} -> {proc}", _path_from_canonical(proc))
 
 
 def _path_from_canonical(canonical_name: str) -> Path | None:
@@ -450,11 +450,11 @@ def _emit_tw02(ctx: ChopperContext, caller_cn: str, token: str, path: Path, line
 
 
 def _emit_ti01(ctx: ChopperContext, caller_cn: str, token: str, path: Path, line: int) -> None:
-    """Emit ``TI-01 known-tool-command`` — the pool-match informational variant of TW-02.
+    """Emit ``TI-01 known-tool-command`` -- the pool-match informational variant of TW-02.
 
     Emitted from the P4 tracer when a call token's raw name or
     namespace-stripped leaf is a member of the tool-command pool (see
-    architecture doc §3.10 and ``FR-44``). Exit code 0, does not count
+    architecture doc Sec.3.10 and ``FR-44``). Exit code 0, does not count
     against ``--strict``. The edge carries ``status="tool_command"``.
     """
     ctx.diag.emit(

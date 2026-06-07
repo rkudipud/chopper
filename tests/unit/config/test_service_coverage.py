@@ -101,7 +101,7 @@ def test_load_and_hydrate_feature_raw_none_returns_none() -> None:
 
     ctx = _ctx()
     svc = ConfigService()
-    # Use a path that doesn't exist in the InMemoryFS → _load_raw → None → line 211
+    # Use a path that doesn't exist in the InMemoryFS -> _load_raw -> None -> line 211
     result = svc._load_and_hydrate_feature(ctx, DOMAIN / "nonexistent.json")
     assert result is None
 

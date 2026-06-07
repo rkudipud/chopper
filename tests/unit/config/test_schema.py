@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.config.schema` — JSON schema validation."""
+"""Unit tests for :mod:`chopper.config.schema` -- JSON schema validation."""
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ class TestBaseSchema:
         assert _valid(doc)
 
     def test_only_one_diagnostic_emitted_per_file(self) -> None:
-        # Multiple schema errors — only the first should be forwarded.
+        # Multiple schema errors -- only the first should be forwarded.
         doc = {"$schema": "base-v1"}  # missing domain AND no capability block
         diags = _collect(doc)
         assert len(diags) == 1

@@ -5,7 +5,7 @@ Each helper returns the :class:`FileOutcome` that will flow into the
 performed, but the same :class:`FileOutcome` is produced so the audit
 bundle at P7 describes the planned result identically.
 
-The helpers never emit diagnostics themselves — the owning
+The helpers never emit diagnostics themselves -- the owning
 :class:`TrimmerService` emits ``VE-23`` / ``VE-24`` / ``VE-25`` /
 ``VE-26`` in the dispatch loop.
 

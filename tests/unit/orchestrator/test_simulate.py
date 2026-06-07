@@ -149,7 +149,7 @@ def test_source_root_prefers_backup_when_present(tmp_path: Path) -> None:
     from chopper.orchestrator.simulate import _source_root
 
     ctx = _ctx(tmp_path)
-    # No backup yet → falls back to the domain root.
+    # No backup yet -> falls back to the domain root.
     assert _source_root(ctx) == ctx.config.domain_root
     # Once the backup exists, it is preferred (the pristine source).
     ctx.config.backup_root.mkdir()

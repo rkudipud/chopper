@@ -1,10 +1,10 @@
-"""Compiler package — Phase 3 (P3) + Phase 4 (P4).
+"""Compiler package -- Phase 3 (P3) + Phase 4 (P4).
 
 Public surface:
 
-* :class:`CompilerService` — consumes :class:`LoadedConfig` +
+* :class:`CompilerService` -- consumes :class:`LoadedConfig` +
   :class:`ParseResult` and returns a frozen :class:`CompiledManifest`.
-* :class:`TracerService` — consumes the manifest + parse index and
+* :class:`TracerService` -- consumes the manifest + parse index and
   returns a frozen :class:`DependencyGraph`.
 
 See :mod:`chopper.compiler.merge_service` for the R1 ordered-overlay

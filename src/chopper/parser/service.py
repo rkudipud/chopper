@@ -1,24 +1,24 @@
-"""Parser service — the boundary layer around the pure parser utilities.
+"""Parser service -- the boundary layer around the pure parser utilities.
 
 Two public surfaces:
 
-* :func:`parse_file` — pure, callback-driven utility. Accepts already-
+* :func:`parse_file` -- pure, callback-driven utility. Accepts already-
   decoded text, runs tokenizer + proc extractor, and forwards diagnostic
   records through an optional ``on_diagnostic`` callback. Returns a plain
   ``list[ProcEntry]``. No :class:`ChopperContext` or filesystem knowledge.
   Unit tests target this directly.
 
-* :class:`ParserService` — orchestrator-facing service. Owns filesystem
-  reads through ``ctx.fs``, UTF-8 → Latin-1 fallback (emitting
+* :class:`ParserService` -- orchestrator-facing service. Owns filesystem
+  reads through ``ctx.fs``, UTF-8 -> Latin-1 fallback (emitting
   ``PW-02``), and the path-normalization contract: every :class:`Path`
   in ``files`` is normalized to domain-relative POSIX form before being
   passed to :func:`parse_file`.
 
 Diagnostic translation:
 
-* Tokenizer structural errors → ``PE-02 unbalanced-braces``.
-* ``ExtractorDiagnostic.kind`` → registered codes via ``_DIAG_CODE_MAP``.
-* UTF-8 decode failure → ``PW-02 utf8-decode-failure``.
+* Tokenizer structural errors -> ``PE-02 unbalanced-braces``.
+* ``ExtractorDiagnostic.kind`` -> registered codes via ``_DIAG_CODE_MAP``.
+* UTF-8 decode failure -> ``PW-02 utf8-decode-failure``.
 
 Every diagnostic is built via :meth:`Diagnostic.build`, so slug /
 severity / source are always registry-derived.
@@ -76,9 +76,9 @@ _DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
 
 
 # Only ``.tcl`` files are parsed by P2. Per the architecture doc (OOS-01,
-# ``technical_docs/ARCHITECTURE.md`` §1.3), non-Tcl companion
+# ``technical_docs/ARCHITECTURE.md`` Sec.1.3), non-Tcl companion
 # files named in ``files.include`` / ``procedures.*`` (Perl, Python,
-# shell, config) participate in F1 file-level treatment only — they must
+# shell, config) participate in F1 file-level treatment only -- they must
 # never enter the Tcl tokenizer, which would mis-read language-native
 # constructs (e.g. a ``}`` inside a Python string literal) as a
 # structural brace imbalance and emit a spurious ``PE-02``. The
@@ -87,13 +87,13 @@ _DIAG_CODE_MAP: dict[ExtractorDiagnosticKind, str] = {
 # to non-``.tcl`` companion files that the parser does not cover"*).
 #
 # Match is case-insensitive on the suffix to cover authored variants
-# like ``.TCL``. No new diagnostic is emitted on skip — the behavior is
+# like ``.TCL``. No new diagnostic is emitted on skip -- the behavior is
 # silent by design (non-Tcl files are not an error condition).
 _TCL_SUFFIX = ".tcl"
 
 
 # ---------------------------------------------------------------------------
-# parse_file — pure utility
+# parse_file -- pure utility
 # ---------------------------------------------------------------------------
 
 
@@ -119,14 +119,14 @@ def parse_file(
 
     Contract table:
 
-    * Tokenizer error (``negative_depth`` / ``unclosed_braces``) → emit
+    * Tokenizer error (``negative_depth`` / ``unclosed_braces``) -> emit
       ``PE-02`` and return ``[]`` regardless of any procs extracted.
     * Otherwise, run the proc extractor; translate each
       :class:`ExtractorDiagnostic` to the registered code and forward.
     """
     tok_result = tokenize(text)
     if tok_result.errors:
-        # §2.1.1 row 5: any structural brace error → emit PE-02 and
+        # Sec.2.1.1 row 5: any structural brace error -> emit PE-02 and
         # return []. Only emit once per file, at the first offending line.
         first_err: TokenizerError = tok_result.errors[0]
         if on_diagnostic is not None:
@@ -182,7 +182,7 @@ def _message_for(ext_diag: ExtractorDiagnostic) -> str:
 
 
 # ---------------------------------------------------------------------------
-# ParserService — orchestrator-facing service
+# ParserService -- orchestrator-facing service
 # ---------------------------------------------------------------------------
 
 
@@ -193,7 +193,7 @@ class ParserService:
     Contract:
 
     1. Read each file through ``ctx.fs.read_text`` (never
-       :meth:`pathlib.Path.read_text` directly) — the filesystem port is
+       :meth:`pathlib.Path.read_text` directly) -- the filesystem port is
        the only I/O surface.
     2. Attempt UTF-8 decode first; on :class:`UnicodeDecodeError`, retry
        with Latin-1 and emit ``PW-02``. Latin-1 always succeeds on any
@@ -274,13 +274,13 @@ class ParserService:
                 index[proc.canonical_name] = proc
 
         # ------------------------------------------------------------
-        # Phase 2b — full-domain proc-index harvest (silent).
+        # Phase 2b -- full-domain proc-index harvest (silent).
         # ------------------------------------------------------------
         # Every ``.tcl`` file under ``domain_root`` that is NOT in the
         # surface set is parsed here for the sole purpose of populating
         # ``index``. No :class:`ParsedFile` is recorded in ``files``;
         # diagnostics are silently dropped because the user did not ask
-        # us to scrutinise these files — they exist only so the P4
+        # us to scrutinise these files -- they exist only so the P4
         # tracer can name a definition's real location when it resolves
         # a call from a surfaced caller into a non-surfaced callee.
         for path in self._enumerate_domain_tcl(ctx, loaded):
@@ -307,7 +307,7 @@ class ParserService:
         the filesystem. This reuses the domain walk that P1 performed
         during glob expansion in :func:`_collect_surface_files`.
 
-        The ``.chopper/`` audit directory is always excluded — it is
+        The ``.chopper/`` audit directory is always excluded -- it is
         Chopper's own bookkeeping, never user code. Returns an empty
         list when ``domain_root`` does not exist (covers in-memory
         unit-test fixtures that synthesise no real domain).
@@ -384,7 +384,7 @@ class ParserService:
             try:
                 return raw.relative_to(ctx.config.domain_root)
             except ValueError:
-                # Path lies outside domain_root — keep as-is. The
+                # Path lies outside domain_root -- keep as-is. The
                 # compiler / config layer is responsible for rejecting
                 # such paths with a VE-06; the parser does not gate.
                 return raw

@@ -1,4 +1,4 @@
-"""JSON hydration — raw dicts → frozen dataclasses.
+"""JSON hydration -- raw dicts -> frozen dataclasses.
 
 This module provides three public ``load_*`` functions that, after a
 document has been declared valid by :func:`~chopper.config.schema.validate_json`,
@@ -7,15 +7,15 @@ turn its raw ``dict`` into the typed frozen dataclasses declared in
 
 It also provides :func:`topo_sort_features`, which orders a list of
 :class:`~chopper.core.models_config.FeatureJson` records by their ``depends_on``
-graph (Kahn's algorithm — O(V+E), deterministic, stable sort within each
+graph (Kahn's algorithm -- O(V+E), deterministic, stable sort within each
 rank level).  A cycle emits ``VE-22`` and returns the original input order.
 
 Diagnostic emission:
 
-* ``VE-03`` — ``procEntry`` with empty ``procs`` array.
-* ``VE-14`` — duplicate ``name`` across selected features.
-* ``VE-15`` — ``depends_on`` names a feature not present in the selection.
-* ``VE-22`` — ``depends_on`` forms a cycle.
+* ``VE-03`` -- ``procEntry`` with empty ``procs`` array.
+* ``VE-14`` -- duplicate ``name`` across selected features.
+* ``VE-15`` -- ``depends_on`` names a feature not present in the selection.
+* ``VE-22`` -- ``depends_on`` forms a cycle.
 """
 
 from __future__ import annotations
@@ -224,7 +224,7 @@ def load_base(
 
     :param raw: Already-validated dict (caller invoked
         :func:`~chopper.config.schema.validate_json` and got ``True``).
-    :param source_path: Path of the JSON file — for provenance on
+    :param source_path: Path of the JSON file -- for provenance on
         ``VE-03`` diagnostics.
     :param on_diagnostic: Diagnostic callback for ``VE-03`` only;
         schema errors are the schema layer's responsibility.
@@ -290,7 +290,7 @@ def load_feature(
 def load_project(raw: dict[str, Any], source_path: Path) -> ProjectJson:
     """Hydrate a validated ``project-v1`` dict into :class:`ProjectJson`.
 
-    No diagnostics are emitted here — structural errors were caught by the
+    No diagnostics are emitted here -- structural errors were caught by the
     schema validator; semantic errors (VE-17, VE-18) are the
     ``ValidatorService``'s responsibility after the full load.
     """
@@ -340,7 +340,7 @@ def topo_sort_features(
     :returns: Re-ordered (or original-on-error) list.
     """
     # --- VE-14: deduplicate by name (first seen wins) ---
-    seen_names: dict[str, int] = {}  # name → first index
+    seen_names: dict[str, int] = {}  # name -> first index
     deduped: list[FeatureJson] = []
     for i, feat in enumerate(features):
         if feat.name in seen_names:
@@ -379,12 +379,12 @@ def topo_sort_features(
                 )
 
     if has_missing:
-        # Can't sort a graph with dangling edges — return as-is; phase gate
+        # Can't sort a graph with dangling edges -- return as-is; phase gate
         # will abort on the VE-15 errors.
         return deduped
 
     # --- Kahn's algorithm ---
-    # Build adjacency: dep_name → set of names that depend on dep_name.
+    # Build adjacency: dep_name -> set of names that depend on dep_name.
     dependents: dict[str, list[str]] = {f.name: [] for f in deduped}
     in_degree: dict[str, int] = {f.name: 0 for f in deduped}
 
@@ -412,7 +412,7 @@ def topo_sort_features(
         queue.extend(released)
 
     if len(sorted_names) != len(deduped):
-        # Cycle detected — VE-22.
+        # Cycle detected -- VE-22.
         on_diagnostic(
             Diagnostic.build(
                 "VE-22",

@@ -1,15 +1,15 @@
-"""Effectful ports — the only engine-level abstractions Chopper uses.
+"""Effectful ports -- the only engine-level abstractions Chopper uses.
 
 Exactly three engine ports: :class:`FileSystemPort`,
 :class:`DiagnosticSink`, :class:`ProgressSink`. Clock, serialization,
-audit storage, and rendering are **not** ports — they are direct
+audit storage, and rendering are **not** ports -- they are direct
 helpers or CLI-local concerns.
 
 All ports are :class:`typing.Protocol` definitions so test doubles
 satisfy them structurally without importing Chopper internals.
 
 The port surface is intentionally small. No ``LockPort``,
-``SerializerPort``, ``AuditStore``, or ``TableRenderer`` — adding one
+``SerializerPort``, ``AuditStore``, or ``TableRenderer`` -- adding one
 would be a scope-lock violation.
 """
 
@@ -35,7 +35,7 @@ class FileSystemPort(Protocol):
 
     Implemented by :class:`~chopper.adapters.fs_local.LocalFS` in production
     and :class:`~chopper.adapters.fs_memory.InMemoryFS` in tests. The full
-    set of methods — beyond plain read/write — is required by the trimmer
+    set of methods -- beyond plain read/write -- is required by the trimmer
     (:meth:`rename`, :meth:`remove`, :meth:`copy_tree`), by domain-state
     detection (:meth:`exists`, :meth:`stat`), and by audit writing
     (:meth:`mkdir`).
@@ -61,7 +61,7 @@ class FileSystemPort(Protocol):
     def list(self, path: Path, *, pattern: str | None = None) -> Sequence[Path]:
         """Return a **sorted** sequence of direct children of ``path``.
 
-        The sort key is the POSIX string representation — the
+        The sort key is the POSIX string representation -- the
         determinism contract for directory listings.
         """
         ...
@@ -69,7 +69,7 @@ class FileSystemPort(Protocol):
     def stat(self, path: Path) -> FileStat: ...
 
     def rename(self, src: Path, dst: Path) -> None:
-        """Rename ``src`` to ``dst`` (e.g. ``domain/`` → ``domain_backup/``)."""
+        """Rename ``src`` to ``dst`` (e.g. ``domain/`` -> ``domain_backup/``)."""
         ...
 
     def remove(self, path: Path, *, recursive: bool = False) -> None: ...
@@ -128,11 +128,11 @@ class ProgressSink(Protocol):
 
     Three concrete adapters exist:
 
-    * ``RichProgress`` (default) — interactive TTY rendering via Rich.
-    * ``RichProgress`` reconfigured for ``--plain`` — same class with
+    * ``RichProgress`` (default) -- interactive TTY rendering via Rich.
+    * ``RichProgress`` reconfigured for ``--plain`` -- same class with
       ``Console(no_color=True, force_terminal=False)`` and the live bar
       disabled.
-    * ``SilentProgress`` — no-op; selected by ``-q / --quiet`` and by all
+    * ``SilentProgress`` -- no-op; selected by ``-q / --quiet`` and by all
       test harnesses.
 
     There is no dedicated ``PlainProgress`` class. The service layer

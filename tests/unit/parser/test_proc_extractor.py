@@ -35,7 +35,7 @@ def _diag_kinds(source: str, path: str = "u.tcl") -> list[str]:
 
 class TestBasic:
     def test_single_proc_one_line(self) -> None:
-        # §6.2 edge case 1: one-line proc → body spans same line.
+        # Sec.6.2 edge case 1: one-line proc -> body spans same line.
         src = "proc foo {} { return 1 }\n"
         by = _procs_by_short(src)
         assert "foo" in by
@@ -83,13 +83,13 @@ class TestBasic:
 
 
 # ---------------------------------------------------------------------------
-# §6.2 body-line edge cases
+# Sec.6.2 body-line edge cases
 # ---------------------------------------------------------------------------
 
 
 class TestBodyEdgeCases:
     def test_empty_multiline_body(self) -> None:
-        # §6.2: `proc foo {} {` / `}` on separate lines → body_start > body_end.
+        # Sec.6.2: `proc foo {} {` / `}` on separate lines -> body_start > body_end.
         src = "proc foo {} {\n}\n"
         p = _procs_by_short(src)["foo"]
         assert p.start_line == 1  # type: ignore[attr-defined]
@@ -100,7 +100,7 @@ class TestBodyEdgeCases:
         assert p.body_start_line > p.body_end_line  # type: ignore[attr-defined]
 
     def test_whitespace_only_body(self) -> None:
-        # §6.2 edge case 3: body has only blank lines.
+        # Sec.6.2 edge case 3: body has only blank lines.
         src = "proc foo {} {\n\n\n}\n"
         p = _procs_by_short(src)["foo"]
         assert p.start_line == 1  # type: ignore[attr-defined]
@@ -110,7 +110,7 @@ class TestBodyEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# Namespace resolution (§4.3 / §4.3.1 test vectors)
+# Namespace resolution (Sec.4.3 / Sec.4.3.1 test vectors)
 # ---------------------------------------------------------------------------
 
 
@@ -139,13 +139,13 @@ class TestNamespaceResolution:
         assert p.canonical_name == "utils.tcl::abs::x"  # type: ignore[attr-defined]
 
     def test_absolute_overrides_namespace(self) -> None:
-        # §4.3.1 row 5: absolute name inside namespace.
+        # Sec.4.3.1 row 5: absolute name inside namespace.
         src = "namespace eval a {\nproc ::abs::x {} {}\n}\n"
         p = _procs_by_short(src, path="utils.tcl")["x"]
         assert p.canonical_name == "utils.tcl::abs::x"  # type: ignore[attr-defined]
 
     def test_absolute_overrides_nested_namespace(self) -> None:
-        # §4.3.1 row 6.
+        # Sec.4.3.1 row 6.
         src = "namespace eval a {\n    namespace eval b {\nproc ::abs::c::x {} {}\n    }\n}\n"
         p = _procs_by_short(src, path="utils.tcl")["x"]
         assert p.canonical_name == "utils.tcl::abs::c::x"  # type: ignore[attr-defined]
@@ -166,19 +166,19 @@ class TestNamespaceResolution:
 
 
 # ---------------------------------------------------------------------------
-# Context suppression (§4.4)
+# Context suppression (Sec.4.4)
 # ---------------------------------------------------------------------------
 
 
 class TestContextSuppression:
     def test_proc_inside_if_block_skipped(self) -> None:
-        # §4.4: `proc` inside `if` body → not recognised.
+        # Sec.4.4: `proc` inside `if` body -> not recognised.
         src = "if { $cond } {\n    proc skipped {} {}\n}\n"
         by = _procs_by_short(src)
         assert by == {}
 
     def test_proc_inside_namespace_eval_recognised(self) -> None:
-        # §4.4: `proc` inside `namespace eval` → recognised.
+        # Sec.4.4: `proc` inside `namespace eval` -> recognised.
         src = "namespace eval ns {\n    proc kept {} {}\n}\n"
         by = _procs_by_short(src)
         assert "kept" in by
@@ -189,7 +189,7 @@ class TestContextSuppression:
         assert _procs_by_short(src) == {}
 
     def test_nested_proc_not_recognised(self) -> None:
-        # §4.4: proc inside proc body → not recognised.
+        # Sec.4.4: proc inside proc body -> not recognised.
         src = "proc outer {} {\n    proc inner {} {}\n}\n"
         by = _procs_by_short(src)
         assert "outer" in by
@@ -203,7 +203,7 @@ class TestContextSuppression:
 
 class TestDiagnostics:
     def test_computed_proc_name_pw01(self) -> None:
-        # §4.3 row 7 / fixture 8.
+        # Sec.4.3 row 7 / fixture 8.
         src = "proc ${prefix}_foo {} {}\n"
         r = extract_procs(Path("u.tcl"), src)
         assert r.procs == ()
@@ -216,7 +216,7 @@ class TestDiagnostics:
         assert any(d.kind == "computed-proc-name" for d in r.diagnostics)
 
     def test_duplicate_proc_pe01(self) -> None:
-        # §6.3: same short_name twice → PE-01 at last definition's line;
+        # Sec.6.3: same short_name twice -> PE-01 at last definition's line;
         # last definition survives.
         src = "proc dup {} { return 1 }\nproc dup {} { return 2 }\n"
         r = extract_procs(Path("u.tcl"), src)
@@ -228,14 +228,14 @@ class TestDiagnostics:
         assert r.procs[0].start_line == 2
 
     def test_non_brace_body_pw03(self) -> None:
-        # §7.4: body is a quoted word, not a brace block.
+        # Sec.7.4: body is a quoted word, not a brace block.
         src = 'proc foo args "return hello"\n'
         r = extract_procs(Path("u.tcl"), src)
         assert r.procs == ()
         assert any(d.kind == "non-brace-body" for d in r.diagnostics)
 
     def test_computed_namespace_pw04_passthrough(self) -> None:
-        # §4.5 rule 7: computed namespace name surfaces as PW-04 diagnostic.
+        # Sec.4.5 rule 7: computed namespace name surfaces as PW-04 diagnostic.
         src = "namespace eval $var {\n    proc inside {} {}\n}\n"
         r = extract_procs(Path("u.tcl"), src)
         assert any(d.kind == "computed-namespace-name" for d in r.diagnostics)
@@ -243,7 +243,7 @@ class TestDiagnostics:
         assert not any(p.short_name == "inside" for p in r.procs)
 
     def test_tokenizer_errors_short_circuit(self) -> None:
-        # §3.0: structural brace errors → parse_file returns []. The
+        # Sec.3.0: structural brace errors -> parse_file returns []. The
         # extractor produces no procs and no diagnostics of its own; the
         # service layer maps the tokenizer errors to PE-02.
         src = "proc foo {} { { unclosed\n"
@@ -253,7 +253,7 @@ class TestDiagnostics:
 
 
 # ---------------------------------------------------------------------------
-# Comment banner (§4.7)
+# Comment banner (Sec.4.7)
 # ---------------------------------------------------------------------------
 
 
@@ -276,13 +276,13 @@ class TestCommentBanner:
         assert p.comment_end_line is None  # type: ignore[attr-defined]
 
     def test_blank_line_breaks_banner(self) -> None:
-        # Blank line above proc → no banner attached.
+        # Blank line above proc -> no banner attached.
         src = "# a comment\n\nproc foo {} {}\n"
         p = _procs_by_short(src)["foo"]
         assert p.comment_start_line is None  # type: ignore[attr-defined]
 
     def test_non_comment_breaks_banner(self) -> None:
-        # Code above proc → no banner.
+        # Code above proc -> no banner.
         src = "set x 1\nproc foo {} {}\n"
         p = _procs_by_short(src)["foo"]
         assert p.comment_start_line is None  # type: ignore[attr-defined]
@@ -297,7 +297,7 @@ class TestCommentBanner:
 
 
 # ---------------------------------------------------------------------------
-# DPA detection (§4.6)
+# DPA detection (Sec.4.6)
 # ---------------------------------------------------------------------------
 
 
@@ -343,14 +343,14 @@ class TestDPA:
             (0, 2, True),  # immediate DPA on the next line
             (1, 3, True),  # one blank line between
             (2, 4, True),  # two blank lines between
-            (3, 5, True),  # three blank lines (boundary; spec §1.4.6 rule 2)
-            (4, None, False),  # four blank lines exceeds the window — no DPA
+            (3, 5, True),  # three blank lines (boundary; spec Sec.1.4.6 rule 2)
+            (4, None, False),  # four blank lines exceeds the window -- no DPA
         ],
     )
     def test_dpa_blank_line_tolerance_boundary(
         self, blanks: int, expected_dpa_line: int | None, should_attach: bool
     ) -> None:
-        """`technical_docs/IMPLEMENTATION.md` §1.4.6 rule 2: DPA association
+        """`technical_docs/IMPLEMENTATION.md` Sec.1.4.6 rule 2: DPA association
         permits up to three blank lines between the proc close and the
         ``define_proc_attributes`` block. Four or more blank lines breaks
         the window and the DPA is not attached.
@@ -364,14 +364,14 @@ class TestDPA:
             assert p.dpa_start_line is None  # type: ignore[attr-defined]
 
     def test_dpa_comment_line_breaks_association(self) -> None:
-        # §4.6 rule 2: comment lines between proc and DPA break the link.
+        # Sec.4.6 rule 2: comment lines between proc and DPA break the link.
         src = 'proc foo {} {}\n# unrelated comment\ndefine_proc_attributes foo -info "x"\n'
         p = _procs_by_short(src)["foo"]
-        # No DPA attached — the comment broke the link.
+        # No DPA attached -- the comment broke the link.
         assert p.dpa_start_line is None  # type: ignore[attr-defined]
 
     def test_dpa_name_mismatch_pw11(self) -> None:
-        # §4.6: DPA name does not match preceding proc → PW-11.
+        # Sec.4.6: DPA name does not match preceding proc -> PW-11.
         src = 'proc foo {} {}\ndefine_proc_attributes bar -info "wrong name"\n'
         r = extract_procs(Path("u.tcl"), src)
         assert any(d.kind == "dpa-name-mismatch" for d in r.diagnostics)
@@ -379,14 +379,14 @@ class TestDPA:
         assert p.dpa_start_line is None
 
     def test_dpa_orphan_pi04(self) -> None:
-        # §4.6: define_proc_attributes with no preceding proc → PI-04.
+        # Sec.4.6: define_proc_attributes with no preceding proc -> PI-04.
         src = 'define_proc_attributes nothing -info "orphan"\n'
         r = extract_procs(Path("u.tcl"), src)
         orphans = [d for d in r.diagnostics if d.kind == "dpa-orphan"]
         assert len(orphans) == 1
 
     def test_dpa_matches_namespaced_proc(self) -> None:
-        # §4.6 name-match uses qualified_name. DPA must immediately follow
+        # Sec.4.6 name-match uses qualified_name. DPA must immediately follow
         # the proc (no intervening namespace close), so place it inside the
         # namespace block.
         src = 'namespace eval ns {\nproc foo {} {}\ndefine_proc_attributes ns::foo -info "x"\n}\n'
@@ -406,7 +406,7 @@ class TestDPA:
 
 
 # ---------------------------------------------------------------------------
-# Continuation and quoted args (§7.2, §3.3.1)
+# Continuation and quoted args (Sec.7.2, Sec.3.3.1)
 # ---------------------------------------------------------------------------
 
 
@@ -419,7 +419,7 @@ class TestContinuation:
         assert by["split"].start_line == 1  # type: ignore[attr-defined]
 
     def test_quoted_args_word(self) -> None:
-        # §3.3.1: `proc foo "arg1 {arg2}" { body }` — quoted args are a
+        # Sec.3.3.1: `proc foo "arg1 {arg2}" { body }` -- quoted args are a
         # single word; body follows.
         src = 'proc foo "arg1 {arg2}" { return 1 }\n'
         by = _procs_by_short(src)
@@ -483,8 +483,8 @@ class TestPrivateHelperBranches:
 
     def test_layout_none_and_non_brace_body_none_silently_skips(self) -> None:
         """When _scan_proc_layout returns None and _detect_non_brace_body also
-        returns None, the proc is silently skipped (covers 221→226 False branch)."""
-        # "proc foo {}" at EOF with no body token — layout is None (incomplete)
+        returns None, the proc is silently skipped (covers 221->226 False branch)."""
+        # "proc foo {}" at EOF with no body token -- layout is None (incomplete)
         # AND _detect_non_brace_body returns None (no word/word-pair after args).
         r = extract_procs(Path("u.tcl"), "proc foo {}")
         assert r.procs == ()
@@ -557,7 +557,7 @@ class TestDeterminism:
 
 
 # ---------------------------------------------------------------------------
-# Invariant cross-checks — ensure ProcEntry round-trips through its __post_init__
+# Invariant cross-checks -- ensure ProcEntry round-trips through its __post_init__
 # ---------------------------------------------------------------------------
 
 

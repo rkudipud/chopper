@@ -1,4 +1,4 @@
-"""P5 trimmer — rebuilds the domain directory from backup.
+"""P5 trimmer -- rebuilds the domain directory from backup.
 
 The only service permitted to mutate the filesystem inside the domain
 tree. Consumes the compiled manifest, parse results, and domain state,

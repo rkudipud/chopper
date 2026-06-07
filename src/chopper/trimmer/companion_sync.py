@@ -1,11 +1,11 @@
-"""P5d companion-file sync — FD-15 / ARCHITECTURE.md §5.5 P5d.
+"""P5d companion-file sync -- FD-15 / ARCHITECTURE.md Sec.5.5 P5d.
 
 For every ``PROC_TRIM`` file whose POSIX basename matches
 ``default_rules.<sfx>.tcl``, two companion files that were
 ``FULL_COPY``-written into the rebuilt domain are filtered in-place:
 
-* ``<dir>/default_config.<sfx>.csv``   — rows for non-surviving procs deleted.
-* ``<dir>/default_milestone.<sfx>.tcl`` — ``change_config <ProcName>`` lines
+* ``<dir>/default_config.<sfx>.csv``   -- rows for non-surviving procs deleted.
+* ``<dir>/default_milestone.<sfx>.tcl`` -- ``change_config <ProcName>`` lines
   for non-surviving procs deleted.
 
 The surviving proc set is derived from ``CompiledManifest.proc_decisions``
@@ -134,7 +134,7 @@ class CompanionSyncService:
                     phase=Phase.P5_TRIM,
                     message=(
                         f"companion-file sync: expected {companion_rel.as_posix()!r} "
-                        "not found in rebuilt domain — declare it in files.include"
+                        "not found in rebuilt domain -- declare it in files.include"
                     ),
                     path=companion_rel,
                 )
@@ -171,7 +171,7 @@ def _filter_csv(text: str, pi_names: frozenset[str]) -> str:
 
     * Original blank lines and ``#``-comment lines are kept unchanged.
     * Data rows whose first comma-separated column (proc name, stripped) is
-      absent from *pi_names* are deleted entirely — no blank placeholder.
+      absent from *pi_names* are deleted entirely -- no blank placeholder.
     """
     lines = text.splitlines(keepends=True)
     result: list[str] = []
@@ -190,7 +190,7 @@ def _filter_milestone(text: str, pi_names: frozenset[str]) -> str:
     """Return *text* with non-surviving ``change_config`` lines removed.
 
     * ``change_config <ProcName> ...`` lines whose ``<ProcName>`` is absent
-      from *pi_names* are deleted entirely — no blank placeholder.
+      from *pi_names* are deleted entirely -- no blank placeholder.
     * All other lines (blanks, comments, other Tcl statements) are kept.
     """
     lines = text.splitlines(keepends=True)

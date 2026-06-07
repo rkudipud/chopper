@@ -1,4 +1,4 @@
-"""Diagnostic data shape and registry façade.
+"""Diagnostic data shape and registry facade.
 
 Every user-visible outcome is a :class:`Diagnostic`. This module
 exposes the public data type, the :class:`Phase` and :class:`Severity`
@@ -7,7 +7,7 @@ enums, and the :class:`DiagnosticSummary` returned by
 
 The registry lives in :mod:`chopper.core._diagnostic_registry`; importing
 this module pulls the registered codes into scope. Construction of a
-:class:`Diagnostic` validates the code against the registry — unknown
+:class:`Diagnostic` validates the code against the registry -- unknown
 codes raise :class:`UnknownDiagnosticCodeError` immediately, so typos
 never reach the sink.
 
@@ -65,7 +65,7 @@ class Phase(IntEnum):
 class Diagnostic:
     """A single user-facing outcome.
 
-    Callers construct diagnostics with :meth:`Diagnostic.build` — a
+    Callers construct diagnostics with :meth:`Diagnostic.build` -- a
     classmethod that takes only the fields the caller genuinely owns
     (``code``, ``phase``, ``message``, and optional location/hint
     context). ``slug``, ``severity``, and ``source`` are filled in from
@@ -74,7 +74,7 @@ class Diagnostic:
 
     The direct constructor is also callable but validates that any
     caller-supplied ``slug`` / ``severity`` / ``source`` match the
-    registry — equivalent to :meth:`build` with explicit redundant
+    registry -- equivalent to :meth:`build` with explicit redundant
     arguments, so tests and audit deserialisers that reconstitute a
     :class:`Diagnostic` from JSON still work.
     """
@@ -133,7 +133,7 @@ class Diagnostic:
         generally set it to their own phase (for example, ``ParserService``
         always emits with ``phase=Phase.P2_PARSE``); the registry's
         ``phase`` column is the *canonical* phase for the code and is used
-        as a sanity check only in tests — services are free to emit the
+        as a sanity check only in tests -- services are free to emit the
         same code from a different phase if the spec requires.
         """
         entry = lookup(diagnostic_code)

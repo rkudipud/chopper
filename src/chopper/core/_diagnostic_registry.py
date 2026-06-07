@@ -1,4 +1,4 @@
-"""Diagnostic-code registry — single Python-side source of truth.
+"""Diagnostic-code registry -- single Python-side source of truth.
 
 Mirrors the active rows of the diagnostic registry documentation. Every
 addition to the docs registry is accompanied by an addition here; the
@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class Severity(str, Enum):  # noqa: UP042 — str mixin required so the value is JSON-emitted as the string.
+class Severity(str, Enum):  # noqa: UP042 -- str mixin required so the value is JSON-emitted as the string.
     """Diagnostic severity.
 
     Mirrors the three-letter family suffix (``E``/``W``/``I``). The
@@ -38,15 +38,15 @@ class Severity(str, Enum):  # noqa: UP042 — str mixin required so the value is
 class _Entry:
     """A single row of the registry.
 
-    * ``slug`` — kebab-case human-readable label (used in verbose CLI output).
-    * ``severity`` — the severity baked into the code's family letter.
-    * ``phase`` — the *canonical* phase where the code is emitted, per the
+    * ``slug`` -- kebab-case human-readable label (used in verbose CLI output).
+    * ``severity`` -- the severity baked into the code's family letter.
+    * ``phase`` -- the *canonical* phase where the code is emitted, per the
       registry. The phase actually stamped on a :class:`Diagnostic` is set
       by the caller at emission time; this field is here so callers that
       don't pass an explicit phase can default to the registered one.
-    * ``source`` — the subsystem that owns the code (``parser``,
+    * ``source`` -- the subsystem that owns the code (``parser``,
       ``compiler``, ``validator``, ``trimmer``, ``schema``, ``cli``).
-        * ``exit_code`` — the process exit code the CLI selects when this code
+        * ``exit_code`` -- the process exit code the CLI selects when this code
             is the highest-severity outcome of the run.
     """
 
@@ -59,7 +59,7 @@ class _Entry:
 
 # Derived from the diagnostic registry. Order follows the registry:
 # VE-01..VE-31, VW-01..VW-24, VI-01..VI-05, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 — 81 active + 3 retired (VW-18,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 81 active + 3 retired (VW-18,
 # VW-19, PE-04) = 84 registered entries; matches the Code Space Summary table
 # in the registry doc.
 _REGISTRY: dict[str, _Entry] = {
@@ -176,7 +176,7 @@ def lookup(diagnostic_code: str) -> _Entry:
     """Return the registry entry for a code, or raise.
 
     Named :func:`lookup` (not ``get``) to keep the word ``code`` out of the
-    identifier — the CI gate scanner treats ``code=`` as a heuristic for
+    identifier -- the CI gate scanner treats ``code=`` as a heuristic for
     diagnostic construction sites, and this helper is called with a bare
     string positional argument.
     """

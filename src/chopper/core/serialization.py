@@ -5,17 +5,17 @@ call :func:`dump_model` directly. This module is the only helper.
 
 Determinism contract:
 
-* ``json.dumps`` is called with ``sort_keys=True`` — mapping order is
+* ``json.dumps`` is called with ``sort_keys=True`` -- mapping order is
   lexicographic regardless of insertion order.
-* :class:`pathlib.Path` → POSIX string (Windows authoring and Linux
+* :class:`pathlib.Path` -> POSIX string (Windows authoring and Linux
   grid-node output must agree byte-for-byte).
-* :class:`enum.Enum` → its ``.value``.
-* :class:`datetime` / :class:`timedelta` → ISO-8601 strings.
-* :class:`set` / :class:`frozenset` / :class:`tuple` → sorted JSON
+* :class:`enum.Enum` -> its ``.value``.
+* :class:`datetime` / :class:`timedelta` -> ISO-8601 strings.
+* :class:`set` / :class:`frozenset` / :class:`tuple` -> sorted JSON
   arrays (sets sort on string representation; tuples preserve order).
 * ``None`` passes through.
 
-Non-JSON-serialisable values raise :class:`TypeError` immediately — the
+Non-JSON-serialisable values raise :class:`TypeError` immediately -- the
 caller then knows the field is not fit to cross the serde boundary
 (typical cause: a live object accidentally dropped into
 ``Diagnostic.context``).
@@ -53,7 +53,7 @@ def _encode(value: Any) -> Any:
             return sorted(value)
         except TypeError:
             return sorted(value, key=lambda x: (type(x).__name__, repr(x)))
-    # Note: :class:`tuple` is not handled here — :func:`json.dumps` emits
+    # Note: :class:`tuple` is not handled here -- :func:`json.dumps` emits
     # tuples as JSON arrays natively and never routes them through ``default``.
     raise TypeError(f"Object of type {type(value).__name__!r} is not JSON-serialisable")
 
@@ -63,7 +63,7 @@ def dump_model(obj: Any) -> str:
 
     The output is UTF-8, newline-terminated, with ``sort_keys=True`` and
     ``indent=2`` for human-readable audit artifacts. Passing a non-dataclass
-    value (for example a plain dict) also works — the helper only requires
+    value (for example a plain dict) also works -- the helper only requires
     that every leaf is one of the encodable types listed in the module
     docstring.
 
@@ -92,7 +92,7 @@ def loads(text: str) -> Any:
     """Parse JSON text back into a Python tree (dicts / lists / primitives).
 
     The inverse of :func:`dump_model` for round-trip tests. Does not attempt
-    to rehydrate dataclasses — that is the caller's responsibility at a
+    to rehydrate dataclasses -- that is the caller's responsibility at a
     specific model boundary (for example :meth:`Diagnostic.__init__`).
     """
     return json.loads(text)

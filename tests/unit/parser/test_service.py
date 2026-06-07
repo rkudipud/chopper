@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.parser.service` — ParserService + parse_file."""
+"""Unit tests for :mod:`chopper.parser.service` -- ParserService + parse_file."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from chopper.parser.service import ParserService, parse_file
 class _InMemoryFS:
     """Minimal filesystem double for ParserService tests.
 
-    Holds a mapping of :class:`Path` → raw ``bytes``. ``read_text``
+    Holds a mapping of :class:`Path` -> raw ``bytes``. ``read_text``
     decodes with the requested encoding, so ``UnicodeDecodeError``
     surfaces naturally and exercises the service's fallback path.
 
@@ -109,7 +109,7 @@ def _make_ctx(files: dict[Path, bytes], domain_root: Path = Path("dom")) -> tupl
 
 
 # ---------------------------------------------------------------------------
-# parse_file — pure utility
+# parse_file -- pure utility
 # ---------------------------------------------------------------------------
 
 
@@ -138,8 +138,8 @@ class TestParseFile:
 
     def test_translates_multiple_diagnostic_kinds(self) -> None:
         emitted: list[Diagnostic] = []
-        # Duplicate proc → PE-01; DPA name mismatch → PW-11; the
-        # unattached DPA line is then reported as an orphan → PI-04.
+        # Duplicate proc -> PE-01; DPA name mismatch -> PW-11; the
+        # unattached DPA line is then reported as an orphan -> PI-04.
         src = 'proc dup {} {}\nproc dup {} {}\ndefine_proc_attributes nothing -info "x"\n'
         parse_file(Path("a.tcl"), src, on_diagnostic=emitted.append)
         codes = {d.code for d in emitted}
@@ -147,7 +147,7 @@ class TestParseFile:
 
     def test_tokenizer_error_emits_pe02_and_returns_empty(self) -> None:
         emitted: list[Diagnostic] = []
-        # Unclosed brace — tokenizer reports unclosed_braces.
+        # Unclosed brace -- tokenizer reports unclosed_braces.
         result = parse_file(Path("a.tcl"), "proc foo {} {\n", on_diagnostic=emitted.append)
         assert result == []
         assert len(emitted) == 1
@@ -161,7 +161,7 @@ class TestParseFile:
         assert emitted[0].code == "PE-02"
 
     def test_on_diagnostic_none_silent(self) -> None:
-        # No callback → errors are silently discarded.
+        # No callback -> errors are silently discarded.
         result = parse_file(Path("a.tcl"), "proc ${x} {} {}\n")
         assert result == []
 
@@ -175,7 +175,7 @@ class TestParseFile:
 
 
 # ---------------------------------------------------------------------------
-# ParserService.run — I/O + orchestration
+# ParserService.run -- I/O + orchestration
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +257,7 @@ class TestEncoding:
 
     def test_latin1_fallback_emits_pw02(self) -> None:
         # Bytes that are NOT valid UTF-8 but ARE valid Latin-1.
-        # 0xFF is an invalid UTF-8 start byte; Latin-1 reads it as ÿ.
+        # 0xFF is an invalid UTF-8 start byte; Latin-1 reads it as U+00FF (y-with-diaeresis).
         a = Path("a.tcl")
         content = b"proc helper {} { return \xff }\n"
         ctx, sink = _make_ctx({a: content})
@@ -394,13 +394,13 @@ class TestFullDomainHarvest:
 
 
 # ---------------------------------------------------------------------------
-# Non-Tcl companion files — regression guards for GitHub issue #2.
+# Non-Tcl companion files -- regression guards for GitHub issue #2.
 #
-# The architecture doc (OOS-01 in ``technical_docs/ARCHITECTURE.md`` §1.3)
+# The architecture doc (OOS-01 in ``technical_docs/ARCHITECTURE.md`` Sec.1.3)
 # states that non-Tcl files (``.py`` / ``.pl`` / ``.csh`` / config)
 # participate in F1 file-level treatment only and must never enter the
 # Tcl tokenizer. Before the fix, a ``.py`` file containing a stray
-# ``}`` inside a Python string literal (e.g. ``value.replace("}", …)``)
+# ``}`` inside a Python string literal (e.g. ``value.replace("}", ...)``)
 # was fed to the tokenizer, produced a ``negative_depth`` error, and
 # the service translated that into a spurious
 # ``PE-02 unbalanced-braces`` that aborted P2.
@@ -463,7 +463,7 @@ class TestNonTclSkip:
         ],
     )
     def test_various_non_tcl_suffixes_skipped(self, path: Path) -> None:
-        # Any non-.tcl suffix — including no suffix at all — is skipped
+        # Any non-.tcl suffix -- including no suffix at all -- is skipped
         # without attempting a read (the fixture deliberately contains
         # bytes that would be invalid as Tcl).
         ctx, sink = _make_ctx({path: b"} this would be negative_depth in tcl {\n"})
@@ -501,7 +501,7 @@ class TestNonTclSkip:
 
 
 # ---------------------------------------------------------------------------
-# Real-world scenario tests — pathologies observed in production Synopsys
+# Real-world scenario tests -- pathologies observed in production Synopsys
 # Formality Tcl: CRLF line endings, ``define_proc_attributes`` blocks joined
 # by backslash continuation, proc bodies opened at column 0, single-line
 # banner comments.  Snippets are copied verbatim from real scripts.
@@ -525,7 +525,7 @@ _REAL_DPA_CRLF = (
 
 # Column-0 proc body + banner comment, copied verbatim from the real
 # ``dangle_dont_verify_par`` proc in the production flow.  The body is NOT
-# indented — parser must still identify boundaries by brace balance alone.
+# indented -- parser must still identify boundaries by brace balance alone.
 _REAL_COLUMN_ZERO_BODY = (
     b"# Added for 3rd round of DMR 1p0\r\n"
     b"proc dangle_dont_verify_par {infile outfile} {\r\n"
@@ -563,13 +563,13 @@ class TestRealWorldScenarios:
         assert codes == [], f"CRLF + DPA continuation regressed: {codes}"
         proc = next(iter(result.index.values()))
         assert proc.short_name == "match_nd_to_1d"
-        # DPA range must cover lines 5–9 of the CRLF source (1-indexed),
+        # DPA range must cover lines 5-9 of the CRLF source (1-indexed),
         # including the physical line where the -define_args brace closes.
         assert proc.dpa_start_line == 5
         assert proc.dpa_end_line == 9
 
     def test_column_zero_proc_body_parses_as_single_proc(self) -> None:
-        """Unindented proc body — brace balance alone must bound the proc.
+        """Unindented proc body -- brace balance alone must bound the proc.
 
         Real script ``dangle_dont_verify_par`` opens its body at column 0
         with blank lines sprinkled through.  Parser must still return
@@ -592,7 +592,7 @@ class TestRealWorldScenarios:
         assert proc.body_end_line <= proc.end_line
 
 
-# ``swap_to_current_instance`` — verbatim from the production Formality
+# ``swap_to_current_instance`` -- verbatim from the production Formality
 # flow.  Pathological traits:
 #   * body indented with leading tabs AND leading spaces (mixed whitespace);
 #   * deeply nested if/elseif/else chain with inline ``regexp`` bodies that
@@ -634,11 +634,11 @@ _REAL_SWAP_PROC = (
 )
 
 
-# ``handle_change_direction`` — verbatim from the production Formality
+# ``handle_change_direction`` -- verbatim from the production Formality
 # flow.  Pathological traits:
 #   * body opens at column 0 (no indentation at all);
 #   * ``puts $outputFile "current_instance \\$impl..."`` lines contain
-#     *string literals* that look like Tcl code — the parser must NOT
+#     *string literals* that look like Tcl code -- the parser must NOT
 #     misread them as embedded procs or extra brace opens;
 #   * embedded literal ``{`` inside a ``puts`` argument string.
 _REAL_HANDLE_CHANGE_DIRECTION = (
@@ -694,7 +694,7 @@ class TestRealWorldMessyFormatting:
         """``handle_change_direction``: column-0 body where ``puts``
         emits *strings* containing literal ``current_instance``,
         ``set rp``, ``if { ... }``.  These are string payloads, not
-        nested procs — parser must see exactly one proc.
+        nested procs -- parser must see exactly one proc.
         """
         a = Path("handle.tcl")
         ctx, sink = _make_ctx({a: _REAL_HANDLE_CHANGE_DIRECTION.encode("utf-8")})

@@ -223,7 +223,7 @@ def test_render_compiled_manifest_with_traced_proc_having_colon_colon() -> None:
     name, payload = render_compiled_manifest(record)
     data = json.loads(payload)
     traced = data["procedures"]["traced"]
-    # "sub/base.tcl::beta" → source_file == "sub/base.tcl"
+    # "sub/base.tcl::beta" -> source_file == "sub/base.tcl"
     assert any(t["source_file"] == "sub/base.tcl" for t in traced)
 
 
@@ -279,7 +279,7 @@ def test_walk_relative_files_stat_raises_filenotfound() -> None:
 
     child_path = BACKUP / "lib.tcl"
     fs = MagicMock()
-    # exists(backup) → True so source_root = backup; list returns one child; stat raises
+    # exists(backup) -> True so source_root = backup; list returns one child; stat raises
     fs.exists.side_effect = lambda p: p == BACKUP
     fs.list.side_effect = lambda p: [child_path] if p == BACKUP else []
     fs.stat.side_effect = FileNotFoundError("stat vanished")

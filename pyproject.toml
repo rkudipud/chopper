@@ -44,7 +44,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 # Ship the built-in tool-command lists inside the wheel so the P4 trace
-# pool (architecture doc §3.10) is populated out-of-the-box without any
+# pool (architecture doc Sec.3.10) is populated out-of-the-box without any
 # post-install steps.
 "chopper.data.tool_commands" = ["*.commands"]
 # Ship the vendored cloc.pl (GPL-2; see src/chopper/audit/vendor/README.md)
@@ -102,10 +102,10 @@ disallow_untyped_defs = true
 # ---------------------------------------------------------------------------
 # import-linter contracts.
 #
-# Enforces the layered architecture defined in technical_docs/ENGINEERING.md §3:
+# Enforces the layered architecture defined in technical_docs/ENGINEERING.md Sec.3:
 #
-#     cli  →  orchestrator  →  services  →  core
-#     adapters → core (+ third-party libs only)
+#     cli  ->  orchestrator  ->  services  ->  core
+#     adapters -> core (+ third-party libs only)
 #
 # Services (parser, config, compiler, trimmer, generators, validator, audit)
 # MUST NOT import each other. The core package MUST NOT import any sibling.
@@ -122,7 +122,7 @@ root_packages = ["chopper"]
 [[tool.importlinter.contracts]]
 name = "Layered architecture: cli -> orchestrator -> services -> core"
 type = "layers"
-# All layers are populated (Stages 0–5 complete). The contract enforces
+# All layers are populated (Stages 0-5 complete). The contract enforces
 # strict top-down imports: cli may depend on orchestrator, orchestrator on
 # services, services on core, adapters on core. No upward or sibling
 # imports across service modules.
@@ -136,8 +136,8 @@ layers = [
 # Documented exception: the validator re-parses trimmed Tcl in P6 to
 # verify the proc set promised by `CompiledManifest`/`TrimReport` (VW-10
 # reconciliation). This is the only permitted cross-service import in
-# the codebase. See `.github/instructions/project.instructions.md` §1.1
-# and `technical_docs/ARCHITECTURE.md` §5.12.9.
+# the codebase. See `.github/instructions/project.instructions.md` Sec.1.1
+# and `technical_docs/ARCHITECTURE.md` Sec.5.12.9.
 ignore_imports = [
     "chopper.validator.functions -> chopper.parser.service",
 ]

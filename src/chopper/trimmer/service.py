@@ -1,13 +1,13 @@
-"""P5 trimmer service — top-level state machine.
+"""P5 trimmer service -- top-level state machine.
 
 Dispatches per-file FULL_COPY / PROC_TRIM / REMOVE operations over
 ``domain/`` based on :class:`CompiledManifest`, using ``domain_backup/``
 as the authoritative source tree. Prep varies by domain-state case:
 
-* Case 1 (domain only)            — move ``.chopper`` aside, rename to backup, create fresh domain.
-* Case 2 (domain + backup)        — delete domain, recreate empty; backup untouched.
-* Case 3 (backup only)            — recreate empty domain; backup untouched.
-* Case 4 (neither)                — never reached; fatal at P0.
+* Case 1 (domain only)            -- move ``.chopper`` aside, rename to backup, create fresh domain.
+* Case 2 (domain + backup)        -- delete domain, recreate empty; backup untouched.
+* Case 3 (backup only)            -- recreate empty domain; backup untouched.
+* Case 4 (neither)                -- never reached; fatal at P0.
 
 ``--dry-run`` skips all filesystem mutation; the returned
 :class:`TrimReport` still describes planned actions so audit at P7 is
@@ -107,7 +107,7 @@ class TrimmerService:
         return _build_report(outcomes, rebuild_interrupted=interrupted)
 
     # ------------------------------------------------------------------
-    # Workspace prep per §2.8
+    # Workspace prep per Sec.2.8
     # ------------------------------------------------------------------
     def _prepare_workspace(self, ctx: ChopperContext, state: DomainState) -> None:
         """Execute the case-specific prep step.
@@ -138,7 +138,7 @@ class TrimmerService:
             ctx.fs.mkdir(domain, parents=True, exist_ok=False)
         elif state.case == 3:
             ctx.fs.mkdir(domain, parents=True, exist_ok=False)
-        else:  # pragma: no cover — guarded by run()
+        else:  # pragma: no cover -- guarded by run()
             raise ValueError(f"unexpected DomainState case {state.case}")
 
     # ------------------------------------------------------------------
@@ -146,7 +146,7 @@ class TrimmerService:
     # ------------------------------------------------------------------
     @staticmethod
     def _sync_domain_jsons_to_backup(ctx: ChopperContext, domain: Path, backup: Path) -> None:
-        """Copy ``<domain>/jsons/`` → ``<domain>_backup/jsons/`` so the
+        """Copy ``<domain>/jsons/`` -> ``<domain>_backup/jsons/`` so the
         backup always reflects the user's latest JSON edits.
 
         Users edit JSONs in the working domain, not in the backup. On a
@@ -154,7 +154,7 @@ class TrimmerService:
         sync step the stale backup copy would win when
         ``preserve_input_sources`` mirrors jsons/ back at P5a tail.
 
-        Failures are suppressed — the run will proceed with whatever
+        Failures are suppressed -- the run will proceed with whatever
         jsons/ content the backup already contains.
         """
         domain_jsons = domain / "jsons"

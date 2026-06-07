@@ -1,4 +1,4 @@
-"""Torture tests for :class:`RichProgress` — styled + plain paths, fallback."""
+"""Torture tests for :class:`RichProgress` -- styled + plain paths, fallback."""
 
 from __future__ import annotations
 

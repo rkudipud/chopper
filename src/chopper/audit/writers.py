@@ -1,7 +1,7 @@
 """Per-artifact renderers for the P7 audit bundle.
 
 Each public ``render_*`` function returns ``(name, content)`` for one
-artifact. Writers are pure — they never touch the filesystem;
+artifact. Writers are pure -- they never touch the filesystem;
 :class:`AuditService` is responsible for writing the returned bytes.
 
 All JSON artifacts are serialised through
@@ -369,7 +369,7 @@ def _physical_source_root(ctx: ChopperContext) -> Path | None:
     short-circuits before workspace prep), so the original files are
     still in ``domain_root``.
 
-    Returns ``None`` when neither root exists — e.g. when audit runs after
+    Returns ``None`` when neither root exists -- e.g. when audit runs after
     a P0/P1 abort or under a unit-test stub filesystem with no contents.
     Callers fall back to a manifest-only view in that case.
     """
@@ -422,13 +422,13 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
     tab-separated as ``<path>\\t<provenance>`` where ``<provenance>`` is
     one of:
 
-    * ``removed-by:<layer_key>:files.exclude`` — a later layer's
+    * ``removed-by:<layer_key>:files.exclude`` -- a later layer's
       ``files.exclude`` actually removed the file from the running
       overlay (last :class:`ShadowEvent` with ``action == 'remove'``).
-    * ``shadowed-by:<layer_key>:procedures.exclude`` — a later layer's
+    * ``shadowed-by:<layer_key>:procedures.exclude`` -- a later layer's
       ``procedures.exclude`` was the last shadow event recorded against
       the file (rare for fully-removed files; included for symmetry).
-    * ``default-exclude`` — the file was never positively contributed
+    * ``default-exclude`` -- the file was never positively contributed
       to by any layer (the common case for non-``.tcl`` companion files
       that no JSON named).
 
@@ -444,7 +444,7 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
 
     manifest = record.manifest
     lines: list[str] = [
-        "# files_removed.txt — paths physically removed from the rebuilt domain",
+        "# files_removed.txt -- paths physically removed from the rebuilt domain",
         "# Format: <path>\\t<provenance>",
         "# <provenance>: 'removed-by:<layer_key>:files.exclude' when a later layer's",
         "# files.exclude removed the file; 'shadowed-by:<layer_key>:procedures.exclude'",
@@ -455,7 +455,7 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
     source_root = _physical_source_root(ctx)
 
     if source_root is None:
-        # No filesystem to walk — fall back to the manifest's explicit
+        # No filesystem to walk -- fall back to the manifest's explicit
         # REMOVE decisions so the artifact is still well-formed.
         if manifest is not None:
             removed_entries = sorted(
@@ -508,14 +508,14 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
 
     Three alphabetically-sorted sections, each headed by a ``#``-comment
     line and separated by a blank line; section order is fixed
-    (edits → adds → deletes):
+    (edits -> adds -> deletes):
 
-    * ``p4 edit -t text+x <path>`` — every ``PROC_TRIM`` file, plus every
+    * ``p4 edit -t text+x <path>`` -- every ``PROC_TRIM`` file, plus every
       ``GENERATED`` file whose path exists in the pre-trim source root
       (regenerate-in-place; the depot file is being overwritten).
-    * ``p4 add -t text+x <path>`` — every ``GENERATED`` file whose path
+    * ``p4 add -t text+x <path>`` -- every ``GENERATED`` file whose path
       does not exist pre-trim (newly created stage file).
-    * ``p4 delete <path>`` — every file that exists in the pre-trim source
+    * ``p4 delete <path>`` -- every file that exists in the pre-trim source
       tree but not in the rebuilt domain's surviving set; coextensive
       with the entries in ``files_removed.txt``. No ``-t`` flag because
       Perforce derives the filetype from the existing depot entry.
@@ -528,7 +528,7 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
     contract (every rebuilt file in ``<domain>/`` carries ``a+x``).
 
     Source-root resolution mirrors :func:`render_files_removed` via
-    :func:`_physical_source_root` — ``<domain>_backup/`` after a live
+    :func:`_physical_source_root` -- ``<domain>_backup/`` after a live
     trim, ``<domain>/`` for first-trim ``--dry-run``. When neither root
     is readable (e.g. audit after a P0/P1 abort, unit-test stub
     filesystem), the writer falls back to a manifest-only view.
@@ -538,9 +538,9 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
 
     Emission policy: written on both live trim and ``--dry-run``; not
     emitted by ``validate``, ``loc``, or ``cleanup``. Chopper never
-    invokes ``p4`` itself — the file is a review artifact.
+    invokes ``p4`` itself -- the file is a review artifact.
 
-    See architecture doc §5.5.14 and FR-47.
+    See architecture doc Sec.5.5.14 and FR-47.
     """
 
     manifest = record.manifest
@@ -559,7 +559,7 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
                     edits.append(rel)
                 else:
                     adds.append(rel)
-            # FULL_COPY → no command; REMOVE handled below.
+            # FULL_COPY -> no command; REMOVE handled below.
 
     # `p4 delete` set is parity with `files_removed.txt`:
     # walk(source_root) - kept_set. Falls back to manifest REMOVE
@@ -581,7 +581,7 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
     deletes.sort()
 
     lines: list[str] = [
-        "# p4_commands.txt — Perforce commands corresponding to this Chopper trim.",
+        "# p4_commands.txt -- Perforce commands corresponding to this Chopper trim.",
         "# Review each section, then run `p4 submit` yourself; Chopper does NOT submit.",
         "# Paths are domain-relative; run these from the rebuilt domain root.",
         "# `-t text+x` declares Perforce filetype `text` with the executable bit set.",
@@ -589,20 +589,20 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
 
     if edits:
         lines.append("")
-        lines.append("# p4 edit — PROC_TRIM files and GENERATED files that overwrite an existing depot file.")
+        lines.append("# p4 edit -- PROC_TRIM files and GENERATED files that overwrite an existing depot file.")
         lines.extend(f"p4 edit -t text+x {p}" for p in edits)
     if adds:
         lines.append("")
-        lines.append("# p4 add — GENERATED files newly created by this trim (no prior depot entry).")
+        lines.append("# p4 add -- GENERATED files newly created by this trim (no prior depot entry).")
         lines.extend(f"p4 add -t text+x {p}" for p in adds)
     if deletes:
         lines.append("")
-        lines.append("# p4 delete — files dropped from the rebuilt domain.")
+        lines.append("# p4 delete -- files dropped from the rebuilt domain.")
         lines.extend(f"p4 delete {p}" for p in deletes)
 
     if not (edits or adds or deletes):
         lines.append("")
-        lines.append("# (no Perforce commands — nothing to submit)")
+        lines.append("# (no Perforce commands -- nothing to submit)")
 
     return "p4_commands.txt", "\n".join(lines) + "\n"
 
@@ -614,7 +614,7 @@ def render_files_kept(record: RunRecord) -> tuple[str, str]:
     with ``FULL_COPY``, ``PROC_TRIM``, and ``GENERATED`` treatments.
     Each line is tab-separated as ``<path>\\t<contributed_by>`` where
     ``<contributed_by>`` is the single layer key recorded in
-    :attr:`FileProvenance.contributed_by` — the last layer that
+    :attr:`FileProvenance.contributed_by` -- the last layer that
     positively contributed to the file under the R1 ordered overlay.
     When no provenance entry exists, the field is ``-``.
 
@@ -625,7 +625,7 @@ def render_files_kept(record: RunRecord) -> tuple[str, str]:
 
     manifest = record.manifest
     lines: list[str] = [
-        "# files_kept.txt — paths that survive trimming",
+        "# files_kept.txt -- paths that survive trimming",
         "# Format: <path>\\t<contributed_by>",
         "# <contributed_by>: the single layer key from",
         "# CompiledManifest.provenance[<path>].contributed_by (the last layer",

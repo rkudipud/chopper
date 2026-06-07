@@ -33,7 +33,7 @@
     },
     "metadata": {
       "type": "object",
-      "description": "Optional informational metadata. Chopper never evaluates these fields — they are documentation only. Preserved in audit artifacts and scan output.",
+      "description": "Optional informational metadata. Chopper never evaluates these fields -- they are documentation only. Preserved in audit artifacts and scan output.",
       "properties": {
         "owner": {
           "type": "string",
@@ -84,7 +84,7 @@
             "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
           },
           "minItems": 1,
-          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include. Within this layer, excludes only prune wildcard-expanded include candidates; literal include paths in the same layer survive. Across layers, this exclude is part of an R1 ordered overlay — if this feature appears after the layer that contributed the file (base or an earlier feature), the file is removed and `VW-21 layer-shadowed` is emitted. MUST NOT be empty if files.exclude is present."
+          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include. Within this layer, excludes only prune wildcard-expanded include candidates; literal include paths in the same layer survive. Across layers, this exclude is part of an R1 ordered overlay -- if this feature appears after the layer that contributed the file (base or an earlier feature), the file is removed and `VW-21 layer-shadowed` is emitted. MUST NOT be empty if files.exclude is present."
         }
       }
     },
@@ -107,7 +107,7 @@
             "$ref": "#/$defs/procEntry"
           },
           "minItems": 1,
-          "description": "Proc-level excludes from this feature. Within this layer, prunes procs inside PROC_TRIM files (keep-set = all_procs(file) − PE) and does not remove same-layer explicit procedures.include entries (same-layer include wins). Across layers, this exclude is part of an R1 ordered overlay — if this feature appears after the layer that contributed the proc (base or an earlier feature), the proc is dropped and `VW-21 layer-shadowed` is emitted. Does not filter trace-expanded callees — trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
+          "description": "Proc-level excludes from this feature. Within this layer, prunes procs inside PROC_TRIM files (keep-set = all_procs(file) - PE) and does not remove same-layer explicit procedures.include entries (same-layer include wins). Across layers, this exclude is part of an R1 ordered overlay -- if this feature appears after the layer that contributed the proc (base or an earlier feature), the proc is dropped and `VW-21 layer-shadowed` is emitted. Does not filter trace-expanded callees -- trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
         }
       }
     },
@@ -185,7 +185,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present in the compiled stage sequence, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present in the compiled stage sequence, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -262,7 +262,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the anchor `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the anchor `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -289,7 +289,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -310,7 +310,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -336,7 +336,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. A missing `reference` predecessor still fails with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. A missing `reference` predecessor still fails with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -368,7 +368,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the target `stage` is not present, emit VI-05 and skip this action instead of failing with VE-05. Step-level miss inside a present stage still emits VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },
@@ -393,7 +393,7 @@
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc §6.7 ‘Optional Stage Targets’."
+          "description": "When true and the `reference` stage is not present, emit VI-05 and skip this action instead of failing with VE-05. See architecture doc Sec.6.7 ‘Optional Stage Targets’."
         }
       }
     },

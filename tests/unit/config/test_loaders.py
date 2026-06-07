@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.config.loaders` — hydration + topo-sort."""
+"""Unit tests for :mod:`chopper.config.loaders` -- hydration + topo-sort."""
 
 from __future__ import annotations
 
@@ -233,7 +233,7 @@ class TestLoadFeature:
         assert action.action == "add_step_after"
 
     def test_skip_if_no_stage_round_trips_true(self) -> None:
-        """Architecture doc §6.7: ``skip_if_no_stage: true`` on a
+        """Architecture doc Sec.6.7: ``skip_if_no_stage: true`` on a
         flow_action hydrates onto the dataclass."""
         raw = {
             "$schema": "feature-v1",
@@ -422,7 +422,7 @@ class TestTopoSort:
         assert diags == []
 
     def test_diamond_dependency(self) -> None:
-        # a → b, a → c, b → d, c → d  (d must be first)
+        # a -> b, a -> c, b -> d, c -> d  (d must be first)
         feats = [
             _make_feat("d"),
             _make_feat("b", ["d"]),
@@ -461,7 +461,7 @@ class TestTopoSort:
         assert len(result) == 1
 
     def test_stable_sort_within_rank(self) -> None:
-        # b and c both depend on a — their relative order should match input.
+        # b and c both depend on a -- their relative order should match input.
         feats = [_make_feat("a"), _make_feat("b", ["a"]), _make_feat("c", ["a"])]
         diags: list[Diagnostic] = []
         result = topo_sort_features(feats, Path("p.json"), diags.append)
@@ -492,7 +492,7 @@ def test_load_base_emits_ve03_for_empty_procs_array_in_exclude() -> None:
         "domain": "d",
         "procedures": {
             "exclude": [
-                {"file": "lib/empty.tcl", "procs": []},  # empty → VE-03
+                {"file": "lib/empty.tcl", "procs": []},  # empty -> VE-03
             ],
         },
     }

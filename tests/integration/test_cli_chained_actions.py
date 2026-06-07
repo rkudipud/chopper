@@ -10,7 +10,7 @@ Each scenario authors a self-describing on-disk domain (base.json
 :class:`~chopper.orchestrator.runner.ChopperRunner` through
 ``cmd_validate``'s dry-run pipeline, and asserts both the resolved
 :attr:`CompiledManifest.stages` tuple and the diagnostic stream
-against the spec in ``technical_docs/ARCHITECTURE.md`` §6.6/§6.7 and
+against the spec in ``technical_docs/ARCHITECTURE.md`` Sec.6.6/Sec.6.7 and
 ``technical_docs/DIAGNOSTIC_CODES.md`` (VE-10 / VE-19 / VE-20).
 
 The actions exercised here are the full union::
@@ -38,7 +38,7 @@ from chopper.core.models_common import FileTreatment
 from chopper.orchestrator import ChopperRunner
 
 # ---------------------------------------------------------------------------
-# Authoring helpers (clone of test_cli_chained_overlay's helpers — kept
+# Authoring helpers (clone of test_cli_chained_overlay's helpers -- kept
 # local so each torture file stays self-contained and inspectable).
 # ---------------------------------------------------------------------------
 
@@ -109,9 +109,9 @@ def _base_with_main_only(domain: Path) -> Path:
 
 
 # ===========================================================================
-# Scenario A1 — ``add_step_after`` against a unique anchor.
+# Scenario A1 -- ``add_step_after`` against a unique anchor.
 #
-# Spec: ARCHITECTURE.md §6.6 / flow_resolver.py module docstring — the
+# Spec: ARCHITECTURE.md Sec.6.6 / flow_resolver.py module docstring -- the
 # new step lands immediately after the named reference step. No VE-10/
 # VE-19/VE-20 because the anchor is unique.
 # ===========================================================================
@@ -148,7 +148,7 @@ def test_add_step_after_unique_anchor_inserts_in_place(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario A2 — ``add_step_before`` against a unique anchor.
+# Scenario A2 -- ``add_step_before`` against a unique anchor.
 # ===========================================================================
 
 
@@ -183,9 +183,9 @@ def test_add_step_before_unique_anchor_inserts_in_place(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario A3 — Three features each ``add_step_after`` on the same
+# Scenario A3 -- Three features each ``add_step_after`` on the same
 # anchor. Selected feature order must be preserved verbatim (R1
-# ordered overlay for F3, ARCHITECTURE.md §6.7).
+# ordered overlay for F3, ARCHITECTURE.md Sec.6.7).
 # ===========================================================================
 
 
@@ -232,7 +232,7 @@ def test_add_step_after_same_anchor_three_features_preserve_order(tmp_path: Path
 
 
 # ===========================================================================
-# Scenario A4 — Three features each ``add_step_before`` on the same
+# Scenario A4 -- Three features each ``add_step_before`` on the same
 # anchor. ``add_step_before`` preserves order naturally because each
 # new insertion sits immediately before a shifted anchor.
 # ===========================================================================
@@ -279,7 +279,7 @@ def test_add_step_before_same_anchor_three_features_preserve_order(tmp_path: Pat
 
 
 # ===========================================================================
-# Scenario B1 — ``add_stage_after`` produces a new GENERATED entry in
+# Scenario B1 -- ``add_stage_after`` produces a new GENERATED entry in
 # ``file_decisions`` (``<stage>.tcl``) and the new stage shows up at
 # the correct position in the resolved stage sequence.
 # ===========================================================================
@@ -320,7 +320,7 @@ def test_add_stage_after_registers_generated_tcl_and_orders_stage(tmp_path: Path
 
 
 # ===========================================================================
-# Scenario B2 — ``add_stage_before``: same shape, inserted before the
+# Scenario B2 -- ``add_stage_before``: same shape, inserted before the
 # anchor instead of after.
 # ===========================================================================
 
@@ -358,7 +358,7 @@ def test_add_stage_before_inserts_ahead_of_anchor(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario C — ``remove_step`` deletes a unique step from a stage.
+# Scenario C -- ``remove_step`` deletes a unique step from a stage.
 # ===========================================================================
 
 
@@ -385,7 +385,7 @@ def test_remove_step_drops_named_step(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario D — ``remove_stage`` removes a whole stage and its
+# Scenario D -- ``remove_stage`` removes a whole stage and its
 # GENERATED ``<stage>.tcl`` entry must NOT be present (because the
 # stage is gone from the resolved sequence).
 # ===========================================================================
@@ -431,7 +431,7 @@ def test_remove_stage_drops_stage_and_no_generated_tcl(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario E — ``replace_step`` swaps one step for another.
+# Scenario E -- ``replace_step`` swaps one step for another.
 # ===========================================================================
 
 
@@ -465,7 +465,7 @@ def test_replace_step_swaps_exact_token(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario F — ``replace_stage`` swaps a whole stage for a new
+# Scenario F -- ``replace_stage`` swaps a whole stage for a new
 # definition. When the replacement carries a DIFFERENT name, downstream
 # stages that referenced the old name via ``load_from`` must have
 # their ``load_from`` rewritten to the new name (flow_resolver.py
@@ -517,14 +517,14 @@ def test_replace_stage_with_new_name_rewrites_downstream_load_from(tmp_path: Pat
     assert result.exit_code == 0
     names = tuple(s.name for s in result.manifest.stages)
     assert names == ("init", "main")
-    # Downstream ``main`` must have its load_from rewritten setup → init.
+    # Downstream ``main`` must have its load_from rewritten setup -> init.
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
     assert main.load_from == "init"
 
 
 # ===========================================================================
-# Scenario G — ``load_from`` retargets a stage's predecessor.
+# Scenario G -- ``load_from`` retargets a stage's predecessor.
 # ===========================================================================
 
 
@@ -565,7 +565,7 @@ def test_load_from_retargets_predecessor(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario H — ``add_step_after`` with @n instance targeting on a
+# Scenario H -- ``add_step_after`` with @n instance targeting on a
 # step token that appears multiple times. Spec: flow_resolver.py
 # module docstring + DIAGNOSTIC_CODES.md (VE-10/VE-19/VE-20 only fire
 # on out-of-range / ambiguous cases). @2 of a 2-occurrence step is
@@ -590,7 +590,7 @@ def test_add_step_after_with_at_n_instance_targeting(tmp_path: Path) -> None:
                     "load_from": "",
                     "command": "-T main",
                     "exit_codes": [0],
-                    # "x" appears twice — disambiguation via @n.
+                    # "x" appears twice -- disambiguation via @n.
                     "steps": ["x", "y", "x"],
                 }
             ],
@@ -625,7 +625,7 @@ def test_add_step_after_with_at_n_instance_targeting(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario I — VE-20 ``ambiguous-step-target``: feature uses a step
+# Scenario I -- VE-20 ``ambiguous-step-target``: feature uses a step
 # reference with no @n on a step that appears multiple times.
 # ===========================================================================
 
@@ -670,7 +670,7 @@ def test_ambiguous_step_target_emits_ve20(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario J — VE-10 ``occurrence-suffix-overflow``: @n with n above
+# Scenario J -- VE-10 ``occurrence-suffix-overflow``: @n with n above
 # the match count.
 # ===========================================================================
 
@@ -715,7 +715,7 @@ def test_at_n_overflow_emits_ve10(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario K — F3 generated path collides with an explicit
+# Scenario K -- F3 generated path collides with an explicit
 # ``files.include`` literal. ARCHITECTURE.md / merge_service.py
 # `_register_generated_stage_files` mandates a :class:`ChopperError`
 # which the runner maps to exit 3 + internal-error.log.
@@ -767,13 +767,13 @@ def test_f3_generated_collides_with_fi_literal_exits_3(tmp_path: Path) -> None:
 
     sink, result = _run_pipeline(domain, base=base, features=(feat,))
 
-    # ChopperError → exit 3 + internal_error populated.
+    # ChopperError -> exit 3 + internal_error populated.
     assert result.exit_code == 3, f"expected ChopperError-mapped exit 3 for F3/FI collision; got {result.exit_code}"
     assert result.internal_error is not None
 
 
 # ===========================================================================
-# Scenario L — Cross-product torture: feature A adds a stage AFTER
+# Scenario L -- Cross-product torture: feature A adds a stage AFTER
 # main; feature B then REMOVES the stage A just added. The net effect
 # is that the resolved stage sequence equals the base sequence.
 # Order matters: features run in selected order.
@@ -824,11 +824,11 @@ def test_add_then_remove_same_stage_net_zero(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Scenario M — Cross-axis torture: feature A adds a new stage whose
+# Scenario M -- Cross-axis torture: feature A adds a new stage whose
 # steps "source" a file the SAME feature `files.include`s; feature B
 # then `files.exclude`s that file (FE in a later layer). The stage
 # survives (F3 is independent of F1) but the FE downgrades F1 to
-# REMOVE — emitting VW-21 ``downgrade-whole-to-remove`` per R1 row 4.
+# REMOVE -- emitting VW-21 ``downgrade-whole-to-remove`` per R1 row 4.
 # ===========================================================================
 
 
@@ -882,7 +882,7 @@ def test_action_plus_fe_in_later_layer_downgrades_f1_with_vw21(tmp_path: Path) -
     sink, result = _run_pipeline(domain, base=base, features=(fa, fb))
     codes = [d.code for d in sink.snapshot()]
 
-    # Stage still resolves — F3 is independent of F1.
+    # Stage still resolves -- F3 is independent of F1.
     assert result.exit_code == 0
     names = tuple(s.name for s in result.manifest.stages)
     assert "extra" in names
@@ -894,11 +894,11 @@ def test_action_plus_fe_in_later_layer_downgrades_f1_with_vw21(tmp_path: Path) -
 
 
 # ===========================================================================
-# Scenario N — Cross-axis torture: feature A adds a stage whose step
+# Scenario N -- Cross-axis torture: feature A adds a stage whose step
 # calls a proc; feature B then PE-removes that proc from its source
 # file. Stage definition is byte-stable (F3 step strings are opaque to
 # F2). The proc is dropped from the trimmed output. No diagnostic
-# couples the two axes — F3 does not "know" about F2 by design.
+# couples the two axes -- F3 does not "know" about F2 by design.
 # ===========================================================================
 
 
@@ -963,8 +963,8 @@ def test_action_step_references_pe_dropped_proc_stages_unchanged(tmp_path: Path)
 
 
 # ===========================================================================
-# Scenario O — Chained replace_step: feature A replaces "run" → "run1";
-# feature B then replaces "run1" → "run2". Last layer wins.
+# Scenario O -- Chained replace_step: feature A replaces "run" -> "run1";
+# feature B then replaces "run1" -> "run2". Last layer wins.
 # ===========================================================================
 
 

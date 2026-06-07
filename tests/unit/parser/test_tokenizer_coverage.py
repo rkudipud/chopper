@@ -41,7 +41,7 @@ def test_tokenizer_comment_with_backslash_newline_continuation() -> None:
 def test_tokenizer_comment_backslash_newline_advances_line_count() -> None:
     """A backslash-newline inside a Tcl comment is a line continuation.
     The tokenizer must count lines correctly so subsequent tokens get the
-    right line_no (IMPLEMENTATION.md §P-02)."""
+    right line_no (IMPLEMENTATION.md Sec.P-02)."""
     from chopper.parser.tokenizer import tokenize
 
     # Comment with backslash-newline continuation, then a proc.
@@ -54,7 +54,7 @@ def test_tokenizer_comment_backslash_newline_advances_line_count() -> None:
 
 
 def test_tokenizer_handles_backslash_line_continuation() -> None:
-    """Backslash line continuation must not crash the tokenizer (IMPLEMENTATION.md §P-02)."""
+    """Backslash line continuation must not crash the tokenizer (IMPLEMENTATION.md Sec.P-02)."""
     from chopper.parser.tokenizer import tokenize
 
     # A backslash at end of line continues to the next physical line.

@@ -1,19 +1,19 @@
 """Unit tests for :func:`chopper.audit.writers.render_p4_commands`.
 
-Covers FR-47 / architecture doc §5.5.14 — the deterministic Perforce
+Covers FR-47 / architecture doc Sec.5.5.14 -- the deterministic Perforce
 command-list audit artifact. Each treatment in
 ``CompiledManifest.file_decisions`` maps to a specific ``p4`` command:
 
-* ``PROC_TRIM`` → ``p4 edit -t text+x``
-* ``GENERATED`` where the path exists in the pre-trim source root →
+* ``PROC_TRIM`` -> ``p4 edit -t text+x``
+* ``GENERATED`` where the path exists in the pre-trim source root ->
   ``p4 edit -t text+x`` (regenerate-in-place)
-* ``GENERATED`` where the path does **not** exist pre-trim →
+* ``GENERATED`` where the path does **not** exist pre-trim ->
   ``p4 add -t text+x``
-* Physically removed (walk(source_root) − kept_set) → ``p4 delete``
+* Physically removed (walk(source_root) - kept_set) -> ``p4 delete``
   (no ``-t`` flag; Perforce reads the filetype from the depot entry).
-* ``FULL_COPY`` → no command (rebuilt byte-identical to depot).
+* ``FULL_COPY`` -> no command (rebuilt byte-identical to depot).
 
-Sections are alphabetically sorted within and ordered edits → adds →
+Sections are alphabetically sorted within and ordered edits -> adds ->
 deletes between. ``-t text+x`` matches the cross-phase
 ``ensure_executable()`` contract (every rebuilt file carries ``a+x``;
 see ``core/file_perms.py``).
@@ -138,7 +138,7 @@ def test_empty_record_with_filesystem_still_no_op() -> None:
 
 
 # ---------------------------------------------------------------------------
-# PROC_TRIM → p4 edit
+# PROC_TRIM -> p4 edit
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +166,7 @@ def test_multiple_proc_trim_files_are_alphabetically_sorted() -> None:
 
 
 # ---------------------------------------------------------------------------
-# GENERATED — regenerate-in-place vs newly-added
+# GENERATED -- regenerate-in-place vs newly-added
 # ---------------------------------------------------------------------------
 
 
@@ -202,12 +202,12 @@ def test_generated_dry_run_checks_domain_root_for_source() -> None:
     fs.write_text(DOMAIN / "fev_fm_rtl2gate.tcl", "# existing\n")
     manifest = _make_manifest({Path("fev_fm_rtl2gate.tcl"): FileTreatment.GENERATED})
     _, content = render_p4_commands(_make_ctx(dry_run=True, fs=fs), _record(manifest=manifest))
-    # Pre-trim domain holds the file → regenerate-in-place → p4 edit.
+    # Pre-trim domain holds the file -> regenerate-in-place -> p4 edit.
     assert _data_lines(content) == ["p4 edit -t text+x fev_fm_rtl2gate.tcl"]
 
 
 # ---------------------------------------------------------------------------
-# REMOVE / files_removed parity → p4 delete
+# REMOVE / files_removed parity -> p4 delete
 # ---------------------------------------------------------------------------
 
 
@@ -229,7 +229,7 @@ def test_remove_files_emit_p4_delete_no_t_flag() -> None:
 
 
 def test_p4_delete_parity_with_files_removed_includes_default_excluded() -> None:
-    """``p4 delete`` set equals ``walk(source_root) - kept_set`` — matching files_removed.txt."""
+    """``p4 delete`` set equals ``walk(source_root) - kept_set`` -- matching files_removed.txt."""
 
     fs = InMemoryFS()
     fs.write_text(BACKUP / "kept.tcl", "puts kept\n")
@@ -264,7 +264,7 @@ def test_p4_delete_skips_top_level_chopper_dir() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FULL_COPY — no command
+# FULL_COPY -- no command
 # ---------------------------------------------------------------------------
 
 
@@ -280,7 +280,7 @@ def test_full_copy_emits_no_command() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Mixed scenario — section ordering + sort determinism
+# Mixed scenario -- section ordering + sort determinism
 # ---------------------------------------------------------------------------
 
 
@@ -296,9 +296,9 @@ def test_mixed_scenario_section_order_is_edit_add_delete() -> None:
         {
             Path("lib/foo.tcl"): FileTreatment.PROC_TRIM,
             Path("verbatim.tcl"): FileTreatment.FULL_COPY,
-            Path("fev_fm_rtl2gate.tcl"): FileTreatment.GENERATED,  # exists in backup → edit
-            Path("setup.tcl"): FileTreatment.GENERATED,  # new → add
-            Path("run_flow.tcl"): FileTreatment.GENERATED,  # new → add
+            Path("fev_fm_rtl2gate.tcl"): FileTreatment.GENERATED,  # exists in backup -> edit
+            Path("setup.tcl"): FileTreatment.GENERATED,  # new -> add
+            Path("run_flow.tcl"): FileTreatment.GENERATED,  # new -> add
         }
     )
     _, content = render_p4_commands(_make_ctx(fs=fs), _record(manifest=manifest))
@@ -310,19 +310,19 @@ def test_mixed_scenario_section_order_is_edit_add_delete() -> None:
     delete_idx = next(i for i, ln in enumerate(data) if ln.startswith("p4 delete"))
     assert edit_idx < add_idx < delete_idx, f"sections out of order: {data}"
 
-    # Edit section contents — sorted.
+    # Edit section contents -- sorted.
     edits = [ln for ln in data if ln.startswith("p4 edit")]
     assert edits == [
         "p4 edit -t text+x fev_fm_rtl2gate.tcl",
         "p4 edit -t text+x lib/foo.tcl",
     ]
-    # Add section contents — sorted.
+    # Add section contents -- sorted.
     adds = [ln for ln in data if ln.startswith("p4 add")]
     assert adds == [
         "p4 add -t text+x run_flow.tcl",
         "p4 add -t text+x setup.tcl",
     ]
-    # Delete section — only the default-excluded helper.
+    # Delete section -- only the default-excluded helper.
     deletes = [ln for ln in data if ln.startswith("p4 delete")]
     assert deletes == ["p4 delete stale.pl"]
 
@@ -335,7 +335,7 @@ def test_text_plus_x_appears_on_every_edit_and_add_line() -> None:
         {
             Path("a.tcl"): FileTreatment.PROC_TRIM,
             Path("b.tcl"): FileTreatment.GENERATED,
-            Path("c.tcl"): FileTreatment.GENERATED,  # new → add
+            Path("c.tcl"): FileTreatment.GENERATED,  # new -> add
         }
     )
     _, content = render_p4_commands(_make_ctx(fs=fs), _record(manifest=manifest))
@@ -368,9 +368,9 @@ def test_output_is_deterministic_across_insertion_orders() -> None:
 
 def test_no_source_root_falls_back_to_manifest_only_view() -> None:
     """When neither backup_root nor domain_root exist on disk, the writer
-    falls back to a manifest-only view: REMOVE → delete, GENERATED → add."""
+    falls back to a manifest-only view: REMOVE -> delete, GENERATED -> add."""
 
-    # Empty fs — neither domain_root nor backup_root exist.
+    # Empty fs -- neither domain_root nor backup_root exist.
     fs = InMemoryFS()
     manifest = _make_manifest(
         {
@@ -382,9 +382,9 @@ def test_no_source_root_falls_back_to_manifest_only_view() -> None:
     _, content = render_p4_commands(_make_ctx(fs=fs), _record(manifest=manifest))
     data = _data_lines(content)
     assert "p4 edit -t text+x foo.tcl" in data
-    # No source root → cannot tell if GENERATED file pre-existed → treat as add.
+    # No source root -> cannot tell if GENERATED file pre-existed -> treat as add.
     assert "p4 add -t text+x new.tcl" in data
-    # No source root → manifest-only delete.
+    # No source root -> manifest-only delete.
     assert "p4 delete gone.tcl" in data
 
 
@@ -394,7 +394,7 @@ def test_no_source_root_falls_back_to_manifest_only_view() -> None:
 
 
 def test_dry_run_and_live_produce_byte_identical_output_for_same_state() -> None:
-    """Non-interactive scripts diff dry-run plan vs live trim — must match."""
+    """Non-interactive scripts diff dry-run plan vs live trim -- must match."""
 
     # Dry-run state: original files still under domain_root.
     fs_dry = InMemoryFS()

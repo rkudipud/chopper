@@ -3,29 +3,29 @@
 Plain module-level functions. Each emits diagnostics via ``ctx.diag``
 and returns ``None``.
 
-``validate_pre(ctx, loaded)`` — runs before P2. Emits:
+``validate_pre(ctx, loaded)`` -- runs before P2. Emits:
 
-* ``VE-06`` — literal path in ``files.include`` / ``files.exclude``
+* ``VE-06`` -- literal path in ``files.include`` / ``files.exclude``
   not present under :attr:`RunConfig.domain_root`.
-* ``VE-09`` — glob pattern with unbalanced ``[...]``.
-* ``VE-17`` — project ``domain`` does not match cwd basename
+* ``VE-09`` -- glob pattern with unbalanced ``[...]``.
+* ``VE-17`` -- project ``domain`` does not match cwd basename
   (case-insensitive).
-* ``VE-18`` — same feature path listed twice in ``project.features``.
-* ``VW-03`` — glob in ``files.include`` matches zero files on disk.
-* ``VW-04`` — feature JSON ``domain`` does not match base.
-* ``VI-01`` — base JSON has empty ``files`` / ``procedures`` /
+* ``VE-18`` -- same feature path listed twice in ``project.features``.
+* ``VW-03`` -- glob in ``files.include`` matches zero files on disk.
+* ``VW-04`` -- feature JSON ``domain`` does not match base.
+* ``VI-01`` -- base JSON has empty ``files`` / ``procedures`` /
   ``stages`` (likely a feature-driven flow).
 
-``validate_post(ctx, manifest, graph, rewritten, trim_report=None)`` — runs after P5.
+``validate_post(ctx, manifest, graph, rewritten, trim_report=None)`` -- runs after P5.
 Emits:
 
-* ``VE-16`` — post-trim brace imbalance in a rewritten file.
-* ``VW-10`` — live trim output missing, byte-count mismatch, or
+* ``VE-16`` -- post-trim brace imbalance in a rewritten file.
+* ``VW-10`` -- live trim output missing, byte-count mismatch, or
     rewritten-proc-set mismatch.
-* ``VW-05`` — surviving proc calls a proc not in the manifest.
-* ``VW-06`` — surviving proc sources / iproc_sources a file not in
+* ``VW-05`` -- surviving proc calls a proc not in the manifest.
+* ``VW-06`` -- surviving proc sources / iproc_sources a file not in
   the manifest.
-* ``VW-14``–``VW-17`` — F3 step references missing files / procs /
+* ``VW-14``-``VW-17`` -- F3 step references missing files / procs /
   out-of-domain paths.
 """
 
@@ -47,7 +47,7 @@ __all__ = ["validate_post", "validate_pre"]
 
 
 # ---------------------------------------------------------------------------
-# validate_pre — P1b
+# validate_pre -- P1b
 # ---------------------------------------------------------------------------
 
 
@@ -56,7 +56,7 @@ def validate_pre(ctx: ChopperContext, loaded: LoadedConfig) -> None:
 
     Ordering is deterministic: VI-01 first (whole-base advisory),
     then per-feature domain mismatch (VW-04), project checks (VE-17,
-    VE-18), and finally path/glob checks walked base→features.
+    VE-18), and finally path/glob checks walked base->features.
     """
 
     _check_empty_base(ctx, loaded)
@@ -151,7 +151,7 @@ def _check_paths(
     for pattern in files.include:
         _check_pattern(ctx, pattern, source_key=source_key, field="files.include")
 
-    # FE excludes — same rules apply (literal must exist; glob must be
+    # FE excludes -- same rules apply (literal must exist; glob must be
     # well-formed). ``VW-03 glob-matches-nothing`` does not fire for
     # excludes; a zero-match exclude is harmless.
     for pattern in files.exclude:
@@ -304,7 +304,7 @@ def _validation_source_root(ctx: ChopperContext) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# validate_post — P6
+# validate_post -- P6
 # ---------------------------------------------------------------------------
 
 
@@ -321,7 +321,7 @@ def validate_post(
     """Run Phase 2 correctness checks on the rebuilt domain.
 
     ``rewritten`` is the tuple of paths the trimmer actually rewrote
-    during P5 (verbatim copies are excluded — they were validated at
+    during P5 (verbatim copies are excluded -- they were validated at
     P2). When ``trim_report`` is provided on the live path, P6 also
     checks that every non-removed P5 output still exists under the
     rebuilt domain and matches the trimmer's recorded ``bytes_out``.
@@ -488,7 +488,7 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
             continue
 
         if outcome.treatment is FileTreatment.PROC_TRIM:
-            # PROC_TRIM records bytes_out as len(text.encode("utf-8")) —
+            # PROC_TRIM records bytes_out as len(text.encode("utf-8")) --
             # i.e. the LF-normalized payload size. On Windows the
             # rebuilt file may be persisted with CRLF line endings, so
             # ``stat().size`` would over-count. Recompute logical size.
@@ -497,7 +497,7 @@ def _check_trim_outputs(ctx: ChopperContext, trim_report: TrimReport | None) -> 
             # ``stat(src).size`` (raw bytes, see issue #22 in
             # trimmer/indentation.py). The destination is a verbatim
             # binary copy, so ``stat(dst).size`` is the correct
-            # comparison — applying logical normalization here would
+            # comparison -- applying logical normalization here would
             # false-positive on Windows-seeded CRLF sources.
             logical_size = _logical_text_size(ctx, target)
             actual_size = logical_size if logical_size is not None else st.size
@@ -608,7 +608,7 @@ def _check_brace_balance(ctx: ChopperContext, rewritten: Sequence[Path]) -> None
         except (OSError, UnicodeDecodeError):
             # The trimmer wrote this file seconds ago; a read failure
             # here is a programmer error worth flagging, but VE-16 is
-            # specifically about brace balance. Skip silently — the
+            # specifically about brace balance. Skip silently -- the
             # runner's P5 gate already handles filesystem-layer errors.
             continue
         if _brace_delta(text) != 0:
@@ -628,7 +628,7 @@ def _brace_delta(text: str) -> int:
     This is the post-trim brace assertion that backs ``VE-16``. The
     parser's P2 pass is the authoritative brace checker, so this
     counter only needs to be a *trim-introduced imbalance* detector
-    — but it must not false-positive on legal Tcl that the trimmer
+    -- but it must not false-positive on legal Tcl that the trimmer
     legitimately preserved.
 
     Four constructs are handled:
@@ -647,7 +647,7 @@ def _brace_delta(text: str) -> int:
       mechanism (``src/chopper/parser/tokenizer.py``) so the VE-16
       counter never disagrees with the authoritative P2 brace checker.
       Without it, the second ``"`` in ``{" "}`` would open a phantom
-      quoted string that swallows the closing ``}`` — the original
+      quoted string that swallows the closing ``}`` -- the original
       false-positive VE-16 bug.
     * Lines whose first non-whitespace character is ``#`` (full-line
       Tcl comments) are skipped.
@@ -663,15 +663,15 @@ def _brace_delta(text: str) -> int:
     n = len(text)
     line_start = True  # Track whether we are at the start of a logical line.
     # Brace LEVELS that opened a quote-bearing literal data word (``{"...``).
-    # A ``"`` inside such a level is always literal — it never opens a
-    # quoted string — so the closing ``}`` is never swallowed by a phantom
+    # A ``"`` inside such a level is always literal -- it never opens a
+    # quoted string -- so the closing ``}`` is never swallowed by a phantom
     # quote (covers ``{" "}``). Cleared on the matching ``}``. Mirrors the
     # tokenizer's ``data_quote_brace_levels`` set.
     data_quote_brace_levels: set[int] = set()
     while i < n:
         ch = text[i]
 
-        # Backslash escape — skip the next character regardless of context.
+        # Backslash escape -- skip the next character regardless of context.
         if ch == "\\" and i + 1 < n:
             i += 2
             continue
@@ -700,7 +700,7 @@ def _brace_delta(text: str) -> int:
         #   word (e.g. ``set q {"}`` / ``{" "}``). Record the enclosing
         #   brace level so every later ``"`` at that level stays literal.
         # * If the current depth is already a recorded data-word level,
-        #   this ``"`` is also literal — skip it without opening a quote.
+        #   this ``"`` is also literal -- skip it without opening a quote.
         # * Otherwise the ``"`` opens a quoted string at depth 0 (or a
         #   non-data brace level) and we skip to the matching close
         #   quote, e.g. ``puts "{"``.
@@ -736,7 +736,7 @@ def _brace_delta(text: str) -> int:
         if ch == "{":
             depth += 1
         elif ch == "}":
-            # Leaving this brace level — clear any quote-bearing-data
+            # Leaving this brace level -- clear any quote-bearing-data
             # flag recorded for it (mirrors the tokenizer's discard).
             data_quote_brace_levels.discard(depth)
             depth -= 1

@@ -17,7 +17,7 @@ import pytest
 def test_main_module_entry_point_invokes_main_and_exits() -> None:
     """__main__.py calls main() and wraps the result in SystemExit.
 
-    Per ARCHITECTURE.md §5.1 the chopper CLI must be runnable as
+    Per ARCHITECTURE.md Sec.5.1 the chopper CLI must be runnable as
     ``python -m chopper``.  The module-level ``raise SystemExit(main())``
     pattern is the standard Python idiom for this.
     """

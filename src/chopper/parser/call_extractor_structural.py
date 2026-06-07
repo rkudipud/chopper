@@ -155,11 +155,11 @@ def mark_switch_pattern_words(tokens: tuple[Token, ...], start: int, end: int, b
             rbrace_j = matching_rbrace(tokens, j, body_rbrace)
             if rbrace_j is not None:
                 if expecting_pattern:
-                    # Brace-delimited pattern (e.g. ``{[a-z]+}``) — mark the
+                    # Brace-delimited pattern (e.g. ``{[a-z]+}``) -- mark the
                     # entire block opaque so its contents are never walked.
                     for k in range(j, rbrace_j + 1):
                         skip.add(k)
-                # Body brace: leave unmarked — its code is real Tcl.
+                # Body brace: leave unmarked -- its code is real Tcl.
                 expecting_pattern = not expecting_pattern
                 j = rbrace_j + 1
             else:  # pragma: no cover - unreachable: tokenizer ensures balanced braces

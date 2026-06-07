@@ -29,7 +29,7 @@ class ProcEntry:
     comment_start_line: int | None = None
     comment_end_line: int | None = None
 
-    def __post_init__(self) -> None:  # noqa: C901 — invariants live together
+    def __post_init__(self) -> None:  # noqa: C901 -- invariants live together
         for name in ("start_line", "end_line", "body_start_line", "body_end_line"):
             value = getattr(self, name)
             if not isinstance(value, int) or value < 1:

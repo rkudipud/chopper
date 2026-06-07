@@ -74,7 +74,7 @@ def test_write_internal_error_log_diagnostic_without_path() -> None:
     from chopper.audit.internal_error import write_internal_error_log
 
     ctx = _ctx()
-    # Emit a diagnostic that has NO path — triggers the 157->161 False branch
+    # Emit a diagnostic that has NO path -- triggers the 157->161 False branch
     ctx.diag.emit(
         Diagnostic.build(
             "VE-06",

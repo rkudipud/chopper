@@ -1,4 +1,4 @@
-# Regression fixture for GitHub issue #2 — "[Bug] Parse is flagging TCL
+# Regression fixture for GitHub issue #2 -- "[Bug] Parse is flagging TCL
 # issues in Python script".
 #
 # This is a minimal Python source file whose *character-level* brace
@@ -21,7 +21,7 @@
 # via the compiler's universe collection; only the Tcl tokenizer is
 # bypassed.
 #
-# Do not "fix" the stray braces below — their presence is the whole
+# Do not "fix" the stray braces below -- their presence is the whole
 # point of the fixture.
 
 import re

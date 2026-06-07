@@ -17,7 +17,7 @@ ordering:
 When multiple features share the same anchor for an ``add_step_after``
 or ``add_stage_after`` action, the **selected feature order** is
 preserved verbatim in the emitted output. "Selected feature order"
-is whatever order :attr:`LoadedConfig.features` carries — i.e. the
+is whatever order :attr:`LoadedConfig.features` carries -- i.e. the
 order declared in ``project.json`` ``features[]`` when invoked with
 ``--project``, or the order passed on the command line via
 ``--features f1.feature.json,f2.feature.json,...``. The two surfaces
@@ -45,18 +45,18 @@ follow last-layer-wins semantics, which is consistent with R1.
 
 Diagnostics emitted:
 
-* ``VE-05 missing-action-target`` — a flow_action ``stage`` or step
+* ``VE-05 missing-action-target`` -- a flow_action ``stage`` or step
   ``reference`` cannot be found in the working stage sequence (e.g.
   whitespace mismatch in a ``replace_step.reference``, or a stage
   name introduced by an unselected prerequisite feature).
-* ``VE-08 duplicate-stage-names`` — ``add_stage_*`` or
+* ``VE-08 duplicate-stage-names`` -- ``add_stage_*`` or
   ``replace_stage`` would create a stage whose name already exists.
-* ``VE-10 occurrence-suffix-overflow`` — ``@n`` with *n* exceeding the
+* ``VE-10 occurrence-suffix-overflow`` -- ``@n`` with *n* exceeding the
   number of matching steps in the stage.
-* ``VE-19 occurrence-suffix-zero`` — ``@0``; indices are 1-based.
-* ``VE-20 ambiguous-step-target`` — a step-level action with no ``@n``
+* ``VE-19 occurrence-suffix-zero`` -- ``@0``; indices are 1-based.
+* ``VE-20 ambiguous-step-target`` -- a step-level action with no ``@n``
   where the step string appears more than once in the stage.
-* ``VI-05 flow-action-skipped-no-stage`` — an action declared
+* ``VI-05 flow-action-skipped-no-stage`` -- an action declared
   ``"skip_if_no_stage": true`` and the named stage is not present in
   the working sequence; the action is skipped silently. Step-level
   miss inside a present stage is **not** softened; that still emits
@@ -91,7 +91,7 @@ from chopper.core.models_config import (
 __all__ = ["resolve_stages"]
 
 
-# ``step@n`` — ``@n`` applies to the trailing integer only; step strings
+# ``step@n`` -- ``@n`` applies to the trailing integer only; step strings
 # themselves may contain ``@`` characters, so we only honor a suffix when
 # it matches ``@<digits>`` at end-of-string.
 _SUFFIX_RE = re.compile(r"@(\d+)$")
@@ -257,7 +257,7 @@ def _apply_action(
         _apply_replace_stage(ctx, working, action, feature_name=feature_name)
     elif isinstance(action, LoadFromAction):
         _apply_load_from(ctx, working, action, feature_name=feature_name)
-    else:  # pragma: no cover — exhaustive dispatch
+    else:  # pragma: no cover -- exhaustive dispatch
         raise ChopperError(f"unknown FlowAction variant: {type(action).__name__}")
 
 
@@ -613,7 +613,7 @@ def _emit_ve10(
                 f"@n suffix overflow in feature {feature!r} "
                 f"({action} stage={stage!r} reference={reference!r}): only {count} match(es) found"
             ),
-            hint="Reduce the @n index; indices are 1-based and must be ≤ the number of matching steps",
+            hint="Reduce the @n index; indices are 1-based and must be <= the number of matching steps",
         )
     )
 
@@ -704,7 +704,7 @@ def _emit_vi05_skipped(
     """Emit ``VI-05 flow-action-skipped-no-stage`` for an action that
     declared ``skip_if_no_stage: true`` and whose stage target is absent.
 
-    Architecture doc §6.7 'Optional Stage Targets'. Severity is info
+    Architecture doc Sec.6.7 'Optional Stage Targets'. Severity is info
     (exit 0); ``--strict`` does **not** escalate ``VI-*`` codes.
     """
     ctx.diag.emit(
@@ -745,6 +745,6 @@ def _emit_ve08(
     )
 
 
-# Silence unused-import warning — ``replace`` is kept for future parity
+# Silence unused-import warning -- ``replace`` is kept for future parity
 # between StageDefinition and StageSpec copies.
 _ = replace

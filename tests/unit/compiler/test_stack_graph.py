@@ -3,7 +3,7 @@
 Covers:
 
 * Topological sort with the authored-position tiebreaker.
-* Graph edges = ``dependencies`` ∪ ``{load_from}`` (union, deduplicated).
+* Graph edges = ``dependencies`` union ``{load_from}`` (union, deduplicated).
 * ``VE-30 stage-dependency-cycle`` on cycles (including self-loops).
 * ``VE-31 stage-dependency-unresolved`` on dangling references via
   either ``dependencies`` or ``load_from``.
@@ -62,7 +62,7 @@ def _base(stages: tuple[StageDefinition, ...], generate_stack: bool = True) -> B
 
 
 # ---------------------------------------------------------------------------
-# compute_stack_order — happy paths
+# compute_stack_order -- happy paths
 # ---------------------------------------------------------------------------
 
 
@@ -198,7 +198,7 @@ def test_ve30_strips_residual_leaf_attached_to_cycle() -> None:
     assert compute_stack_order(ctx, stages) == ()
     diags = [d for d in sink.snapshot() if d.code == "VE-30"]
     assert len(diags) == 1
-    # The reported cycle must contain only true cycle members (y, z) —
+    # The reported cycle must contain only true cycle members (y, z) --
     # the residual leaf ``a`` must have been stripped before walking.
     assert "y -> z -> y" in diags[0].message or "z -> y -> z" in diags[0].message
 
@@ -358,7 +358,7 @@ def test_compiled_manifest_rejects_duplicate_names_in_stack_order() -> None:
 
 
 def test_compiled_manifest_accepts_empty_stack_order_with_any_stages() -> None:
-    """Empty stack_order is the legacy default — no validation against
+    """Empty stack_order is the legacy default -- no validation against
     stages."""
 
     s = _stage("a")

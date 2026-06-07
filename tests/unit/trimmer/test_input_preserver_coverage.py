@@ -24,7 +24,7 @@ from tests.unit._coverage_helpers import (  # noqa: F401
 
 def test_input_preserver_copies_jsons_dir_from_backup() -> None:
     """preserve_input_sources must mirror the jsons/ tree from backup to the
-    rebuilt domain (ARCHITECTURE.md §5.6)."""
+    rebuilt domain (ARCHITECTURE.md Sec.5.6)."""
     from chopper.core.models_config import BaseJson, BaseOptions, FilesSection, LoadedConfig
     from chopper.trimmer.input_preserver import preserve_input_sources
 
@@ -50,7 +50,7 @@ def test_input_preserver_copies_jsons_dir_from_backup() -> None:
 
 def test_input_preserver_emits_vw20_on_mkdir_failure() -> None:
     """When mkdir fails for the jsons/ destination, VW-20 must be emitted
-    and the run must continue (best-effort, ARCHITECTURE.md §5.6)."""
+    and the run must continue (best-effort, ARCHITECTURE.md Sec.5.6)."""
     from chopper.core.models_config import BaseJson, BaseOptions, FilesSection, LoadedConfig
     from chopper.trimmer.input_preserver import preserve_input_sources
 
@@ -177,5 +177,5 @@ def test_preserve_input_sources_project_and_features_appended() -> None:
 
     # Even if backup_jsons doesn't exist, the sources loop (lines 75-80) still runs
     count = preserve_input_sources(ctx2, loaded)
-    # count >= 0 (could be 0 if out-of-tree copies fail silently) — main check is no crash
+    # count >= 0 (could be 0 if out-of-tree copies fail silently) -- main check is no crash
     assert isinstance(count, int)

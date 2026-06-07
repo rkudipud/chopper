@@ -75,13 +75,13 @@ def test_nested_audit_dir_does_not_leak_into_classification() -> None:
     )
     ctx, sink = make_ctx(fs=fs)
     state = DomainStateService().run(ctx)
-    # Both exist — classical Case 2.
+    # Both exist -- classical Case 2.
     assert state.case == 2
     assert sink.codes() == []
 
 
 def test_hand_edited_flag_is_always_false() -> None:
-    """Architecture Doc §2.8 Case 2: hand-edit detection is CLI-pre-flight only, not diagnostic."""
+    """Architecture Doc Sec.2.8 Case 2: hand-edit detection is CLI-pre-flight only, not diagnostic."""
     fs = InMemoryFS({DOMAIN / "x": "", BACKUP / "x": ""})
     ctx, _ = make_ctx(fs=fs)
     state = DomainStateService().run(ctx)

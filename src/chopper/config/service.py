@@ -1,4 +1,4 @@
-"""ConfigService — Phase 1 (P1) of the Chopper pipeline.
+"""ConfigService -- Phase 1 (P1) of the Chopper pipeline.
 
 :class:`ConfigService` is the orchestrator-facing entry point for loading,
 validating, and aggregating the base / feature / project JSONs into the
@@ -7,30 +7,30 @@ and :class:`CompilerService`.
 
 Responsibilities:
 
-1. Determine input mode — project path (``ctx.config.project_path``) or
+1. Determine input mode -- project path (``ctx.config.project_path``) or
    explicit base / features (``ctx.config.base_path`` + ``ctx.config.feature_paths``).
 2. Read each JSON file through ``ctx.fs.read_text`` (never
    :meth:`pathlib.Path.read_text` directly).
-3. Parse JSON — emit ``VE-01`` / ``VE-02`` / ``VE-12`` on decode / schema
+3. Parse JSON -- emit ``VE-01`` / ``VE-02`` / ``VE-12`` on decode / schema
    failures via :func:`~chopper.config.schema.validate_json`.
 4. Hydrate raw dicts into typed dataclasses via
    :mod:`chopper.config.loaders`.
 5. Apply topo-sort on features (``VE-14``, ``VE-15``, ``VE-22``).
-6. Build ``surface_files`` — the union of every domain-relative path
+6. Build ``surface_files`` -- the union of every domain-relative path
    contributed by any JSON source (lex-sorted POSIX form), ready for
    :class:`~chopper.parser.service.ParserService`.
 
 What ConfigService does **not** do:
 
-* It does not perform R1 conflict resolution between sources — that is
+* It does not perform R1 conflict resolution between sources -- that is
   the compiler's job (P3). P1 *does* expand ``files.include`` glob
   patterns against the on-disk domain so the P2 parser can find files
   reachable only via a glob; ``files.exclude`` globs are still resolved
   in P3 against the parsed universe.
-* It does not check whether files exist on disk — ``VE-06`` is the
+* It does not check whether files exist on disk -- ``VE-06`` is the
   validator's job (``validate_pre``).
 * It does not check domain-name consistency (``VE-17``) or duplicate
-  feature entries (``VE-18``) — those are ``validate_pre``'s
+  feature entries (``VE-18``) -- those are ``validate_pre``'s
   responsibility.
 
 Exit behaviour: every error diagnostic emitted here carries phase
@@ -66,11 +66,11 @@ class ConfigService:
 
     Canonical signature::
 
-        ConfigService.run(ctx, state) → LoadedConfig
+        ConfigService.run(ctx, state) -> LoadedConfig
 
     ``state`` is accepted for API symmetry with the orchestrator runner
-    (which always passes it) but is not currently read by this service —
-    the config load is unconditional regardless of domain state (Case 1–4).
+    (which always passes it) but is not currently read by this service --
+    the config load is unconditional regardless of domain state (Case 1-4).
     Future callers that need state-conditional loading should call
     ``ConfigService`` after a DomainStateService pass and inspect ``state``
     themselves.
@@ -85,7 +85,7 @@ class ConfigService:
             ``feature_paths``).
         :param state: Domain state classification from P0 (passed for
             API symmetry; not currently inspected).
-        :returns: :class:`LoadedConfig` — may be **partially populated** if
+        :returns: :class:`LoadedConfig` -- may be **partially populated** if
             errors were emitted.  The orchestrator's phase gate decides
             whether to continue.
         """
@@ -108,7 +108,7 @@ class ConfigService:
             # Direct-mode: base_path and feature_paths come straight from RunConfig.
             base_path = cfg.base_path  # type: ignore[assignment]
             if base_path is None:
-                # No project_path and no base_path — caller error; emit a clear
+                # No project_path and no base_path -- caller error; emit a clear
                 # message and return empty so the phase gate can abort.
                 ctx.diag.emit(
                     Diagnostic.build(
@@ -143,7 +143,7 @@ class ConfigService:
         surface_sorted = tuple(sorted(surface, key=lambda p: p.as_posix()))
 
         # --- tool_command_pool: built-in lists + any --tool-commands paths ---
-        # See architecture doc §3.10 and FR-44. The pool is a flat
+        # See architecture doc Sec.3.10 and FR-44. The pool is a flat
         # frozenset of bare external-tool-command names that P4 trace
         # consults before emitting TW-02. Built-in lists under
         # ``src/chopper/data/tool_commands/`` are always loaded; user
@@ -320,8 +320,8 @@ def _collect_surface_files(
 
     Literal paths (no glob metacharacters) are added directly.  Glob
     patterns in ``files.include`` are expanded against the real domain
-    filesystem so that files reachable only via a glob — never named
-    literally — are included in the P2 parse universe.  Glob patterns in
+    filesystem so that files reachable only via a glob -- never named
+    literally -- are included in the P2 parse universe.  Glob patterns in
     ``files.exclude`` are intentionally not expanded here (the compiler
     applies them against ``parsed_paths`` in P3).
 
@@ -335,8 +335,8 @@ def _collect_surface_files(
     Returns:
         A tuple of ``(surface_files, domain_file_cache)`` where:
 
-        * ``surface_files`` — set of domain-relative paths from all sources.
-        * ``domain_file_cache`` — list of ``(rel_path, posix_string)`` pairs
+        * ``surface_files`` -- set of domain-relative paths from all sources.
+        * ``domain_file_cache`` -- list of ``(rel_path, posix_string)`` pairs
           from the domain walk. Empty if no glob patterns triggered a walk.
           This cache can be reused by P2 for full-domain harvest (O1 opt).
     """

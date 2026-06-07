@@ -163,7 +163,7 @@ def test_fs_memory_rename_skips_unrelated_files() -> None:
     """rename iterates all _files entries; unrelated ones are skipped (121->120 branch)."""
     fs = InMemoryFS()
     fs.write_text(Path("/src/a.tcl"), "content_a")
-    fs.write_text(Path("/other/b.tcl"), "content_b")  # unrelated — not under /src
+    fs.write_text(Path("/other/b.tcl"), "content_b")  # unrelated -- not under /src
     fs.rename(Path("/src"), Path("/dst"))
     assert fs.exists(Path("/dst/a.tcl"))
     assert not fs.exists(Path("/src/a.tcl"))
@@ -171,9 +171,9 @@ def test_fs_memory_rename_skips_unrelated_files() -> None:
 
 
 def test_fs_memory_mkdir_root_anchor_parent_skips_inner_raise() -> None:
-    """mkdir(parents=False) on /child — parent is '/' anchor → inner raise skipped (166->168)."""
+    """mkdir(parents=False) on /child -- parent is '/' anchor -> inner raise skipped (166->168)."""
     fs = InMemoryFS()
-    # /child has parent '/', which is in ("/", ".", "") → inner FileNotFoundError NOT raised
+    # /child has parent '/', which is in ("/", ".", "") -> inner FileNotFoundError NOT raised
     fs.mkdir(Path("/child"), parents=False)
     assert fs.exists(Path("/child"))
 

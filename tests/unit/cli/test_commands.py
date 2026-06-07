@@ -1,4 +1,4 @@
-"""Torture tests for :mod:`chopper.cli.commands` — internal-helper edges.
+"""Torture tests for :mod:`chopper.cli.commands` -- internal-helper edges.
 
 These bypass the integration harness in :mod:`tests.integration.test_cli_e2e`
 and call the private helpers directly to drive uncovered branches:
@@ -36,7 +36,7 @@ def _ns(**kwargs) -> argparse.Namespace:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_domain_root — None → cwd
+# _resolve_domain_root -- None -> cwd
 # ---------------------------------------------------------------------------
 
 
@@ -94,7 +94,7 @@ def test_resolve_domain_root_honors_backup_cwd_when_no_live_sibling(
 def test_resolve_domain_root_prefers_domain_flag_over_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``--domain`` is the highest-priority resolution source.
 
-    Per ``technical_docs/ARCHITECTURE.md`` §5.1, when ``--domain`` is
+    Per ``technical_docs/ARCHITECTURE.md`` Sec.5.1, when ``--domain`` is
     provided the candidate is ``Path(args.domain).resolve()`` and
     ``Path.cwd()`` is not consulted.
     """
@@ -209,7 +209,7 @@ def test_make_context_does_not_emit_vi03_when_no_redirect(tmp_path: Path, monkey
 
 
 # ---------------------------------------------------------------------------
-# _make_progress — Rich unavailable → SilentProgress
+# _make_progress -- Rich unavailable -> SilentProgress
 # ---------------------------------------------------------------------------
 
 
@@ -236,7 +236,7 @@ def test_make_progress_returns_silent_when_quiet_set() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _build_run_config — --features parsing
+# _build_run_config -- --features parsing
 # ---------------------------------------------------------------------------
 
 
@@ -291,7 +291,7 @@ def test_build_run_config_with_project_ignores_base_and_features(tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
-# _expand_feature_dirs — validate-only directory expansion (architecture doc §5.1)
+# _expand_feature_dirs -- validate-only directory expansion (architecture doc Sec.5.1)
 # ---------------------------------------------------------------------------
 
 
@@ -407,7 +407,7 @@ def test_cmd_validate_expands_feature_directory(tmp_path: Path, monkeypatch: pyt
 
 
 def test_cmd_trim_does_not_expand_feature_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``cmd_trim`` must leave ``args.features`` untouched — trim requires explicit files."""
+    """``cmd_trim`` must leave ``args.features`` untouched -- trim requires explicit files."""
     from chopper.cli import commands
 
     feats = tmp_path / "features"
@@ -433,7 +433,7 @@ def test_cmd_trim_does_not_expand_feature_directory(tmp_path: Path, monkeypatch:
 
 
 # ---------------------------------------------------------------------------
-# _check_project_paths_resolvable — VE-13 pre-runner check (issue #23)
+# _check_project_paths_resolvable -- VE-13 pre-runner check (issue #23)
 # ---------------------------------------------------------------------------
 
 
@@ -517,7 +517,7 @@ def test_ve13_does_not_fire_when_paths_resolve(tmp_path: Path) -> None:
 
 
 def test_ve13_skipped_when_project_arg_is_none(tmp_path: Path) -> None:
-    """No --project → no pre-runner check (returns None)."""
+    """No --project -> no pre-runner check (returns None)."""
     from chopper.cli import commands
 
     args = _ns(project=None, base=str(tmp_path / "x.json"))
@@ -525,7 +525,7 @@ def test_ve13_skipped_when_project_arg_is_none(tmp_path: Path) -> None:
 
 
 def test_ve13_skipped_when_project_json_unreadable(tmp_path: Path) -> None:
-    """Malformed JSON / missing file → defer to ConfigService VE-01/VE-04."""
+    """Malformed JSON / missing file -> defer to ConfigService VE-01/VE-04."""
     from chopper.cli import commands
 
     bad = tmp_path / "bad.json"

@@ -1,4 +1,4 @@
-"""Tool-command pool loader (see architecture doc §3.10, FR-44).
+"""Tool-command pool loader (see architecture doc Sec.3.10, FR-44).
 
 The pool is a frozen set of bare external-tool-command names. The P4
 tracer consults it on the ``TW-02 unresolved-proc-call`` branch and
@@ -13,11 +13,11 @@ Pool composition is the union of two sources:
   ``--tool-commands`` and stored on :attr:`RunConfig.tool_command_paths`.
 
 **File format.** Plain-text, UTF-8. Whitespace-separated tokens (spaces,
-tabs, newlines are all equivalent) — so both "one token per line" and
+tabs, newlines are all equivalent) -- so both "one token per line" and
 "a single long line of space-separated tokens" are valid, and the two
 styles can be freely mixed in the same file. Blank lines and lines
 whose first non-whitespace character is ``#`` are skipped. No escaping,
-no quoting, no namespacing — the format matches vendor ``help`` dumps
+no quoting, no namespacing -- the format matches vendor ``help`` dumps
 verbatim.
 
 The module is intentionally minimal: one function, one returned
@@ -42,20 +42,20 @@ BUILT_IN_PACKAGE = "chopper.data.tool_commands"
 
 Every ``*.commands`` file in this package is loaded on every run. Adding
 a new vendor list is a matter of dropping a file into
-``src/chopper/data/tool_commands/`` — no code change required.
+``src/chopper/data/tool_commands/`` -- no code change required.
 """
 
 
 def parse_tokens(text: str) -> frozenset[str]:
     """Parse one ``.commands`` file body into a set of bare names.
 
-    Rules (architecture doc §3.10):
+    Rules (architecture doc Sec.3.10):
 
     * Skip lines whose first non-whitespace character is ``#``.
     * On every surviving line, split on any whitespace and add each
       non-empty token to the set.
 
-    Empty input yields an empty frozenset — valid and silent.
+    Empty input yields an empty frozenset -- valid and silent.
     """
     tokens: set[str] = set()
     for raw_line in text.splitlines():
@@ -67,25 +67,25 @@ def parse_tokens(text: str) -> frozenset[str]:
 
 
 def load_pool(user_paths: tuple[Path, ...] = ()) -> frozenset[str]:
-    """Build the pool — union of built-in lists and any user-supplied lists.
+    """Build the pool -- union of built-in lists and any user-supplied lists.
 
     :param user_paths: paths to user-supplied ``.commands`` files
         (typically from ``RunConfig.tool_command_paths``). Duplicates
         across files are automatically collapsed by set union.
     :returns: ``frozenset`` of bare tool-command names. Empty frozenset
         is a valid outcome (it happens when there are no built-in lists
-        AND the user passed no flags — most unit-test contexts).
+        AND the user passed no flags -- most unit-test contexts).
 
     File read failures on **built-in** resources propagate as
     :class:`OSError` because those resources ship with the wheel and
     their absence is a packaging bug. File read failures on
     **user** paths propagate as :class:`FileNotFoundError` with the
-    offending path in the message — the CLI layer translates those
+    offending path in the message -- the CLI layer translates those
     into a user-friendly error before the pipeline starts.
     """
     tokens: set[str] = set()
 
-    # Built-in lists — iterate every `*.commands` file under the
+    # Built-in lists -- iterate every `*.commands` file under the
     # resource package. ``importlib.resources`` returns a traversable
     # that works whether the package is installed as source, a wheel,
     # or a zipped egg.

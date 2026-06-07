@@ -7,7 +7,7 @@ real-world misparse has regressed. Synthetic toy tests for the same
 behaviours have been removed (or kept where they still cover unique
 edge cases not present in the production fixtures).
 
-Bug report ↔ fixture mapping is documented in
+Bug report <-> fixture mapping is documented in
 ``tests/fixtures/bug_reports/README.md``.
 """
 
@@ -134,7 +134,7 @@ class TestSwitchPatternLabels:
     def test_switch_body_code_still_extracted(self) -> None:
         # ``set`` is a Tcl builtin and is suppressed from calls, but the
         # `[set $variable_name]` bracket substitution should NOT crash
-        # and should NOT add anything spurious — assert the proc is at
+        # and should NOT add anything spurious -- assert the proc is at
         # least discovered with no extra noise.
         calls = _calls_by_proc("switch_patterns.tcl")
         assert "psgen::get_path_data" in calls

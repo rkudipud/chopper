@@ -5,7 +5,7 @@ Reduces raw source into a stream of :class:`Token` records annotated with
 brace depth, command-position flag, and 1-indexed line number.
 
 The tokenizer does **not** execute Tcl, track namespaces, or recognise
-``proc`` definitions — those layer on top (``namespace_tracker``,
+``proc`` definitions -- those layer on top (``namespace_tracker``,
 ``proc_extractor``, ``call_extractor_body``).
 
 Structural errors (negative depth, unclosed braces) land in
@@ -19,17 +19,17 @@ backslashes is escaped; even (including zero) is not.
 Quote behavior: an unescaped ``"`` at a word boundary opens a quoted
 word that runs until the next unescaped ``"``; whitespace, ``;``, ``\n``
 and ``}`` inside the quoted word are LITERAL. Quoting works at every
-brace depth so re-tokenized proc-body content (depth ≥ 1) honours
+brace depth so re-tokenized proc-body content (depth >= 1) honours
 ``"..."`` correctly. **Literal-data-word exception**: a ``"`` whose
 immediately preceding byte is an unescaped ``{`` does NOT open a
-quoted word — the ``{`` opened a literal data word (Tcl Endekas
+quoted word -- the ``{`` opened a literal data word (Tcl Endekas
 rule 6: contents of ``{...}`` are literal bytes), so the ``"`` is the
 first literal character of that word, e.g. ``set q {"}``. Without this
 exception the matching ``}`` would be silently consumed as part of a
 phantom quoted word and brace counting would desync. The exception is
 **level-scoped**: once a brace word is known to carry literal quote
 bytes (it began with ``{"``), every ``"`` inside that same brace level
-is literal too — even one that follows an internal separator such as a
+is literal too -- even one that follows an internal separator such as a
 space, e.g. ``{" "}`` (real-world ``regsub -all { \\s+} $x {" "} y``).
 The scoping is cleared when the matching ``}`` closes the brace word.
 
@@ -72,21 +72,21 @@ class TokenKind(StrEnum):
 class Token:
     """One structural token.
 
-    * ``kind`` — see :class:`TokenKind`.
-    * ``value`` — the raw text of the token, verbatim from the source
+    * ``kind`` -- see :class:`TokenKind`.
+    * ``value`` -- the raw text of the token, verbatim from the source
       (including the surrounding ``"`` quotes of a quoted word, and
       including the leading ``#`` of a comment). Value is ``"{"`` /
       ``"}"`` / ``";"`` / ``"\\n"`` for the single-character kinds.
-    * ``line_no`` — 1-indexed source line where the token **begins**. For
+    * ``line_no`` -- 1-indexed source line where the token **begins**. For
       a quoted word that spans multiple lines (rare but legal) this is
       the line of the opening ``"``.
-    * ``brace_depth`` — the brace depth **active at the start** of the
+    * ``brace_depth`` -- the brace depth **active at the start** of the
       token. For :class:`TokenKind.LBRACE`, the depth shown is the depth
       before the brace increments it. For :class:`TokenKind.RBRACE`, the
       depth shown is the depth **after** the brace decrements it
       (i.e. the enclosing scope). This makes downstream depth checks
       (``token.brace_depth == 0``) read intuitively for both cases.
-    * ``at_command_position`` — True iff this token is the first token of
+    * ``at_command_position`` -- True iff this token is the first token of
       a new Tcl command. Set on WORD / LBRACE / COMMENT / SEMICOLON /
       NEWLINE depending on emission context; consumers should check it
       only on WORD / LBRACE tokens.
@@ -105,11 +105,11 @@ class TokenizerError:
 
     ``kind`` values:
 
-    * ``"negative_depth"`` — a closing ``}`` drove ``brace_depth`` below
+    * ``"negative_depth"`` -- a closing ``}`` drove ``brace_depth`` below
       zero. The tokenizer clamps depth back to zero and continues so the
       remainder of the file still produces a useful token stream, but the
       service layer treats any such error as ``PE-02`` and returns ``[]``.
-    * ``"unclosed_braces"`` — EOF reached with ``brace_depth > 0``.
+    * ``"unclosed_braces"`` -- EOF reached with ``brace_depth > 0``.
       ``line_no`` points at the last line of the file.
     """
 
@@ -121,12 +121,12 @@ class TokenizerError:
 class TokenizerResult:
     """Return value of :func:`tokenize`.
 
-    * ``tokens`` — structural token stream in source order.
-    * ``errors`` — zero or more :class:`TokenizerError` records. If
+    * ``tokens`` -- structural token stream in source order.
+    * ``errors`` -- zero or more :class:`TokenizerError` records. If
       ``errors`` is non-empty, callers should assume the token stream is
-      unreliable beyond the first error and return ``PE-02`` (§3.0 final
+      unreliable beyond the first error and return ``PE-02`` (Sec.3.0 final
       two rows).
-    * ``final_brace_depth`` — depth remaining after EOF. Zero for a
+    * ``final_brace_depth`` -- depth remaining after EOF. Zero for a
       well-formed file; otherwise equal to the number of unclosed braces.
     """
 
@@ -164,7 +164,7 @@ def tokenize(text: str) -> TokenizerResult:
 
     The function is pure and deterministic: given the same input, it
     produces the same :class:`TokenizerResult`. It never raises for
-    malformed input — structural errors surface on
+    malformed input -- structural errors surface on
     :attr:`TokenizerResult.errors`.
     """
     tokens: list[Token] = []
@@ -185,8 +185,8 @@ def tokenize(text: str) -> TokenizerResult:
     in_quoted_word = False  # True while scanning between matched ``"`` quotes
     quoted_bracket_depth = 0  # ``[...]`` nesting inside a quoted word
     # Brace LEVELS that opened a quote-bearing literal data word (``{"...``).
-    # A ``"`` inside such a level is always literal — it never opens a
-    # quoted word — so the closing ``}`` is never swallowed by a phantom
+    # A ``"`` inside such a level is always literal -- it never opens a
+    # quoted word -- so the closing ``}`` is never swallowed by a phantom
     # quote (covers ``{" "}``). Cleared on the matching ``}``.
     data_quote_brace_levels: set[int] = set()
 
@@ -208,9 +208,9 @@ def tokenize(text: str) -> TokenizerResult:
     while i < n:
         ch = text[i]
 
-        # Backslash-newline continuation — handled uniformly before any
+        # Backslash-newline continuation -- handled uniformly before any
         # other dispatch so the pair is invisible to word accumulation
-        # (§3.2: do not physically join lines, but the command continues
+        # (Sec.3.2: do not physically join lines, but the command continues
         # and the `\` must not become part of a word). Comments and
         # quoted-word scanning also honour this via their own loops;
         # this top-level check catches the continuation anywhere else
@@ -224,13 +224,13 @@ def tokenize(text: str) -> TokenizerResult:
             i += 2
             continue
 
-        # Quoted-word in progress — track ``[...]`` bracket nesting
+        # Quoted-word in progress -- track ``[...]`` bracket nesting
         # because in Tcl ``"..."`` words, ``[...]`` is command
         # substitution and any ``"`` inside it is part of the inner
         # command, not a closing quote of the outer word. Without this
         # nesting accounting, an inner ``[format "%.3f" ...]`` would
         # close the outer quote and leak the rest of the message text
-        # back into the command stream — see bug
+        # back into the command stream -- see bug
         # ``TW-02_quoted_string_semicolon_misparse.md``.
         if in_quoted_word:
             if ch == "[" and not _is_escaped(text, i):
@@ -263,7 +263,7 @@ def tokenize(text: str) -> TokenizerResult:
             i += 1
             continue
 
-        # Newline — unless it is an odd-backslash continuation.
+        # Newline -- unless it is an odd-backslash continuation.
         if ch == "\n":
             # Defensive backstop: the top-level guard (~L213) normally consumes
             # ``\<nl>`` pairs before the main loop sees the ``\n``.
@@ -315,11 +315,11 @@ def tokenize(text: str) -> TokenizerResult:
                     at_command_position=True,
                 )
             )
-            # Leave the newline (if any) for the main loop to handle — it will
+            # Leave the newline (if any) for the main loop to handle -- it will
             # reset at_cmd_pos and increment line_no via the newline branch.
             continue
 
-        # Open-brace `{` — unescaped → structural.
+        # Open-brace `{` -- unescaped -> structural.
         if ch == "{" and not _is_escaped(text, i):
             _flush_word(i)
             tokens.append(
@@ -336,10 +336,10 @@ def tokenize(text: str) -> TokenizerResult:
             i += 1
             continue
 
-        # Close-brace `}` — unescaped → structural.
+        # Close-brace `}` -- unescaped -> structural.
         if ch == "}" and not _is_escaped(text, i):
             _flush_word(i)
-            # Leaving this brace level — clear any quote-bearing-data flag
+            # Leaving this brace level -- clear any quote-bearing-data flag
             # recorded for it (see the double-quote dispatch below).
             data_quote_brace_levels.discard(brace_depth)
             brace_depth -= 1
@@ -359,7 +359,7 @@ def tokenize(text: str) -> TokenizerResult:
             i += 1
             continue
 
-        # Semicolon — command terminator.
+        # Semicolon -- command terminator.
         if ch == ";":
             _flush_word(i)
             tokens.append(
@@ -375,17 +375,17 @@ def tokenize(text: str) -> TokenizerResult:
             i += 1
             continue
 
-        # Double-quote — opens a quoted word at word-start position. Tcl's
+        # Double-quote -- opens a quoted word at word-start position. Tcl's
         # rule (Endekas/Dodekalogue rule 5: "Double-quotes") is that an
         # unescaped ``"`` at a word boundary opens a quoted word that runs
         # until the matching unescaped ``"``; whitespace, ``;``, ``\n``,
         # and ``}`` inside the quoted word are LITERAL characters.
         # The previous implementation gated this on ``brace_depth == 0``,
-        # which broke every proc body (depth ≥ 1) and was the root cause
+        # which broke every proc body (depth >= 1) and was the root cause
         # of TW-02 false positives where ``;`` inside a quoted string was
         # treated as a command separator (bug report
         # ``TW-02_quoted_string_semicolon_misparse.md``). Quoting must
-        # work at every depth — Chopper re-tokenizes proc bodies as Tcl
+        # work at every depth -- Chopper re-tokenizes proc bodies as Tcl
         # source and Tcl source honors ``"..."`` regardless of nesting.
         #
         # LRM-faithful opener condition (Tcl Dodekalogue rule 5):
@@ -403,14 +403,14 @@ def tokenize(text: str) -> TokenizerResult:
         # * command terminator: ``;``
         # * command-substitution opener: ``[``
         #
-        # All other prefixes — notably ``{``, ``}``, ``]``, another
-        # ``"``, or any non-separator byte — suppress the opener so the
+        # All other prefixes -- notably ``{``, ``}``, ``]``, another
+        # ``"``, or any non-separator byte -- suppress the opener so the
         # ``"`` falls through to the generic-character branch and
         # accumulates as a literal. This covers:
         #
-        # * ``set q {"}`` — ``"`` after ``{`` (literal data word).
-        # * ``regexp {".*"} ...`` — same shape, no recursion needed.
-        # * ``string map {" " ""}`` — multi-quote-pair brace word: the
+        # * ``set q {"}`` -- ``"`` after ``{`` (literal data word).
+        # * ``regexp {".*"} ...`` -- same shape, no recursion needed.
+        # * ``string map {" " ""}`` -- multi-quote-pair brace word: the
         #   ``"`` right after the closing ``"`` of the prior empty pair
         #   would previously open a phantom quoted word that swallowed
         #   the ``}``; the post-``"`` prefix is now rejected.
@@ -422,7 +422,7 @@ def tokenize(text: str) -> TokenizerResult:
         # immediately preceding byte is an unescaped structural ``{`` is
         # the first literal byte of a brace data word (``{"...}``). We
         # record that brace LEVEL so every subsequent ``"`` inside the
-        # same level is also literal — even one separated from the ``{``
+        # same level is also literal -- even one separated from the ``{``
         # by an internal space, e.g. ``{" "}`` (real-world
         # ``regsub -all { \\s+} $x {" "} y``). Without this the second
         # ``"`` (prefixed by a space) would open a phantom quoted word
@@ -446,7 +446,7 @@ def tokenize(text: str) -> TokenizerResult:
                 continue
             # else: literal `"`, handled by the generic-character branch.
 
-        # Generic character — part of a word.
+        # Generic character -- part of a word.
         if word_start == -1:
             word_start = i
             word_line = line_no

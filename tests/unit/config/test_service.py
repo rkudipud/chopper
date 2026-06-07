@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.config.service` — ConfigService."""
+"""Unit tests for :mod:`chopper.config.service` -- ConfigService."""
 
 from __future__ import annotations
 
@@ -228,7 +228,7 @@ class TestDirectMode:
         assert any(d.code == "VE-02" for d in sink.emissions)
 
     def test_feature_schema_error_skipped_gracefully(self) -> None:
-        # Feature with missing required 'name' — loads base fine, feature skipped.
+        # Feature with missing required 'name' -- loads base fine, feature skipped.
         base_path = _DOMAIN / "jsons/base.json"
         feat_path = _DOMAIN / "jsons/features/bad.json"
         bad_feat = json.dumps({"$schema": "feature-v1"})  # missing name
@@ -325,7 +325,7 @@ class TestSurfaceFiles:
     def test_glob_pattern_not_literal_in_surface(self) -> None:
         # The glob pattern string itself must never appear verbatim in
         # surface_files.  With _InMemoryFS (no real domain dir), glob
-        # expansion yields no hits — only the literal path "setup.tcl"
+        # expansion yields no hits -- only the literal path "setup.tcl"
         # surfaces.  A real-disk scenario is tested in
         # TestGlobExpansion.test_fi_glob_expands_via_disk_walk.
         base_path = _DOMAIN / "jsons/base.json"
@@ -409,7 +409,7 @@ class TestSurfaceFiles:
 class TestGlobExpansion:
     """Verify that files.include glob patterns are expanded against the
     domain filesystem in P1 so that the P2 parser receives every matching
-    file — fixing the silent data-loss bug reported in issue #12."""
+    file -- fixing the silent data-loss bug reported in issue #12."""
 
     def test_fi_glob_expands_via_disk_walk(self) -> None:
         """files.include glob populates surface_files with matched files."""
@@ -545,7 +545,7 @@ class TestGlobExpansion:
 
 class TestDeterminism:
     def test_features_topo_sorted(self) -> None:
-        # Feature b depends on a — result must have a before b.
+        # Feature b depends on a -- result must have a before b.
         base_path = _DOMAIN / "jsons/base.json"
         a_path = _DOMAIN / "jsons/features/a.json"
         b_path = _DOMAIN / "jsons/features/b.json"

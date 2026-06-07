@@ -3,14 +3,14 @@
 Two public entry points, used by every phase that materialises a file
 into the rebuilt domain (``<domain>/``):
 
-* :func:`ensure_executable` — OR ``a+x`` onto a single destination path
+* :func:`ensure_executable` -- OR ``a+x`` onto a single destination path
   when no source-mode reference is available (e.g. a freshly emitted
   generator artifact that did not previously exist in the source).
 
-* :func:`mirror_perms_plus_exec` — copy ``src``'s mode bits onto
+* :func:`mirror_perms_plus_exec` -- copy ``src``'s mode bits onto
   ``dst`` (``shutil.copymode``-equivalent semantics) and then OR in
   ``a+x``. This is the canonical helper for any rebuilt file that
-  *had* a source counterpart in ``<domain>_backup/`` — ``FULL_COPY``
+  *had* a source counterpart in ``<domain>_backup/`` -- ``FULL_COPY``
   and ``PROC_TRIM`` outputs, plus the regenerate-in-place case of
   ``GENERATED`` outputs. Source mode is preserved verbatim
   (read/write/setuid/sticky bits all carry through) and on top of

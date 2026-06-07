@@ -86,7 +86,7 @@ def test_format_tcl_indentation_double_backslash_not_continuation() -> None:
     r"""Line ending with \\\\ (escaped backslash) is NOT a continuation."""
     text = 'set path "C:\\\\"\nputs next_line\n'
     result = format_tcl_indentation(text)
-    # Both lines at indent 0 — no continuation
+    # Both lines at indent 0 -- no continuation
     assert result == ('set path "C:\\\\"\nputs next_line\n')
 
 
@@ -101,7 +101,7 @@ def test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl() -> None
     """P5c rewrites PROC_TRIM and GENERATED ``.tcl`` only.
 
     FULL_COPY ``.tcl`` outputs (and any non-Tcl outputs) must reach disk
-    byte-for-byte identical to their source — see issue #22.
+    byte-for-byte identical to their source -- see issue #22.
     """
     full_text = "proc copied {} {\nputs copied\n}\n"
     trim_text = "proc kept {} {\nputs kept\n}\n"
@@ -240,7 +240,7 @@ def test_format_tcl_indentation_fixture_comment_braces() -> None:
 
     lines = result.splitlines()
     # All statements inside ``proc example`` must remain at proc body
-    # indent (4 spaces) — neither the unmatched braces in the template
+    # indent (4 spaces) -- neither the unmatched braces in the template
     # banner nor the trailing ``\`` on the commented-out
     # ``define_proc_attributes`` line may push them deeper.
     body_statements = (

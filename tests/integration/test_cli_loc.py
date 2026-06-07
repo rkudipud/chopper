@@ -4,7 +4,7 @@ Verifies:
 
 * exit code 0 on a happy-path run;
 * stdout contains the LOC table markers (``Files``, ``Lines``, ``SLOC``);
-* **no** ``.chopper/`` audit bundle is written (key invariant — loc is
+* **no** ``.chopper/`` audit bundle is written (key invariant -- loc is
   read-only and writes nothing);
 * the source domain is left untouched.
 """
@@ -70,7 +70,7 @@ class TestLocSubcommand:
         assert not (domain / ".chopper").exists(), "chopper loc must not write the audit bundle"
         # Source files untouched.
         assert (domain / "vars.tcl").read_text(encoding="utf-8") == "# vars\nset PI 3.14\n"
-        assert (domain / "extra.tcl").exists(), "loc is read-only — extra.tcl (excluded by R2) must remain on disk"
+        assert (domain / "extra.tcl").exists(), "loc is read-only -- extra.tcl (excluded by R2) must remain on disk"
 
     def test_loc_reflects_excluded_file_in_remove_bucket(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -83,8 +83,8 @@ class TestLocSubcommand:
         rc = main(["loc", "--domain", str(domain), "--base", str(base)])
         captured = capsys.readouterr()
         assert rc == 0
-        # Three .tcl files exist; base selects 2 → after files == 2,
-        # before files == 3 (minimum — implementation may also count
+        # Three .tcl files exist; base selects 2 -> after files == 2,
+        # before files == 3 (minimum -- implementation may also count
         # any other SLOC-relevant files dropped under default-exclude).
         out = captured.out
         # files.before should be at least 3 (3 .tcl files seeded).

@@ -1,4 +1,4 @@
-"""P7 audit writer — fills the ``.chopper/`` bundle.
+"""P7 audit writer -- fills the ``.chopper/`` bundle.
 
 Returns an :class:`AuditManifest` describing every artifact written.
 Runs unconditionally; writers tolerate ``None`` inputs from aborted
@@ -45,7 +45,7 @@ class AuditService:
         audit_root = ctx.config.audit_root
         artifacts: list[AuditArtifact] = []
 
-        # First pass — render every artifact that does not depend on the
+        # First pass -- render every artifact that does not depend on the
         # final ``artifacts_present`` listing. ``chopper_run.json`` needs
         # that listing, so it is rendered last.
         renderings: list[tuple[str, str]] = []
@@ -69,7 +69,7 @@ class AuditService:
         present_names = tuple(sorted([name for name, _ in renderings] + ["chopper_run.json"]))
         renderings.append(render_chopper_run(ctx, record, present_names))
 
-        # Second pass — write every rendering to disk.
+        # Second pass -- write every rendering to disk.
         for name, content in renderings:
             target = self._target_path(audit_root, name)
             try:
@@ -78,7 +78,7 @@ class AuditService:
             except OSError as exc:
                 # Audit writes are best-effort, but we no longer
                 # swallow silently. Emit VW-20 so the user sees that
-                # an artifact failed to land — partial bundles must
+                # an artifact failed to land -- partial bundles must
                 # never be invisible (architecture doc NFR-13).
                 ctx.diag.emit(
                     Diagnostic.build(

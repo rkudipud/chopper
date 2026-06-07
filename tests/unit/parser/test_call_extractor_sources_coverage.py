@@ -30,7 +30,7 @@ def test_strip_quotes_returns_value_unchanged_when_short() -> None:
     """strip_quotes returns the input unchanged when len < 2 (branch 70->75)."""
     from chopper.parser.call_extractor_sources import strip_quotes
 
-    # Short strings — condition len(value) >= 2 is False → return value unchanged
+    # Short strings -- condition len(value) >= 2 is False -> return value unchanged
     assert strip_quotes("") == ""
     assert strip_quotes("a") == "a"
     # Normal cases still work

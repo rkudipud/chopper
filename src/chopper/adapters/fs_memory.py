@@ -1,14 +1,14 @@
 """Pure-Python in-memory filesystem used in Chopper's tests.
 
 The adapter models files as a ``dict[PurePosixPath, str]`` keyed by the
-POSIX normalization of the path. Directories are implicit — any path
+POSIX normalization of the path. Directories are implicit -- any path
 that is an ancestor of a stored file counts as an existing directory.
 Explicit empty directories created via :meth:`InMemoryFS.mkdir` are
 tracked in a separate set so :meth:`exists` and :meth:`list` observe
 them consistently.
 
 All methods that accept a :class:`pathlib.Path` normalize the argument
-through :meth:`pathlib.PurePath.as_posix` before hashing — tests may
+through :meth:`pathlib.PurePath.as_posix` before hashing -- tests may
 pass mixed separators without affecting determinism. The write-scope
 contract documented on
 :class:`~chopper.core.protocols.FileSystemPort` is **not** enforced
@@ -43,7 +43,7 @@ class InMemoryFS:
     Parameters
     ----------
     files:
-        Optional mapping of initial paths → text content. Keys may be
+        Optional mapping of initial paths -> text content. Keys may be
         :class:`pathlib.Path` or ``str``; they are normalized to POSIX
         internally. Parent directories are implicit.
     """

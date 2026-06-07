@@ -1,14 +1,14 @@
 """Unit tests for :mod:`chopper.compiler.flow_resolver`.
 
-Covers the full action vocabulary (architecture doc §6.7) plus the
+Covers the full action vocabulary (architecture doc Sec.6.7) plus the
 resolver-owned diagnostics:
 
-* ``VE-05`` — missing stage / step target on any flow_action.
-* ``VE-08`` — duplicate stage name created by ``add_stage_*`` /
+* ``VE-05`` -- missing stage / step target on any flow_action.
+* ``VE-08`` -- duplicate stage name created by ``add_stage_*`` /
   ``replace_stage``.
-* ``VE-10`` — ``@n`` index overflow.
-* ``VE-19`` — ``@0`` occurrence suffix.
-* ``VE-20`` — ambiguous step target without ``@n``.
+* ``VE-10`` -- ``@n`` index overflow.
+* ``VE-19`` -- ``@0`` occurrence suffix.
+* ``VE-20`` -- ambiguous step target without ``@n``.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _make_feature(name: str, *actions) -> FeatureJson:
 
 
 # ---------------------------------------------------------------------------
-# Happy paths — one action at a time
+# Happy paths -- one action at a time
 # ---------------------------------------------------------------------------
 
 
@@ -133,7 +133,7 @@ def test_load_from_action() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Feature + action ordering (architecture doc §6.7)
+# Feature + action ordering (architecture doc Sec.6.7)
 # ---------------------------------------------------------------------------
 
 
@@ -163,14 +163,14 @@ def test_actions_within_feature_applied_top_to_bottom() -> None:
 def test_add_step_after_preserves_project_order_for_shared_anchor() -> None:
     """Three features sharing one anchor must emit in selected feature order.
 
-    Per architecture doc §6.7 (Order Preservation for ``add_*_after`` actions),
+    Per architecture doc Sec.6.7 (Order Preservation for ``add_*_after`` actions),
     when N features each ``add_step_after`` on the same anchor, the resolver
-    must preserve the **selected feature order** — i.e. the order in which
+    must preserve the **selected feature order** -- i.e. the order in which
     ``LoadedConfig.features`` carries them, which is the same whether the
     selection comes from ``project.json`` ``features[]`` (``--project``) or
     from a comma-separated ``--features`` CLI list. ``f1`` items first, then
     ``f2``, then ``f3``. The naive implementation re-resolves the anchor each
-    call and silently REVERSES that order — this test guards against the
+    call and silently REVERSES that order -- this test guards against the
     regression.
     """
 
@@ -187,7 +187,7 @@ def test_add_step_after_preserves_project_order_for_shared_anchor() -> None:
 
 def test_add_stage_after_preserves_project_order_for_shared_anchor() -> None:
     """Three features each adding a new stage after the same reference must
-    emit in selected feature order (architecture doc §6.7). The selection
+    emit in selected feature order (architecture doc Sec.6.7). The selection
     source (``--project`` vs ``--features``) is irrelevant: both surfaces
     populate ``LoadedConfig.features`` with the same ordering contract."""
 
@@ -302,7 +302,7 @@ def test_add_stage_that_already_exists_emits_ve08() -> None:
 
 
 # ---------------------------------------------------------------------------
-# skip_if_no_stage — architecture doc §6.7 'Optional Stage Targets'
+# skip_if_no_stage -- architecture doc Sec.6.7 'Optional Stage Targets'
 # ---------------------------------------------------------------------------
 
 
@@ -343,7 +343,7 @@ def test_skip_if_no_stage_default_false_still_emits_ve05() -> None:
 
 def test_skip_if_no_stage_present_stage_step_miss_still_emits_ve05() -> None:
     """``skip_if_no_stage=true`` softens stage-not-found only. A step
-    miss inside a present stage is still a hard VE-05 (per §6.7
+    miss inside a present stage is still a hard VE-05 (per Sec.6.7
     'step-level miss is unaffected')."""
     ctx, sink = make_ctx()
     base = (_sd("setup", "a"),)

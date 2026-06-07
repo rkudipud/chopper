@@ -23,7 +23,7 @@ from tests.unit._coverage_helpers import (  # noqa: F401
 
 
 def test_walk_files_nonexistent_root_returns_empty() -> None:
-    """Per ARCHITECTURE.md §5.3, walk_files on a missing root must return []
+    """Per ARCHITECTURE.md Sec.5.3, walk_files on a missing root must return []
     so callers can treat an empty domain as a valid (trivially empty) result
     without special-casing the absence of the directory."""
     from chopper.core.fs_walk import walk_files
@@ -100,7 +100,7 @@ def test_walk_files_oserror_on_stat_skips_entry() -> None:
 def test_walk_files_skips_deeply_nested_excluded_dirs() -> None:
     """Excluded dir names are checked at any depth, not just the top level.
     A .chopper/ directory nested inside a feature subdirectory must also be
-    excluded (ARCHITECTURE.md §5.3 exclusion contract)."""
+    excluded (ARCHITECTURE.md Sec.5.3 exclusion contract)."""
     from chopper.core.fs_walk import walk_files
 
     fs = InMemoryFS()
@@ -118,8 +118,8 @@ def test_walk_files_skips_nested_excluded_dir_by_name() -> None:
     from chopper.core.fs_walk import walk_files
 
     fs = InMemoryFS()
-    # root/sub/visible.tcl  → should be found
-    # root/sub/.chopper/hidden.tcl → .chopper dir at depth > 1, must be excluded
+    # root/sub/visible.tcl  -> should be found
+    # root/sub/.chopper/hidden.tcl -> .chopper dir at depth > 1, must be excluded
     fs.write_text(Path("/root/sub/.chopper/hidden.tcl"), "secret")
     fs.write_text(Path("/root/sub/visible.tcl"), "public")
 
@@ -135,7 +135,7 @@ def test_walk_files_relative_to_valueerror_skips_child() -> None:
     from chopper.core.fs_walk import walk_files
 
     mock_fs = MagicMock()
-    # Root is DOMAIN; child is /alien (NOT under DOMAIN) → relative_to raises ValueError
+    # Root is DOMAIN; child is /alien (NOT under DOMAIN) -> relative_to raises ValueError
     alien = Path("/alien/outside.tcl")
     alien_stat = MagicMock()
     alien_stat.is_dir = False
@@ -153,7 +153,7 @@ def test_walk_files_relative_to_valueerror_skips_child() -> None:
 
 
 def test_walk_files_excludes_json_and_instructions_md() -> None:
-    """walk_files excludes .json files and instructions.md per ARCHITECTURE.md §5.5.13."""
+    """walk_files excludes .json files and instructions.md per ARCHITECTURE.md Sec.5.5.13."""
     from chopper.core.fs_walk import walk_files
 
     fs = InMemoryFS()

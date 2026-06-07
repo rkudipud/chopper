@@ -142,5 +142,5 @@ class TestChopperContext:
 
     def test_no_presentation_config_field(self) -> None:
         # PresentationConfig is CLI-local and must not leak onto the
-        # service-facing context (ARCH §6.1 construction rules).
+        # service-facing context (ARCH Sec.6.1 construction rules).
         assert "presentation" not in ChopperContext.__dataclass_fields__

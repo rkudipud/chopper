@@ -1,9 +1,9 @@
 """Unit tests for :mod:`chopper.trimmer.companion_sync` (P5d FD-15).
 
 Tests cover:
-* ``_filter_csv`` — preserves blanks/comments, drops non-surviving proc rows.
-* ``_filter_milestone`` — keeps non-change_config lines, drops excluded procs.
-* :class:`CompanionSyncService` — full sync through InMemoryFS, VW-24 missing,
+* ``_filter_csv`` -- preserves blanks/comments, drops non-surviving proc rows.
+* ``_filter_milestone`` -- keeps non-change_config lines, drops excluded procs.
+* :class:`CompanionSyncService` -- full sync through InMemoryFS, VW-24 missing,
   VI-04 applied, TrimReport byte update, no-op when no rules file present,
   dry-run skips (service not called), both companion types missing, errors on
   I/O failure silently absorbed, namespaced proc handling, empty files.
@@ -229,7 +229,7 @@ class TestFilterMilestone:
 
 
 # ---------------------------------------------------------------------------
-# CompanionSyncService — full integration
+# CompanionSyncService -- full integration
 # ---------------------------------------------------------------------------
 
 _CSV_CONTENT = "# header\nAbort,AB,1,error\nDropMe,DM,0,warning\nKeepMe,KM,1,error\n"
@@ -506,7 +506,7 @@ class TestCompanionSyncService:
         assert ms_outcome.bytes_out == len(ms_content.encode())
 
     def test_full_copy_only_manifest_no_proc_trim(self) -> None:
-        """Manifest with only FULL_COPY files — no companion sync triggered."""
+        """Manifest with only FULL_COPY files -- no companion sync triggered."""
         csv_rel = "default_config.fm.csv"
         fs = InMemoryFS({DOMAIN / csv_rel: _CSV_CONTENT})
         ctx, sink = make_ctx(fs=fs)
@@ -584,7 +584,7 @@ class TestCompanionSyncService:
         with patch.object(fs, "read_text", side_effect=patched_read):
             CompanionSyncService().run(ctx, manifest, report)
 
-        # CSV sync failed silently (no VW-24 for I/O error — just skipped)
+        # CSV sync failed silently (no VW-24 for I/O error -- just skipped)
         codes = sink.codes()
         assert "VW-24" not in codes
         assert "VI-04" in codes  # milestone was still synced
@@ -656,5 +656,5 @@ class TestCompanionSyncService:
 
         new_report = CompanionSyncService().run(ctx, manifest, report)
 
-        # Content didn't change → bytes_out values match → same TrimReport returned
+        # Content didn't change -> bytes_out values match -> same TrimReport returned
         assert new_report is report

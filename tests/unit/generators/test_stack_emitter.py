@@ -4,13 +4,13 @@ Covers:
 
 * :func:`aggregate_stack_path` and :func:`standalone_stack_path` path
   derivation.
-* :func:`emit_flow_stack` — aggregate file shape: single Intel header
+* :func:`emit_flow_stack` -- aggregate file shape: single Intel header
   on top, one record per stage separated by exactly one blank line,
-  per-record line order ``N → J → L → I → O → D → R`` with ``R``
+  per-record line order ``N -> J -> L -> I -> O -> D -> R`` with ``R``
   emitted only for ``parallel`` stages, ``D`` derivation rules
   (``dependencies`` > ``load_from`` > bare ``D``), and ``J`` / ``L`` /
   ``I`` / ``O`` suppression when the corresponding field is empty.
-* :func:`emit_standalone_stack` — per-stage file is Intel header + one
+* :func:`emit_standalone_stack` -- per-stage file is Intel header + one
   blank line + authored ``steps`` joined by ``"\\n"`` verbatim.
 """
 
@@ -42,7 +42,7 @@ def test_standalone_stack_path_uses_stage_name() -> None:
 
 
 # ---------------------------------------------------------------------------
-# emit_flow_stack — single / multi
+# emit_flow_stack -- single / multi
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ def test_emit_flow_stack_multi_stage_records_separated_by_single_blank_line() ->
 
 
 # ---------------------------------------------------------------------------
-# Per-record line order: N → J → L → I → O → D → R
+# Per-record line order: N -> J -> L -> I -> O -> D -> R
 # ---------------------------------------------------------------------------
 
 

@@ -35,7 +35,7 @@ def test_flow_resolver_find_stage_returns_none_for_unknown() -> None:
 
 
 def test_replace_stage_with_identical_name_skips_load_from_rewrite() -> None:
-    """``_apply_replace_stage`` (branch 425→exit): when the replacement's
+    """``_apply_replace_stage`` (branch 425->exit): when the replacement's
     ``name`` equals the old stage's name, the load_from-rewrite loop must
     be skipped entirely. The replacement is installed in place and no
     duplicate-stage error is raised even if another stage references the

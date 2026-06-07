@@ -188,7 +188,7 @@ class DependencyGraph:
         expected_pt = tuple(sorted(set(self.nodes) - set(self.pi_seeds)))
         if self.pt != expected_pt:
             raise ValueError(
-                f"DependencyGraph.pt must equal (nodes − pi_seeds), sorted; got {self.pt!r}, expected {expected_pt!r}"
+                f"DependencyGraph.pt must equal (nodes - pi_seeds), sorted; got {self.pt!r}, expected {expected_pt!r}"
             )
         if self.reachable_from_includes != frozenset(self.nodes):
             raise ValueError("DependencyGraph.reachable_from_includes must equal frozenset(nodes)")

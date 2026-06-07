@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.cli.loc_report` — report math + builder.
+"""Unit tests for :mod:`chopper.cli.loc_report` -- report math + builder.
 
 End-to-end behaviour (writes nothing, table renders, exit codes) is
 covered by :mod:`tests.integration.test_cli_loc`. This module isolates
@@ -75,7 +75,7 @@ class TestLocReportPercents:
 
 
 # ---------------------------------------------------------------------------
-# render_loc_report — smoke test (renders without crash, contains markers)
+# render_loc_report -- smoke test (renders without crash, contains markers)
 # ---------------------------------------------------------------------------
 
 
@@ -106,7 +106,7 @@ class TestRenderLocReport:
         assert "treatment.PROC_TRIM.files: 2" in out
         assert "treatment.REMOVE.files: 6" in out
         assert "treatment.GENERATED.files: 0" in out
-        # 60% reduction on files (10 → 4).
+        # 60% reduction on files (10 -> 4).
         assert "files.reduction_pct: 60.00%" in out
 
     def test_render_empty_report_notes_no_files(self, capsys) -> None:

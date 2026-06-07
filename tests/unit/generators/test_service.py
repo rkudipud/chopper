@@ -181,7 +181,7 @@ def test_service_no_stages_returns_empty_tuple() -> None:
 
 
 # ---------------------------------------------------------------------------
-# options.generate_stack → .stack emission
+# options.generate_stack -> .stack emission
 # ---------------------------------------------------------------------------
 
 
@@ -195,7 +195,7 @@ def test_service_does_not_emit_stack_files_when_flag_off() -> None:
 
 
 def test_service_emits_aggregate_stack_when_flag_on() -> None:
-    """``options.generate_stack: true`` → one aggregate ``<domain>.stack``,
+    """``options.generate_stack: true`` -> one aggregate ``<domain>.stack``,
     appended after all per-stage ``.tcl`` files."""
 
     ctx, fs = _make_ctx()
@@ -226,7 +226,7 @@ def test_service_emits_aggregate_stack_when_flag_on() -> None:
 
 
 def test_service_emits_standalone_stack_per_stage_when_flag_set() -> None:
-    """``stage.standalone_stack: true`` → per-stage ``<stage>.stack`` is
+    """``stage.standalone_stack: true`` -> per-stage ``<stage>.stack`` is
     emitted **instead of** the ``.tcl`` (3.4.0: standalone stack is the
     stage's sole driver). Regardless of ``options.generate_stack``."""
 
@@ -247,7 +247,7 @@ def test_service_emits_standalone_stack_per_stage_when_flag_set() -> None:
     # 3.4.0: standalone stage does NOT emit a .tcl.
     assert not fs.exists(DOMAIN / "eco_apply_patch.tcl")
     standalone_text = fs.read_text(DOMAIN / "eco_apply_patch.stack")
-    # Verbatim steps body — Intel header + blank line + steps.
+    # Verbatim steps body -- Intel header + blank line + steps.
     assert standalone_text == intel_header_text() + "\n" + "rm -rf x\ncp y z\n"
 
 

@@ -10,8 +10,8 @@ Strategy
    such block (or EOF).
 
 2. Each section's target source file determines the fleet directory
-   (``parser/`` → ``tests/unit/parser/``, etc.) and the fleet filename
-   (``parser/proc_extractor.py`` → ``tests/unit/parser/test_proc_extractor_coverage.py``).
+   (``parser/`` -> ``tests/unit/parser/``, etc.) and the fleet filename
+   (``parser/proc_extractor.py`` -> ``tests/unit/parser/test_proc_extractor_coverage.py``).
 
 3. Sections targeting the same source file across both omnibus files are
    concatenated into a single fleet file.  Each fleet file gets a small

@@ -7,9 +7,9 @@ are injected an adapter instance by the runner.
 The package currently ships two :class:`~chopper.core.protocols.FileSystemPort`
 implementations:
 
-* :class:`~chopper.adapters.fs_local.LocalFS` — wraps :mod:`pathlib` and
+* :class:`~chopper.adapters.fs_local.LocalFS` -- wraps :mod:`pathlib` and
   is used by the production runner.
-* :class:`~chopper.adapters.fs_memory.InMemoryFS` — pure-Python model of
+* :class:`~chopper.adapters.fs_memory.InMemoryFS` -- pure-Python model of
   a filesystem used by unit and integration tests.
 
 Both adapters enforce the write-scope and ``copy_tree`` ``.chopper/``

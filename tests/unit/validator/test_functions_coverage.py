@@ -93,7 +93,7 @@ def test_validator_glob_walk_skips_chopper_subtree() -> None:
     from chopper.validator import validate_pre
 
     fs = InMemoryFS()
-    # Only file is inside .chopper/ — should be skipped, glob has no match.
+    # Only file is inside .chopper/ -- should be skipped, glob has no match.
     fs.write_text(DOMAIN / ".chopper" / "audit.tcl", "x")
     ctx = _ctx(fs=fs)
     base = BaseJson(
@@ -252,7 +252,7 @@ def test_validator_stage_step_path_separator_not_bare_proc() -> None:
     from chopper.core.models_compiler import StageSpec
     from chopper.validator import validate_post
 
-    # Path-shaped token without known extension → not VW-14 (no ext) and
+    # Path-shaped token without known extension -> not VW-14 (no ext) and
     # not VW-15 (has slash). Should produce no diagnostic.
     stage = StageSpec(name="s", load_from="base", steps=("subdir/some_token",))
     ctx = _ctx()
@@ -272,7 +272,7 @@ def test_validator_brace_balance_skips_when_read_text_fails() -> None:
     fs.write_text(rel, "proc x {} {}\n")
     ctx = _ctx(fs=fs)
     validate_post(ctx, _make_manifest(), _empty_graph(), rewritten=(rel,))
-    # Read failure → silently skipped; no VE-16 emitted.
+    # Read failure -> silently skipped; no VE-16 emitted.
     assert "VE-16" not in _codes(ctx)
 
 
@@ -312,7 +312,7 @@ def test_validator_proc_set_check_skips_when_read_text_fails() -> None:
         rewritten=(),
         trim_report=report,
     )
-    # Read failure on proc-set check → no proc-set-mismatch VW-10
+    # Read failure on proc-set check -> no proc-set-mismatch VW-10
     vw10 = [d for d in ctx.diag.snapshot() if d.code == "VW-10" and d.context.get("reason") == "proc-set-mismatch"]
     assert vw10 == []
 
@@ -405,7 +405,7 @@ def test_validator_vw06_accepts_suffix_match_for_bare_source() -> None:
 
 def test_brace_delta_skips_braces_inside_quoted_strings() -> None:
     """_brace_delta must treat { and } inside a double-quoted string as
-    non-structural so they don't affect the depth count (ARCHITECTURE.md §5.4.9)."""
+    non-structural so they don't affect the depth count (ARCHITECTURE.md Sec.5.4.9)."""
     from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
 
     # Balanced: outer braces cancel, inner braces inside quotes are skipped.
@@ -417,9 +417,9 @@ def test_brace_delta_skips_braces_inside_quoted_strings() -> None:
 def test_brace_delta_prev_open_brace_quote_is_literal() -> None:
     """When a double-quote is immediately preceded by '{', it is a literal
     character in a braced word per the Tcl 'Endekas rule 6'.  The spec
-    example is ``set q {"}`` — the ``}`` must close the brace, not be
+    example is ``set q {"}`` -- the ``}`` must close the brace, not be
     consumed by a quote-scan, so depth returns to zero (ARCHITECTURE.md
-    §5.4.9 / IMPLEMENTATION.md P-01a)."""
+    Sec.5.4.9 / IMPLEMENTATION.md P-01a)."""
     from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
 
     # set q {"} -- the " is literal (prev is {), the } closes the brace.
@@ -433,7 +433,7 @@ def test_brace_delta_quoted_string_with_escaped_quote() -> None:
     scan prematurely.  The brace counter must still reach zero."""
     from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
 
-    # proc with a quoted arg containing escaped quote — braces still balance.
+    # proc with a quoted arg containing escaped quote -- braces still balance.
     text = 'proc foo {} { set x "he said \\"hello\\"" }'
     delta = _brace_delta(text)
     assert delta == 0
@@ -441,11 +441,11 @@ def test_brace_delta_quoted_string_with_escaped_quote() -> None:
 
 def test_brace_delta_braced_word_quote_space_quote_is_literal() -> None:
     """Brace-depth-aware fix: inside a ``{...}`` braced data word that opens
-    with a ``"``, EVERY ``"`` is a literal byte — including a second quote
+    with a ``"``, EVERY ``"`` is a literal byte -- including a second quote
     separated by a space (``{" "}``).  The original checker special-cased
     only the immediately-after-brace quote, so the second quote opened a
     phantom quoted string that swallowed the closing ``}`` (false-positive
-    VE-16).  These must all return 0 now (ARCHITECTURE.md §5.4.9 /
+    VE-16).  These must all return 0 now (ARCHITECTURE.md Sec.5.4.9 /
     IMPLEMENTATION.md P-01a; mirrors tokenizer ``data_quote_brace_levels``)."""
     from chopper.validator.functions import _brace_delta  # type: ignore[attr-defined]
 
@@ -520,7 +520,7 @@ def test_check_pattern_exclude_does_not_emit_vw03() -> None:
     fs.mkdir(DOMAIN, parents=True, exist_ok=True)
     fs.write_text(DOMAIN / "present.tcl", "proc foo {} {}")
 
-    # A glob exclude pattern that matches nothing — VW-03 must NOT fire for excludes.
+    # A glob exclude pattern that matches nothing -- VW-03 must NOT fire for excludes.
     _check_pattern(ctx, "*.absent", source_key="base", field="files.exclude", is_include=False)
     assert "VW-03" not in _codes(ctx)
 
@@ -538,7 +538,7 @@ def test_check_pattern_literal_not_found_emits_ve06() -> None:
 
 
 # =========================================================================
-# BATCH 2 — Targeted tests for remaining coverage gaps
+# BATCH 2 -- Targeted tests for remaining coverage gaps
 
 
 def test_check_feature_domains_match_no_vw04() -> None:
@@ -553,7 +553,7 @@ def test_check_feature_domains_match_no_vw04() -> None:
     fs.write_text(feat_path, '{"name":"feat","domain":"my_domain"}')
 
     base = BaseJson(source_path=base_path, domain="my_domain")
-    # Feature has domain matching base → no VW-04
+    # Feature has domain matching base -> no VW-04
     feature = FeatureJson(source_path=feat_path, name="feat", domain="my_domain")
     loaded = LoadedConfig(base=base, features=(feature,))
 
@@ -567,12 +567,12 @@ def test_check_feature_domains_match_no_vw04() -> None:
 
 
 def test_validate_post_removed_file_not_present_no_mismatch() -> None:
-    """validate_post: file marked REMOVE that does NOT exist → no mismatch diagnostic (432->443)."""
+    """validate_post: file marked REMOVE that does NOT exist -> no mismatch diagnostic (432->443)."""
     from chopper.core.models_common import FileTreatment
     from chopper.validator.functions import _check_trim_outputs
 
     fs = InMemoryFS()
-    # Do NOT write removed_file.tcl → ctx.fs.exists returns False → 432->443
+    # Do NOT write removed_file.tcl -> ctx.fs.exists returns False -> 432->443
 
     outcome = _make_file_outcome(
         "removed_file.tcl",
@@ -603,7 +603,7 @@ def test_glob_has_matches_oserror_in_list_continues() -> None:
     with patch.object(fs, "list", side_effect=OSError("mocked list failure")):
         result = _glob_has_matches(ctx2, "**/*.tcl")
 
-    assert result is False  # OSError → continue → no match found
+    assert result is False  # OSError -> continue -> no match found
 
 
 def test_glob_has_matches_child_outside_domain_skipped() -> None:
@@ -615,12 +615,12 @@ def test_glob_has_matches_child_outside_domain_skipped() -> None:
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
-    # Return a path that is NOT under DOMAIN → relative_to raises ValueError
+    # Return a path that is NOT under DOMAIN -> relative_to raises ValueError
     outside_path = Path("/other/bar.tcl")
     with patch.object(fs, "list", return_value=[outside_path]):
         result = _glob_has_matches(ctx2, "**/*.tcl")
 
-    assert result is False  # ValueError → continue → no match
+    assert result is False  # ValueError -> continue -> no match
 
 
 def test_glob_has_matches_regex_pattern_matches_returns_true() -> None:
@@ -632,18 +632,18 @@ def test_glob_has_matches_regex_pattern_matches_returns_true() -> None:
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
-    # ** pattern → glob_to_regex returns a Pattern; fullmatch on "lib/foo.tcl" returns True
+    # ** pattern -> glob_to_regex returns a Pattern; fullmatch on "lib/foo.tcl" returns True
     result = _glob_has_matches(ctx2, "**/*.tcl")
     assert result is True  # lines 287-288 covered
 
 
 def test_glob_has_matches_regex_pattern_skips_non_matching_file() -> None:
     """When regex is not None but fullmatch is False for a file, the loop
-    continues to the next child (covers branch 287→271)."""
+    continues to the next child (covers branch 287->271)."""
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
-    # aaa.py sorts before zzz.tcl — regex skips aaa.py then matches zzz.tcl
+    # aaa.py sorts before zzz.tcl -- regex skips aaa.py then matches zzz.tcl
     fs.write_text(DOMAIN / "aaa.py", "")
     fs.write_text(DOMAIN / "zzz.tcl", "")
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
@@ -658,12 +658,12 @@ def test_glob_has_matches_fnmatchcase_no_match_continues() -> None:
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
-    # file is foo.py but pattern is *.tcl → no match
+    # file is foo.py but pattern is *.tcl -> no match
     fs.write_text(DOMAIN / "foo.py", "")
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
-    # Non-** pattern → glob_to_regex returns None, _fnmatchcase("foo.py", "*.tcl") is False
+    # Non-** pattern -> glob_to_regex returns None, _fnmatchcase("foo.py", "*.tcl") is False
     result = _glob_has_matches(ctx2, "*.tcl")
     assert result is False
 
@@ -672,7 +672,7 @@ def test_brace_delta_full_line_comment_skipped() -> None:
     """_brace_delta skips braces in full-line comments (lines 672-674)."""
     from chopper.validator.functions import _brace_delta
 
-    # Comment line contains unmatched braces — they must not affect the count
+    # Comment line contains unmatched braces -- they must not affect the count
     text = "# this is a comment with { and }\nset x {hello}\n"
     result = _brace_delta(text)
     assert result == 0  # balanced: one { one } from set x {hello}
@@ -682,7 +682,7 @@ def test_brace_delta_unclosed_quote_at_end_of_text() -> None:
     """_brace_delta handles text where opening quote is at the very end (689->698)."""
     from chopper.validator.functions import _brace_delta
 
-    # Text ends with unmatched " — the inner while loop exits immediately (i >= n)
+    # Text ends with unmatched " -- the inner while loop exits immediately (i >= n)
     result = _brace_delta('some text "')
     assert result == 0  # No braces in the content
 
@@ -691,10 +691,10 @@ def test_looks_like_bare_proc_returns_false_for_file_extension() -> None:
     """_looks_like_bare_proc returns False when head ends with a file extension (line 919)."""
     from chopper.validator.functions import _looks_like_bare_proc
 
-    # Step that looks like a file with extension → not a bare proc
+    # Step that looks like a file with extension -> not a bare proc
     assert _looks_like_bare_proc("foo.tcl") is False
     assert _looks_like_bare_proc("run_setup.py") is False
-    # Non-file-extension → bare proc
+    # Non-file-extension -> bare proc
     assert _looks_like_bare_proc("my_proc") is True
 
 
@@ -702,7 +702,7 @@ def test_looks_like_bare_proc_returns_false_for_variable_refs_and_braces() -> No
     """_looks_like_bare_proc returns False for Tcl variable refs ($var) and syntax artifacts."""
     from chopper.validator.functions import _looks_like_bare_proc
 
-    # Variable reference — not a bare proc call
+    # Variable reference -- not a bare proc call
     assert _looks_like_bare_proc("$env(HOME)") is False
     assert _looks_like_bare_proc("$var") is False
     # Syntax artifacts

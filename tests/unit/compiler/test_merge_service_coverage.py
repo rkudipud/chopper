@@ -81,7 +81,7 @@ def _build_ctx_with_tcl(procs_by_file: dict[str, list[str]]) -> tuple[ChopperCon
 def test_merge_fe_removes_previously_included_file_emits_vw21_remove() -> None:
     """R1 rule: when a later layer has files.exclude for a file already
     contributed by an earlier layer, VW-21 must be emitted with action='remove'
-    (ARCHITECTURE.md §4 / DIAGNOSTIC_CODES.md VW-21)."""
+    (ARCHITECTURE.md Sec.4 / DIAGNOSTIC_CODES.md VW-21)."""
     from chopper.compiler.merge_service import CompilerService
     from chopper.core.models_config import (
         BaseJson,
@@ -116,7 +116,7 @@ def test_merge_fe_removes_previously_included_file_emits_vw21_remove() -> None:
 def test_merge_replace_trim_with_new_trim_emits_vw21_replace() -> None:
     """When a feature layer replaces a prior _Trim with a different trim-replace,
     VW-21 must be emitted with action='replace' showing the old and new proc
-    selection (ARCHITECTURE.md §4)."""
+    selection (ARCHITECTURE.md Sec.4)."""
     from chopper.compiler.merge_service import CompilerService
     from chopper.core.models_config import (
         BaseJson,
@@ -137,7 +137,7 @@ def test_merge_replace_trim_with_new_trim_emits_vw21_replace() -> None:
         procedures=ProceduresSection(include=(ProcEntryRef(file=Path("a.tcl"), procs=("foo",)),)),
         options=BaseOptions(),
     )
-    # Feature: FI + PE (bar excluded) → trim-replace intent → _record_replace_transition
+    # Feature: FI + PE (bar excluded) -> trim-replace intent -> _record_replace_transition
     feat = FeatureJson(
         source_path=Path("/w/feat.json"),
         name="feat1",
@@ -166,7 +166,7 @@ def test_emit_vw21_unknown_action_produces_generic_message() -> None:
 
 def test_merge_glob_exclude_unmatched_emits_vw08() -> None:
     """A glob pattern in files.exclude that matches no domain file must emit
-    VW-08 (glob-no-matches on exclude) — it is a potential authoring error."""
+    VW-08 (glob-no-matches on exclude) -- it is a potential authoring error."""
     from chopper.compiler.merge_service import CompilerService
     from chopper.core.models_config import (
         BaseJson,
@@ -257,7 +257,7 @@ def test_merge_vw21_action_replace_trim_to_whole_shows_prior_keep() -> None:
 
 def test_merge_trim_pi_redundant_procs_no_shadow_event() -> None:
     """When a second feature's PI adds procs already in prev.keep, `added` is
-    empty — no VW-21, no contributed_by update.
+    empty -- no VW-21, no contributed_by update.
 
     This exercises merge_service.py branch 509->523 (condition False) and
     524->527 (condition False): the ``if added and prior_layer != layer_key``
@@ -289,7 +289,7 @@ def test_merge_trim_pi_redundant_procs_no_shadow_event() -> None:
     loaded = make_loaded(base, feat)
     manifest = CompilerService().run(ctx, loaded, parsed)
 
-    # No VW-21 emitted because added is empty — no shadow event.
+    # No VW-21 emitted because added is empty -- no shadow event.
     vw21 = [d for d in sink.emissions if d.code == "VW-21"]
     assert vw21 == []
     # File still ends up PROC_TRIM with both procs surviving.

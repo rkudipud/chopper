@@ -60,7 +60,7 @@ def test_runner_catches_generic_exception_with_exit_3() -> None:
 
 
 # ---------------------------------------------------------------------------
-# flow_resolver.py — lines 276 (resolver returns None) & 332 (dup replace)
+# flow_resolver.py -- lines 276 (resolver returns None) & 332 (dup replace)
 # ---------------------------------------------------------------------------
 
 
@@ -98,7 +98,7 @@ def test_flow_resolver_replace_stage_rejects_duplicate_name() -> None:
 
 
 # ---------------------------------------------------------------------------
-# merge_service.py — line 230 (.stack collision)
+# merge_service.py -- line 230 (.stack collision)
 # ---------------------------------------------------------------------------
 
 

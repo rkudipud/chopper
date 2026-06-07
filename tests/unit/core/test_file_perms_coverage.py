@@ -40,7 +40,7 @@ def test_mirror_perms_plus_exec_noop_on_nonexistent_paths(tmp_path: Path) -> Non
     """mirror_perms_plus_exec is a no-op (no error) when paths do not exist on disk."""
     from chopper.core.file_perms import mirror_perms_plus_exec
 
-    # Neither path exists — must not raise.
+    # Neither path exists -- must not raise.
     mirror_perms_plus_exec(tmp_path / "ghost_src.tcl", tmp_path / "ghost_dst.tcl")
 
 
@@ -67,10 +67,10 @@ def test_ensure_executable_oserror_swallowed(tmp_path: Path) -> None:
 
     dst = tmp_path / "dst.tcl"
     dst.write_text("proc foo {} {}")
-    # Patch chmod to raise OSError → except block at lines 48-49 is hit
+    # Patch chmod to raise OSError -> except block at lines 48-49 is hit
     with patch("pathlib.Path.chmod", side_effect=OSError("permission denied")):
         ensure_executable(dst)  # must not raise
 
 
 # ================================================================
-# BATCH 3 — targeted tests for remaining < 99% files
+# BATCH 3 -- targeted tests for remaining < 99% files

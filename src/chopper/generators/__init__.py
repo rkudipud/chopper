@@ -1,4 +1,4 @@
-"""Generators package — P5b F3 run-file emission.
+"""Generators package -- P5b F3 run-file emission.
 
 Emits one ``<stage>.tcl`` per resolved :class:`StageSpec`. Runs after
 :class:`TrimmerService`; generated files live alongside normal domain

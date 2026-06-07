@@ -1,6 +1,6 @@
 """LOC report builder and renderer for ``chopper loc`` (FR-46).
 
-Per architecture doc §5.7: the LOC subcommand runs the same P0–P4 +
+Per architecture doc Sec.5.7: the LOC subcommand runs the same P0-P4 +
 dry-run pipeline as ``chopper trim --dry-run``, then *replays the real
 P5 trim phases against an in-memory copy of the source tree* (see
 :mod:`chopper.orchestrator.simulate`) and prints a stdout table comparing
@@ -9,7 +9,7 @@ the source domain against the actually-rebuilt trimmed domain.
 Because the replay reuses the production trimmer, generator,
 indentation, and companion-sync services unchanged, ``chopper loc``
 before/after totals are byte-for-byte identical to a live
-``chopper trim`` — there is no separate "estimate" to drift.
+``chopper trim`` -- there is no separate "estimate" to drift.
 
 This module owns:
 
@@ -190,10 +190,10 @@ def build_loc_report(
 ) -> LocReport:
     """Compute the LOC report by replaying the real trim in memory.
 
-    Per ARCHITECTURE.md §5.7, ``chopper loc`` reports the SLOC impact of
+    Per ARCHITECTURE.md Sec.5.7, ``chopper loc`` reports the SLOC impact of
     a planned trim. Rather than *estimating* the trimmed output, this
-    builder replays the production P5 phases (trim → generators →
-    indentation → companion sync) against an in-memory copy of the
+    builder replays the production P5 phases (trim -> generators ->
+    indentation -> companion sync) against an in-memory copy of the
     source tree via :func:`chopper.orchestrator.simulate.simulate_trim_in_memory`,
     then counts the *actual* rebuilt files. The before/after totals are
     therefore byte-for-byte identical to a live ``chopper trim`` (the
@@ -219,7 +219,7 @@ def build_loc_report(
     for rel in before_rels:
         treatment = manifest.file_decisions.get(rel)
         if treatment is FileTreatment.GENERATED or rel in gen_paths:
-            # Regenerate-in-place source — accounted in the GENERATED
+            # Regenerate-in-place source -- accounted in the GENERATED
             # bucket below so it is not double-counted here.
             continue
         lb = before_lines.get(rel, 0)
@@ -294,7 +294,7 @@ def build_loc_report_baseline_only(ctx: ChopperContext) -> LocReport:
     aborted before producing a :class:`CompiledManifest` (e.g. P2/P3
     surfaced ``PE-01`` duplicate procs or ``PE-02`` unbalanced braces).
     In that case we still want the caller to see the SLOC baseline of
-    the domain — the LOC subcommand is purely read-only and the
+    the domain -- the LOC subcommand is purely read-only and the
     on-disk source is unaffected by the pipeline halt.
 
     The returned report has ``after == before`` for every metric and a
@@ -352,8 +352,8 @@ def render_loc_report(report: LocReport) -> None:
     """Print the LOC report as one ``key: value`` line per metric.
 
     Output is intentionally line-oriented (no ASCII tables, no column
-    alignment) so downstream consumers — pipes, ``grep``, harness
-    captures — can parse it deterministically. Each line
+    alignment) so downstream consumers -- pipes, ``grep``, harness
+    captures -- can parse it deterministically. Each line
     is a ``label: value`` pair; per-treatment subtotals are namespaced
     with ``treatment.<NAME>.<field>``.
     """

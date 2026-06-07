@@ -1,13 +1,13 @@
 """
 Synthetic large-domain generator for Chopper parser performance tests.
 
-Usage:    Stage 1 (Parser) acceptance — "parser < 2s on domain with 60+ Tcl files"
+Usage:    Stage 1 (Parser) acceptance -- "parser < 2s on domain with 60+ Tcl files"
 
 This script generates a synthetic domain with:
   - Configurable number of Tcl files (default: 60)
   - Configurable number of procs per file (default: 5)
   - Realistic namespace nesting (2 levels deep)
-  - Realistic proc calls (each proc calls 1–3 others)
+  - Realistic proc calls (each proc calls 1-3 others)
   - A mix of file-level code (set statements, comments) around the procs
 
 The generated domain is deterministic: the same seed produces the same output.

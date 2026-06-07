@@ -100,7 +100,7 @@ def _state(case: int, *, domain_exists: bool, backup_exists: bool) -> DomainStat
 
 
 # ---------------------------------------------------------------------------
-# Case-1 tests — first trim
+# Case-1 tests -- first trim
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ def test_case_1_preexisting_dot_chopper_is_not_backed_up() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Case-2 tests — re-trim
+# Case-2 tests -- re-trim
 # ---------------------------------------------------------------------------
 
 
@@ -191,7 +191,7 @@ def test_case_2_discards_domain_rebuilds_from_backup() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Case-3 tests — recovery re-trim
+# Case-3 tests -- recovery re-trim
 # ---------------------------------------------------------------------------
 
 
@@ -279,7 +279,7 @@ def test_proc_trim_missing_in_parsed_emits_ve24() -> None:
     fs = InMemoryFS({DOMAIN / "m.tcl": "body\n"})
     ctx, sink = make_ctx(fs=fs)
     manifest = _manifest({"m.tcl": FileTreatment.PROC_TRIM}, {})
-    parsed = _parsed({})  # m.tcl absent — no ParsedFile
+    parsed = _parsed({})  # m.tcl absent -- no ParsedFile
     state = _state(1, domain_exists=True, backup_exists=False)
 
     report = TrimmerService().run(ctx, manifest, parsed, state)
@@ -334,7 +334,7 @@ def test_dry_run_performs_no_writes_but_produces_report() -> None:
 
 
 # ---------------------------------------------------------------------------
-# GENERATED — owned by GeneratorService (P5b); trimmer skips
+# GENERATED -- owned by GeneratorService (P5b); trimmer skips
 # ---------------------------------------------------------------------------
 
 
@@ -451,7 +451,7 @@ def test_dry_run_plan_reports_all_non_generated_treatments() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _prepare_workspace OSError → VE-23 (interrupted, no dispatch)
+# _prepare_workspace OSError -> VE-23 (interrupted, no dispatch)
 # ---------------------------------------------------------------------------
 
 
@@ -459,11 +459,11 @@ class _ExplodingFS(InMemoryFS):
     """FS adapter whose mkdir/rename/remove all raise ``PermissionError``."""
 
     def rename(self, src: Path, dst: Path) -> None:  # type: ignore[override]
-        raise PermissionError(f"deny rename {src} → {dst}")
+        raise PermissionError(f"deny rename {src} -> {dst}")
 
 
 def test_prepare_workspace_oserror_emits_ve23_and_returns_interrupted() -> None:
-    # Case 1 prep renames domain → backup; force a PermissionError on that.
+    # Case 1 prep renames domain -> backup; force a PermissionError on that.
     fs = _ExplodingFS({DOMAIN / "a.tcl": "x"})
     ctx, sink = make_ctx(fs=fs)
     manifest = CompiledManifest(
@@ -481,7 +481,7 @@ def test_prepare_workspace_oserror_emits_ve23_and_returns_interrupted() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _dispatch OSError during FULL_COPY → VE-25 interrupted
+# _dispatch OSError during FULL_COPY -> VE-25 interrupted
 # ---------------------------------------------------------------------------
 
 
@@ -493,7 +493,7 @@ class _CopyFailingFS(InMemoryFS):
 
 
 def test_dispatch_oserror_emits_ve25_and_halts() -> None:
-    # Case 3 (backup exists; no domain) — avoids the prep rename that
+    # Case 3 (backup exists; no domain) -- avoids the prep rename that
     # _CopyFailingFS doesn't override.
     fs = _CopyFailingFS({BACKUP / "a.tcl": "hi\n"})
     ctx, sink = make_ctx(fs=fs)
@@ -511,7 +511,7 @@ def test_dispatch_oserror_emits_ve25_and_halts() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _dispatch direct call with GENERATED → ValueError (defensive guard)
+# _dispatch direct call with GENERATED -> ValueError (defensive guard)
 # ---------------------------------------------------------------------------
 
 
@@ -575,12 +575,12 @@ def test_plan_only_report_unknown_treatment_raises_valueerror() -> None:
     pv = {
         path: FileProvenance(
             path=path,
-            treatment=FileTreatment.FULL_COPY,  # placeholder — won't be checked
+            treatment=FileTreatment.FULL_COPY,  # placeholder -- won't be checked
             reason="fi-literal",
         )
     }
 
-    # Build manifest bypassing treatment parity — construct with matching
+    # Build manifest bypassing treatment parity -- construct with matching
     # shape first then swap file_decisions under the hood isn't possible
     # because dataclass is frozen. Instead call the helper directly with
     # a manifest-like shim:
@@ -594,7 +594,7 @@ def test_plan_only_report_unknown_treatment_raises_valueerror() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Issue #10 regression — Case 2 re-trim with subdirectory files (VE-24 false
+# Issue #10 regression -- Case 2 re-trim with subdirectory files (VE-24 false
 # positive when domain was wiped and subdir tree is absent).
 # ---------------------------------------------------------------------------
 
@@ -644,7 +644,7 @@ def test_case_2_full_copy_into_subdirectory_succeeds() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Case 2 JSON sync — user edits to <domain>/jsons/ survive re-trim
+# Case 2 JSON sync -- user edits to <domain>/jsons/ survive re-trim
 # ---------------------------------------------------------------------------
 
 
@@ -692,7 +692,7 @@ def test_case2_jsons_sync_removes_deleted_feature_json() -> None:
     """
     fs = InMemoryFS(
         {
-            # Domain jsons — user removed f2.feature.json between runs.
+            # Domain jsons -- user removed f2.feature.json between runs.
             DOMAIN / "jsons" / "base.json": '{"domain":"d"}',
             DOMAIN / "jsons" / "features" / "f1.feature.json": '{"name":"f1"}',
             DOMAIN / "a.tcl": "# trimmed\n",
@@ -722,7 +722,7 @@ def test_case2_jsons_sync_removes_deleted_feature_json() -> None:
 
 def test_case2_jsons_sync_oserror_is_suppressed() -> None:
     """If the jsons/ sync fails (e.g. read-only backup), the trim still
-    proceeds using the stale backup content — no crash, no diagnostic.
+    proceeds using the stale backup content -- no crash, no diagnostic.
     """
 
     class _FailRemove(InMemoryFS):
@@ -815,7 +815,7 @@ def test_case2_sync_creates_backup_jsons_when_absent() -> None:
 
 
 # ---------------------------------------------------------------------------
-# PROC_TRIM with no procs to remove → VW-22
+# PROC_TRIM with no procs to remove -> VW-22
 # ---------------------------------------------------------------------------
 
 

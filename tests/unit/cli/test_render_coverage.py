@@ -93,7 +93,7 @@ def test_render_trim_stats_noop_when_no_trim_report() -> None:
 
 
 def test_render_trim_stats_remove_treatment_shows_zero_sloc_out(tmp_path: Path) -> None:
-    """Per ARCHITECTURE.md §A7, REMOVE files have sloc_out=0 because the file
+    """Per ARCHITECTURE.md Sec.A7, REMOVE files have sloc_out=0 because the file
     is deleted from the rebuilt domain.  The table must not attempt to read the
     (non-existent) output file."""
     from chopper.cli.render import render_trim_stats
@@ -125,7 +125,7 @@ def test_render_trim_stats_remove_treatment_shows_zero_sloc_out(tmp_path: Path) 
 
 def test_render_trim_stats_dry_run_reads_domain_for_sloc_in(tmp_path: Path) -> None:
     """Under dry-run no backup is taken; render_trim_stats must read sloc_in
-    from domain_root when backup_root doesn't exist (ARCHITECTURE.md §A7)."""
+    from domain_root when backup_root doesn't exist (ARCHITECTURE.md Sec.A7)."""
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -249,7 +249,7 @@ def test_render_trim_stats_skips_unreadable_dropped_file(tmp_path: Path, monkeyp
 
 def test_render_trim_stats_long_path_is_truncated(tmp_path: Path) -> None:
     """A file path longer than the computed file_w must be left-truncated
-    keeping the basename visible (the '…' ellipsis prefix pattern)."""
+    keeping the basename visible (the '...' ellipsis prefix pattern)."""
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -285,7 +285,7 @@ def test_render_trim_stats_long_path_is_truncated(tmp_path: Path) -> None:
 
 def test_render_trim_stats_with_generated_artifact(tmp_path: Path) -> None:
     """Generated artifacts (stage .tcl files) must appear in the stats table
-    under the 'GEN ' treatment label per ARCHITECTURE.md §5.6."""
+    under the 'GEN ' treatment label per ARCHITECTURE.md Sec.5.6."""
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_trimmer import GeneratedArtifact
@@ -346,13 +346,13 @@ def test_render_diagnostics_suppresses_ti01() -> None:
 
 def test_fmt_pair_equal_values_omits_delta() -> None:
     """When before == after the delta tail must be omitted; the cell shows
-    only 'N → N' without a '(+0)' suffix (spec: identical live vs dry-run)."""
+    only 'N -> N' without a '(+0)' suffix (spec: identical live vs dry-run)."""
     from chopper.cli.render import _fmt_pair
 
     cell = _fmt_pair(100, 100)
-    assert "100 → 100" in cell
+    assert "100 -> 100" in cell
     assert "+" not in cell
-    assert "-" not in cell
+    assert "(-" not in cell  # no negative-delta suffix; the '-' in '->' is OK
 
 
 def test_render_diagnostics_includes_path_and_lineno() -> None:
@@ -409,8 +409,8 @@ def test_render_table_left_truncates_long_path() -> None:
     out = io.StringIO()
     _render_table(out, rows, totals, width=80)
     text = out.getvalue()
-    # Truncation inserts the ellipsis character.
-    assert "\u2026" in text  # '…'
+    # Truncation inserts the ellipsis characters.
+    assert "..." in text
 
 
 def test_render_trim_stats_returns_early_when_no_trim_report() -> None:
@@ -421,7 +421,7 @@ def test_render_trim_stats_returns_early_when_no_trim_report() -> None:
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
-    # RunResult with no trim_report → early return at line 119
+    # RunResult with no trim_report -> early return at line 119
     result = _make_run_result()
     out = io.StringIO()
     render_trim_stats(ctx2, result, stream=out)
@@ -441,7 +441,7 @@ def test_render_result_writes_summary_line() -> None:
 
 
 # ===========================================================================
-# Batch 4 — Remaining coverage gaps
+# Batch 4 -- Remaining coverage gaps
 
 
 def test_render_trim_stats_returns_early_when_rows_empty() -> None:
@@ -463,7 +463,7 @@ def test_render_trim_stats_returns_early_when_rows_empty() -> None:
     result = _make_run_result(trim_report=trim_report, generated_artifacts=())
     out = io.StringIO()
     render_trim_stats(ctx2, result, stream=out)
-    # Empty rows → early return, no table written
+    # Empty rows -> early return, no table written
     assert out.getvalue() == ""
 
 
@@ -488,7 +488,7 @@ def test_render_trim_stats_artifact_oserror_falls_back_to_content() -> None:
     trim_report = _make_trim_report(outcome)
     result = _make_run_result(trim_report=trim_report, generated_artifacts=(artifact,))
     out = io.StringIO()
-    # Should not crash — OSError is caught and falls back to artifact.content
+    # Should not crash -- OSError is caught and falls back to artifact.content
     render_trim_stats(ctx2, result, stream=out)
     # Table is rendered (rows not empty)
     assert len(out.getvalue()) > 0

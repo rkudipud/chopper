@@ -1,4 +1,4 @@
-"""Shared glob-to-regex translator (architecture doc §4 — R1 glob semantics).
+"""Shared glob-to-regex translator (architecture doc Sec.4 -- R1 glob semantics).
 
 Multiple services need identical glob semantics:
 
@@ -8,16 +8,16 @@ Multiple services need identical glob semantics:
 
 Keeping a single canonical translator in :mod:`chopper.core` is the only
 way to guarantee those three layers agree, *and* it satisfies the import
-contract in :file:`pyproject.toml` (services may not import each other —
+contract in :file:`pyproject.toml` (services may not import each other --
 only ``chopper.core``).
 
-Semantics — POSIX-style glob with explicit ``**`` support:
+Semantics -- POSIX-style glob with explicit ``**`` support:
 
-* ``**``    → zero or more path segments (``(?:.*/)?`` when followed by
+* ``**``    -> zero or more path segments (``(?:.*/)?`` when followed by
             ``/``, ``.*`` otherwise).
-* ``*``     → any run of non-``/`` characters.
-* ``?``     → exactly one non-``/`` character.
-* ``[...]`` → character class; leading ``!`` is the negation form.
+* ``*``     -> any run of non-``/`` characters.
+* ``?``     -> exactly one non-``/`` character.
+* ``[...]`` -> character class; leading ``!`` is the negation form.
 
 The ``glob_to_regex`` helper returns ``None`` for patterns with no ``**``
 so the caller can fall back to :func:`fnmatch.fnmatchcase` (which is
@@ -36,7 +36,7 @@ def glob_to_regex(pattern: str) -> re.Pattern[str] | None:
 
     Returns ``None`` for patterns containing no ``**`` so the caller can
     fall back to :func:`fnmatch.fnmatchcase`. The compiled regex matches
-    the *entire* path (no implicit anchors are added — callers should use
+    the *entire* path (no implicit anchors are added -- callers should use
     :meth:`re.Pattern.fullmatch` if they want anchored matching, which is
     what every current call site does).
     """

@@ -36,7 +36,7 @@ class TestFileTreatment:
         assert isinstance(FileTreatment.FULL_COPY, str)
 
     def test_members_exhaustive(self) -> None:
-        # Architecture Doc §5.5 defines exactly these four dispositions; adding a fifth
+        # Architecture Doc Sec.5.5 defines exactly these four dispositions; adding a fifth
         # without touching the spec is a drift regression.
         assert {m.name for m in FileTreatment} == {"FULL_COPY", "PROC_TRIM", "GENERATED", "REMOVE"}
 
@@ -762,7 +762,7 @@ def _make_proc(
 
 
 class TestProcEntryCanonicalName:
-    """IMPLEMENTATION.md (parser section) §1.4.3.1 canonical-name test vectors."""
+    """IMPLEMENTATION.md (parser section) Sec.1.4.3.1 canonical-name test vectors."""
 
     @pytest.mark.parametrize(
         ("file_path", "qualified_name", "expected"),
@@ -811,17 +811,17 @@ class TestProcEntryLineInvariants:
         assert proc.start_line <= proc.body_start_line <= proc.body_end_line <= proc.end_line
 
     def test_one_line_proc(self) -> None:
-        # §6.2 edge case: one-line proc ⇒ start==end==body_start==body_end.
+        # Sec.6.2 edge case: one-line proc => start==end==body_start==body_end.
         proc = _make_proc(start=5, end=5, body_start=5, body_end=5)
         assert proc.start_line == proc.end_line == 5
 
     def test_empty_multiline_body_allowed(self) -> None:
-        # §6.2 edge case: body_start > body_end means empty body.
+        # Sec.6.2 edge case: body_start > body_end means empty body.
         proc = _make_proc(start=3, end=4, body_start=4, body_end=3)
         assert proc.body_start_line > proc.body_end_line
 
     def test_whitespace_body(self) -> None:
-        # §6.2 edge case: blank lines inside body.
+        # Sec.6.2 edge case: blank lines inside body.
         proc = _make_proc(start=6, end=9, body_start=7, body_end=8)
         assert proc.body_end_line == 8
 
@@ -964,7 +964,7 @@ class TestParseResult:
     def test_index_extra_key_accepted(self) -> None:
         # The relaxed invariant (Option A: full-domain proc index) allows
         # ``index`` to carry entries whose ``defined_in`` is NOT a key of
-        # ``files`` — those are non-surfaced files harvested so the P4
+        # ``files`` -- those are non-surfaced files harvested so the P4
         # tracer can resolve cross-file calls and report the actual
         # defining path.
         proc = _make_proc(file="a.tcl", short="helper", qualified="helper")
@@ -976,7 +976,7 @@ class TestParseResult:
         )
         assert pr.index["a.tcl::helper"] is proc
         assert pr.index["b.tcl::stray"] is stray
-        # Extra-index entry has no corresponding ``files`` row — confirms
+        # Extra-index entry has no corresponding ``files`` row -- confirms
         # the surface-vs-domain split.
         assert Path("b.tcl") not in pr.files
 
@@ -1016,7 +1016,7 @@ class TestParseResult:
         assert list(pr.index.keys()) == sorted(pr.index.keys())
 
     def test_index_entry_refers_to_different_instance_rejected(self) -> None:
-        # The same canonical_name but a distinct ProcEntry instance — a shape
+        # The same canonical_name but a distinct ProcEntry instance -- a shape
         # the service layer must never produce.
         kwargs = {
             "canonical_name": "a.tcl::helper",

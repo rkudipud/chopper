@@ -9,7 +9,7 @@ trimmer's contract.
 
 The header text is the canonical Intel legal-compliant copyright block
 shipped with every Intel-owned EDA file. It is reproduced verbatim
-below — including the original whitespace (the trailing spaces after
+below -- including the original whitespace (the trailing spaces after
 the ``#`` on the blank-padding line and on a few of the wrapped lines
 preserve the source byte-for-byte). Only the copyright **year** is
 dynamic: it is computed at emission time from
@@ -34,7 +34,7 @@ __all__ = ["intel_header_lines", "intel_header_text"]
 # The single dynamic field is ``{year}``; everything else is fixed.
 #
 # Do not edit the wording or whitespace without architecture-doc
-# approval (see ARCHITECTURE.md §6.6.1).
+# approval (see ARCHITECTURE.md Sec.6.6.1).
 _HEADER_TEMPLATE = (
     "####################################################################################################\n"
     "#Intel Legal compliant copyright header\n"

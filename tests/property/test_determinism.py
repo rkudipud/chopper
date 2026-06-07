@@ -1,7 +1,7 @@
 """Property tests for determinism (NFR-03).
 
 Closes T-02 from the 2026-04-23 spec-conformance audit. NFR-03
-(ARCHITECTURE.md §11) is *"byte-identical output on every run"*.
+(ARCHITECTURE.md Sec.11) is *"byte-identical output on every run"*.
 Before these tests existed, determinism was asserted only by
 example-based unit tests. Hypothesis explores a much wider input space
 and catches accidental dependencies on dict insertion order, set
@@ -16,11 +16,11 @@ What this module guards:
    ``sort_keys=True`` but property-checked in the wild).
 3. **BFS frontier determinism.** Given a random call graph, the BFS
    traversal order is purely a function of the *set* of seeds + edges,
-   not of their input ordering. This matches the contract in architecture doc §5.4
-   and IMPLEMENTATION.md (parser section) §1.8.5.2: *"frontier sorted lexicographically at
+   not of their input ordering. This matches the contract in architecture doc Sec.5.4
+   and IMPLEMENTATION.md (parser section) Sec.1.8.5.2: *"frontier sorted lexicographically at
    each step"*.
 
-The tests deliberately stay at the pure-function level — no
+The tests deliberately stay at the pure-function level -- no
 ``ChopperContext``, no filesystem. Tracer-service determinism is
 integration-covered by the golden-file tests in
 ``tests/golden/test_audit_artifacts_golden.py``.
@@ -37,7 +37,7 @@ from hypothesis import strategies as st
 from chopper.core.serialization import dump_model
 
 # ---------------------------------------------------------------------------
-# Strategies — JSON-able value trees the serializer must handle.
+# Strategies -- JSON-able value trees the serializer must handle.
 # ---------------------------------------------------------------------------
 #
 # Deliberately narrower than "everything JSON accepts" so each failure is
@@ -111,11 +111,11 @@ def test_dump_model_is_insertion_order_independent(pairs: list[tuple[str, int]])
 
 
 # ---------------------------------------------------------------------------
-# 3. BFS determinism — pure property test over a call-graph shape.
+# 3. BFS determinism -- pure property test over a call-graph shape.
 # ---------------------------------------------------------------------------
 #
-# Mirrors the shape the tracer uses (architecture doc §1.5.5, IMPLEMENTATION.md
-# (parser section) §1.8.5.2): seeds + adjacency lists. ``bfs_visit`` below is the same algorithm
+# Mirrors the shape the tracer uses (architecture doc Sec.1.5.5, IMPLEMENTATION.md
+# (parser section) Sec.1.8.5.2): seeds + adjacency lists. ``bfs_visit`` below is the same algorithm
 # (frontier sorted lex at each step, visited set dedupes). The property
 # asserts that shuffling the input ordering of seeds and of each
 # adjacency list produces the same visit sequence.
@@ -157,7 +157,7 @@ def test_bfs_visit_is_deterministic_under_input_shuffling(seeds: list[str], edge
     for src, dst in edges:
         adjacency.setdefault(src, []).append(dst)
 
-    # Build a second adjacency where each list is reversed — same graph,
+    # Build a second adjacency where each list is reversed -- same graph,
     # different input ordering.
     shuffled = {k: list(reversed(v)) for k, v in adjacency.items()}
 

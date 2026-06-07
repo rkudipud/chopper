@@ -7,11 +7,11 @@ into temporary directories so the rebuilt/backup roots can live alongside
 them without polluting the committed fixtures.
 
 ``mini_domain`` tests use dry-run to prove the parser's I/O boundary
-(relative path → absolute resolution against ``domain_root``) works on
+(relative path -> absolute resolution against ``domain_root``) works on
 real disk.
 
 ``stages_domain`` tests exercise both dry-run (manifest shape) and live
-trim (``options.generate_stack`` → ``.tcl`` + ``.stack`` on disk) of the
+trim (``options.generate_stack`` -> ``.tcl`` + ``.stack`` on disk) of the
 F3 stage generation path.  These are the authoritative integration tests
 for ``options.generate_stack``.
 """
@@ -82,12 +82,12 @@ def _copy_fixture_jsons(domain: Path, target: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# mini_domain — baseline F1/F2 dry-run
+# mini_domain -- baseline F1/F2 dry-run
 # ---------------------------------------------------------------------------
 
 
 def test_runner_localfs_dry_run_mini_domain(tmp_path: Path) -> None:
-    """Full P0→P7 dry-run succeeds on the real-disk ``mini_domain`` fixture."""
+    """Full P0->P7 dry-run succeeds on the real-disk ``mini_domain`` fixture."""
 
     domain = tmp_path / "mini_domain"
     shutil.copytree(FIXTURE_MINI, domain)
@@ -321,7 +321,7 @@ def test_runner_localfs_live_trim_writes_proc_trim_and_generated_tcl_verbatim(tm
 
 
 # ---------------------------------------------------------------------------
-# stages_domain — F3 generate_stack dry-run (manifest shape)
+# stages_domain -- F3 generate_stack dry-run (manifest shape)
 # ---------------------------------------------------------------------------
 
 
@@ -345,7 +345,7 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
     manifest = result.manifest
     assert manifest.generate_stack is True
 
-    # Three stages → three .tcl GENERATED entries, plus one aggregate
+    # Three stages -> three .tcl GENERATED entries, plus one aggregate
     # ``stages_domain.stack`` (domain basename). No per-stage .stack files
     # because no stage has ``standalone_stack: true``.
     generated = {p.as_posix() for p, t in manifest.file_decisions.items() if t is FileTreatment.GENERATED}
@@ -365,7 +365,7 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# stages_domain — F3 generate_stack live trim (files on disk)
+# stages_domain -- F3 generate_stack live trim (files on disk)
 # ---------------------------------------------------------------------------
 
 
@@ -418,7 +418,7 @@ def test_runner_localfs_live_trim_stages_domain_generates_stack_files(tmp_path: 
     promote_idx = aggregate_text.index("# Chopper-generated stack: promote\n")
     assert setup_idx < run_idx < promote_idx
 
-    # setup record content (first stage — bare D, serial → no R line).
+    # setup record content (first stage -- bare D, serial -> no R line).
     assert "N setup\n" in aggregate_text
     assert "J -xt vw my_shell -B BLOCK -T setup\n" in aggregate_text
     assert "L 0\n" in aggregate_text
@@ -471,7 +471,7 @@ def test_runner_localfs_live_trim_stages_domain_stack_files_in_audit(tmp_path: P
 def test_runner_localfs_live_trim_emits_p4_commands_txt(tmp_path: Path) -> None:
     """``.chopper/p4_commands.txt`` is emitted by live trim with the
     expected ``p4 add -t text+x`` lines for newly-generated stage files
-    (FR-47, architecture doc §5.5.14).
+    (FR-47, architecture doc Sec.5.5.14).
 
     The ``stages_domain`` fixture has no pre-existing ``setup.tcl`` /
     ``run_flow.tcl`` / ``promote.tcl`` / ``*.stack`` files in the source
@@ -492,10 +492,10 @@ def test_runner_localfs_live_trim_emits_p4_commands_txt(tmp_path: Path) -> None:
     # Banner present.
     assert content.startswith("# p4_commands.txt")
     assert content.endswith("\n")
-    # Generated per-stage ``.tcl`` files (no pre-existing depot counterpart) → p4 add.
+    # Generated per-stage ``.tcl`` files (no pre-existing depot counterpart) -> p4 add.
     for stage_name in ("setup", "run_flow", "promote"):
         assert f"p4 add -t text+x {stage_name}.tcl" in content, f"missing p4 add for {stage_name}.tcl"
-        # No per-stage .stack — only the aggregate.
+        # No per-stage .stack -- only the aggregate.
         assert f"p4 add -t text+x {stage_name}.stack" not in content
     # Aggregate ``<domain-basename>.stack`` added once.
     assert "p4 add -t text+x stages_domain.stack" in content
@@ -506,7 +506,7 @@ def test_runner_localfs_live_trim_emits_p4_commands_txt(tmp_path: Path) -> None:
 
 def test_runner_localfs_dry_run_emits_p4_commands_txt(tmp_path: Path) -> None:
     """Dry-run also emits ``p4_commands.txt`` (preview, consistent with
-    every other audit artifact under §5.5.10)."""
+    every other audit artifact under Sec.5.5.10)."""
 
     domain = tmp_path / "stages_domain"
     shutil.copytree(FIXTURE_STAGES, domain)
@@ -518,7 +518,7 @@ def test_runner_localfs_dry_run_emits_p4_commands_txt(tmp_path: Path) -> None:
     p4_path = domain / ".chopper" / "p4_commands.txt"
     assert p4_path.exists(), "dry-run must still emit p4_commands.txt"
     content = p4_path.read_text()
-    # Same preview content: each generated stage → p4 add.
+    # Same preview content: each generated stage -> p4 add.
     for stage_name in ("setup", "run_flow", "promote"):
         assert f"p4 add -t text+x {stage_name}.tcl" in content
 
@@ -584,7 +584,7 @@ def test_runner_localfs_overlay_no_op_exclude_emits_ve27(tmp_path: Path) -> None
     """Feature-layer ``files.exclude`` entry that matches nothing emits ``VE-27``.
 
     The fixture's feature layer (``feature_typo``) declares a ``files.exclude``
-    of ``unrelated.tcl`` — a path that the running set established by earlier
+    of ``unrelated.tcl`` -- a path that the running set established by earlier
     layers does not contain. Per the 2.0.0-alpha overlay contract, the compiler
     emits ``VE-27 no-op-exclude`` directly at this site (typo-class guard) and
     the run exits with code 1.

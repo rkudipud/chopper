@@ -18,7 +18,7 @@ cases:
 +------+---------------+-------------------+---------------------------+
 
 Case 4 is the only state that emits a diagnostic (``VE-21``). Cases
-1–3 are purely classificatory; downstream services react to the case
+1-3 are purely classificatory; downstream services react to the case
 number.
 
 The service does not mutate the filesystem. Safe under ``--dry-run``.

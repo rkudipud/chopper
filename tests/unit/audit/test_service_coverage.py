@@ -114,7 +114,7 @@ def test_copy_inputs_with_readable_base_and_unreadable_feature() -> None:
     base_path = DOMAIN / "base.json"
     feature_path = DOMAIN / "feat.json"
     fs.write_text(base_path, '{"domain": "d"}')
-    # feat.json intentionally NOT written → _safe_read returns None → feature skipped
+    # feat.json intentionally NOT written -> _safe_read returns None -> feature skipped
 
     base = BaseJson(source_path=base_path, domain="d")
     feature = FeatureJson(source_path=feature_path, name="feat")
@@ -149,7 +149,7 @@ def test_copy_inputs_feature_with_none_text_continues() -> None:
     base_path = DOMAIN / "base.json"
     feature_path = DOMAIN / "missing_feat.json"
     fs.write_text(base_path, '{"domain": "d"}')
-    # Do NOT write feature_path → _safe_read returns None → lines 143-144 hit
+    # Do NOT write feature_path -> _safe_read returns None -> lines 143-144 hit
 
     base = BaseJson(source_path=base_path, domain="d")
     feature = FeatureJson(source_path=feature_path, name="missing_feat")
@@ -168,7 +168,7 @@ def test_copy_inputs_feature_with_none_text_continues() -> None:
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
     result = AuditService()._copy_inputs(ctx2, record)
-    # Feature was unreadable → only base entry present
+    # Feature was unreadable -> only base entry present
     names = [n for n, _ in result]
     assert "input_base.json" in names
     assert not any("missing_feat" in n for n in names)
@@ -186,7 +186,7 @@ def test_copy_inputs_readable_feature_written() -> None:
     base_path = DOMAIN / "base.json"
     feature_path = DOMAIN / "feat.json"
     fs.write_text(base_path, '{"domain": "d"}')
-    fs.write_text(feature_path, '{"name": "feat"}')  # readable → lines 143-144 hit
+    fs.write_text(feature_path, '{"name": "feat"}')  # readable -> lines 143-144 hit
 
     base = BaseJson(source_path=base_path, domain="d")
     feature = FeatureJson(source_path=feature_path, name="feat")

@@ -1,11 +1,11 @@
-"""Validator package — pre-trim (P1b) and post-trim (P6) checks.
+"""Validator package -- pre-trim (P1b) and post-trim (P6) checks.
 
 Implemented as two module-level functions (no service class). Each
 reads typed inputs and emits diagnostics through ``ctx.diag``.
 
-* :func:`validate_pre` — runs after :class:`ConfigService`, before
+* :func:`validate_pre` -- runs after :class:`ConfigService`, before
   :class:`ParserService`. Consumes :class:`LoadedConfig`.
-* :func:`validate_post` — runs after trim + generation. Consumes
+* :func:`validate_post` -- runs after trim + generation. Consumes
   :class:`CompiledManifest`, :class:`DependencyGraph`, and the tuple of
   rewritten paths.
 """

@@ -8,7 +8,7 @@ This module provides:
     named state-transition code point so integration tests can verify that
     Chopper's recovery path leaves the domain in a recoverable state.
   - assert_domain_recoverable(domain_path): asserts the domain invariant that
-    either a valid domain/ or a valid domain_backup/ (or both) exist — never
+    either a valid domain/ or a valid domain_backup/ (or both) exist -- never
     neither.
   - TRANSITION_POINTS: documented list of all 5 injection points from the
     DomainState machine.
@@ -31,13 +31,13 @@ from pathlib import Path
 #: next state promotion is confirmed.
 TRANSITION_POINTS: dict[str, str] = {
     "after_backup_created": (
-        "Injected after os.rename(domain → domain_backup) succeeds but before staging directory is created."
+        "Injected after os.rename(domain -> domain_backup) succeeds but before staging directory is created."
     ),
     "after_staging_written": (
-        "Injected after staging directory is fully written but before the atomic rename staging → domain."
+        "Injected after staging directory is fully written but before the atomic rename staging -> domain."
     ),
     "after_staging_promoted": (
-        "Injected immediately after staging → domain rename but before .chopper/ audit artifacts are written."
+        "Injected immediately after staging -> domain rename but before .chopper/ audit artifacts are written."
     ),
     "after_retrim_staging_written": (
         "Re-trim path equivalent of after_staging_written: after new staging is written but before promotion."
@@ -135,7 +135,7 @@ def assert_domain_recoverable(domain_path: Path) -> None:
     OR a valid ``domain_backup/`` directory (or both).  Never neither.
 
     A "valid" directory means it exists and is a non-empty directory (the
-    harness does not validate internal content — callers should follow up with
+    harness does not validate internal content -- callers should follow up with
     more specific assertions).
 
     :param domain_path: The ``domain/`` path that was being trimmed.
@@ -150,7 +150,7 @@ def assert_domain_recoverable(domain_path: Path) -> None:
         f"Domain invariant violated after crash:\n"
         f"  domain/        exists={domain_ok}  path={domain_path}\n"
         f"  domain_backup/ exists={backup_ok}  path={backup_path}\n"
-        "Neither directory is present — data loss scenario."
+        "Neither directory is present -- data loss scenario."
     )
 
 
