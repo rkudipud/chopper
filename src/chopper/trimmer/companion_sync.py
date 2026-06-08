@@ -29,6 +29,7 @@ module in that case).
 from __future__ import annotations
 
 import re
+import stat
 from pathlib import Path
 from typing import Literal
 
@@ -144,7 +145,18 @@ class CompanionSyncService:
         try:
             text = ctx.fs.read_text(companion_abs)
             filtered = _filter_csv(text, pi_names) if mode == "csv" else _filter_milestone(text, pi_names)
-            ctx.fs.write_text(companion_abs, filtered)
+
+            # Make writable if needed, write, then restore original mode
+            mode_bits: int | None = None
+            try:
+                if companion_abs.is_file():
+                    mode_bits = stat.S_IMODE(companion_abs.stat().st_mode)
+                    companion_abs.chmod(mode_bits | stat.S_IWUSR)
+                ctx.fs.write_text(companion_abs, filtered)
+            finally:
+                if mode_bits is not None:
+                    companion_abs.chmod(mode_bits)
+
         except (OSError, UnicodeDecodeError):
             # Best-effort: don't break the run for a companion sync failure.
             return None

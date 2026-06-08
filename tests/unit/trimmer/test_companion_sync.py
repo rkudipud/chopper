@@ -14,11 +14,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from chopper.adapters import InMemoryFS
+from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
 from chopper.core.models_trimmer import FileOutcome, TrimReport
 from chopper.trimmer.companion_sync import CompanionSyncService, _filter_csv, _filter_milestone
-from tests.unit.trimmer._helpers import DOMAIN, make_ctx
+from tests.unit.trimmer._helpers import DOMAIN, CollectingSink, _NullProgress, make_ctx
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -658,3 +659,67 @@ class TestCompanionSyncService:
 
         # Content didn't change -> bytes_out values match -> same TrimReport returned
         assert new_report is report
+
+    def test_chmod_restores_original_permissions_on_readonly_file(self, tmp_path):  # type: ignore[name-defined]
+        """When a companion file is read-only, chmod temporarily makes it writable,
+        writes the filtered content, then restores the original permissions."""
+        import stat
+
+        from chopper.adapters.fs_local import LocalFS
+
+        # Create test companion files in tmp directory
+        rules_rel = Path("default_rules.fm.tcl")
+        csv_rel = Path("default_config.fm.csv")
+        rules_file = tmp_path / rules_rel
+        csv_file = tmp_path / csv_rel
+
+        rules_file.write_text("# rules\n")
+        csv_file.write_text(_CSV_CONTENT)
+
+        # Make CSV file read-only (remove write permission)
+        original_mode = stat.S_IMODE(csv_file.stat().st_mode)
+        read_only_mode = original_mode & ~stat.S_IWUSR  # remove write for owner
+        csv_file.chmod(read_only_mode)
+
+        # Verify file is actually read-only
+        assert not (csv_file.stat().st_mode & stat.S_IWUSR)
+
+        # Set up context with LocalFS pointing to temp directory
+        sink = CollectingSink()
+        cfg = RunConfig(
+            domain_root=tmp_path,
+            backup_root=tmp_path / "_backup",
+            audit_root=tmp_path / ".chopper",
+            strict=False,
+            dry_run=False,
+        )
+        ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=sink, progress=_NullProgress())
+
+        # Build manifest and report using relative paths
+        manifest = _manifest_with_proc_trim(
+            str(rules_rel),
+            surviving_procs=["Abort"],
+            extra_full_copy=[str(csv_rel)],
+        )
+        report = _trim_report(
+            rules_rel=str(rules_rel),
+            csv_rel=str(csv_rel),
+        )
+
+        # Run companion sync (should succeed despite read-only file)
+        # Note: paths in the manifest are relative, but _sync_one() needs absolutes
+        # The service resolves them against ctx.config.domain_root internally
+        CompanionSyncService().run(ctx, manifest, report)
+
+        # Verify the file was actually modified (content filtered)
+        csv_out = csv_file.read_text()
+        assert "DropMe" not in csv_out
+        assert "Abort" in csv_out
+
+        # Verify permissions were restored to read-only
+        final_mode = stat.S_IMODE(csv_file.stat().st_mode)
+        assert final_mode == read_only_mode
+        assert not (csv_file.stat().st_mode & stat.S_IWUSR)
+
+        # VI-04 diagnostic emitted
+        assert "VI-04" in sink.codes()
