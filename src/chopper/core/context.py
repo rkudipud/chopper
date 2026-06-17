@@ -75,6 +75,14 @@ class RunConfig:
       ``technical_docs/ARCHITECTURE.md`` Sec.3.10). The order does
       not affect behaviour -- the pool is a set -- but is preserved for
       audit reproducibility.
+    * ``ward_root``: the ``$WARD`` workspace root resolved when the user
+      passed a domain name to ``--domain`` instead of a filesystem path.
+      ``None`` in path-mode (absolute or cwd-relative path given). Used by
+      P7 audit to compute ``$WARD``-relative paths in ``p4_commands.txt``.
+    * ``domain_logical_name``: the logical ``vendor/name`` string for the
+      domain (e.g. ``snps/fev_formality``). Set by the CLI domain-name
+      resolver; ``None`` in path-mode. Used in the P4 branch analysis print
+      and as the audit label for multi-domain runs.
     """
 
     domain_root: Path
@@ -86,6 +94,13 @@ class RunConfig:
     base_path: Path | None = None
     feature_paths: tuple[Path, ...] = ()
     tool_command_paths: tuple[Path, ...] = ()
+    ward_root: Path | None = None
+    """$WARD workspace root used to resolve domain name lookup. ``None`` when
+    ``--domain`` was provided as a path rather than a logical name."""
+    domain_logical_name: str | None = None
+    """Logical domain name in ``vendor/name`` form (e.g. ``snps/fev_formality``).
+    ``None`` when domain was provided as a direct filesystem path.
+    Used in P4 branch analysis output and ward-relative path computation."""
 
 
 @dataclass(frozen=True)

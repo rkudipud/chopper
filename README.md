@@ -433,6 +433,17 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.1.0 — 2026-06-17
+
+- **Domain-name resolution via `$WARD`.** `--domain` now accepts logical names (`fev_formality`, `snps/power`) resolved via `$WARD/global/<vendor>/<name>`. Bare-name search finds unique vendor match automatically; ambiguous names require `vendor/name` notation (VE-34). Absolute paths bypass `$WARD` for backward compat.
+- **Base JSON auto-discovery.** When `--domain` provides a named domain and `--base` is not supplied, Chopper searches `<domain>/jsons/base.json` automatically (VE-35 if not found).
+- **Feature-name lookup.** `--features` accepts feature names (e.g. `dft,power`) resolved from `<domain>/jsons/features/*.feature.json`, with close-match suggestions for typos (VE-36). Explicit file paths still accepted (backward compat).
+- **Multi-domain sequential trim.** `--domain` accepts a CSV list for sequential multi-domain runs; final exit code is the maximum across all domains.
+- **P4 branch analysis.** After every run, Chopper prints a P4 branch analysis: "NO BRANCH NEEDED" (pure removals — P4 template resync) vs "BRANCH NEEDED" (files modified or added). Multi-domain shows per-domain and aggregate verdicts.
+- **`exclude_file_list` replaces `p4 delete`.** The `p4 delete` command section in `p4_commands.txt` is now an `exclude_file_list` section of bare `$WARD`-relative paths for use in P4 client-spec exclusion mappings.
+- **New diagnostics:** VE-32 (`ward-env-not-set`), VE-33 (`domain-not-found`), VE-34 (`ambiguous-domain-name`), VE-35 (`base-autodiscovery-failed`), VE-36 (`feature-name-not-found`). FR-48 added.
+- Version bumped 4.0.0 → 4.1.0.
+
 ### 4.0.0 — 2026-06-05
 
 - **MCP surface removed.** The stdio-only read-only Model Context Protocol server added in 0.4.0 is gone: the `chopper mcp-serve` subcommand, the `src/chopper/mcp/` package, the `mcp>=1.0,<2` runtime dependency, the `PE-04 mcp-protocol-error` diagnostic, and process exit code `4` are all removed. Chopper now ships **four** subcommands (`validate`, `trim`, `loc`, `cleanup`) and depends only on `jsonschema` at runtime.

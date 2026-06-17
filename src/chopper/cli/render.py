@@ -22,12 +22,13 @@ from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
 from chopper.core.fs_walk import EXCLUDED_FILENAMES, EXCLUDED_SUFFIXES, TEXT_LIKE_EXTENSIONS, walk_files
 from chopper.core.models_audit import RunResult
-from chopper.core.models_common import FileTreatment
+from chopper.core.models_common import DomainRunResult, FileTreatment
 from chopper.core.models_trimmer import TrimReport
 
 __all__ = [
     "render_cleanup_message",
     "render_diagnostics",
+    "render_p4_branch_analysis",
     "render_result",
     "render_trim_stats",
 ]
@@ -436,3 +437,56 @@ def _render_table(
     out.write(rule + "\n")  # body / total separator
     _emit(body[-1])  # TOTAL row
     out.write(rule + "\n")  # bottom border (footer)
+
+
+# ---------------------------------------------------------------------------
+# P4 branch analysis summary (rendered after trim or dry-run)
+# ---------------------------------------------------------------------------
+
+
+def render_p4_branch_analysis(
+    domain_results: Sequence[DomainRunResult],
+    *,
+    stream: TextIO = sys.stdout,
+) -> None:
+    """Print a P4 branch analysis summary after trim or dry-run.
+
+    For each domain, classifies the run as "NO BRANCH NEEDED" (only file
+    removals — a P4 template resync is sufficient) or "BRANCH NEEDED"
+    (at least one ``PROC_TRIM`` or ``GENERATED`` treatment means files
+    will be modified or added, requiring a P4 branch).
+
+    In multi-domain mode the per-domain verdicts are followed by an
+    aggregate verdict and the list of domains that need a branch.
+
+    See ``technical_docs/ARCHITECTURE.md`` §5.5.15 and FR-48.
+    """
+    if not domain_results:
+        return
+
+    stream.write("\n=== P4 Branch Analysis ===\n")
+
+    needs_branch: list[str] = []
+
+    for dr in domain_results:
+        if dr.branch_needed:
+            detail = f"{dr.edits_count} edit(s), {dr.adds_count} add(s)"
+            verdict = f"BRANCH NEEDED ({detail})"
+            needs_branch.append(dr.domain_logical_name)
+        else:
+            verdict = f"NO BRANCH NEEDED — only {dr.removes_count} removal(s); P4 template resync sufficient"
+
+        if len(domain_results) == 1:
+            stream.write(f"{dr.domain_logical_name}: {verdict}\n")
+        else:
+            stream.write(f"  {dr.domain_logical_name:<30s} : {verdict}\n")
+
+    if len(domain_results) > 1:
+        stream.write("\n")
+        if needs_branch:
+            stream.write("Final verdict     : BRANCH NEEDED\n")
+            stream.write(f"Domains needing branch: {', '.join(needs_branch)}\n")
+        else:
+            stream.write("Final verdict     : NO BRANCH NEEDED — all domains are removal-only\n")
+
+    stream.write("\n")

@@ -20,7 +20,7 @@
 5. [Audit & Diagnostics](#5-audit--diagnostics) — Diagnostic emission and audit-bundle invariants (P-18, P-19)
 6. [Backup & Recovery](#6-backup--recovery) — Re-trim semantics (P-20)
 7. [Configuration & Paths](#7-configuration--paths) — Path normalization, config-file resolution (P-21, P-22)
-8. [CLI & Presentation](#8-cli--presentation) — Dry-run, project JSON path resolution, mutually-exclusive flags, --strict, cleanup (P-23, P-25, P-26, P-27, P-28)
+8. [CLI & Presentation](#8-cli--presentation) — Dry-run, project JSON path resolution, mutually-exclusive flags, --strict, cleanup, domain name resolution (P-23, P-25, P-26, P-27, P-28, P-43 … P-47)
 9. [Hook Files](#9-hook-files) — `-use_hooks` discovery-only contract (P-29)
 10. [Project JSON](#10-project-json) — Project-mode metadata flow and domain consistency (P-30, P-31)
 11. [Testing Strategy](#11-testing-strategy) — Stage gating and edge-case timing (P-24)
@@ -2088,6 +2088,97 @@ chopper cleanup
 **Test:** Scenario: `chopper cleanup` without `--confirm` → exit code 2, backup untouched.
 
 ---
+
+### Pitfall P-43: `$WARD` Path Contains Symlinks — Always `.resolve()` Before `relative_to()`
+
+**THE TRAP:**
+```python
+ward_root = Path(os.environ["WARD"])
+domain_root = Path("/p/work/my_ward/global/snps/fev_formality")
+# WRONG: relative_to may fail if $WARD contains symlinks
+rel = domain_root.relative_to(ward_root)
+
+# CORRECT: resolve both before computing relative path
+rel = domain_root.resolve().relative_to(ward_root.resolve())
+```
+
+**Correct Behavior:** `DomainLookupResult.ward_root` and all paths used in `render_p4_commands` `exclude_file_list` computation must call `.resolve()` on both sides before `relative_to()`. This handles workspace symlinks common in EDA environments (`/p/` → NFS mount, workspace soft links).
+
+**Why It Matters:** NFS workspaces on EDA servers routinely use symlinks. Without `.resolve()` the `relative_to()` call raises `ValueError` and the audit bundle writes incorrect paths.
+
+**Test:** Construct a `ward_root` path that contains a symlink component; verify `exclude_file_list` paths are correct.
+
+---
+
+### Pitfall P-44: Comma in Domain Name Is Not Supported in Multi-Domain CSV
+
+**THE TRAP:**
+```bash
+# WRONG: domain name that contains a comma
+chopper trim --domain "snps/fev,eco,trim"
+# Parsed as three tokens: "snps/fev", "eco", "trim"
+```
+
+**Correct Behavior:** Commas are the multi-domain delimiter. Domain names that contain commas are not supported. `_split_domain_csv` splits on commas without escaping. If a domain name contains a comma, the user must pass it as an absolute path instead.
+
+**Why It Matters:** Commas in domain names are rare but theoretically possible. The split is intentionally simple (YAGNI).
+
+**Test:** Verify that `_split_domain_csv("snps/fev,eco")` returns `["snps/fev", "eco"]`.
+
+---
+
+### Pitfall P-45: Double-Suffix `.feature.feature.json` Names Map to `foo.feature`
+
+**THE TRAP:**
+```python
+# File: "weird.feature.feature.json"
+# stem = "weird.feature.feature"
+# removesuffix(".feature") → "weird.feature"
+# NOT "weird"
+```
+
+**Correct Behavior:** `resolve_feature_names` computes the name as `Path(p).stem.removesuffix(".feature")`. A file named `foo.feature.feature.json` maps to the name `foo.feature`, not `foo`. This is intentional — it follows the single `removesuffix` rule and avoids ambiguity.
+
+**Why It Matters:** Feature files should follow the `<name>.feature.json` convention. Files with double `.feature.feature.json` suffixes are unusual but the behavior must be predictable.
+
+**Test:** `resolve_feature_names("weird.feature", domain)` where `jsons/features/weird.feature.feature.json` exists; verify it is resolved.
+
+---
+
+### Pitfall P-46: Mixed Ward/Path Modes in Multi-Domain Run — Each Domain's RunConfig Is Independent
+
+**THE TRAP:**
+```bash
+# One domain from $WARD (name-mode), one as absolute path (path-mode)
+chopper trim --domain "fev_formality,/p/abs/other_domain"
+```
+
+**Correct Behavior:** Each token in the CSV is resolved independently. Name-mode tokens get `ward_root` and `domain_logical_name` set on their `RunConfig`; path-mode tokens get `ward_root=None` and `domain_logical_name=None`. The `exclude_file_list` section in `p4_commands.txt` uses domain-relative paths for path-mode domains (no `$WARD` available).
+
+**Why It Matters:** The multi-domain loop calls `_build_run_config` for each token independently, so each domain's `RunConfig` is fully isolated. Mixing modes is valid but the audit output differs per domain.
+
+**Test:** Verify that in a mixed CSV run, the name-mode domain's `RunConfig.ward_root` is set and the path-mode domain's `RunConfig.ward_root` is `None`.
+
+---
+
+### Pitfall P-47: `difflib.get_close_matches` Cutoff=0.5 for VE-36 Suggestions
+
+**THE TRAP:**
+```python
+# If cutoff is too high, obvious typos get no suggestion
+close = difflib.get_close_matches("dft_scam", ["dft_scan"], cutoff=0.8)
+# → []  (no suggestion even though only 1 character differs)
+
+# CORRECT: cutoff=0.5 catches most single-character typos
+close = difflib.get_close_matches("dft_scam", ["dft_scan"], n=3, cutoff=0.5)
+# → ["dft_scan"]
+```
+
+**Correct Behavior:** `resolve_feature_names` uses `difflib.get_close_matches(token, names, n=3, cutoff=0.5)` for VE-36 suggestions. Cutoff 0.5 is intentionally permissive — it catches single-character typos in typical feature names.
+
+**Why It Matters:** The suggestion quality directly affects user recovery speed when `VE-36` fires. Too-tight cutoff produces no hints; too-loose produces noisy hints. 0.5 was empirically chosen for EDA feature-name conventions.
+
+**Test:** Verify `resolve_feature_names("dft_scam", domain)` where `dft_scan.feature.json` exists returns a suggestion containing `dft_scan`.
 
 
 ---

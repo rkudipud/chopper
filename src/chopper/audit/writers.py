@@ -502,23 +502,23 @@ def _format_removed_provenance(prov) -> str:  # type: ignore[no-untyped-def]
     return f"shadowed-by:{last.layer}:procedures.exclude"
 
 
-def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]:
+def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Path | None = None) -> tuple[str, str]:
     """Perforce command list correlating each file-treatment decision to a
     ready-to-execute ``p4`` command.
 
     Three alphabetically-sorted sections, each headed by a ``#``-comment
     line and separated by a blank line; section order is fixed
-    (edits -> adds -> deletes):
+    (edits -> adds -> exclude_file_list):
 
     * ``p4 edit -t text+x <path>`` -- every ``PROC_TRIM`` file, plus every
       ``GENERATED`` file whose path exists in the pre-trim source root
       (regenerate-in-place; the depot file is being overwritten).
     * ``p4 add -t text+x <path>`` -- every ``GENERATED`` file whose path
       does not exist pre-trim (newly created stage file).
-    * ``p4 delete <path>`` -- every file that exists in the pre-trim source
-      tree but not in the rebuilt domain's surviving set; coextensive
-      with the entries in ``files_removed.txt``. No ``-t`` flag because
-      Perforce derives the filetype from the existing depot entry.
+    * ``exclude_file_list`` (4.1.0+) -- bare path list replacing the former
+      ``p4 delete`` section. Paths are ``$WARD``-relative when ``$WARD`` is
+      set and the domain is under it; domain-relative otherwise. Use as
+      P4 client-spec exclusion mapping lines.
 
     ``FULL_COPY`` files emit no command: the rebuilt copy is byte-identical
     to the depot version.
@@ -561,24 +561,40 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
                     adds.append(rel)
             # FULL_COPY -> no command; REMOVE handled below.
 
-    # `p4 delete` set is parity with `files_removed.txt`:
+    # Resolve ward_root: explicit parameter wins; then fall back to ctx.config.ward_root.
+    _ward_root = ward_root
+    if _ward_root is None and ctx.config.ward_root is not None:
+        _ward_root = ctx.config.ward_root
+
+    # Compute the prefix to prepend to each domain-relative path in the
+    # exclude_file_list section.  When we have a ward_root, the paths are
+    # $WARD-relative (e.g. global/snps/fev_formality/src/foo.tcl).
+    # When ward_root is not set, fall back to domain-relative paths.
+    _ward_prefix: str | None = None
+    if _ward_root is not None:
+        try:
+            _ward_prefix = ctx.config.domain_root.relative_to(_ward_root.resolve()).as_posix()
+        except ValueError:
+            # domain_root is not under ward_root — fall back to domain-relative paths
+            _ward_prefix = None
+
+    # exclude_file_list set is parity with `files_removed.txt`:
     # walk(source_root) - kept_set. Falls back to manifest REMOVE
     # decisions when no source root is available.
-    deletes: list[str]
+    delete_domain_rels: list[Path]
     if source_root is not None:
         kept_paths: set[Path] = set()
         if manifest is not None:
             kept_paths = {p for p, t in manifest.file_decisions.items() if t in _KEPT_TREATMENTS}
         physical_paths = _walk_relative_files(ctx, source_root)
-        deletes = [p.as_posix() for p in (set(physical_paths) - kept_paths)]
+        delete_domain_rels = sorted(set(physical_paths) - kept_paths)
     elif manifest is not None:
-        deletes = [p.as_posix() for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE]
+        delete_domain_rels = sorted(p for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE)
     else:
-        deletes = []
+        delete_domain_rels = []
 
     edits.sort()
     adds.sort()
-    deletes.sort()
 
     lines: list[str] = [
         "# p4_commands.txt -- Perforce commands corresponding to this Chopper trim.",
@@ -595,12 +611,21 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord) -> tuple[str, str
         lines.append("")
         lines.append("# p4 add -- GENERATED files newly created by this trim (no prior depot entry).")
         lines.extend(f"p4 add -t text+x {p}" for p in adds)
-    if deletes:
+    if delete_domain_rels:
         lines.append("")
-        lines.append("# p4 delete -- files dropped from the rebuilt domain.")
-        lines.extend(f"p4 delete {p}" for p in deletes)
+        if _ward_prefix is not None:
+            lines.append("# exclude_file_list -- files to remove from P4 client view.")
+            lines.append("# Paths are $WARD-relative (relative to the $WARD workspace root).")
+            lines.append("# Use these as exclusion mapping lines in your P4 client spec.")
+            for rel_path in delete_domain_rels:
+                lines.append(f"{_ward_prefix}/{rel_path.as_posix()}")
+        else:
+            lines.append("# exclude_file_list -- files to remove from P4 client view.")
+            lines.append("# Paths are domain-relative ($WARD not set; use as-is from domain root).")
+            for rel_path in delete_domain_rels:
+                lines.append(rel_path.as_posix())
 
-    if not (edits or adds or deletes):
+    if not (edits or adds or delete_domain_rels):
         lines.append("")
         lines.append("# (no Perforce commands -- nothing to submit)")
 

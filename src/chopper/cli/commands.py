@@ -8,6 +8,9 @@ from CLI flags to :class:`RunConfig` and :class:`ChopperContext`.
 from __future__ import annotations
 
 import argparse
+import copy
+import json
+import sys
 from pathlib import Path
 
 from chopper.adapters import (
@@ -17,14 +20,23 @@ from chopper.adapters import (
     RichUnavailableError,
     SilentProgress,
 )
+from chopper.cli.domain_lookup import DomainLookupResult, resolve_domain
+from chopper.cli.feature_lookup import resolve_feature_names
+from chopper.cli.loc_report import (
+    build_loc_report,
+    build_loc_report_baseline_only,
+    render_loc_report,
+)
 from chopper.cli.render import (
     render_cleanup_message,
     render_diagnostics,
+    render_p4_branch_analysis,
     render_result,
     render_trim_stats,
 )
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.models_common import DomainRunResult, FileTreatment
 from chopper.core.protocols import ProgressSink
 from chopper.orchestrator import ChopperRunner
 
@@ -36,51 +48,61 @@ __all__ = ["cmd_cleanup", "cmd_loc", "cmd_trim", "cmd_validate"]
 # ---------------------------------------------------------------------------
 
 
-def _resolve_domain_root(args: argparse.Namespace) -> tuple[Path, Path | None]:
+def _resolve_domain_root(
+    args: argparse.Namespace,
+) -> tuple[Path, Path | None, DomainLookupResult | None]:
     """Resolve the operational domain root.
 
-    Per ``technical_docs/ARCHITECTURE.md`` Sec.5.1 (Domain-root resolution),
-    a single two-step rule applies:
+    Extended to support named domain lookup via ``$WARD/global/`` when
+    ``--domain`` is a logical name rather than a filesystem path.
+    See ``technical_docs/ARCHITECTURE.md`` §5.1.0.
 
-    1. **Pick the candidate.** If ``--domain`` is provided, the candidate
-       is ``Path(args.domain).resolve()`` and cwd is not consulted.
-       Otherwise the candidate is ``Path.cwd().resolve()``.
-    2. **Conditional ``_backup`` redirect.** If the candidate's basename
-       ends in ``_backup`` *and* the stripped sibling exists as a
-       directory, the operational domain root becomes that sibling and
-       the original candidate is reported as the previous-run snapshot
-       (caller emits ``VI-03 domain-suffix-strip-applied``). The
-       redirect is single-shot: ``foo_backup_backup`` redirects to
-       ``foo_backup`` if and only if ``foo_backup/`` exists. If the
-       stripped sibling does not exist on disk, the candidate is
-       returned unchanged -- a coincidentally-named domain is honored
-       as-is.
+    Returns ``(domain_root, original_candidate_if_redirected, lookup_result_or_none)``.
+    The third element is the :class:`~chopper.cli.domain_lookup.DomainLookupResult`
+    when name-mode was used; ``None`` when path-mode was used (backward compat)
+    or when ``--domain`` was absent (cwd mode).
 
-    Returns a ``(domain_root, original_candidate)`` tuple. The second
-    element is the unstripped candidate when the redirect was applied;
-    it is ``None`` otherwise.
+    Emits VE-32/VE-33/VE-34 via stderr and raises :class:`SystemExit(2)` when
+    name-mode resolution fails.
     """
     raw = getattr(args, "domain", None)
+
     if raw is not None:
-        candidate = Path(raw).resolve()
-    else:
-        try:
-            candidate = Path.cwd().resolve()
-        except (FileNotFoundError, OSError) as exc:
-            # Current working directory was deleted or is otherwise
-            # inaccessible (common on NFS when a sibling process
-            # replaces the inode). We have no sensible fallback --
-            # ``--domain`` is the supported escape hatch.
-            raise SystemExit(
-                "[chopper] fatal: cannot determine current working directory "
-                f"({type(exc).__name__}: {exc}). "
-                "Pass --domain <path> or 'cd' into an existing directory."
-            ) from exc
+        errors: list[tuple[str, str, str]] = []
+
+        def _emit(code: str, message: str, hint: str) -> None:
+            errors.append((code, message, hint))
+
+        lookup_result = resolve_domain(raw, _emit)
+        if lookup_result is None:
+            # Resolution failed; print the first error and exit 2.
+            code, message, hint = errors[0]
+            sys.stderr.write(f"[chopper] error ({code}): {message}\n")
+            sys.stderr.write(f"  hint: {hint}\n")
+            raise SystemExit(2)
+
+        # Apply _backup redirect on the resolved domain_root.
+        candidate = lookup_result.domain_root
+        if candidate.name.endswith("_backup"):
+            stripped = candidate.with_name(candidate.name[: -len("_backup")])
+            if stripped.is_dir():
+                return stripped, candidate, lookup_result
+        return candidate, None, lookup_result
+
+    # No --domain: use cwd.
+    try:
+        candidate = Path.cwd().resolve()
+    except (FileNotFoundError, OSError) as exc:
+        raise SystemExit(
+            "[chopper] fatal: cannot determine current working directory "
+            f"({type(exc).__name__}: {exc}). "
+            "Pass --domain <path> or 'cd' into an existing directory."
+        ) from exc
     if candidate.name.endswith("_backup"):
         stripped = candidate.with_name(candidate.name[: -len("_backup")])
         if stripped.is_dir():
-            return stripped, candidate
-    return candidate, None
+            return stripped, candidate, None
+    return candidate, None, None
 
 
 def _make_progress(args: argparse.Namespace) -> ProgressSink:
@@ -90,6 +112,28 @@ def _make_progress(args: argparse.Namespace) -> ProgressSink:
         return RichProgress(plain=args.plain)
     except RichUnavailableError:
         return SilentProgress()
+
+
+def _autodiscover_base(domain_root: Path, domain_logical_name: str | None) -> Path | None:
+    """Search for base.json in standard locations under domain_root.
+
+    Tries:
+    1. ``<domain_root>/jsons/base.json``
+    2. ``<domain_root>/jsons/<domain_leaf_name>.json``
+
+    Returns the first found path, or ``None``.
+    """
+    candidate1 = domain_root / "jsons" / "base.json"
+    if candidate1.is_file():
+        return candidate1
+    if domain_logical_name is not None:
+        leaf = domain_logical_name.split("/")[-1]
+    else:
+        leaf = domain_root.name
+    candidate2 = domain_root / "jsons" / f"{leaf}.json"
+    if candidate2.is_file():
+        return candidate2
+    return None
 
 
 def _expand_feature_dirs(features: str | None) -> str | None:
@@ -124,9 +168,12 @@ def _expand_feature_dirs(features: str | None) -> str | None:
 
 
 def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunConfig, Path | None]:
-    domain_root, stripped_candidate = _resolve_domain_root(args)
+    domain_root, stripped_candidate, lookup_result = _resolve_domain_root(args)
     backup_root = domain_root.with_name(domain_root.name + "_backup")
     audit_root = domain_root / ".chopper"
+
+    ward_root: Path | None = lookup_result.ward_root if lookup_result is not None else None
+    domain_logical_name: str | None = lookup_result.domain_logical_name if lookup_result is not None else None
 
     project_path: Path | None = None
     base_path: Path | None = None
@@ -136,10 +183,43 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
     if getattr(args, "project", None) is not None:
         project_path = Path(args.project).resolve()
     else:
+        # Base resolution
         if getattr(args, "base", None) is not None:
             base_path = Path(args.base).resolve()
+        else:
+            # Auto-discover base JSON from domain (VE-35 if not found).
+            base_path = _autodiscover_base(domain_root, domain_logical_name)
+            if base_path is None:
+                domain_basename = (domain_logical_name or domain_root.name).split("/")[-1]
+                tried = [
+                    (domain_root / "jsons" / "base.json").as_posix(),
+                    (domain_root / "jsons" / f"{domain_basename}.json").as_posix(),
+                ]
+                sys.stderr.write(
+                    "[chopper] error (VE-35): No base JSON found via auto-discovery.\n"
+                    f"  Tried: {', '.join(tried)}\n"
+                    "  hint: Pass --base <path> or add jsons/base.json to the domain.\n"
+                )
+                raise SystemExit(2)
+
+        # Feature resolution: name-mode or path-mode.
         if getattr(args, "features", None):
-            feature_paths = tuple(Path(p).resolve() for p in args.features.split(",") if p.strip())
+            lookup_result_feat = resolve_feature_names(args.features, domain_root)
+            if lookup_result_feat.unresolved_names:
+                for unresolved in lookup_result_feat.unresolved_names:
+                    suggestions = lookup_result_feat.suggestions.get(unresolved, ())
+                    hint = (
+                        f"Did you mean: {', '.join(suggestions)}?"
+                        if suggestions
+                        else f"Run `ls {(domain_root / 'jsons' / 'features').as_posix()}` to see available features."
+                    )
+                    sys.stderr.write(
+                        f"[chopper] error (VE-36): Feature name {unresolved!r} not found in "
+                        f"{(domain_root / 'jsons' / 'features').as_posix()!r}.\n"
+                        f"  hint: {hint}\n"
+                    )
+                raise SystemExit(2)
+            feature_paths = lookup_result_feat.resolved_paths
 
     # ``--tool-commands`` is ``action="append"`` on both ``validate`` and
     # ``trim``; the attribute is absent on other subcommands. Treat
@@ -157,6 +237,8 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
         base_path=base_path,
         feature_paths=feature_paths,
         tool_command_paths=tool_command_paths,
+        ward_root=ward_root,
+        domain_logical_name=domain_logical_name,
     )
     return cfg, stripped_candidate
 
@@ -203,6 +285,63 @@ def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperCo
 # ---------------------------------------------------------------------------
 
 
+def _split_domain_csv(raw: str | None) -> list[str | None]:
+    """Split --domain value into a list of domain tokens.
+
+    A single domain (no comma) returns a one-element list.
+    Path-mode values with a Windows drive letter colon are NOT split on
+    the colon (only commas are delimiters).
+    """
+    if raw is None:
+        return [None]  # type: ignore[list-item]
+    if "," not in raw:
+        return [raw]
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
+def _make_domain_run_result(ctx: ChopperContext, result: object) -> DomainRunResult:
+    """Extract P4 branch-analysis stats from a completed run result."""
+    manifest = getattr(result, "manifest", None)
+    edits = 0
+    adds = 0
+    removes = 0
+
+    if manifest is not None:
+        for _path, treatment in manifest.file_decisions.items():
+            if treatment is FileTreatment.PROC_TRIM:
+                edits += 1
+            elif treatment is FileTreatment.GENERATED:
+                # Count all GENERATED as edits (conservative; we cannot
+                # distinguish edit vs add without filesystem access here).
+                edits += 1
+            elif treatment is FileTreatment.REMOVE:
+                removes += 1
+
+    domain_label = ctx.config.domain_logical_name or ctx.config.domain_root.name
+    branch_needed = (edits + adds) > 0
+
+    return DomainRunResult(
+        domain_logical_name=domain_label,
+        exit_code=getattr(result, "exit_code", 1),
+        branch_needed=branch_needed,
+        edits_count=edits,
+        adds_count=adds,
+        removes_count=removes,
+    )
+
+
+def _make_error_domain_result(token: str | None, rc: int) -> DomainRunResult:
+    """Build a :class:`DomainRunResult` for a domain that failed pre-flight checks."""
+    return DomainRunResult(
+        domain_logical_name=str(token) if token is not None else "(unknown)",
+        exit_code=rc,
+        branch_needed=False,
+        edits_count=0,
+        adds_count=0,
+        removes_count=0,
+    )
+
+
 def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
     """CLI pre-runner check for ``--project`` mode (issue #23, VE-13).
 
@@ -234,19 +373,17 @@ def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
     if project_arg is None:
         return None
 
-    import json as _json
-
     project_path = Path(project_arg).resolve()
     try:
         with open(project_path, encoding="utf-8") as fh:
-            raw = _json.load(fh)
-    except (OSError, _json.JSONDecodeError):
+            raw = json.load(fh)
+    except (OSError, json.JSONDecodeError):
         # Let ConfigService surface VE-01/VE-04 with its richer context.
         return None
     if not isinstance(raw, dict):
         return None
 
-    domain_root, _ = _resolve_domain_root(args)
+    domain_root, _, _lookup = _resolve_domain_root(args)
 
     candidates: list[tuple[str, Path]] = []
     base_val = raw.get("base")
@@ -287,56 +424,102 @@ def _check_project_paths_resolvable(args: argparse.Namespace) -> int | None:
         },
     )
     render_diagnostics([diag])
-    import sys as _sys
-
-    _sys.stderr.write(f"  hint: {hint}\n")
-    _sys.stderr.write("Summary: 1 error(s), 0 warning(s), 0 info(s); exit 2\n")
+    sys.stderr.write(f"  hint: {hint}\n")
+    sys.stderr.write("Summary: 1 error(s), 0 warning(s), 0 info(s); exit 2\n")
     return 2
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    """Run the pipeline in dry-run mode (validate only; no writes)."""
+    """Run the pipeline in dry-run mode (validate only; no writes).
 
-    # Validate-only convenience: expand any directory in ``--features`` to
-    # its sorted ``*.json`` children. See architecture doc Sec.5.1.
-    if getattr(args, "project", None) is None:
-        args.features = _expand_feature_dirs(getattr(args, "features", None))
+    Supports multi-domain CSV ``--domain`` (e.g. ``fev_formality,fev_conformal``).
+    """
+    domain_tokens = _split_domain_csv(getattr(args, "domain", None))
 
-    rc = _check_project_paths_resolvable(args)
-    if rc is not None:
-        return rc
+    if len(domain_tokens) <= 1:
+        # Single domain — original behaviour.
+        if getattr(args, "project", None) is None:
+            args.features = _expand_feature_dirs(getattr(args, "features", None))
 
-    ctx, sink = _make_context(args, dry_run=True)
-    result = ChopperRunner().run(ctx, command="validate")
-    render_result(result, sink.snapshot())
-    return result.exit_code
+        rc = _check_project_paths_resolvable(args)
+        if rc is not None:
+            return rc
+
+        ctx, sink = _make_context(args, dry_run=True)
+        result = ChopperRunner().run(ctx, command="validate")
+        render_result(result, sink.snapshot())
+        domain_results = [_make_domain_run_result(ctx, result)]
+        render_p4_branch_analysis(domain_results)
+        return result.exit_code
+
+    # Multi-domain loop.
+    domain_results = []  # list[DomainRunResult]
+    max_exit = 0
+    for token in domain_tokens:
+        domain_args = copy.copy(args)
+        domain_args.domain = token
+        if getattr(domain_args, "project", None) is None:
+            domain_args.features = _expand_feature_dirs(getattr(domain_args, "features", None))
+        rc = _check_project_paths_resolvable(domain_args)
+        if rc is not None:
+            domain_results.append(_make_error_domain_result(token, rc))
+            max_exit = max(max_exit, rc)
+            continue
+        ctx, sink = _make_context(domain_args, dry_run=True)
+        result = ChopperRunner().run(ctx, command="validate")
+        render_result(result, sink.snapshot())
+        domain_results.append(_make_domain_run_result(ctx, result))
+        max_exit = max(max_exit, result.exit_code)
+
+    render_p4_branch_analysis(domain_results)
+    return max_exit
 
 
 def cmd_trim(args: argparse.Namespace) -> int:
-    """Execute the full trim pipeline."""
+    """Execute the full trim pipeline, supporting multiple domains via CSV ``--domain``."""
+    domain_tokens = _split_domain_csv(getattr(args, "domain", None))
 
-    rc = _check_project_paths_resolvable(args)
-    if rc is not None:
-        return rc
+    if len(domain_tokens) <= 1:
+        # Single domain — original behaviour (plus new auto-discovery).
+        rc = _check_project_paths_resolvable(args)
+        if rc is not None:
+            return rc
 
-    ctx, sink = _make_context(args, dry_run=bool(getattr(args, "dry_run", False)))
+        ctx, sink = _make_context(args, dry_run=bool(getattr(args, "dry_run", False)))
+        if not ctx.config.dry_run:
+            _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
 
-    # NFS/shell UX guard: if the user invoked us from inside the
-    # domain root (or anywhere under it) and the backup does not yet
-    # exist, the trimmer will rename ``domain -> domain_backup`` (case
-    # 1 of the workspace-prep state machine in
-    # ``trimmer/service.py::_prepare_workspace``). The shell's cwd
-    # then points at an inode now reachable under a different name,
-    # which on NFS surfaces as ``pwd: Stale file handle``. We cannot
-    # repair the parent shell's cwd from Python, so warn up front.
-    if not ctx.config.dry_run:
-        _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
+        result = ChopperRunner().run(ctx, command="trim")
+        render_result(result, sink.snapshot())
+        if not ctx.config.dry_run:
+            render_trim_stats(ctx, result)
+        domain_results = [_make_domain_run_result(ctx, result)]
+        render_p4_branch_analysis(domain_results)
+        return result.exit_code
 
-    result = ChopperRunner().run(ctx, command="trim")
-    render_result(result, sink.snapshot())
-    if not ctx.config.dry_run:
-        render_trim_stats(ctx, result)
-    return result.exit_code
+    # Multi-domain loop.
+    domain_results = []  # list[DomainRunResult]
+    max_exit = 0
+    for token in domain_tokens:
+        domain_args = copy.copy(args)
+        domain_args.domain = token
+        rc = _check_project_paths_resolvable(domain_args)
+        if rc is not None:
+            domain_results.append(_make_error_domain_result(token, rc))
+            max_exit = max(max_exit, rc)
+            continue
+        ctx, sink = _make_context(domain_args, dry_run=bool(getattr(domain_args, "dry_run", False)))
+        if not ctx.config.dry_run:
+            _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
+        result = ChopperRunner().run(ctx, command="trim")
+        render_result(result, sink.snapshot())
+        if not ctx.config.dry_run:
+            render_trim_stats(ctx, result)
+        domain_results.append(_make_domain_run_result(ctx, result))
+        max_exit = max(max_exit, result.exit_code)
+
+    render_p4_branch_analysis(domain_results)
+    return max_exit
 
 
 def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
@@ -346,9 +529,6 @@ def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
     the only case that issues ``rename(domain, backup)``). Pure UX;
     no diagnostic code, no audit-bundle entry.
     """
-
-    import sys as _sys
-
     try:
         cwd = Path.cwd().resolve()
     except OSError:
@@ -359,7 +539,7 @@ def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
         cwd.relative_to(domain_root)
     except ValueError:
         return
-    _sys.stderr.write(
+    sys.stderr.write(
         "[chopper] notice: your shell's current directory is inside "
         f"{domain_root.as_posix()!r}, which will be renamed to "
         f"{backup_root.name!r} during trim. After the run, the shell's "
@@ -370,7 +550,7 @@ def _warn_if_cwd_will_be_renamed(domain_root: Path, backup_root: Path) -> None:
 
 
 def cmd_loc(args: argparse.Namespace) -> int:
-    """Run the read-only LOC report subcommand.
+    """Run the read-only LOC report subcommand, supporting CSV ``--domain``.
 
     Per architecture doc Sec.5.7 (and FR-46): runs the same P0-P4 +
     dry-run-P6 pipeline as ``chopper trim --dry-run``, additionally
@@ -380,47 +560,68 @@ def cmd_loc(args: argparse.Namespace) -> int:
     ``.chopper/`` audit bundle (the runner suppresses P7 audit when
     ``command == "loc"``).
     """
+    domain_tokens = _split_domain_csv(getattr(args, "domain", None))
 
-    # Same validate-only authoring convenience as ``chopper validate``:
-    # accept directory entries in ``--features`` for ad-hoc LOC sweeps.
-    if getattr(args, "project", None) is None:
-        args.features = _expand_feature_dirs(getattr(args, "features", None))
+    if len(domain_tokens) <= 1:
+        # Single domain — original behaviour.
+        if getattr(args, "project", None) is None:
+            args.features = _expand_feature_dirs(getattr(args, "features", None))
 
-    rc = _check_project_paths_resolvable(args)
-    if rc is not None:
-        return rc
+        rc = _check_project_paths_resolvable(args)
+        if rc is not None:
+            return rc
 
-    ctx, sink = _make_context(args, dry_run=True)
-    result = ChopperRunner().run(ctx, command="loc")
+        ctx, sink = _make_context(args, dry_run=True)
+        result = ChopperRunner().run(ctx, command="loc")
+        render_result(result, sink.snapshot())
+        _render_loc_table(ctx, result)
+        domain_results = [_make_domain_run_result(ctx, result)]
+        render_p4_branch_analysis(domain_results)
+        return result.exit_code
 
-    # Always render diagnostics (so users see VE-/VW- before the table).
-    render_result(result, sink.snapshot())
+    # Multi-domain loop.
+    domain_results = []  # list[DomainRunResult]
+    max_exit = 0
+    for token in domain_tokens:
+        domain_args = copy.copy(args)
+        domain_args.domain = token
+        if getattr(domain_args, "project", None) is None:
+            domain_args.features = _expand_feature_dirs(getattr(domain_args, "features", None))
+        rc = _check_project_paths_resolvable(domain_args)
+        if rc is not None:
+            domain_results.append(_make_error_domain_result(token, rc))
+            max_exit = max(max_exit, rc)
+            continue
+        ctx, sink = _make_context(domain_args, dry_run=True)
+        result = ChopperRunner().run(ctx, command="loc")
+        render_result(result, sink.snapshot())
+        _render_loc_table(ctx, result)
+        domain_results.append(_make_domain_run_result(ctx, result))
+        max_exit = max(max_exit, result.exit_code)
 
-    # Render the LOC table. Preferred path: dry-run pipeline reached
-    # P3 and produced a manifest, so we can attribute per-treatment
-    # buckets. Fallback path: pipeline aborted early (e.g. ``PE-01``
-    # duplicate procs or ``PE-02`` unbalanced braces in P2). ``chopper
-    # loc`` is read-only, so we still emit a baseline-only SLOC report
-    # -- users get the on-disk numbers even when their domain has
-    # quality issues that block trim planning.
-    if result.manifest is not None and result.parsed is not None and result.loaded is not None:
-        from chopper.cli.loc_report import build_loc_report, render_loc_report
+    render_p4_branch_analysis(domain_results)
+    return max_exit
 
+
+def _render_loc_table(ctx: ChopperContext, result: object) -> None:
+    """Render the LOC breakdown table for a single cmd_loc result."""
+    manifest = getattr(result, "manifest", None)
+    parsed = getattr(result, "parsed", None)
+    loaded = getattr(result, "loaded", None)
+    generated_artifacts = getattr(result, "generated_artifacts", None) or ()
+
+    if manifest is not None and parsed is not None and loaded is not None:
         report = build_loc_report(
             ctx=ctx,
-            loaded=result.loaded,
-            parsed=result.parsed,
-            manifest=result.manifest,
-            generated_artifacts=result.generated_artifacts,
+            loaded=loaded,
+            parsed=parsed,
+            manifest=manifest,
+            generated_artifacts=generated_artifacts,
         )
         render_loc_report(report)
     else:
-        from chopper.cli.loc_report import build_loc_report_baseline_only, render_loc_report
-
         report = build_loc_report_baseline_only(ctx)
         render_loc_report(report)
-
-    return result.exit_code
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
@@ -434,7 +635,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
         render_cleanup_message("chopper cleanup: --confirm is required; refusing to remove backup")
         return 2
 
-    domain_root, stripped_candidate = _resolve_domain_root(args)
+    domain_root, stripped_candidate, _lookup = _resolve_domain_root(args)
     if stripped_candidate is not None:
         render_cleanup_message(
             f"chopper cleanup: --domain or cwd ended in '_backup' and live sibling exists; "

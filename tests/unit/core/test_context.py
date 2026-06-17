@@ -105,6 +105,33 @@ class TestRunConfig:
         # (DAY0_REVIEW A7 / scope-lock).
         assert "mode" not in RunConfig.__dataclass_fields__
 
+    def test_run_config_ward_fields_default_to_none(self, tmp_path: Path) -> None:
+        """ward_root and domain_logical_name default to None."""
+        cfg = RunConfig(
+            domain_root=tmp_path,
+            backup_root=tmp_path / "bak",
+            audit_root=tmp_path / ".chopper",
+            strict=False,
+            dry_run=False,
+        )
+        assert cfg.ward_root is None
+        assert cfg.domain_logical_name is None
+
+    def test_run_config_ward_fields_set(self, tmp_path: Path) -> None:
+        """ward_root and domain_logical_name accept explicit values."""
+        ward = tmp_path / "ward"
+        cfg = RunConfig(
+            domain_root=tmp_path,
+            backup_root=tmp_path / "bak",
+            audit_root=tmp_path / ".chopper",
+            strict=False,
+            dry_run=False,
+            ward_root=ward,
+            domain_logical_name="snps/fev_formality",
+        )
+        assert cfg.ward_root == ward
+        assert cfg.domain_logical_name == "snps/fev_formality"
+
 
 class TestPresentationConfig:
     def test_defaults(self) -> None:

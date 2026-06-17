@@ -58,9 +58,9 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-31, VW-01..VW-24, VI-01..VI-05, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 81 active + 3 retired (VW-18,
-# VW-19, PE-04) = 84 registered entries; matches the Code Space Summary table
+# VE-01..VE-36, VW-01..VW-24, VI-01..VI-05, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 86 active + 3 retired (VW-18,
+# VW-19, PE-04) = 89 registered entries; matches the Code Space Summary table
 # in the registry doc.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -104,6 +104,11 @@ _REGISTRY: dict[str, _Entry] = {
     "VE-31": _Entry(
         slug="stage-dependency-unresolved", severity=Severity.ERROR, phase=3, source="compiler", exit_code=1
     ),
+    "VE-32": _Entry(slug="ward-env-not-set", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
+    "VE-33": _Entry(slug="domain-not-found", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
+    "VE-34": _Entry(slug="ambiguous-domain-name", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
+    "VE-35": _Entry(slug="base-autodiscovery-failed", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
+    "VE-36": _Entry(slug="feature-name-not-found", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
     "VW-01": _Entry(
         slug="file-in-both-include-lists", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0
     ),

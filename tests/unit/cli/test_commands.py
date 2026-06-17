@@ -47,9 +47,10 @@ def test_resolve_domain_root_falls_back_to_cwd_when_args_domain_is_none(
 
     monkeypatch.chdir(tmp_path)
     args = _ns(domain=None)
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == tmp_path.resolve()
     assert stripped is None
+    assert _lookup is None
 
 
 def test_resolve_domain_root_redirects_backup_cwd_when_live_sibling_exists(
@@ -65,7 +66,7 @@ def test_resolve_domain_root_redirects_backup_cwd_when_live_sibling_exists(
     monkeypatch.chdir(backup_cwd)
 
     args = _ns(domain=None)
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == live.resolve()
     assert stripped == backup_cwd.resolve()
 
@@ -86,7 +87,7 @@ def test_resolve_domain_root_honors_backup_cwd_when_no_live_sibling(
     monkeypatch.chdir(backup_cwd)
 
     args = _ns(domain=None)
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == backup_cwd.resolve()
     assert stripped is None
 
@@ -107,7 +108,7 @@ def test_resolve_domain_root_prefers_domain_flag_over_cwd(tmp_path: Path, monkey
     monkeypatch.chdir(unrelated_cwd)
 
     args = _ns(domain=str(elsewhere))
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == elsewhere.resolve()
     assert stripped is None
 
@@ -132,7 +133,7 @@ def test_resolve_domain_root_redirects_explicit_domain_flag_when_live_sibling_ex
     monkeypatch.chdir(cwd)
 
     args = _ns(domain=str(backup))
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == live.resolve()
     assert stripped == backup.resolve()
 
@@ -153,7 +154,7 @@ def test_resolve_domain_root_honors_explicit_domain_flag_when_no_live_sibling(
     monkeypatch.chdir(tmp_path)
 
     args = _ns(domain=str(backup))
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == backup.resolve()
     assert stripped is None
 
@@ -169,7 +170,7 @@ def test_resolve_domain_root_redirect_is_single_shot(tmp_path: Path, monkeypatch
     monkeypatch.chdir(tmp_path)
 
     args = _ns(domain=str(two_strip))
-    resolved, stripped = _resolve_domain_root(args)
+    resolved, stripped, _lookup = _resolve_domain_root(args)
     assert resolved == one_strip.resolve()
     assert stripped == two_strip.resolve()
 
@@ -182,6 +183,8 @@ def test_make_context_emits_vi03_when_redirect_fires(tmp_path: Path, monkeypatch
 
     live = tmp_path / "mini"
     live.mkdir()
+    (live / "jsons").mkdir()
+    (live / "jsons" / "base.json").write_text("{}", encoding="utf-8")
     backup = tmp_path / "mini_backup"
     backup.mkdir()
     monkeypatch.chdir(tmp_path)
@@ -199,6 +202,8 @@ def test_make_context_does_not_emit_vi03_when_no_redirect(tmp_path: Path, monkey
 
     backup = tmp_path / "mini_backup"
     backup.mkdir()
+    (backup / "jsons").mkdir()
+    (backup / "jsons" / "base.json").write_text("{}", encoding="utf-8")
     # No tmp_path/"mini" sibling.
     monkeypatch.chdir(tmp_path)
 
@@ -267,8 +272,10 @@ def test_build_run_config_skips_empty_feature_segments(tmp_path: Path) -> None:
     b = tmp_path / "b.json"
     for p in (a, b):
         p.write_text("{}", encoding="utf-8")
+    base = tmp_path / "base.json"
+    base.write_text("{}", encoding="utf-8")
 
-    args = _ns(domain=str(tmp_path), features=f"{a},,{b}")
+    args = _ns(domain=str(tmp_path), base=str(base), features=f"{a},,{b}")
     cfg, _stripped = _build_run_config(args, dry_run=False)
     assert cfg.feature_paths == (a.resolve(), b.resolve())
 

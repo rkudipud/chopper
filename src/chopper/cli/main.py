@@ -95,7 +95,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _add_input_args(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("--domain", help="Domain root path (default: current directory)")
-    sub.add_argument("--base", help="Path to base JSON (required unless --project is used)")
+    sub.add_argument(
+        "--base",
+        help=(
+            "Path to base JSON. Optional when --domain provides a named domain; "
+            "Chopper searches <domain>/jsons/base.json automatically (VE-35 if not found)."
+        ),
+    )
     sub.add_argument(
         "--features",
         help="Comma-separated ordered list of feature JSON paths",
@@ -137,11 +143,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Mutual exclusivity: --project vs --base/--features.
-    if getattr(args, "command", None) in ("validate", "trim"):
+    if getattr(args, "command", None) in ("validate", "trim", "loc"):
         if args.project and (args.base or args.features):
             parser.error("--project is mutually exclusive with --base / --features")
-        if not args.project and not args.base:
-            parser.error("one of --base or --project is required")
+        # --base is no longer required when --domain provides a named domain;
+        # auto-discovery runs in commands._build_run_config (VE-35).
 
     try:
         exit_code: int = args.func(args)

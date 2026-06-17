@@ -58,9 +58,16 @@ def test_project_mutually_exclusive_with_base_enforced_in_main() -> None:
         main(["trim", "--project", "p.json", "--base", "b.json"])
 
 
-def test_trim_requires_base_or_project() -> None:
+def test_trim_requires_base_or_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without --base or --project, trim auto-discovers base JSON.
+
+    When auto-discovery fails (no jsons/base.json in cwd), VE-35 fires
+    and the process exits with code 2.  The guard has moved from argparse
+    into _build_run_config (VE-35 auto-discovery failure).
+    """
     from chopper.cli.main import main
 
+    monkeypatch.chdir(tmp_path)  # tmp_path has no jsons/base.json
     with pytest.raises(SystemExit):
         main(["trim"])
 

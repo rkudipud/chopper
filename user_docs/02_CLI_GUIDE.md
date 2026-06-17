@@ -10,11 +10,12 @@
 Chopper is designed around a safe, iterative workflow. You never have to "get it right the first time" — validate and dry-run cost nothing and give you full visibility before anything touches disk.
 
 ```text
-1.  chopper validate ...         # read-only sanity check (seconds, no side effects)
-2.  chopper trim --dry-run ...   # full analysis, no filesystem rebuild (writes .chopper/ only)
-3.  review .chopper/             # trim_report.txt, compiled_manifest.json, dependency_graph.json
-4.  chopper trim ...             # live trim; renames domain → backup, rebuilds clean
-5.  chopper cleanup --confirm    # remove the backup once the trim window closes
+1.  chopper validate --domain fev_formality        # named domain (4.1.0+, auto-discovers jsons/base.json)
+    chopper validate --base jsons/base.json        # explicit path (classic form)
+2.  chopper trim --dry-run --domain fev_formality  # full analysis, no filesystem rebuild (writes .chopper/ only)
+3.  review .chopper/                               # trim_report.txt, compiled_manifest.json, dependency_graph.json
+4.  chopper trim --domain fev_formality            # live trim; renames domain → backup, rebuilds clean
+5.  chopper cleanup --confirm                      # remove the backup once the trim window closes
 ```
 
 Steps 1 and 2 are **safe and free** — run them as often as you want. Step 4 is **destructive** in the sense that it overwrites `<domain>/` (the original is preserved as `<domain>_backup/`). Step 5 is **irreversible**.
@@ -87,15 +88,20 @@ chopper validate [--domain PATH]
 
 | Flag | Effect |
 |---|---|
-| `--domain PATH` | Domain root to analyse. Defaults to the current working directory. |
-| `--base PATH` | Base JSON. Required unless `--project` is used. |
-| `--features PATHS` | Comma-separated ordered list of feature JSON paths. **Order matters for F3 `flow_actions`.** For `validate` only, any entry may also be a directory; it expands in place to the sorted, non-recursive list of its immediate `*.json` children. |
+| `--domain PATH\|NAME\|CSV` | Domain root, logical name, or vendor-qualified name (4.1.0+). Logical names (`fev_formality`, `snps/power`) are resolved via `$WARD/global/<vendor>/<name>`. CSV for multi-domain runs. Default: cwd. |
+| `--base PATH` | Base JSON. **Optional** when `--domain` is a named domain — Chopper auto-discovers `<domain>/jsons/base.json` (VE-35 if missing). Required for plain-path domains. |
+| `--features PATHS` | Comma-separated **paths or names** (4.1.0+; e.g. `dft,power`). Names resolved from `<domain>/jsons/features/*.feature.json`. **Order matters for F3 `flow_actions`.** For `validate` only, any entry may also be a directory expanding to sorted `*.json` children. |
 | `--project PATH` | Project JSON. Mutually exclusive with `--base` and `--features`. |
 
 ### Three invocation modes
 
 ```text
-# Mode 1 — base only (most common starting point)
+# Mode 0 (4.1.0+) — named domain, base auto-discovered from jsons/base.json
+chopper validate --domain fev_formality
+chopper validate --domain snps/fev_formality
+chopper validate --domain fev_formality --features dft,power   # feature names
+
+# Mode 1 — base only (classic form)
 chopper validate --base jsons/base.json
 
 # Mode 2 — base + features directly
@@ -125,12 +131,15 @@ chopper validate --project project.json
 Same flags as `validate`, plus `--dry-run`. Live trim renames `<domain>/` → `<domain>_backup/`, rebuilds a clean trimmed `<domain>/`, generates run scripts (if any), runs post-validation, and writes `.chopper/`.
 
 ```text
-chopper trim [--domain PATH] [--dry-run]
-             (--base PATH [--features PATHS] | --project PATH)
+chopper trim [--domain PATH|NAME|CSV] [--dry-run]
+             (--base PATH [--features PATHS|NAMES] | --project PATH)
 ```
 
 | Flag | Effect |
 |---|---|
+| `--domain PATH\|NAME\|CSV` | Same three forms as `validate` (4.1.0+). CSV for sequential multi-domain trim. |
+| `--base PATH` | Base JSON. Optional when domain is a named domain (auto-discovery). |
+| `--features PATHS\|NAMES` | Paths or names (4.1.0+). Names resolved from `<domain>/jsons/features/*.feature.json`. |
 | `--dry-run` | Run the full analysis under the `trim` command surface, but **skip** the rename, the file rewrites, and the generated stage emission. `.chopper/` still updates. |
 
 ### Dry-run vs validate
@@ -210,11 +219,11 @@ Just run `chopper trim` again. Chopper detects the existing backup, discards the
 Read-only LOC report. Runs the same front half as `validate` (P0–P4 + manifest-only P6), then **replays the real P5 trim phases** (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and counts the actual rebuilt output. The result is byte-for-byte identical to what `chopper trim` produces. **Writes nothing** — no `.chopper/`, no rename, no rewrites.
 
 ```text
-chopper loc [--domain PATH]
-            (--base PATH [--features PATHS] | --project PATH)
+chopper loc [--domain PATH|NAME|CSV]
+            (--base PATH [--features PATHS|NAMES] | --project PATH)
 ```
 
-Same input flags as `validate`. Use it to size a planned trim before committing to it, or to track LOC reduction over time as features are added.
+Same input flags as `validate`, including named-domain resolution and CSV multi-domain mode (4.1.0+). Use it to size a planned trim before committing to it, or to track LOC reduction over time as features are added.
 
 ### Output format
 
@@ -391,7 +400,7 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | `diagnostics.json` | Every diagnostic emitted (code, severity, phase, message, location, hint) |
 | `files_kept.txt` | Sorted paths that survived, with per-line provenance (`<path>\t<contributed_by>`) |
 | `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance |
-| `p4_commands.txt` | Ready-to-execute Perforce command list (`p4 edit`, `p4 add`, `p4 delete`) for every file-treatment decision. Chopper never invokes `p4` — review and submit manually. |
+| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$WARD`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` — review and submit manually. |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
 | `input_features/NN_name.json` | Verbatim copies of feature JSONs, prefixed by feature order |
@@ -504,6 +513,11 @@ After `chopper trim --base jsons/base.json`:
 | `VE-17 project-domain-mismatch` | `cd` into the folder whose name matches the JSON `domain` field |
 | `VE-21 no-domain-or-backup` | You are in a folder with neither `<domain>/` nor `<domain>_backup/` |
 | `VI-03 domain-suffix-strip-applied` | Info, not an error. Your `--domain` (or cwd) ended in `_backup` and a live sibling exists, so Chopper redirected to the live sibling. If you genuinely meant the `_backup` path, rename the colliding live sibling or run from inside the intended domain. |
+| `VE-32 ward-env-not-set` | `--domain` is a logical name but `$WARD` is not set. Run `setenv WARD /your/workspace` or pass an absolute path. |
+| `VE-33 domain-not-found` | Named domain not found under `$WARD/global/`. Run `ls $WARD/global/` to see available vendors and domains. |
+| `VE-34 ambiguous-domain-name` | Bare name matches multiple vendors. Use `--domain vendor/name` notation (e.g. `--domain snps/fev_formality`). |
+| `VE-35 base-autodiscovery-failed` | Auto-discovery could not find `jsons/base.json` in the named domain. Pass `--base <path>` or add `jsons/base.json` to the domain. |
+| `VE-36 feature-name-not-found` | Feature name not found in `<domain>/jsons/features/`. Check the hint for close matches; run `ls <domain>/jsons/features/` to see available names. |
 | `VE-03 empty-procs-array` | `procEntry` has `"procs": []` — list procs or use `files.include` |
 | `PW-01 dynamic-proc-name` | Tcl uses `proc ${prefix}_foo`. Chopper cannot index it — list the resolved name(s) explicitly. |
 | `TW-02` flood | Pass `--tool-commands` so vendor commands surface as `TI-01` info instead. |

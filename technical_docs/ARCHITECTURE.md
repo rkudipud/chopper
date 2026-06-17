@@ -1175,6 +1175,32 @@ Chopper supports three input modes. Exactly one mode is used per invocation.
 
 By default, owner-curated base and feature JSONs live under the domain root at `jsons/base.json` and `jsons/features/*.feature.json`. Project JSON has no fixed home and is always passed explicitly to `--project`.
 
+#### §5.1.0 — Domain-name resolution, base auto-discovery, feature-name lookup
+
+**`--domain` accepts three forms (4.1.0+):**
+
+| Form | Example | Behaviour |
+|---|---|---|
+| Absolute path | `--domain /work/fev_formality` | Used as-is; no `$WARD` lookup |
+| Existing relative directory | `--domain fev_formality` (if `./fev_formality/` exists) | Used as-is; no `$WARD` lookup |
+| Bare name or vendor-qualified name | `--domain fev_formality` or `--domain snps/fev_formality` | Searched under `$WARD/global/<vendor>/<name>` |
+
+When a bare name is supplied, Chopper enumerates direct children of `$WARD/global/` and checks for a matching sub-directory. Unique match → used. Two or more matches → `VE-34 ambiguous-domain-name` (exit 2; use `vendor/name`). No match → `VE-33 domain-not-found` (exit 2). `$WARD` not set → `VE-32 ward-env-not-set` (exit 2). Vendor-qualified `vendor/name` resolves directly to `$WARD/global/<vendor>/<name>` without enumeration.
+
+**`--domain` accepts a CSV list for multi-domain sequential trim** — see §5.1.2.
+
+**`--base` auto-discovery (4.1.0+):** When `--domain` is provided and `--base` is not supplied (and `--project` is not used), Chopper searches:
+1. `<domain_root>/jsons/base.json`
+2. `<domain_root>/jsons/<domain_leaf_name>.json`
+
+If neither is found → `VE-35 base-autodiscovery-failed` (exit 2). Pass `--base <path>` to override.
+
+**`--features` as names (4.1.0+):** `--features` accepts feature names (e.g. `--features dft,power`) in addition to explicit file paths. A token is resolved as a name when it contains no path separator and does not end with `.json`. Resolution enumerates `<domain_root>/jsons/features/*.feature.json` — `dft` maps to `dft.feature.json`. Unresolved name → `VE-36 feature-name-not-found` (exit 2; message includes closest matches via difflib). Tokens with `/`, `\`, or `.json` suffix pass through as direct paths (backward compat).
+
+#### §5.1.2 — Multi-domain sequential trim (4.1.0+)
+
+`--domain` accepts a comma-separated list (e.g. `--domain fev_formality,fev_conformal`). Chopper processes domains **sequentially** — each domain runs completely before the next begins. Base auto-discovery and feature-name resolution run independently per domain. The final exit code is `max(exit_codes)` across all domains. `validate` and `loc` support multi-domain with the same semantics.
+
 `--project` is mutually exclusive with `--base` and `--features`. Providing both is `VE-11` (`conflicting-cli-options`, exit code 2).
 
 For `chopper validate` only, any entry in the `--features` comma-separated list may be a directory path instead of a file path. A directory entry expands in place to the sorted list of its immediate `*.json` children (non-recursive, lexicographic order, POSIX-normalized). File and directory entries may be mixed freely. This expansion is a validate-only authoring convenience — it lets regressions validate an entire `jsons/features/` folder in one command. `chopper trim` (and `--project` in any subcommand) require explicit per-file paths so that the ordered feature sequence recorded in audit artifacts is unambiguous; passing a directory to `trim` fails at config load.
@@ -2032,18 +2058,46 @@ A plain-UTF-8 text artifact that correlates each file-treatment decision to the 
 | `PROC_TRIM` | `p4 edit -t text+x <path>` | Content of an existing depot file changes in place. |
 | `GENERATED` where path exists in the pre-trim source root | `p4 edit -t text+x <path>` | Regenerate-in-place: the generator overwrites an existing depot file (e.g., `fev_fm_rtl2gate.tcl`-style stages). |
 | `GENERATED` where path does **not** exist in the pre-trim source root | `p4 add -t text+x <path>` | Newly created stage file with no prior depot entry. |
-| Physically removed (walk(source_root) − kept_set) | `p4 delete <path>` | Same set as `files_removed.txt`; covers both explicit `files.exclude` and default-exclude removals. |
+| Physically removed (walk(source_root) − kept_set) | Listed in `exclude_file_list` section as `$WARD`-relative path (or domain-relative when `$WARD` is unavailable) | Same set as `files_removed.txt`. Use as P4 client-spec exclusion mapping lines. |
 | `FULL_COPY` | *(no command)* | The rebuilt file is byte-identical to the depot copy; nothing to submit. |
 
-The `-t text+x` filetype declares Perforce filetype `text` with the executable bit set, matching the cross-phase `ensure_executable()` contract (every rebuilt file in `<domain>/` carries `a+x`; see `core/file_perms.py`). `p4 delete` takes no `-t` flag because Perforce reads the filetype from the existing depot entry.
+The `-t text+x` filetype declares Perforce filetype `text` with the executable bit set, matching the cross-phase `ensure_executable()` contract (every rebuilt file in `<domain>/` carries `a+x`; see `core/file_perms.py`).
 
-**Source-root resolution** mirrors `files_removed.txt`: `<domain>_backup/` after a live trim, `<domain>/` for a first-trim `--dry-run`. The same `_physical_source_root(ctx)` helper backs both artifacts so the `p4 delete` section is always coextensive with `files_removed.txt`. When neither root is readable (audit after a P0/P1 abort, unit-test stub filesystem), the writer falls back to a manifest-only view (explicit `REMOVE` decisions → `p4 delete`, `GENERATED` decisions → `p4 add`).
+**`exclude_file_list` section (4.1.0+).** The former `p4 delete` command list is replaced by a bare path list for use as P4 client-spec exclusion mapping lines. When `$WARD` is available and the domain root is under `$WARD`, paths are `$WARD`-relative (e.g. `global/snps/fev_formality/src/foo.tcl`). When `$WARD` is not set, paths are domain-relative. Section header comments describe the path convention.
+
+**Source-root resolution** mirrors `files_removed.txt`: `<domain>_backup/` after a live trim, `<domain>/` for a first-trim `--dry-run`. The same `_physical_source_root(ctx)` helper backs both artifacts so the `exclude_file_list` section is always coextensive with `files_removed.txt`. When neither root is readable (audit after a P0/P1 abort, unit-test stub filesystem), the writer falls back to a manifest-only view (explicit `REMOVE` decisions → exclude list, `GENERATED` decisions → `p4 add`).
 
 **Determinism.** Each section is sorted lexicographically by POSIX path. Section order is fixed. Output uses LF line endings and ends with a trailing newline. Two runs with identical inputs produce byte-identical `p4_commands.txt`.
 
 **Emission policy.** Written on both live trim and `--dry-run` (consistent with every other audit artifact). `validate`, `loc`, and `cleanup` do not produce it. Under `--dry-run` the commands are a preview — they reflect what *would* be submitted if the same JSON selection were run live — but no domain mutation has yet occurred, so `p4 submit` against a dry-run is premature.
 
 **Empty-state.** When no section has any entries (e.g., aborted run with no manifest, or a no-op trim), the file still emits its banner comments plus a single `# (no Perforce commands — nothing to submit)` marker line, so the artifact is always present and well-formed.
+
+#### 5.5.15 P4 Branch Analysis (stdout summary) — 4.1.0+
+
+After every `trim`, `trim --dry-run`, `validate`, and `loc` run, Chopper prints a P4 branch analysis section to stdout. The classification is derived from `CompiledManifest.file_decisions`:
+
+- **NO BRANCH NEEDED:** all surviving file treatments are `REMOVE` only. Pure P4 template deletions — a depot resync against an updated client spec is sufficient; no branch required.
+- **BRANCH NEEDED:** at least one `PROC_TRIM` or `GENERATED` treatment exists — files will be modified or added in the depot, requiring a P4 branch.
+
+**Single-domain output:**
+```
+=== P4 Branch Analysis ===
+fev_formality: NO BRANCH NEEDED — only 14 removal(s); P4 template resync sufficient
+```
+
+**Multi-domain output (§5.1.2):**
+```
+=== P4 Branch Analysis ===
+  snps/fev_formality             : NO BRANCH NEEDED — only 5 removal(s); P4 template resync sufficient
+  cdns/fev_conformal             : BRANCH NEEDED (3 edit(s), 0 add(s))
+  snps/power                     : BRANCH NEEDED (7 edit(s), 0 add(s))
+
+Final verdict     : BRANCH NEEDED
+Domains needing branch: cdns/fev_conformal, snps/power
+```
+
+See FR-48.
 
 ### 5.6 Output Expectations
 
@@ -3030,7 +3084,8 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-44 | P4 maintains a **tool-command pool** (§3.10) — the union of built-in `.commands` files under `src/chopper/data/tool_commands/` and user-supplied files passed via the repeatable CLI flag `--tool-commands <path>`. When a call token fails namespace resolution and its raw or leaf name is in the pool, the tracer emits `TI-01 known-tool-command` instead of `TW-02 unresolved-proc-call` and records an `Edge` with `status = "tool_command"`. The pool is not surfaced in any JSON (base / feature / project); CLI flag is the sole user extension. The pool never affects file-level (F1), proc-level (F2), or run-file (F3) decisions. |
 | FR-45 | `chopper --version` prints `chopper <version>` to stdout and exits 0. The version string is sourced from the installed package metadata (`importlib.metadata`) with a `pyproject.toml` fallback for source checkouts. `--version` is a top-level global flag; it does not require a subcommand. |
 | FR-46 | `chopper loc` runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, then replays the real P5 trim phases (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and emits a stdout LOC report comparing the source domain against the actually-rebuilt trimmed domain (files-before/after, physical-lines-before/after, SLOC-before/after, percent reduction). Because the replay reuses the production trim services, the totals are byte-for-byte identical to a live `chopper trim`. The subcommand accepts the same input flags as `validate`/`trim` (`--base [--features]` or `--project`). It writes nothing to the real filesystem — no domain modifications and no `.chopper/` audit bundle (the runner suppresses P7 audit when `command == "loc"`). Exit-code policy matches `validate` (0/1/2/3). See §5.7. |
-| FR-47 | The P7 audit bundle includes `.chopper/p4_commands.txt`: a deterministic, sorted, ready-to-execute Perforce command list correlating each file-treatment decision to a `p4 edit -t text+x` / `p4 add -t text+x` / `p4 delete` invocation. Emitted on both live trim and `--dry-run`; not emitted by `validate`, `loc`, or `cleanup`. Chopper never invokes `p4` itself — operators review the file and run `p4 submit` manually. See §5.5.14. |
+| FR-47 | The P7 audit bundle includes `.chopper/p4_commands.txt`: a deterministic, sorted Perforce command list. `p4 edit -t text+x` for `PROC_TRIM` and in-place `GENERATED` files; `p4 add -t text+x` for new `GENERATED` files; an `exclude_file_list` section (4.1.0+) with `$WARD`-relative paths for removed files (replaces former `p4 delete` commands). Emitted on both live trim and `--dry-run`; not by `validate`, `loc`, or `cleanup`. Chopper never invokes `p4` itself. See §5.5.14. |
+| FR-48 | After every `trim`, `trim --dry-run`, `validate`, and `loc` run, Chopper prints a P4 branch analysis to stdout. "No branch needed" = all surviving file treatments are `REMOVE` only (pure depot deletions via P4 client-spec resync). "Branch needed" = at least one `PROC_TRIM` or `GENERATED` treatment exists (files modified or added; a P4 branch is required). In multi-domain mode (§5.1.2), per-domain verdicts are printed followed by an aggregate verdict and the list of domains that need a branch. See §5.5.15. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -3402,6 +3457,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-05-09 | **2.0.0a3 — P5c indentation made opt-in via `options.indent` (default `false`).** Legacy Perl-port formatter had known structural gaps (no quote/comment awareness, no line-continuation folding, single-`}` dedent only). Rather than rewrite, gate it: when disabled the runner passes through but still computes the rewritten-path tuple so P6 `VE-16` brace-balance coverage stays intact. PROC_TRIM / GENERATED outputs reach disk verbatim. |
 | 2026-05-15 | **2.5.0 — Parser fidelity validated against production fixtures.** Fixed quote-context-in-braced-data-word (P-01a — `set q {"}`), switch-pattern-label misparse (P-39), regex-literal walk (P-38), DPA line-continuation (P-40), and `diagnostics.json` file-null-for-P4/P6 (P-41). Established the rule that **bug reports become fixture files**, never inline snippets. |
 | 2026-05-15 | **3.0.0 — Coverage hardened to 100%.** Distributed surgical `test_*_coverage.py` files across native `tests/unit/<module>/` locations covering defensive branches, OSError/ValueError handlers, and protocol error paths. Established the rule that tests live in their **native** module locations — no catch-all coverage scripts. `# pragma: no cover` markers properly gate provably-unreachable branches. |
+| 2026-06-17 | **4.1.0 — Domain-name resolution, multi-domain trim, feature-name lookup, base auto-discovery, P4 branch analysis, `exclude_file_list`.** `--domain` now accepts logical names (`fev_formality`, `snps/power`) resolved via `$WARD/global/<vendor>/<name>`; vendor-qualified and absolute-path forms supported (§5.1.0). `--base` optional when domain is named (auto-discovery from `jsons/base.json`; VE-35). `--features` accepts feature names resolved from `<domain>/jsons/features/*.feature.json` with close-match suggestions (VE-36). `--domain` CSV for multi-domain sequential trim; `max()` exit code across domains (§5.1.2). P4 branch analysis printed to stdout after every run (§5.5.15, FR-48). `p4 delete` section in `p4_commands.txt` replaced by `exclude_file_list` section with `$WARD`-relative paths (§5.5.14, FR-47 updated). New codes: VE-32 (`ward-env-not-set`), VE-33 (`domain-not-found`), VE-34 (`ambiguous-domain-name`), VE-35 (`base-autodiscovery-failed`), VE-36 (`feature-name-not-found`). |
 | 2026-05-18 | **3.1.0 — `.chopper/p4_commands.txt` audit artifact (FR-47).** Deterministic Perforce command list correlating every file-treatment decision to `p4 edit` / `p4 add` / `p4 delete`. Three alphabetically-sorted sections; trailing LF; `-t text+x` matches `ensure_executable()`. Emitted on live trim and `--dry-run`; not by `validate` / `loc` / `cleanup`. Chopper never invokes `p4` — the file is a review artifact, not an automation surface. |
 | 2026-05-21 | **3.3.0 — F3 aggregate `<domain>.stack` + per-stage `standalone_stack`.** Aggregate stack corrected to one file per flow (matches production EDA artifact contract — pre-3.3 per-stage stacks were wrong). Record-line order `N → J → L → I → O → D → (R parallel)`. `standalone_stack: true` is orthogonal and additive (per-stage verbatim emission). Three new diagnostics: `VE-28`, `VE-29`, `VW-23`. Hard cutover, no shim. |
 | 2026-05-21 | **3.4.0 — Topological aggregate stack + `standalone_stack` suppresses `<stage>.tcl`.** Aggregate records now emitted in topological order over `dependencies ∪ {load_from}` (Kahn's algorithm, authored-position tiebreaker) — deterministic, preserves unrelated-subgraph authoring intent. Materialized on `CompiledManifest.stack_order`. `standalone_stack: true` now emits **only** `<stage>.stack` (was both `.tcl` and `.stack`). `VE-30 stage-dependency-cycle` / `VE-31 stage-dependency-unresolved` added. |

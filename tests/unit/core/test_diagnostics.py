@@ -14,10 +14,11 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 81 active +
-        # 3 retired (VW-18, VW-19, PE-04) = 84 registered entries
-        # (added VI-05 flow-action-skipped-no-stage).
-        assert len(all_codes()) == 84
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 86 active +
+        # 3 retired (VW-18, VW-19, PE-04) = 89 registered entries.
+        # 4.1.0 added VE-32..VE-36 (ward-env-not-set, domain-not-found,
+        # ambiguous-domain-name, base-autodiscovery-failed, feature-name-not-found).
+        assert len(all_codes()) == 89
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")

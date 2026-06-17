@@ -9,8 +9,8 @@ command-list audit artifact. Each treatment in
   ``p4 edit -t text+x`` (regenerate-in-place)
 * ``GENERATED`` where the path does **not** exist pre-trim ->
   ``p4 add -t text+x``
-* Physically removed (walk(source_root) - kept_set) -> ``p4 delete``
-  (no ``-t`` flag; Perforce reads the filetype from the depot entry).
+* Physically removed (walk(source_root) - kept_set) -> ``exclude_file_list`` section
+  (bare domain-relative paths; no ``p4`` command prefix).
 * ``FULL_COPY`` -> no command (rebuilt byte-identical to depot).
 
 Sections are alphabetically sorted within and ordered edits -> adds ->
@@ -207,11 +207,11 @@ def test_generated_dry_run_checks_domain_root_for_source() -> None:
 
 
 # ---------------------------------------------------------------------------
-# REMOVE / files_removed parity -> p4 delete
+# REMOVE / files_removed parity -> exclude_file_list
 # ---------------------------------------------------------------------------
 
 
-def test_remove_files_emit_p4_delete_no_t_flag() -> None:
+def test_remove_files_emit_exclude_file_list_section() -> None:
     fs = InMemoryFS()
     fs.write_text(BACKUP / "kept.tcl", "puts kept\n")
     fs.write_text(BACKUP / "drop.tcl", "puts drop\n")
@@ -222,14 +222,13 @@ def test_remove_files_emit_p4_delete_no_t_flag() -> None:
         }
     )
     _, content = render_p4_commands(_make_ctx(fs=fs), _record(manifest=manifest))
-    assert "p4 delete drop.tcl" in _data_lines(content)
-    assert "-t" not in content.split("p4 delete drop.tcl")[1], (
-        "p4 delete must not carry the -t flag (Perforce reads depot type)"
-    )
+    assert "drop.tcl" in _data_lines(content)
+    assert "p4 delete" not in content, "exclude_file_list section must not use p4 delete command"
+    assert "exclude_file_list" in content
 
 
-def test_p4_delete_parity_with_files_removed_includes_default_excluded() -> None:
-    """``p4 delete`` set equals ``walk(source_root) - kept_set`` -- matching files_removed.txt."""
+def test_exclude_file_list_parity_with_files_removed_includes_default_excluded() -> None:
+    """exclude_file_list set equals ``walk(source_root) - kept_set`` -- matching files_removed.txt."""
 
     fs = InMemoryFS()
     fs.write_text(BACKUP / "kept.tcl", "puts kept\n")
@@ -244,12 +243,13 @@ def test_p4_delete_parity_with_files_removed_includes_default_excluded() -> None
     )
     _, content = render_p4_commands(_make_ctx(fs=fs), _record(manifest=manifest))
     data = _data_lines(content)
-    # Default-excluded files appear in the delete section even though they
-    # never entered the manifest's REMOVE set.
-    assert "p4 delete helper.pl" in data
-    assert "p4 delete scripts/run.csh" in data
+    # Default-excluded files appear in the exclude_file_list section even
+    # though they never entered the manifest's REMOVE set.
+    assert "helper.pl" in data
+    assert "scripts/run.csh" in data
+    assert "p4 delete" not in content
     # And they're sorted within the section.
-    delete_lines = [ln for ln in data if ln.startswith("p4 delete")]
+    delete_lines = [ln for ln in data if not ln.startswith("p4 ")]
     assert delete_lines == sorted(delete_lines)
 
 
@@ -304,10 +304,11 @@ def test_mixed_scenario_section_order_is_edit_add_delete() -> None:
     _, content = render_p4_commands(_make_ctx(fs=fs), _record(manifest=manifest))
     data = _data_lines(content)
 
-    # Section order is fixed: edits, adds, deletes.
+    # Section order is fixed: edits, adds, exclude_file_list.
     edit_idx = next(i for i, ln in enumerate(data) if ln.startswith("p4 edit"))
     add_idx = next(i for i, ln in enumerate(data) if ln.startswith("p4 add"))
-    delete_idx = next(i for i, ln in enumerate(data) if ln.startswith("p4 delete"))
+    # exclude_file_list entries are bare paths (no "p4 " prefix).
+    delete_idx = next(i for i, ln in enumerate(data) if not ln.startswith("p4 "))
     assert edit_idx < add_idx < delete_idx, f"sections out of order: {data}"
 
     # Edit section contents -- sorted.
@@ -322,9 +323,9 @@ def test_mixed_scenario_section_order_is_edit_add_delete() -> None:
         "p4 add -t text+x run_flow.tcl",
         "p4 add -t text+x setup.tcl",
     ]
-    # Delete section -- only the default-excluded helper.
-    deletes = [ln for ln in data if ln.startswith("p4 delete")]
-    assert deletes == ["p4 delete stale.pl"]
+    # exclude_file_list section -- only the default-excluded helper.
+    deletes = [ln for ln in data if not ln.startswith("p4 ")]
+    assert deletes == ["stale.pl"]
 
 
 def test_text_plus_x_appears_on_every_edit_and_add_line() -> None:
@@ -384,8 +385,9 @@ def test_no_source_root_falls_back_to_manifest_only_view() -> None:
     assert "p4 edit -t text+x foo.tcl" in data
     # No source root -> cannot tell if GENERATED file pre-existed -> treat as add.
     assert "p4 add -t text+x new.tcl" in data
-    # No source root -> manifest-only delete.
-    assert "p4 delete gone.tcl" in data
+    # No source root -> manifest-only exclude_file_list entry.
+    assert "gone.tcl" in data
+    assert "p4 delete" not in content
 
 
 # ---------------------------------------------------------------------------

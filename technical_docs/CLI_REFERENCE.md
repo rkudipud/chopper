@@ -50,9 +50,21 @@ parses Tcl, compiles selections, and runs the trace phase.
 Does not modify domain content files.
 
 options:
-  --domain PATH        Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
-  --base PATH          Path to base JSON (required unless --project is used)
-  --features PATHS     Comma-separated ordered list of feature JSON paths.
+  --domain PATH        Domain root — accepts three forms (4.1.0+):
+                       (1) Absolute path, used as-is.
+                       (2) Existing relative directory, used as-is.
+                       (3) Logical name (e.g. ``fev_formality`` or ``snps/fev_formality``)
+                           resolved via ``$WARD/global/<vendor>/<name>``.
+                       Also accepts a comma-separated list for multi-domain runs (§5.1.2).
+                       If the resolved path ends in ``_backup`` and a stripped sibling exists,
+                       redirects to that sibling and emits VI-03.
+                       Default: current working directory. See ARCHITECTURE.md §5.1.0.
+  --base PATH          Path to base JSON. Optional when ``--domain`` provides a named domain;
+                       Chopper auto-discovers ``<domain>/jsons/base.json`` (VE-35 if not found).
+                       Required when using a plain path domain and ``--project`` is not used.
+  --features PATHS     Comma-separated ordered list of feature JSON paths or names (4.1.0+).
+                       Names (e.g. ``dft,power``) are resolved from ``<domain>/jsons/features/*.feature.json``.
+                       Tokens containing ``/`` or ending with ``.json`` pass through as file paths.
                        Validate-only: any entry may also be a directory, which
                        expands in place to its sorted *.json children (non-recursive).
   --project PATH       Path to project JSON (mutually exclusive with --base/--features)
@@ -86,9 +98,13 @@ On failure:  leave state as-is and exit non-zero; re-run to resume (the next
              or manually run `rm -rf domain && mv domain_backup domain` to reset.
 
 options:
-  --domain PATH        Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
-  --base PATH          Path to base JSON (required unless --project is used)
-  --features PATHS     Comma-separated ordered list of feature JSON paths
+  --domain PATH        Domain root — same three forms as ``chopper validate`` (see above).
+                       Also accepts CSV for multi-domain runs (§5.1.2).
+                       Default: current working directory. See ARCHITECTURE.md §5.1.0.
+  --base PATH          Path to base JSON. Optional when ``--domain`` provides a named domain;
+                       Chopper auto-discovers ``<domain>/jsons/base.json`` (VE-35 if not found).
+  --features PATHS     Comma-separated ordered list of feature JSON paths or names.
+                       Names resolved from ``<domain>/jsons/features/*.feature.json``.
   --project PATH       Path to project JSON (mutually exclusive with --base/--features)
   --tool-commands PATH Path to a plain-text file of known external tool-command
                        names. Repeatable. Extends the built-in tool-command
@@ -99,11 +115,12 @@ options:
 ```
 
 The `.chopper/` audit bundle written by `chopper trim` includes
-`p4_commands.txt` — a sorted, ready-to-execute Perforce command list
-(`p4 edit -t text+x` / `p4 add -t text+x` / `p4 delete`) correlating each
-file-treatment decision to the command needed to record the change
-against the depot. Chopper never invokes `p4` itself; review the file and
-run `p4 submit` manually. See architecture doc §5.5.14 and FR-47.
+`p4_commands.txt` — a sorted Perforce command list with `p4 edit -t text+x` /
+`p4 add -t text+x` sections, and an `exclude_file_list` section of
+`$WARD`-relative paths for files to remove from the depot (4.1.0+, replaces
+former `p4 delete` commands). Chopper never invokes `p4` itself.
+A P4 branch analysis summary is printed to stdout after every run. See
+architecture doc §5.5.14, §5.5.15, and FR-47/FR-48.
 
 ---
 
@@ -134,9 +151,13 @@ still summarized to stderr. Exit codes match `validate`: 0 clean,
 error, 3 internal programmer error.
 
 options:
-  --domain PATH        Domain root path (default: current directory).
-  --base PATH          Path to base JSON (required unless --project is used)
-  --features PATHS     Comma-separated ordered list of feature JSON paths
+  --domain PATH        Domain root — same three forms as ``chopper validate``.
+                       Also accepts CSV for multi-domain runs (§5.1.2).
+                       Default: current working directory. See ARCHITECTURE.md §5.1.0.
+  --base PATH          Path to base JSON. Optional when domain is a named domain (auto-discovery).
+  --features PATHS     Comma-separated ordered list of feature JSON paths or names.
+                       Names resolved from ``<domain>/jsons/features/*.feature.json``.
+                       Any entry may also be a directory (validate-only expansion).
   --project PATH       Path to project JSON (mutually exclusive with --base/--features)
   --tool-commands PATH Path to a plain-text file of known external tool-command
                        names. Repeatable. Same semantics as `chopper trim`.

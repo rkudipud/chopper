@@ -8,13 +8,17 @@
 ## TL;DR — from zero to a trimmed domain in 4 commands
 
 ```text
-cd <domain>
-chopper validate --base jsons/base.json                  # safe, read-only preflight
-chopper trim --dry-run --base jsons/base.json            # preview what would change
-chopper trim --base jsons/base.json                      # live trim — domain rebuilt on disk
+# Named domain via $WARD (4.1.0+) — Chopper finds jsons/base.json automatically:
+chopper validate --domain fev_formality           # safe, read-only preflight
+chopper trim --dry-run --domain fev_formality      # preview what would change
+chopper trim --domain fev_formality                # live trim — domain rebuilt on disk
+
+# Explicit path + base (classic form, always works):
+chopper validate --domain /path/to/domain --base jsons/base.json
+chopper trim --domain /path/to/domain --base jsons/base.json
 ```
 
-That's it. Write one JSON describing what to keep; Chopper removes everything else. The original is preserved as `<domain>_backup/` so you can always go back. Every decision is recorded in `.chopper/` for full auditability.
+Write one JSON describing what to keep; Chopper removes everything else. The original is preserved as `<domain>_backup/` so you can always go back. Every decision is recorded in `.chopper/` for full auditability.
 
 ---
 

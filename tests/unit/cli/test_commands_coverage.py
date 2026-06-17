@@ -75,6 +75,8 @@ def test_make_context_emits_vi03_when_backup_dir_passed(tmp_path: Path) -> None:
 
     domain = tmp_path / "mydom"
     domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}", encoding="utf-8")
     backup = tmp_path / "mydom_backup"
     backup.mkdir()
 
@@ -254,7 +256,7 @@ def test_cmd_cleanup_returns_2_without_confirm() -> None:
     args = MagicMock()
     args.confirm = False
     args.domain = None
-    with patch("chopper.cli.commands._resolve_domain_root", return_value=(DOMAIN, None)):
+    with patch("chopper.cli.commands._resolve_domain_root", return_value=(DOMAIN, None, None)):
         rc = cmd_cleanup(args)
     assert rc == 2
 
@@ -551,3 +553,514 @@ def test_cmd_loc_with_project_skips_feature_dir_expansion(
     # have returned the input verbatim (no slash -> not a directory) or
     # raised -- either way the absence of mutation is the contract.
     assert args.features == "some_unused_dir"
+
+
+# ===========================================================================
+# New coverage: _split_domain_csv, _make_error_domain_result, VE-35, VE-36,
+# name-mode backup redirect, multi-domain loops (4.1.0+ paths)
+# ===========================================================================
+
+
+def test_split_domain_csv_none_returns_single_none_element() -> None:
+    from chopper.cli.commands import _split_domain_csv
+
+    result = _split_domain_csv(None)
+    assert result == [None]
+
+
+def test_split_domain_csv_single_token_returns_single_element() -> None:
+    from chopper.cli.commands import _split_domain_csv
+
+    result = _split_domain_csv("fev_formality")
+    assert result == ["fev_formality"]
+
+
+def test_split_domain_csv_two_tokens_returns_two_elements() -> None:
+    from chopper.cli.commands import _split_domain_csv
+
+    result = _split_domain_csv("fev_formality,fev_conformal")
+    assert result == ["fev_formality", "fev_conformal"]
+
+
+def test_split_domain_csv_strips_whitespace() -> None:
+    from chopper.cli.commands import _split_domain_csv
+
+    result = _split_domain_csv("  fev_formality , fev_conformal  ")
+    assert result == ["fev_formality", "fev_conformal"]
+
+
+def test_split_domain_csv_ignores_empty_tokens() -> None:
+    from chopper.cli.commands import _split_domain_csv
+
+    # Trailing comma → only one real token.
+    result = _split_domain_csv("fev_formality,")
+    assert result == ["fev_formality"]
+
+
+def test_make_error_domain_result_fields() -> None:
+    from chopper.cli.commands import _make_error_domain_result
+
+    r = _make_error_domain_result("snps/fev_formality", 2)
+    assert r.domain_logical_name == "snps/fev_formality"
+    assert r.exit_code == 2
+    assert r.branch_needed is False
+    assert r.edits_count == 0
+    assert r.adds_count == 0
+    assert r.removes_count == 0
+
+
+def test_make_error_domain_result_none_token() -> None:
+    from chopper.cli.commands import _make_error_domain_result
+
+    r = _make_error_domain_result(None, 2)
+    assert r.domain_logical_name == "(unknown)"
+
+
+def test_build_run_config_ve35_auto_discovery_fails(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """When --domain is set but --base is absent and jsons/base.json doesn't
+    exist, _build_run_config must write VE-35 to stderr and raise SystemExit(2).
+    Per ARCHITECTURE.md §5.1.0 (base auto-discovery).
+    """
+    from chopper.cli.commands import _build_run_config
+
+    domain = tmp_path / "my_domain"
+    domain.mkdir()
+    # No jsons/ at all → auto-discovery fails.
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        _build_run_config(args, dry_run=True)
+    assert exc_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "VE-35" in captured.err
+
+
+def test_build_run_config_ve36_unresolved_feature_name(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """When a --features token is a name that cannot be resolved to a
+    *.feature.json file, _build_run_config must write VE-36 to stderr and
+    raise SystemExit(2).  Per ARCHITECTURE.md §5.1.0 (feature-name lookup).
+    """
+    from chopper.cli.commands import _build_run_config
+
+    domain = tmp_path / "my_domain"
+    domain.mkdir()
+    jsons = domain / "jsons"
+    jsons.mkdir()
+    (jsons / "base.json").write_text("{}")
+    features_dir = jsons / "features"
+    features_dir.mkdir()
+    (features_dir / "dft.feature.json").write_text("{}")
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,  # will be auto-discovered from jsons/base.json
+        features="nonexistent_feature",
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        _build_run_config(args, dry_run=True)
+    assert exc_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "VE-36" in captured.err
+
+
+def test_build_run_config_ve36_unresolved_feature_with_suggestion(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """VE-36 error message must include a 'Did you mean' suggestion when
+    there is a close match in the features directory.
+    """
+    from chopper.cli.commands import _build_run_config
+
+    domain = tmp_path / "my_domain"
+    domain.mkdir()
+    jsons = domain / "jsons"
+    jsons.mkdir()
+    (jsons / "base.json").write_text("{}")
+    features_dir = jsons / "features"
+    features_dir.mkdir()
+    # "dft_scan" is close enough to "dft_scam" (typo) for difflib to suggest.
+    (features_dir / "dft_scan.feature.json").write_text("{}")
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features="dft_scam",  # typo of dft_scan
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        _build_run_config(args, dry_run=True)
+    assert exc_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "VE-36" in captured.err
+    assert "Did you mean" in captured.err
+
+
+def test_resolve_domain_root_backup_redirect_from_name_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_resolve_domain_root must apply _backup redirect even when name-mode
+    resolution returns a path that ends in '_backup', stripping to the
+    sibling live domain.  Per ARCHITECTURE.md §5.1 (domain-suffix-strip).
+    """
+    from chopper.cli.commands import _resolve_domain_root
+
+    # Set up $WARD/global/snps/fev_formality_backup (the name-mode result)
+    ward = tmp_path / "ward"
+    global_dir = ward / "global" / "snps"
+    global_dir.mkdir(parents=True)
+    backup_domain = global_dir / "fev_formality_backup"
+    backup_domain.mkdir()
+    # The stripped sibling must also exist.
+    live_domain = global_dir / "fev_formality"
+    live_domain.mkdir()
+
+    monkeypatch.setenv("WARD", ward.as_posix())
+    args = argparse.Namespace(domain="snps/fev_formality_backup")
+    root, original, lookup = _resolve_domain_root(args)
+
+    # Should redirect to the live sibling.
+    assert root == live_domain.resolve()
+    assert original is not None
+    assert lookup is not None
+
+
+def test_cmd_validate_multi_domain_propagates_max_exit_code(
+    tmp_path: Path,
+) -> None:
+    """cmd_validate with CSV --domain must run each domain and return max
+    exit code.  Per ARCHITECTURE.md §5.1.2 (multi-domain sequential trim).
+    We mock the runner to return a predictable exit code for each domain.
+    """
+    import argparse
+
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    (domain_a / "jsons").mkdir()
+    (domain_a / "jsons" / "base.json").write_text("{}")
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    call_count = {"n": 0}
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        call_count["n"] += 1
+        ec = 0 if call_count["n"] == 1 else 1
+        return MagicMock(spec=RunResult, exit_code=ec, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+        rc = cmds.cmd_validate(args)
+
+    assert call_count["n"] == 2
+    assert rc == 1  # max(0, 1)
+
+
+def test_cmd_trim_multi_domain_propagates_max_exit_code(
+    tmp_path: Path,
+) -> None:
+    """cmd_trim with CSV --domain must loop over each domain in sequence and
+    return the maximum exit code.  Per ARCHITECTURE.md §5.1.2.
+    """
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    (domain_a / "jsons").mkdir()
+    (domain_a / "jsons" / "base.json").write_text("{}")
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    call_count = {"n": 0}
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        call_count["n"] += 1
+        ec = 1 if call_count["n"] == 1 else 0
+        return MagicMock(spec=RunResult, exit_code=ec, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats"),
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert call_count["n"] == 2
+    assert rc == 1  # max(1, 0)
+
+
+def test_cmd_loc_multi_domain_propagates_max_exit_code(
+    tmp_path: Path,
+) -> None:
+    """cmd_loc with CSV --domain must loop over each domain and return max
+    exit code.  Per ARCHITECTURE.md §5.1.2.
+    """
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    (domain_a / "jsons").mkdir()
+    (domain_a / "jsons" / "base.json").write_text("{}")
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    call_count = {"n": 0}
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        call_count["n"] += 1
+        ec = 0 if call_count["n"] == 1 else 0
+        return MagicMock(spec=RunResult, exit_code=ec, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+        rc = cmds.cmd_loc(args)
+
+    assert call_count["n"] == 2
+    assert rc == 0  # max(0, 0)
+
+
+def test_cmd_validate_multi_domain_early_failure_uses_error_result(
+    tmp_path: Path,
+) -> None:
+    """When _check_project_paths_resolvable returns non-None for one domain in
+    a CSV run, that domain uses _make_error_domain_result and the loop
+    continues to the next domain.
+    """
+    import json as _json
+
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    # domain_a: project.json with missing base → exit 2
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    project_a = tmp_path / "proj_a.json"
+    project_a.write_text(_json.dumps({"base": "missing.json", "features": []}))
+
+    # domain_b: valid domain with real base.json → runner called
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    call_count = {"n": 0}
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        call_count["n"] += 1
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        # project applies to BOTH domains in this simple test setup;
+        # domain_a's project is missing base — domain_b has none
+        project=str(project_a),
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+        rc = cmds.cmd_validate(args)
+
+    # domain_a contributed rc=2, domain_b contributed rc=0; max=2
+    # but since domain_b also gets project=proj_a which references missing.json
+    # in domain_b's root, it also exits 2 → max(2,2)=2
+    assert rc == 2
+
+
+def test_build_run_config_ve36_no_suggestion_hint(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """VE-36 error message must fall back to 'ls features/' hint when no close
+    matches are available (the else branch of the suggestion check).
+    """
+    from chopper.cli.commands import _build_run_config
+
+    domain = tmp_path / "my_domain"
+    domain.mkdir()
+    jsons = domain / "jsons"
+    jsons.mkdir()
+    (jsons / "base.json").write_text("{}")
+    features_dir = jsons / "features"
+    features_dir.mkdir()
+    (features_dir / "zzz_totally_different.feature.json").write_text("{}")
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features="aaa_no_match_at_all",  # nothing close to zzz_totally_different
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        _build_run_config(args, dry_run=True)
+    assert exc_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "VE-36" in captured.err
+    # No suggestions → falls back to ls hint
+    assert "ls" in captured.err or "features" in captured.err
+
+
+def test_cmd_trim_single_domain_calls_render_trim_stats_on_live_run(
+    tmp_path: Path,
+) -> None:
+    """cmd_trim single-domain live run (dry_run=False) must call render_trim_stats.
+    Lines 491-492 in commands.py.  We patch render_result and render_trim_stats
+    to avoid needing a real domain on disk.
+    """
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,  # live run
+    )
+    stats_called = {"n": 0}
+
+    def _fake_trim_stats(ctx, result):  # type: ignore[misc]
+        stats_called["n"] += 1
+
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats", _fake_trim_stats),
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    assert stats_called["n"] == 1  # render_trim_stats was called once
+
+
+def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
+    tmp_path: Path,
+) -> None:
+    """cmd_trim multi-domain live run must call render_trim_stats for each
+    domain where dry_run=False.  Lines 510, 514 in commands.py.
+    """
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    (domain_a / "jsons").mkdir()
+    (domain_a / "jsons" / "base.json").write_text("{}")
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    stats_called = {"n": 0}
+
+    def _fake_trim_stats(ctx, result):  # type: ignore[misc]
+        stats_called["n"] += 1
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,  # live → render_trim_stats should be called
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats", _fake_trim_stats),
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    assert stats_called["n"] == 2  # once per domain
