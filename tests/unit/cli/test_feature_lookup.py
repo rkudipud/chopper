@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from chopper.cli.feature_lookup import FeatureLookupResult, resolve_feature_names
+from chopper.cli.feature_lookup import resolve_feature_names
 
 
 def _make_domain(tmp_path: Path, feature_names: list[str]) -> Path:

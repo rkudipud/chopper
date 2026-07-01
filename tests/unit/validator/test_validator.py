@@ -143,6 +143,18 @@ def test_validate_pre_accepts_literal_file_present_in_backup_for_rerun() -> None
     assert "VE-06" not in _codes(ctx)
 
 
+def test_validate_pre_emits_vw25_when_exclude_literal_missing() -> None:
+    """A literal files.exclude target already absent -> VW-25 (no-op), never VE-06."""
+    fs = InMemoryFS()
+    fs.mkdir(DOMAIN, parents=True, exist_ok=True)
+    ctx = _ctx(fs=fs)
+    loaded = LoadedConfig(base=_base(files=FilesSection(exclude=("gone.tcl",))))
+    validate_pre(ctx, loaded)
+    codes = _codes(ctx)
+    assert "VW-25" in codes
+    assert "VE-06" not in codes
+
+
 # ---------------------------------------------------------------------------
 # validate_pre -- VE-09 malformed glob
 # ---------------------------------------------------------------------------

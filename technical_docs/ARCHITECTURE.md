@@ -538,6 +538,7 @@ F1 performs whole-file trimming via `files.include` and `files.exclude` in base 
 - Non-Tcl files matched by a glob receive `FULL_COPY` or `REMOVE` treatment (F1). They are excluded from P2 parsing (OOS-01) and are therefore never eligible for F2 proc-level trimming.
 - `FULL_COPY` is byte-preserving for **every** file type, including `.tcl`. The `TrimReport.bytes_out` for a `FULL_COPY` outcome equals the source byte count and never shifts after P5c. Indentation normalization applies only to `PROC_TRIM` and `GENERATED` `.tcl` outputs.
 - When a glob pattern expands to zero files it is silently ignored.
+- A literal path in `files.exclude` whose target is already absent from the domain emits `VW-25 exclude-target-absent` (the exclusion is a no-op — the file the author wanted dropped is already gone) and does **not** block the trim. A missing literal in `files.include`, by contrast, remains a hard `VE-06` error.
 - All expansions are normalized, deduplicated, and sorted lexicographically before compilation.
 - Patterns are case-sensitive.
 - Glob patterns do NOT apply to `procedures.include` / `procedures.exclude` — those use exact file paths and proc names.
@@ -1209,6 +1210,26 @@ Given the same domain root, base JSON, and ordered feature list, project mode an
 
 When `--project` is provided, the project JSON resolves `base` and `features` against the operational domain root (see "Domain-root resolution" below), not against the project JSON file location. The resolved inputs then enter the same compilation pipeline as `--base`/`--features`. The `project`, `owner`, `release_branch`, and `notes` fields from the project JSON are recorded in audit artifacts.
 
+#### §5.1.3 — Project-config auto-discovery (4.2.0+)
+
+When `--domain` resolves in **name-mode** (ward root and domain logical name are both known) and **none** of `--project`, `--base`, or `--features` are explicitly supplied, Chopper performs a secondary lookup in `$WARD/project/` to find a project-level configuration file for the domain.
+
+**Discovery path:** `$WARD/project/<domain_logical_name>/<leaf>.<type>` where `<domain_logical_name>` is the resolved `vendor/name` (e.g. `snps/fev_formality`) and `<leaf>` is the last component (e.g. `fev_formality`).
+
+**Search order (first match wins):**
+
+| File | Behaviour |
+|---|---|
+| `<leaf>.project.json` | Treated as `--project <path>`. All project JSON semantics apply (domain-field match, base/features resolution against `domain_root`, audit recording). |
+| `<leaf>.project.features.config` | Plain-text feature list: one feature name per line. Blank lines and `#`-comment lines are ignored. Resolved as if `--features <names>` were passed; base JSON is still auto-discovered per §5.1.0. The resolved path is stored in `RunConfig.project_config_path` and surfaced in the domain run header (§5.5.16). |
+
+**Auto-discovery is suppressed when any of the following are true:**
+- `--project`, `--base`, or `--features` is explicitly provided (any one suppresses discovery).
+- `--domain` resolved in path-mode (no ward root known).
+- `$WARD/project/<domain_logical_name>/` does not exist or neither probe file is present.
+
+Auto-discovery is silent when neither file is found — Chopper continues with base-only mode (VE-35 applies if base auto-discovery also fails). No new diagnostic code is emitted for successful discovery; the found path is shown in the domain run header. See FR-49.
+
 #### Domain-root resolution
 
 Chopper computes the operational domain root from CLI flags before any other phase runs. The resolution rule is **two steps, applied in order**:
@@ -1325,7 +1346,7 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 - Schema-validate every loaded JSON against `schemas/*.schema.json`.
 - Run Phase 1 structural checks: file existence, glob well-formedness, `feature.domain` matches `base.domain`, `depends_on` prerequisites precede dependents in the project `features` order, etc.
 - Build `surface_files` — the union of every domain-relative path contributed by any source. Literal `files.include` entries and the file paths in `procedures.include` / `procedures.exclude` are added directly. `files.include` patterns containing `*`, `?`, or `[` are expanded against the on-disk domain via a single deterministic BFS walk (with `.chopper/` excluded), using the same `**`-aware glob semantics as P3 so that any file P1 surfaces will also be matched by P3's conflict resolution. `files.exclude` globs are *not* expanded here — they are resolved in P3 against the parsed universe. When a glob-driven walk occurs, the file list is cached in `LoadedConfig.domain_file_cache` for P2 reuse (O1 optimization).
-- Emit `VE-*` on hard failures (non-zero exit); emit `VW-*` / `VI-*` on soft issues. `VW-03 glob-matches-nothing` is emitted by `validate_pre` when a `files.include` glob produces zero matches.
+- Emit `VE-*` on hard failures (non-zero exit); emit `VW-*` / `VI-*` on soft issues. `VW-03 glob-matches-nothing` is emitted by `validate_pre` when a `files.include` glob produces zero matches. A missing literal in `files.include` is the hard `VE-06`; a missing literal in `files.exclude` is the soft `VW-25 exclude-target-absent` (the exclusion is a no-op because the target is already gone) and the pipeline proceeds — the absent literal is harmlessly filtered at P3 (`merge_service` `_distill_facts`, which keeps only `files.exclude` literals present on the surface).
 - Owner: `config/` + `validator/` (Phase 1 validation).
 - Output: a frozen `LoadedConfig` carrying `(base_json, [feature_jsons], surface_files, domain_file_cache, ...)` — no on-disk artifact.
 
@@ -2099,6 +2120,33 @@ Domains needing branch: cdns/fev_conformal, snps/power
 
 See FR-48.
 
+#### 5.5.16 Domain Run Header (stdout) — 4.2.0+
+
+Before the pipeline starts for each domain, Chopper writes a scannable header block to **stdout** (all lines flushed immediately):
+
+```
+=== Domain: <domain_logical_name_or_leaf> ===
+  Domain root      : <domain_root>
+  Base JSON        : <base_path>               # base/features mode
+  Base JSON        : <project_path>  (project) # project JSON mode
+  config file found.. processing
+  config file path : <project_config_path>     # only for §5.1.3 .project.features.config
+  Features (N) :
+    1. <name> : <feature_path>
+    2. <name> : <feature_path>
+```
+
+**Line semantics:**
+
+- `=== Domain: ... ===` — `domain_logical_name` when known (name-mode), otherwise `domain_root.name`.
+- `Domain root` — resolved absolute path to the domain directory.
+- `Base JSON` — `base_path` in base/features mode; `project_path + " (project)"` in project JSON mode; `"(none)"` when neither is set.
+- `config file found.. processing` — emitted when `base_path` or `project_path` is non-null.
+- `config file path` — emitted **only** when `RunConfig.project_config_path` is set, i.e. the auto-discovered `<leaf>.project.features.config` from §5.1.3. For project JSON inputs (explicit `--project` or auto-discovered `.project.json`), the path is already on the `Base JSON` line and is not repeated.
+- `Features (N)` — emitted when one or more feature paths are active; each feature listed with a 1-based index, short name (stem minus `.feature` suffix), and resolved path.
+
+The header is written before any stderr progress output. In multi-domain mode, one header block precedes each domain's pipeline. See FR-50.
+
 ### 5.6 Output Expectations
 
 Chopper output must be:
@@ -2220,8 +2268,8 @@ Because the check is manifest-derivable, it runs **identically in dry-run and li
 
 **`chopper validate` standalone command.**
 
-- **Default behavior (JSON-only):** When invoked without access to the domain source tree, `chopper validate` runs Phase 1 structural checks only — schema validation, path rules, empty-procs detection, depends-on resolution, and every other check that does not require reading `.tcl` files. Filesystem-existence checks (`VE-06`, `VE-07`) and parser-time checks (`PE-*`) are **skipped** in this mode.
-- **Full mode (with domain):** When invoked from inside the domain directory (so that `domain_root.name.casefold() == project.domain.casefold()` per §5.1) or with an explicit `--domain` argument, `chopper validate` additionally runs the parser (`PE-*`) and the filesystem-existence checks (`VE-06`, `VE-07`). This is the pre-flight mode used before `chopper trim`.
+- **Default behavior (JSON-only):** When invoked without access to the domain source tree, `chopper validate` runs Phase 1 structural checks only — schema validation, path rules, empty-procs detection, depends-on resolution, and every other check that does not require reading `.tcl` files. Filesystem-existence checks (`VE-06`, `VE-07`, `VW-25`) and parser-time checks (`PE-*`) are **skipped** in this mode.
+- **Full mode (with domain):** When invoked from inside the domain directory (so that `domain_root.name.casefold() == project.domain.casefold()` per §5.1) or with an explicit `--domain` argument, `chopper validate` additionally runs the parser (`PE-*`) and the filesystem-existence checks (`VE-06`, `VE-07`, `VW-25`). This is the pre-flight mode used before `chopper trim`.
 
 The detailed validation check matrix, diagnostics contract, and exit semantics are defined in [technical_docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
 
@@ -2417,7 +2465,7 @@ Chopper is a Python ≥ 3.13 CLI. The rules below are authoritative for every fi
 
 #### 5.12.8 Testing Standards
 
-Coverage gates, fixture conventions, and the integration-test harness are defined in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md). Parser fixture catalog is in [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md). The full suite (`make ci`) is held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99% line.
+Coverage gates, fixture conventions, and the integration-test harness are defined in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md). Parser fixture catalog is in [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md). The full suite (`make ci`) is held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99.8% line.
 
 #### 5.12.9 Permitted Cross-Phase Exception: Validator Imports Parser (VW-10 Proc-Set Reconciliation)
 
@@ -3086,6 +3134,8 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-46 | `chopper loc` runs the same P0–P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, then replays the real P5 trim phases (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and emits a stdout LOC report comparing the source domain against the actually-rebuilt trimmed domain (files-before/after, physical-lines-before/after, SLOC-before/after, percent reduction). Because the replay reuses the production trim services, the totals are byte-for-byte identical to a live `chopper trim`. The subcommand accepts the same input flags as `validate`/`trim` (`--base [--features]` or `--project`). It writes nothing to the real filesystem — no domain modifications and no `.chopper/` audit bundle (the runner suppresses P7 audit when `command == "loc"`). Exit-code policy matches `validate` (0/1/2/3). See §5.7. |
 | FR-47 | The P7 audit bundle includes `.chopper/p4_commands.txt`: a deterministic, sorted Perforce command list. `p4 edit -t text+x` for `PROC_TRIM` and in-place `GENERATED` files; `p4 add -t text+x` for new `GENERATED` files; an `exclude_file_list` section (4.1.0+) with `$WARD`-relative paths for removed files (replaces former `p4 delete` commands). Emitted on both live trim and `--dry-run`; not by `validate`, `loc`, or `cleanup`. Chopper never invokes `p4` itself. See §5.5.14. |
 | FR-48 | After every `trim`, `trim --dry-run`, `validate`, and `loc` run, Chopper prints a P4 branch analysis to stdout. "No branch needed" = all surviving file treatments are `REMOVE` only (pure depot deletions via P4 client-spec resync). "Branch needed" = at least one `PROC_TRIM` or `GENERATED` treatment exists (files modified or added; a P4 branch is required). In multi-domain mode (§5.1.2), per-domain verdicts are printed followed by an aggregate verdict and the list of domains that need a branch. See §5.5.15. |
+| FR-49 | When `--domain` resolves in name-mode and no explicit `--project`, `--base`, or `--features` is supplied, Chopper searches `$WARD/project/<vendor>/<domain>/` for `<leaf>.project.json` (→ project mode, all project JSON semantics) then `<leaf>.project.features.config` (→ features mode, one feature name per line, blank lines and `#` comments ignored). First match wins. No discovery when path-mode or when any explicit flag is provided. No diagnostic emitted on successful discovery. See §5.1.3. |
+| FR-50 | Before the pipeline starts for each domain, Chopper writes a scannable domain run header to stdout (all lines flushed immediately). The header shows: domain label (`domain_logical_name` or leaf name), domain root, base/project JSON path, `config file path` (only for auto-discovered `.project.features.config`), and a numbered feature list. In multi-domain mode, one header precedes each domain's pipeline. See §5.5.16. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -3457,6 +3507,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-05-09 | **2.0.0a3 — P5c indentation made opt-in via `options.indent` (default `false`).** Legacy Perl-port formatter had known structural gaps (no quote/comment awareness, no line-continuation folding, single-`}` dedent only). Rather than rewrite, gate it: when disabled the runner passes through but still computes the rewritten-path tuple so P6 `VE-16` brace-balance coverage stays intact. PROC_TRIM / GENERATED outputs reach disk verbatim. |
 | 2026-05-15 | **2.5.0 — Parser fidelity validated against production fixtures.** Fixed quote-context-in-braced-data-word (P-01a — `set q {"}`), switch-pattern-label misparse (P-39), regex-literal walk (P-38), DPA line-continuation (P-40), and `diagnostics.json` file-null-for-P4/P6 (P-41). Established the rule that **bug reports become fixture files**, never inline snippets. |
 | 2026-05-15 | **3.0.0 — Coverage hardened to 100%.** Distributed surgical `test_*_coverage.py` files across native `tests/unit/<module>/` locations covering defensive branches, OSError/ValueError handlers, and protocol error paths. Established the rule that tests live in their **native** module locations — no catch-all coverage scripts. `# pragma: no cover` markers properly gate provably-unreachable branches. |
+| 2026-06-30 | **4.2.0 — Project-config auto-discovery, domain run header.** When `--domain` resolves in name-mode and no explicit `--project`/`--base`/`--features` is given, Chopper searches `$WARD/project/<vendor>/<domain>/` for `<leaf>.project.json` (→ project mode) or `<leaf>.project.features.config` (→ features mode, one name per line) (§5.1.3, FR-49). Before each domain's pipeline, a scannable header block is printed to stdout: domain label, root, base/project JSON path, auto-discovered config file path, and numbered feature list; all lines flushed immediately (§5.5.16, FR-50). New `RunConfig` field: `project_config_path: Path | None` stores the resolved `.project.features.config` path when auto-discovered (None otherwise). |
 | 2026-06-17 | **4.1.0 — Domain-name resolution, multi-domain trim, feature-name lookup, base auto-discovery, P4 branch analysis, `exclude_file_list`.** `--domain` now accepts logical names (`fev_formality`, `snps/power`) resolved via `$WARD/global/<vendor>/<name>`; vendor-qualified and absolute-path forms supported (§5.1.0). `--base` optional when domain is named (auto-discovery from `jsons/base.json`; VE-35). `--features` accepts feature names resolved from `<domain>/jsons/features/*.feature.json` with close-match suggestions (VE-36). `--domain` CSV for multi-domain sequential trim; `max()` exit code across domains (§5.1.2). P4 branch analysis printed to stdout after every run (§5.5.15, FR-48). `p4 delete` section in `p4_commands.txt` replaced by `exclude_file_list` section with `$WARD`-relative paths (§5.5.14, FR-47 updated). New codes: VE-32 (`ward-env-not-set`), VE-33 (`domain-not-found`), VE-34 (`ambiguous-domain-name`), VE-35 (`base-autodiscovery-failed`), VE-36 (`feature-name-not-found`). |
 | 2026-05-18 | **3.1.0 — `.chopper/p4_commands.txt` audit artifact (FR-47).** Deterministic Perforce command list correlating every file-treatment decision to `p4 edit` / `p4 add` / `p4 delete`. Three alphabetically-sorted sections; trailing LF; `-t text+x` matches `ensure_executable()`. Emitted on live trim and `--dry-run`; not by `validate` / `loc` / `cleanup`. Chopper never invokes `p4` — the file is a review artifact, not an automation surface. |
 | 2026-05-21 | **3.3.0 — F3 aggregate `<domain>.stack` + per-stage `standalone_stack`.** Aggregate stack corrected to one file per flow (matches production EDA artifact contract — pre-3.3 per-stage stacks were wrong). Record-line order `N → J → L → I → O → D → (R parallel)`. `standalone_stack: true` is orthogonal and additive (per-stage verbatim emission). Three new diagnostics: `VE-28`, `VE-29`, `VW-23`. Hard cutover, no shim. |

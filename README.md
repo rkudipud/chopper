@@ -433,6 +433,13 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.2.0 — 2026-06-30
+
+- **Project-config auto-discovery.** When `--domain` resolves in name-mode and no explicit `--project`, `--base`, or `--features` is supplied, Chopper searches `$WARD/project/<vendor>/<domain>/` for `<leaf>.project.json` (treated as `--project`) or `<leaf>.project.features.config` (plain-text feature list, one name per line — treated as `--features`). First match wins; discovery is silent when neither file is found. See ARCHITECTURE.md §5.1.3, FR-49.
+- **Domain run header.** Before each domain's pipeline, Chopper prints a scannable header to stdout: domain label, domain root, base/project JSON path, auto-discovered config file path (for `.project.features.config` only), and numbered feature list. All lines are flushed immediately so they appear before stderr progress output. See ARCHITECTURE.md §5.5.16, FR-50.
+- **New `RunConfig.project_config_path` field.** Stores the resolved `.project.features.config` path when auto-discovered; `None` otherwise.
+- FR-49 and FR-50 added. Version bumped 4.1.0 → 4.2.0.
+
 ### 4.1.0 — 2026-06-17
 
 - **Domain-name resolution via `$WARD`.** `--domain` now accepts logical names (`fev_formality`, `snps/power`) resolved via `$WARD/global/<vendor>/<name>`. Bare-name search finds unique vendor match automatically; ambiguous names require `vendor/name` notation (VE-34). Absolute paths bypass `$WARD` for backward compat.

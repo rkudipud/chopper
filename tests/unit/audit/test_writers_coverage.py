@@ -307,3 +307,128 @@ def test_resolve_before_path_with_state_none() -> None:
 
     result = _resolve_before_path(ctx2, record, Path("lib.tcl"))
     assert result == DOMAIN / "lib.tcl"
+
+
+def test_p4_commands_ctx_ward_root_fallback() -> None:
+    """Line 567: when ward_root kwarg is None, _ward_root falls back to ctx.config.ward_root."""
+    from datetime import datetime
+
+    from chopper.audit.writers import render_p4_commands
+    from chopper.core.context import RunConfig
+    from chopper.core.models_audit import RunRecord
+
+    ward = Path("/fake_ward")
+    domain = ward / "global" / "snps" / "test"
+    backup = domain.with_name(domain.name + "_backup")
+    audit = domain / ".chopper"
+
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=backup,
+        audit_root=audit,
+        strict=False,
+        dry_run=False,
+        ward_root=ward,  # ctx.config.ward_root is set
+    )
+    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    record = RunRecord(run_id="r", command="trim", started_at=t0, ended_at=t0, exit_code=0)
+
+    # Call with ward_root=None (default) — must fall back to ctx.config.ward_root.
+    _name, content = render_p4_commands(ctx2, record, ward_root=None)
+    # No Perforce commands (empty manifest) but function must complete without error.
+    assert "(no Perforce commands" in content
+
+
+def test_p4_commands_ward_relative_exclude_paths() -> None:
+    """Lines 575-579, 617-621: domain under ward_root → exclude_file_list uses ward-relative paths."""
+    from datetime import datetime
+
+    from chopper.audit.writers import render_p4_commands
+    from chopper.core.context import RunConfig
+    from chopper.core.models_audit import RunRecord
+    from chopper.core.models_common import FileTreatment
+    from chopper.core.models_compiler import CompiledManifest, FileProvenance
+
+    ward = Path("/fake_ward")
+    domain = ward / "global" / "snps" / "test"
+    backup = domain.with_name(domain.name + "_backup")
+    audit = domain / ".chopper"
+
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=backup,
+        audit_root=audit,
+        strict=False,
+        dry_run=False,
+        ward_root=ward,
+    )
+    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    removed = Path("src/old.tcl")
+    manifest = CompiledManifest(
+        file_decisions={removed: FileTreatment.REMOVE},
+        proc_decisions={},
+        provenance={
+            removed: FileProvenance(
+                path=removed,
+                treatment=FileTreatment.REMOVE,
+                reason="fi-glob",
+                input_sources=(),
+            )
+        },
+    )
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    record = RunRecord(run_id="r", command="trim", started_at=t0, ended_at=t0, exit_code=0, manifest=manifest)
+
+    _name, content = render_p4_commands(ctx2, record, ward_root=ward)
+    # Ward-relative path must appear in exclude_file_list section.
+    assert "global/snps/test/src/old.tcl" in content
+
+
+def test_p4_commands_ward_prefix_valueerror_falls_back_to_domain_relative() -> None:
+    """Lines 577-579: domain_root not under ward_root → relative_to raises ValueError,
+    _ward_prefix falls back to None and domain-relative paths are used."""
+    from datetime import datetime
+
+    from chopper.audit.writers import render_p4_commands
+    from chopper.core.context import RunConfig
+    from chopper.core.models_audit import RunRecord
+    from chopper.core.models_common import FileTreatment
+    from chopper.core.models_compiler import CompiledManifest, FileProvenance
+
+    # domain is NOT under ward → relative_to raises ValueError
+    ward = Path("/unrelated_ward")
+    domain = Path("/some/other/domain")
+    backup = domain.with_name(domain.name + "_backup")
+    audit = domain / ".chopper"
+
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=backup,
+        audit_root=audit,
+        strict=False,
+        dry_run=False,
+    )
+    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    removed = Path("lib/old.tcl")
+    manifest = CompiledManifest(
+        file_decisions={removed: FileTreatment.REMOVE},
+        proc_decisions={},
+        provenance={
+            removed: FileProvenance(
+                path=removed,
+                treatment=FileTreatment.REMOVE,
+                reason="fi-glob",
+                input_sources=(),
+            )
+        },
+    )
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    record = RunRecord(run_id="r", command="trim", started_at=t0, ended_at=t0, exit_code=0, manifest=manifest)
+
+    # Ward-root is set but domain is not under it → domain-relative paths used.
+    _name, content = render_p4_commands(ctx2, record, ward_root=ward)
+    assert "lib/old.tcl" in content  # domain-relative path

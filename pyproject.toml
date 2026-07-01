@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "4.1.0"
+version = "4.2.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.13. ruff's `target-version` and
 # mypy's `python_version` below are both pinned to 3.13 so the lint /
@@ -67,7 +67,7 @@ select = ["E", "F", "I", "N", "W", "UP", "FA"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-under=99"
+addopts = "--cov=src/chopper --cov-branch --cov-report=term-missing --cov-fail-under=99.8"
 
 [tool.coverage.report]
 # Coverage excludes for defensive guards and language boilerplate.

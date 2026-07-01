@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 import pytest
 
-from chopper.cli.domain_lookup import DomainLookupResult, resolve_domain
+from chopper.cli.domain_lookup import resolve_domain
 
 
 class _Error(NamedTuple):
@@ -212,3 +212,18 @@ class TestBareNameOSError:
         assert len(errors) == 1
         assert errors[0].code == "VE-33"
         assert "perm denied" in errors[0].message
+
+    def test_non_directory_entry_in_global_is_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Line 144: a regular file inside $WARD/global/ triggers 'continue' and is skipped."""
+        ward = tmp_path / "ward"
+        global_dir = ward / "global"
+        (global_dir / "snps" / "fev_formality").mkdir(parents=True)
+        (global_dir / "not_a_vendor.txt").write_text("file")  # non-directory entry
+        monkeypatch.setenv("WARD", ward.as_posix())
+
+        errors, emit = _collect_errors()
+        result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
+
+        assert result is not None
+        assert result.domain_logical_name == "snps/fev_formality"
+        assert errors == []

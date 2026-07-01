@@ -298,6 +298,10 @@ class RunConfig:
     audit_root: Path                     # .chopper/ — reserved; see architecture doc §5.5
     strict: bool                         # exit-code policy, applied at CLI (§8.2)
     dry_run: bool
+    # Optional / name-mode fields (None in path-mode)
+    ward_root: Path | None               # $WARD root from name-mode --domain resolution (4.1.0+)
+    domain_logical_name: str | None      # "vendor/name" resolved via $WARD/global/ (4.1.0+)
+    project_config_path: Path | None     # auto-discovered .project.features.config path (4.2.0+)
     # No `mode` field. The CLI dispatches on subcommand name (`validate` / `trim` /
     # `cleanup`); `cleanup` never enters ChopperRunner at all (it is a standalone
     # `shutil.rmtree(<domain>_backup)` function). See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A7.

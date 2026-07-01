@@ -9,6 +9,10 @@
     },
     {
       "path": "../fev_2026.06.plus"
+    },
+    {
+      "path": "/nfs/site/disks/ddi_r2g_13/rkudipud/global_dev/dev_repo/r2g_1278_rel",
+      "name": "r2g_1278_rel (CTH ward)"
     }
   ],
   "settings": {

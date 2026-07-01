@@ -537,6 +537,20 @@ def test_check_pattern_literal_not_found_emits_ve06() -> None:
     assert "VE-06" in _codes(ctx)
 
 
+def test_check_pattern_exclude_literal_missing_emits_vw25() -> None:
+    """_check_pattern must emit VW-25 (not VE-06) for a missing literal files.exclude path."""
+    from chopper.validator.functions import _check_pattern
+
+    fs = InMemoryFS()
+    ctx = _ctx(fs=fs)
+    fs.mkdir(DOMAIN, parents=True, exist_ok=True)
+    # 'gone.tcl' is NOT written -- a literal exclude whose target is already absent.
+    _check_pattern(ctx, "gone.tcl", source_key="base", field="files.exclude", is_include=False)
+    codes = _codes(ctx)
+    assert "VW-25" in codes
+    assert "VE-06" not in codes
+
+
 # =========================================================================
 # BATCH 2 -- Targeted tests for remaining coverage gaps
 

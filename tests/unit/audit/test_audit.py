@@ -442,6 +442,43 @@ def test_render_files_removed_skips_top_level_chopper_dir() -> None:
     assert data_lines == []
 
 
+def test_render_files_removed_skips_top_level_jsons_dir() -> None:
+    """``jsons/`` is the Chopper authoring directory; it must never appear in
+    ``files_removed.txt`` or the ``exclude_file_list`` of ``p4_commands.txt``."""
+
+    fs = InMemoryFS()
+    fs.write_text(BACKUP / "run.tcl", "puts run\n")
+    # jsons/ present on disk but NOT in the manifest (default-exclude).
+    fs.write_text(BACKUP / "jsons" / "base.json", '{"$schema":"base-v1"}\n')
+    fs.write_text(BACKUP / "jsons" / "features" / "eco.feature.json", '{"$schema":"feature-v1"}\n')
+
+    p = Path("run.tcl")
+    manifest = CompiledManifest(
+        file_decisions={p: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={
+            p: FileProvenance(
+                path=p,
+                treatment=FileTreatment.FULL_COPY,
+                reason="fi-literal",
+                input_sources=("base:files.include",),
+            ),
+        },
+    )
+    ctx = _make_ctx(fs=fs)
+
+    _, removed_content = render_files_removed(ctx, _record(manifest=manifest))
+    data_lines = [line for line in removed_content.splitlines() if line and not line.startswith("#")]
+    # jsons/ must not appear -- only non-jsons default-excluded files would show.
+    assert not any("jsons" in line for line in data_lines), f"jsons/ appeared in files_removed: {data_lines}"
+    assert data_lines == []
+
+    from chopper.audit.writers import render_p4_commands
+
+    _, p4_content = render_p4_commands(ctx, _record(manifest=manifest))
+    assert "jsons" not in p4_content, f"jsons/ appeared in p4_commands: {p4_content}"
+
+
 def test_render_files_removed_dry_run_walks_domain_root_when_no_backup() -> None:
     """In a first-trim ``--dry-run``, no backup exists yet -- walk ``domain_root``."""
 
@@ -960,6 +997,31 @@ def test_trim_stats_counts_full_post_domain_not_just_manifest() -> None:
 
     # 3 manifest-surviving files + 1 extra file physically present.
     assert payload["files_after"] == 4
+
+
+def test_trim_stats_dry_run_derives_after_counts_from_manifest() -> None:
+    """In dry-run the domain is unchanged; render_trim_stats must derive
+    files_after from the manifest (REMOVE excluded) rather than walking the
+    live filesystem, which would yield the misleading files_after==files_before.
+    """
+    fs = InMemoryFS()
+    # All source files present in domain root (dry-run leaves domain untouched).
+    fs.write_text(DOMAIN / "lib/full.tcl", "proc kept_a {} { return 1 }\n")
+    fs.write_text(DOMAIN / "lib/trim.tcl", "proc kept_b {} { return 2 }\n")
+    fs.write_text(DOMAIN / "synth.tcl", "# generated\nsource lib/trim.tcl\n")
+    # This file has REMOVE treatment in _build_rich_record(); it must not count.
+    fs.write_text(DOMAIN / "obsolete.tcl", "proc old_one {} {}\nproc old_two {} {}\n")
+
+    ctx = _make_ctx(dry_run=True, fs=fs)
+    record = _build_rich_record()
+    _name, content = render_trim_stats(ctx, record)
+    payload = json.loads(content)
+
+    # Before: all 4 source files on disk.
+    assert payload["files_before"] == 4
+    # After: manifest-derived — obsolete.tcl (REMOVE) excluded; full+trim+gen = 3.
+    assert payload["files_after"] == 3
+    assert payload["trim_ratio_files"] < 1.0
 
 
 def test_audit_service_end_to_end_writes_full_bundle() -> None:

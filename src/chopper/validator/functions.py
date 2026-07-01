@@ -5,8 +5,11 @@ and returns ``None``.
 
 ``validate_pre(ctx, loaded)`` -- runs before P2. Emits:
 
-* ``VE-06`` -- literal path in ``files.include`` / ``files.exclude``
-  not present under :attr:`RunConfig.domain_root`.
+* ``VE-06`` -- literal path in ``files.include`` not present under
+  :attr:`RunConfig.domain_root`.
+* ``VW-25`` -- literal path in ``files.exclude`` already absent under
+  :attr:`RunConfig.domain_root`; the exclusion is a no-op (the file the
+  author wanted dropped is already gone) so the trim proceeds.
 * ``VE-09`` -- glob pattern with unbalanced ``[...]``.
 * ``VE-17`` -- project ``domain`` does not match cwd basename
   (case-insensitive).
@@ -194,14 +197,31 @@ def _check_pattern(
     rel = Path(pattern)
     target = _validation_source_root(ctx) / rel
     if not ctx.fs.exists(target):
-        ctx.diag.emit(
-            Diagnostic.build(
-                "VE-06",
-                phase=Phase.P1_CONFIG,
-                message=f"File in {source_key}.{field} not found under domain: {pattern!r}",
-                path=rel,
+        if is_include:
+            ctx.diag.emit(
+                Diagnostic.build(
+                    "VE-06",
+                    phase=Phase.P1_CONFIG,
+                    message=f"File in {source_key}.{field} not found under domain: {pattern!r}",
+                    path=rel,
+                )
             )
-        )
+        else:
+            # A literal ``files.exclude`` target that is already absent is a
+            # no-op: the file the author wanted dropped is gone. Warn
+            # (VW-25) and let the pipeline proceed -- the missing literal is
+            # harmlessly filtered at P3 (merge_service ``_distill_facts``),
+            # so no VE-27 follows.
+            ctx.diag.emit(
+                Diagnostic.build(
+                    "VW-25",
+                    phase=Phase.P1_CONFIG,
+                    message=(
+                        f"File in {source_key}.{field} already absent under domain (exclusion is a no-op): {pattern!r}"
+                    ),
+                    path=rel,
+                )
+            )
 
 
 # ---------------------------------------------------------------------------

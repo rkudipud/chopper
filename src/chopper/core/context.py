@@ -101,6 +101,12 @@ class RunConfig:
     """Logical domain name in ``vendor/name`` form (e.g. ``snps/fev_formality``).
     ``None`` when domain was provided as a direct filesystem path.
     Used in P4 branch analysis output and ward-relative path computation."""
+    project_config_path: Path | None = None
+    """Resolved path to the project-level features config file auto-discovered under
+    ``<ward_root>/project/<domain_logical_name>/<leaf>.project.features.config``.
+    ``None`` when features were provided via ``--features``, via a project JSON, or
+    not set at all. Displayed in the domain header as ``config file path``.
+    See ``technical_docs/ARCHITECTURE.md`` §5.1.3 and §5.5.16."""
 
 
 @dataclass(frozen=True)

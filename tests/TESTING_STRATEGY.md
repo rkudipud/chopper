@@ -29,7 +29,7 @@ A scenario tagged with a stage must pass before that module is declared complete
 | `config/` | ≥ 85% branch | ✅ |
 | `cli/` | ≥ 70% line | ✅ |
 | **Full suite (`make ci`)** | **100% line + branch** | ✅ `--cov-fail-under=100` on the aggregate `test` target |
-| **Fast unit-only gate (`make check`)** | **≥ 99% line** | ✅ `--cov-fail-under=99` (pyproject default) |
+| **Fast unit-only gate (`make check`)** | **≥ 99.8% line** | ✅ `--cov-fail-under=99.8` (pyproject default) |
 
 Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 

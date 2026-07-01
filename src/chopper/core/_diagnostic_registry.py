@@ -58,9 +58,9 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-36, VW-01..VW-24, VI-01..VI-05, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 86 active + 3 retired (VW-18,
-# VW-19, PE-04) = 89 registered entries; matches the Code Space Summary table
+# VE-01..VE-36, VW-01..VW-25, VI-01..VI-05, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 87 active + 3 retired (VW-18,
+# VW-19, PE-04) = 90 registered entries; matches the Code Space Summary table
 # in the registry doc.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -143,6 +143,7 @@ _REGISTRY: dict[str, _Entry] = {
         slug="stack-stage-empty-command", severity=Severity.WARNING, phase=3, source="compiler", exit_code=0
     ),
     "VW-24": _Entry(slug="companion-file-missing", severity=Severity.WARNING, phase=5, source="trimmer", exit_code=0),
+    "VW-25": _Entry(slug="exclude-target-absent", severity=Severity.WARNING, phase=1, source="validator", exit_code=0),
     "VI-01": _Entry(slug="empty-base-json", severity=Severity.INFO, phase=1, source="validator", exit_code=0),
     "VI-02": _Entry(slug="top-level-tcl-only", severity=Severity.INFO, phase=5, source="trimmer", exit_code=0),
     "VI-03": _Entry(slug="domain-suffix-strip-applied", severity=Severity.INFO, phase=1, source="cli", exit_code=0),

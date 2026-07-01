@@ -154,7 +154,7 @@ Before invoking shell commands or Chopper subcommands, an agent **must** detect 
 | `make format` | Auto-format with Ruff |
 | `make type-check` | mypy static type check |
 
-**Coverage Requirement:** Full suite (`make ci`) held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99% line. Enforced via pytest.
+**Coverage Requirement:** Full suite (`make ci`) held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99.8% line. Enforced via pytest.
 
 **Pre-Commit Gate:**
 
@@ -321,6 +321,39 @@ The authoritative Python coding standards live in [technical_docs/ARCHITECTURE.m
 
 When this summary and the architecture doc disagree, the architecture doc (§5.12) wins — update the summary here to match.
 
+### Lazy Senior Dev Rules (Ponytail)
+
+Before writing any code, stop at the first rung that holds:
+
+1. Does this need to be built at all? (YAGNI)
+2. Does it already exist in this codebase? Reuse the helper, util, or pattern that is already here — do not rewrite it.
+3. Does the standard library already do this? Use it.
+4. Does a native platform feature cover it? Use it.
+5. Does an already-installed dependency solve it? Use it.
+6. Can this be one line? Make it one line.
+7. Only then: write the minimum code that works.
+
+The ladder runs after you understand the problem, not instead of it: read the task and the code it touches, trace the real flow end to end, then climb.
+
+**Bug fix = root cause, not symptom.** A report names a symptom. Find every caller of the function you touch and fix the shared function once — one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
+
+**Rules:**
+
+- No abstractions that were not explicitly requested.
+- No new dependency if it can be avoided.
+- No boilerplate nobody asked for.
+- Deletion over addition. Boring over clever. Fewest files possible.
+- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place is not lazy — it is a second bug.
+- Question complex requests: "Do you actually need X, or does Y cover it?"
+- Pick the edge-case-correct option when two stdlib approaches are the same size; lazy means less code, not the flimsier algorithm.
+- Mark intentional simplifications with a `ponytail:` comment. If the shortcut has a known ceiling (global lock, O(n²) scan, naive heuristic), the comment names the ceiling and the upgrade path.
+
+**Not lazy about:** understanding the problem (read it fully and trace the real flow before picking a rung — a small diff you do not understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, anything explicitly requested.
+
+**Lazy code without its check is unfinished:** non-trivial logic leaves ONE runnable check behind — the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
+
+> Source: [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)
+
 ---
 
 ## Module-Specific Guidance
@@ -376,7 +409,7 @@ Full details in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md).
 
 **Testing Standards:**
 
-- 100% line + branch coverage on the full suite (`make ci`); ≥ 99% line on the fast unit-only gate (`make check`)
+- 100% line + branch coverage on the full suite (`make ci`); ≥ 99.8% line on the fast unit-only gate (`make check`)
 - Unit tests isolated, use `tmp_path` fixture
 - Integration tests use fixtures from `tests/fixtures/`
 - Property tests with hypothesis (500 examples)
@@ -398,7 +431,7 @@ Full details in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md).
 **Coverage Thresholds:**
 
 - Full suite (`make ci`): 100% line + branch
-- Fast unit-only gate (`make check`): ≥ 99% line
+- Fast unit-only gate (`make check`): ≥ 99.8% line
 
 ---
 

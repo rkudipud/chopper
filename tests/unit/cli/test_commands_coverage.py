@@ -1016,6 +1016,327 @@ def test_cmd_trim_single_domain_calls_render_trim_stats_on_live_run(
     assert stats_called["n"] == 1  # render_trim_stats was called once
 
 
+def _make_ctx_for_header(
+    tmp_path: Path,
+    *,
+    base_path: Path | None = None,
+    project_path: Path | None = None,
+    logical_name: str | None = None,
+    feature_paths: tuple = (),
+    project_config_path: Path | None = None,
+):
+    """Build a minimal ChopperContext for _print_domain_header tests."""
+    from chopper.adapters import CollectingSink, LocalFS
+    from chopper.adapters.progress_silent import SilentProgress
+    from chopper.core.context import ChopperContext, RunConfig
+
+    cfg = RunConfig(
+        domain_root=tmp_path,
+        backup_root=tmp_path.with_name(tmp_path.name + "_backup"),
+        audit_root=tmp_path / ".chopper",
+        strict=False,
+        dry_run=True,
+        base_path=base_path,
+        project_path=project_path,
+        domain_logical_name=logical_name,
+        feature_paths=feature_paths,
+        project_config_path=project_config_path,
+    )
+    return ChopperContext(config=cfg, fs=LocalFS(), diag=CollectingSink(), progress=SilentProgress())
+
+
+def test_print_domain_header_with_base_path_and_logical_name(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Header uses logical name, shows base_path, and prints config-found line."""
+    from chopper.cli.commands import _print_domain_header
+
+    base = tmp_path / "jsons" / "base.json"
+    ctx = _make_ctx_for_header(tmp_path, base_path=base, logical_name="snps/fev_formality")
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "=== Domain: snps/fev_formality ===" in out
+    assert f"Domain root : {tmp_path.as_posix()}" in out
+    assert f"Base JSON   : {base.as_posix()}" in out
+    assert "config file found.. processing" in out
+    assert "config file path" not in out  # base.json is not a project config file
+
+
+def test_print_domain_header_with_project_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header shows project path with '(project)' suffix and prints config-found line."""
+    from chopper.cli.commands import _print_domain_header
+
+    proj = tmp_path / "jsons" / "project.json"
+    ctx = _make_ctx_for_header(tmp_path, project_path=proj, logical_name="snps/power")
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "=== Domain: snps/power ===" in out
+    assert f"Base JSON   : {proj.as_posix()}  (project)" in out
+    assert "config file found.. processing" in out
+    assert "config file path" not in out  # project JSON is already shown in Base JSON
+
+
+def test_print_domain_header_no_base_no_project(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header shows '(none)' when neither base_path nor project_path is set."""
+    from chopper.cli.commands import _print_domain_header
+
+    ctx = _make_ctx_for_header(tmp_path)
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "Base JSON   : (none)" in out
+
+
+def test_print_domain_header_falls_back_to_dir_name(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header falls back to domain_root.name when domain_logical_name is None."""
+    from chopper.cli.commands import _print_domain_header
+
+    ctx = _make_ctx_for_header(tmp_path)
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert f"=== Domain: {tmp_path.name} ===" in out
+
+
+def test_print_domain_header_with_feature_paths(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header lists each feature name and path when feature_paths are set."""
+    from chopper.cli.commands import _print_domain_header
+
+    base = tmp_path / "jsons" / "base.json"
+    fa = tmp_path / "jsons" / "features" / "eco.feature.json"
+    fb = tmp_path / "jsons" / "features" / "lite.feature.json"
+    ctx = _make_ctx_for_header(tmp_path, base_path=base, feature_paths=(fa, fb))
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "config file found.. processing" in out
+    assert "Features (2) :" in out
+    assert f"1. eco : {fa.as_posix()}" in out
+    assert f"2. lite : {fb.as_posix()}" in out
+
+
+def test_print_domain_header_project_json_features(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header reads features from a real project JSON when project_path is set."""
+    import json
+
+    from chopper.cli.commands import _print_domain_header
+
+    proj = tmp_path / "jsons" / "my.project.json"
+    proj.parent.mkdir(parents=True, exist_ok=True)
+    proj.write_text(
+        json.dumps(
+            {
+                "$schema": "project-v1",
+                "features": [
+                    "jsons/features/alpha.feature.json",
+                    "jsons/features/beta.feature.json",
+                ],
+            }
+        )
+    )
+    ctx = _make_ctx_for_header(tmp_path, project_path=proj, logical_name="snps/test")
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "config file found.. processing" in out
+    assert "Features (2) :" in out
+    assert "1. alpha" in out
+    assert "2. beta" in out
+
+
+def test_print_domain_header_base_no_features(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header shows config-found line but no Features block when no features are active."""
+    from chopper.cli.commands import _print_domain_header
+
+    base = tmp_path / "jsons" / "base.json"
+    ctx = _make_ctx_for_header(tmp_path, base_path=base)
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "config file found.. processing" in out
+    assert "Features (" not in out
+
+
+def test_print_domain_header_shows_project_config_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Header prints 'config file path' when project_config_path is set (features config case)."""
+    from chopper.cli.commands import _print_domain_header
+
+    base = tmp_path / "jsons" / "base.json"
+    cfg_path = tmp_path / "project" / "snps" / "fev_formality" / "fev_formality.project.features.config"
+    fa = tmp_path / "jsons" / "features" / "low_power.feature.json"
+    ctx = _make_ctx_for_header(
+        tmp_path,
+        base_path=base,
+        feature_paths=(fa,),
+        project_config_path=cfg_path,
+    )
+    _print_domain_header(ctx)
+    out = capsys.readouterr().out
+    assert "config file found.. processing" in out
+    assert f"config file path : {cfg_path.as_posix()}" in out
+    assert "Features (1) :" in out
+
+
+def test_build_run_config_auto_discovers_project_features_config(tmp_path: Path) -> None:
+    """_build_run_config resolves feature_paths from a project features config file
+    in $WARD/project/ when --features is not supplied."""
+    import argparse
+
+    from chopper.cli.commands import _build_run_config
+
+    ward = tmp_path / "ward"
+    domain_root = ward / "global" / "snps" / "fev_formality"
+    (domain_root / "jsons" / "features").mkdir(parents=True)
+    (domain_root / "jsons" / "base.json").write_text("{}")
+    fa = domain_root / "jsons" / "features" / "low_power.feature.json"
+    fa.write_text("{}")
+    fb = domain_root / "jsons" / "features" / "metaflop_checks.feature.json"
+    fb.write_text("{}")
+
+    cfg_dir = ward / "project" / "snps" / "fev_formality"
+    cfg_dir.mkdir(parents=True)
+    (cfg_dir / "fev_formality.project.features.config").write_text("low_power\nmetaflop_checks\n")
+
+    from chopper.cli.domain_lookup import DomainLookupResult
+
+    fake_lookup = DomainLookupResult(
+        domain_root=domain_root,
+        ward_root=ward,
+        domain_logical_name="snps/fev_formality",
+    )
+    args = argparse.Namespace(
+        domain="snps/fev_formality",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=False,
+        plain=False,
+        tool_commands=None,
+    )
+    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+        cfg, _ = _build_run_config(args, dry_run=True)
+
+    assert fa in cfg.feature_paths
+    assert fb in cfg.feature_paths
+    assert cfg.project_path is None  # config file → features mode, not project JSON mode
+    cfg_file = (ward / "project" / "snps" / "fev_formality" / "fev_formality.project.features.config").resolve()
+    assert cfg.project_config_path == cfg_file  # features config path is recorded
+
+
+def test_build_run_config_auto_discovers_project_json(tmp_path: Path) -> None:
+    """_build_run_config sets project_path from an auto-discovered project JSON
+    in $WARD/project/ when neither --project/--base/--features is supplied."""
+    import argparse
+
+    from chopper.cli.commands import _build_run_config
+
+    ward = tmp_path / "ward"
+    domain_root = ward / "global" / "snps" / "fev_formality"
+    domain_root.mkdir(parents=True)
+
+    proj_dir = ward / "project" / "snps" / "fev_formality"
+    proj_dir.mkdir(parents=True)
+    proj_file = proj_dir / "fev_formality.project.json"
+    proj_file.write_text("{}")
+
+    from chopper.cli.domain_lookup import DomainLookupResult
+
+    fake_lookup = DomainLookupResult(
+        domain_root=domain_root,
+        ward_root=ward,
+        domain_logical_name="snps/fev_formality",
+    )
+    args = argparse.Namespace(
+        domain="snps/fev_formality",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=False,
+        plain=False,
+        tool_commands=None,
+    )
+    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+        cfg, _ = _build_run_config(args, dry_run=True)
+
+    assert cfg.project_path == proj_file.resolve()
+    assert cfg.feature_paths == ()
+
+
+def test_build_run_config_auto_discovery_no_project_files(tmp_path: Path) -> None:
+    """Auto-discovery block is a no-op when neither .project.json nor
+    .project.features.config exists in $WARD/project/. Covers 203->210 branch."""
+    import argparse
+
+    from chopper.cli.commands import _build_run_config
+
+    ward = tmp_path / "ward"
+    domain_root = ward / "global" / "snps" / "fev_formality"
+    (domain_root / "jsons").mkdir(parents=True)
+    (domain_root / "jsons" / "base.json").write_text("{}")
+    # project dir exists but neither probe file is present
+    (ward / "project" / "snps" / "fev_formality").mkdir(parents=True)
+
+    from chopper.cli.domain_lookup import DomainLookupResult
+
+    fake_lookup = DomainLookupResult(
+        domain_root=domain_root,
+        ward_root=ward,
+        domain_logical_name="snps/fev_formality",
+    )
+    args = argparse.Namespace(
+        domain="snps/fev_formality",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=False,
+        plain=False,
+        tool_commands=None,
+    )
+    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+        cfg, _ = _build_run_config(args, dry_run=True)
+
+    assert cfg.project_path is None
+    assert cfg.feature_paths == ()
+    assert cfg.base_path is not None  # auto-discovered base.json
+
+
+def test_build_run_config_auto_discovery_empty_config(tmp_path: Path) -> None:
+    """Auto-discovery ignores a config file whose lines are all blank/comments.
+    Covers 207->210 branch (if names: False)."""
+    import argparse
+
+    from chopper.cli.commands import _build_run_config
+
+    ward = tmp_path / "ward"
+    domain_root = ward / "global" / "snps" / "fev_formality"
+    (domain_root / "jsons").mkdir(parents=True)
+    (domain_root / "jsons" / "base.json").write_text("{}")
+
+    proj_dir = ward / "project" / "snps" / "fev_formality"
+    proj_dir.mkdir(parents=True)
+    (proj_dir / "fev_formality.project.features.config").write_text("# comment only\n\n")
+
+    from chopper.cli.domain_lookup import DomainLookupResult
+
+    fake_lookup = DomainLookupResult(
+        domain_root=domain_root,
+        ward_root=ward,
+        domain_logical_name="snps/fev_formality",
+    )
+    args = argparse.Namespace(
+        domain="snps/fev_formality",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=False,
+        plain=False,
+        tool_commands=None,
+    )
+    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+        cfg, _ = _build_run_config(args, dry_run=True)
+
+    assert cfg.feature_paths == ()  # empty config → no features loaded
+
+
 def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
     tmp_path: Path,
 ) -> None:
@@ -1064,3 +1385,310 @@ def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
 
     assert rc == 0
     assert stats_called["n"] == 2  # once per domain
+
+
+# ---------------------------------------------------------------------------
+# 99.8% coverage top-up tests
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_domain_root_exits_2_on_name_mode_failure(tmp_path: Path) -> None:
+    """Lines 74, 79-82: _resolve_domain_root exits 2 when resolve_domain returns None."""
+    import argparse
+
+    from chopper.cli.commands import _resolve_domain_root
+
+    args = argparse.Namespace(domain="nonexistent_domain")
+
+    def _fake_resolve(name_arg, emit):
+        # Must call emit so that errors[0] is populated (lines 74, 79-82).
+        emit("VE-33", "Domain not found", "Check $WARD")
+        return None
+
+    with patch("chopper.cli.commands.resolve_domain", side_effect=_fake_resolve):
+        with pytest.raises(SystemExit) as exc:
+            _resolve_domain_root(args)
+    assert exc.value.code == 2
+
+
+def test_autodiscover_base_returns_first_candidate(tmp_path: Path) -> None:
+    """Line 130: _autodiscover_base returns jsons/base.json when it exists."""
+    from chopper.cli.commands import _autodiscover_base
+
+    (tmp_path / "jsons").mkdir()
+    base = tmp_path / "jsons" / "base.json"
+    base.write_text("{}")
+    assert _autodiscover_base(tmp_path, "snps/test") == base
+
+
+def test_autodiscover_base_returns_second_candidate(tmp_path: Path) -> None:
+    """Line 135: _autodiscover_base returns jsons/<leaf>.json when base.json absent."""
+    from chopper.cli.commands import _autodiscover_base
+
+    (tmp_path / "jsons").mkdir()
+    named = tmp_path / "jsons" / "fev_formality.json"
+    named.write_text("{}")
+    assert _autodiscover_base(tmp_path, "snps/fev_formality") == named
+
+
+def test_make_domain_run_result_generated_and_remove(tmp_path: Path) -> None:
+    """Lines 406-414: GENERATED counts as edits; REMOVE counts as removes."""
+    from chopper.adapters import CollectingSink, LocalFS
+    from chopper.adapters.progress_silent import SilentProgress
+    from chopper.cli.commands import _make_domain_run_result
+    from chopper.core.context import ChopperContext, RunConfig
+    from chopper.core.models_common import FileTreatment
+
+    cfg = RunConfig(
+        domain_root=tmp_path,
+        backup_root=tmp_path.with_name(tmp_path.name + "_backup"),
+        audit_root=tmp_path / ".chopper",
+        strict=False,
+        dry_run=True,
+    )
+    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=CollectingSink(), progress=SilentProgress())
+
+    fake_manifest = MagicMock()
+    fake_manifest.file_decisions = {
+        tmp_path / "proc.tcl": FileTreatment.PROC_TRIM,  # covers line 408 edits++
+        tmp_path / "gen.tcl": FileTreatment.GENERATED,  # covers GENERATED branch
+        tmp_path / "old.tcl": FileTreatment.REMOVE,  # covers REMOVE branch
+        tmp_path / "full.tcl": FileTreatment.FULL_COPY,  # covers 413->406 fall-through
+    }
+    fake_result = MagicMock()
+    fake_result.manifest = fake_manifest
+    fake_result.exit_code = 0
+
+    drr = _make_domain_run_result(ctx, fake_result)
+    assert drr.edits_count == 2  # PROC_TRIM + GENERATED
+    assert drr.removes_count == 1  # REMOVE
+
+
+def test_cmd_validate_single_domain_full_flow(tmp_path: Path) -> None:
+    """Lines 545-550: cmd_validate single-domain happy path runs past _make_context."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_p4_branch_analysis"),
+    ):
+        rc = cmds.cmd_validate(args)
+    assert rc == 0
+
+
+def test_cmd_trim_single_domain_dry_run_skips_warn_and_stats(tmp_path: Path) -> None:
+    """Branches 587->589, 592->594: dry_run=True takes the False path of both
+    'if not ctx.config.dry_run' guards in cmd_trim single-domain."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,  # ← False path on both guards
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+    ):
+        rc = cmds.cmd_trim(args)
+    assert rc == 0
+
+
+def test_cmd_trim_multi_domain_check_project_fails(tmp_path: Path) -> None:
+    """Lines 606-608: _check_project_paths_resolvable non-None in cmd_trim multi-domain."""
+    import json as _json
+
+    from chopper.cli import commands as cmds
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    project_a = tmp_path / "proj_a.json"
+    project_a.write_text(_json.dumps({"base": "missing.json", "features": []}))
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    from chopper.core.models_audit import RunResult
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=str(project_a),
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,
+    )
+    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+        rc = cmds.cmd_trim(args)
+    assert rc == 2  # domain_a fails check; domain_b also fails check (same project)
+
+
+def test_cmd_loc_single_domain_project_none_expands_features(tmp_path: Path) -> None:
+    """Line 667: cmd_loc single-domain with project=None reaches _expand_feature_dirs call."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,  # ← triggers line 667
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_p4_branch_analysis"),
+        patch("chopper.cli.commands._render_loc_table"),
+    ):
+        rc = cmds.cmd_loc(args)
+    assert rc == 0
+
+
+def test_cmd_loc_multi_domain_check_project_fails(tmp_path: Path) -> None:
+    """Lines 688->690, 692-694: cmd_loc multi-domain, one domain's project check fails."""
+    import json as _json
+
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    project_a = tmp_path / "proj_a.json"
+    project_a.write_text(_json.dumps({"base": "missing.json", "features": []}))
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=str(project_a),  # domain_a: project with missing base → rc=2
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+    )
+    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+        rc = cmds.cmd_loc(args)
+    assert rc == 2
+
+
+def test_render_loc_table_baseline_only_when_manifest_none(tmp_path: Path) -> None:
+    """Lines 715-722: _render_loc_table else branch when manifest/parsed/loaded are None."""
+    from chopper.adapters import CollectingSink, LocalFS
+    from chopper.adapters.progress_silent import SilentProgress
+    from chopper.cli.commands import _render_loc_table
+    from chopper.core.context import ChopperContext, RunConfig
+
+    cfg = RunConfig(
+        domain_root=tmp_path,
+        backup_root=tmp_path.with_name(tmp_path.name + "_backup"),
+        audit_root=tmp_path / ".chopper",
+        strict=False,
+        dry_run=True,
+    )
+    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=CollectingSink(), progress=SilentProgress())
+
+    fake_result = MagicMock()
+    fake_result.manifest = None  # triggers else branch
+    fake_result.parsed = None
+    fake_result.loaded = None
+    fake_result.generated_artifacts = None
+
+    with patch("chopper.cli.commands.render_loc_report"):
+        _render_loc_table(ctx, fake_result)
+
+
+def test_render_loc_table_with_full_manifest(tmp_path: Path) -> None:
+    """Lines 715-722: _render_loc_table True branch when manifest/parsed/loaded all non-None."""
+    from chopper.adapters import CollectingSink, LocalFS
+    from chopper.adapters.progress_silent import SilentProgress
+    from chopper.cli.commands import _render_loc_table
+    from chopper.core.context import ChopperContext, RunConfig
+
+    cfg = RunConfig(
+        domain_root=tmp_path,
+        backup_root=tmp_path.with_name(tmp_path.name + "_backup"),
+        audit_root=tmp_path / ".chopper",
+        strict=False,
+        dry_run=True,
+    )
+    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=CollectingSink(), progress=SilentProgress())
+
+    fake_result = MagicMock()
+    fake_result.manifest = MagicMock()  # non-None → True branch
+    fake_result.parsed = MagicMock()  # non-None
+    fake_result.loaded = MagicMock()  # non-None
+    fake_result.generated_artifacts = ()
+
+    with (
+        patch("chopper.cli.commands.build_loc_report", return_value=MagicMock()),
+        patch("chopper.cli.commands.render_loc_report"),
+    ):
+        _render_loc_table(ctx, fake_result)

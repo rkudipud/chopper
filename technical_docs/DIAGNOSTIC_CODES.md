@@ -25,14 +25,14 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
 | `VE` Validation Errors | VE-01–VE-40 | 36 | 4 | 40 | Schema, path, action, ordering, filesystem failures — block output |
-| `VW` Validation Warnings | VW-01–VW-30 | 22 | 6 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing (2 retired slots: VW-18, VW-19) |
+| `VW` Validation Warnings | VW-01–VW-30 | 23 | 5 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing, already-absent exclude-literal target (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01–VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01–TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01–PE-10 | 3 | 6 | 10 | Fatal parse failures; file skipped or partial (1 retired slot: PE-04) |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **81** | **41** | **125** | |
+| **Total** | | **82** | **40** | **125** | |
 
 ---
 
@@ -47,7 +47,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-03 | `empty-procs-array` | 1 | compiler | 1 | Any `procEntry` (in `procedures.include` or `procedures.exclude`) has empty `procs` array (`"procs": []`). An entry with no procs is an authoring error; if you want whole-file inclusion use `files.include`, if you have nothing to exclude omit the entry. | For include: move the file to `files.include` for whole-file inclusion. For exclude: remove the entry (nothing to exclude). |
 | VE-04 | `unsupported-flow-action` | 1 | compiler | 1 | `flow_actions` entry uses an unsupported `action` value | Use one of: `add_step_before`, `add_step_after`, `add_stage_before`, `add_stage_after`, `remove_step`, `remove_stage`, `load_from`, `replace_step`, `replace_stage` |
 | VE-05 | `missing-action-target` | 1 | compiler | 1 | `add_*`, `replace_*`, or `remove_*` references a target that does not exist | Check that the `reference` stage/step exists prior to this action in compilation order |
-| VE-06 | `file-not-in-domain` | 1 | validator | 1 | File in `files.include` does not exist in domain (or `_backup`) | Verify file paths are domain-relative and the file exists |
+| VE-06 | `file-not-in-domain` | 1 | validator | 1 | File in `files.include` does not exist in domain (or `_backup`). A missing literal in `files.exclude` is **not** this code — it emits `VW-25` (no-op exclusion) and the trim proceeds. | Verify file paths are domain-relative and the file exists |
 | VE-07 | `proc-not-in-file` | 1 | validator | 1 | Proc in `procedures.include` not found in the referenced file | Verify proc name matches a `proc` definition in the file |
 | VE-08 | `duplicate-stage-names` | 1 | compiler | 1 | Duplicate stage names after all stage actions are applied | Rename one of the conflicting stages |
 | VE-09 | `malformed-glob` | 1 | validator | 1 | Malformed glob pattern in file rules | Fix the glob syntax; supported: `*`, `?`, `**` |
@@ -112,7 +112,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VW-22 | `proc-trim-no-drop` | 5 | trimmer | 0 | A live P5 `PROC_TRIM` file had zero procs to remove: every proc found in `<domain>_backup/` already belonged to the keep set. The rebuilt file is byte-identical to the backup copy. Most common cause: `<domain>_backup/` holds a prior run’s post-trim output rather than the original pre-trim source (i.e., `chopper cleanup --confirm` removed the real backup; a subsequent Case 1 run then promoted the already-trimmed domain to backup; the next trim finds nothing more to drop). This is not a correctness failure — the trimmed output is accurate for the files Chopper could see — but it means the original source lines are no longer recoverable from `<domain>_backup/` alone. Signals that proc-accounting statistics in `trim_report.json` / `trim_report.txt` will show `bytes_in == bytes_out` and `procs_removed = []` for the affected file, which will differ from any prior run that trimmed the same file from the original source. | Verify that `<domain>_backup/<file>` is the original pre-trim source: check its line count or diff against a known-good version in version control. If the backup is stale, restore the original from P4 or VCS at a pre-trim CL, delete `<domain>_backup/`, and re-run `chopper trim`. Do not call `chopper cleanup --confirm` between regression passes if consistent proc-drop accounting across runs is required. |
 | VW-23 | `stack-stage-empty-command` | 3 | compiler | 0 | A stage included as a record in the aggregate F3 stack (emitted because `options.generate_stack: true`) has an empty `command` field, so the record's `J` line is omitted entirely. Most schedulers reject records with no job command. | Author a `command` on the stage, or accept the warning if the downstream scheduler tolerates `J`-less records. |
 | VW-24 | `companion-file-missing` | 5 | trimmer | 0 | P5d companion-file sync expected `default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl` alongside a `PROC_TRIM` `default_rules.<sfx>.tcl` file but the companion was not found in the rebuilt domain. Sync is skipped for the missing file. | Declare the companion file in `files.include` so it receives `FULL_COPY` treatment and is present in the rebuilt domain before P5d runs. |
-| — | — | — | — | — | **VW-25 through VW-30 reserved** | — |
+| VW-25 | `exclude-target-absent` | 1 | validator | 0 | A literal path in `files.exclude` is not present under the domain (or `_backup`). The exclusion is a no-op — the file the author wanted dropped is already absent — so Chopper warns and the trim proceeds instead of hard-failing with `VE-06`. The absent literal is harmlessly filtered at P3 (`merge_service._distill_facts` keeps only `files.exclude` literals present on the surface), so no `VE-27` follows. A missing `files.include` literal, by contrast, remains `VE-06`. | Remove the stale `files.exclude` entry (its target is already gone), or fix the path if the file was expected to exist |
+| — | — | — | — | — | **VW-26 through VW-30 reserved** | — |
 
 ---
 

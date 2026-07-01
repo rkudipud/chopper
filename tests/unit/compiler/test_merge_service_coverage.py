@@ -296,3 +296,23 @@ def test_merge_trim_pi_redundant_procs_no_shadow_event() -> None:
     from chopper.core.models_common import FileTreatment
 
     assert manifest.file_decisions[Path("lib.tcl")] is FileTreatment.PROC_TRIM
+
+
+def test_extract_facts_fe_glob_both_branches() -> None:
+    """Line 386 (fe_hits.update) and line 388 (fe_glob_unmatched.append):
+    _extract_facts with one matching exclude glob and one non-matching exclude glob."""
+    from chopper.compiler.merge_service import _extract_facts, _SourceRef
+    from chopper.core.models_config import BaseJson, BaseOptions, FilesSection
+
+    ref = _SourceRef(key="base", source_path=Path("/w/base.json"))
+    source = BaseJson(
+        source_path=Path("/w/base.json"),
+        domain="d",
+        # *.tcl matches a.tcl (→ line 386); nomatch_*.txt matches nothing (→ line 388)
+        files=FilesSection(include=("a.tcl",), exclude=("*.tcl", "nomatch_*.txt")),
+        options=BaseOptions(),
+    )
+    surface_paths = frozenset({Path("a.tcl"), Path("b.tcl")})
+    facts = _extract_facts(ref, source, surface_paths)
+    # *.tcl excluded both a.tcl and b.tcl from FE hits; nomatch_*.txt was unmatched.
+    assert Path("a.tcl") in facts.fi_literal

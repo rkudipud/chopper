@@ -167,6 +167,35 @@ def _expand_feature_dirs(features: str | None) -> str | None:
     return ",".join(expanded)
 
 
+def _autodiscover_project_config(
+    ward_root: Path,
+    domain_logical_name: str,
+) -> tuple[str | None, str | None, Path | None]:
+    """Search ``$WARD/project/<domain_logical_name>/`` for a project-level config.
+
+    Returns ``(explicit_project, explicit_features, project_config_path)``.
+    Search order per ``technical_docs/ARCHITECTURE.md`` §5.1.3:
+
+    1. ``<leaf>.project.json``            → ``(str(path), None, None)``
+    2. ``<leaf>.project.features.config`` → ``(None, "name1,name2", resolved_path)``
+
+    All three are ``None`` when neither file is found or the config is empty.
+    """
+    leaf = domain_logical_name.split("/")[-1]
+    project_dir = ward_root / "project" / domain_logical_name
+    probe_json = project_dir / f"{leaf}.project.json"
+    probe_cfg = project_dir / f"{leaf}.project.features.config"
+    if probe_json.is_file():
+        return str(probe_json), None, None
+    if probe_cfg.is_file():
+        names = [
+            ln.strip() for ln in probe_cfg.read_text().splitlines() if ln.strip() and not ln.strip().startswith("#")
+        ]
+        if names:
+            return None, ",".join(names), probe_cfg.resolve()
+    return None, None, None
+
+
 def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunConfig, Path | None]:
     domain_root, stripped_candidate, lookup_result = _resolve_domain_root(args)
     backup_root = domain_root.with_name(domain_root.name + "_backup")
@@ -175,17 +204,41 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
     ward_root: Path | None = lookup_result.ward_root if lookup_result is not None else None
     domain_logical_name: str | None = lookup_result.domain_logical_name if lookup_result is not None else None
 
+    # ------------------------------------------------------------------
+    # Auto-discover project config from $WARD/project/ when no explicit
+    # --project/--base/--features were supplied.
+    # Mirrors $WARD/global/<vendor>/<domain> → $WARD/project/<vendor>/<domain>.
+    # Looks for (in order):
+    #   <leaf>.project.json            → treated as --project <path>
+    #   <leaf>.project.features.config → treated as --features <names>
+    # ------------------------------------------------------------------
+    explicit_project: str | None = getattr(args, "project", None)
+    explicit_base: str | None = getattr(args, "base", None)
+    explicit_features: str | None = getattr(args, "features", None)
+    project_config_path: Path | None = None
+
+    if (
+        explicit_project is None
+        and explicit_base is None
+        and not explicit_features
+        and ward_root is not None
+        and domain_logical_name is not None
+    ):
+        explicit_project, explicit_features, project_config_path = _autodiscover_project_config(
+            ward_root, domain_logical_name
+        )
+
     project_path: Path | None = None
     base_path: Path | None = None
     feature_paths: tuple[Path, ...] = ()
     tool_command_paths: tuple[Path, ...] = ()
 
-    if getattr(args, "project", None) is not None:
-        project_path = Path(args.project).resolve()
+    if explicit_project is not None:
+        project_path = Path(explicit_project).resolve()
     else:
         # Base resolution
-        if getattr(args, "base", None) is not None:
-            base_path = Path(args.base).resolve()
+        if explicit_base is not None:
+            base_path = Path(explicit_base).resolve()
         else:
             # Auto-discover base JSON from domain (VE-35 if not found).
             base_path = _autodiscover_base(domain_root, domain_logical_name)
@@ -202,9 +255,9 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
                 )
                 raise SystemExit(2)
 
-        # Feature resolution: name-mode or path-mode.
-        if getattr(args, "features", None):
-            lookup_result_feat = resolve_feature_names(args.features, domain_root)
+        # Feature resolution: explicit flag or auto-discovered from project config.
+        if explicit_features:
+            lookup_result_feat = resolve_feature_names(explicit_features, domain_root)
             if lookup_result_feat.unresolved_names:
                 for unresolved in lookup_result_feat.unresolved_names:
                     suggestions = lookup_result_feat.suggestions.get(unresolved, ())
@@ -239,6 +292,7 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
         tool_command_paths=tool_command_paths,
         ward_root=ward_root,
         domain_logical_name=domain_logical_name,
+        project_config_path=project_config_path,
     )
     return cfg, stripped_candidate
 
@@ -283,6 +337,48 @@ def _make_context(args: argparse.Namespace, *, dry_run: bool) -> tuple[ChopperCo
 # ---------------------------------------------------------------------------
 # Subcommand handlers
 # ---------------------------------------------------------------------------
+
+
+def _print_domain_header(ctx: ChopperContext) -> None:
+    """Print a scannable header to stdout before the pipeline starts for a domain.
+
+    Shows the logical domain label, the resolved domain root, the base/project
+    JSON path, and the active feature list so that multi-domain log files are
+    easy to scan.
+    """
+    import json as _json
+
+    cfg = ctx.config
+    label = cfg.domain_logical_name or cfg.domain_root.name
+    if cfg.base_path is not None:
+        base_display = cfg.base_path.as_posix()
+    elif cfg.project_path is not None:
+        base_display = cfg.project_path.as_posix() + "  (project)"
+    else:
+        base_display = "(none)"
+    print(f"\n=== Domain: {label} ===", flush=True)
+    print(f"  Domain root : {cfg.domain_root.as_posix()}", flush=True)
+    print(f"  Base JSON   : {base_display}", flush=True)
+
+    # Collect feature paths: direct --features list, or resolved from project JSON.
+    feature_paths: list[Path] = list(cfg.feature_paths)
+    if not feature_paths and cfg.project_path is not None:
+        try:
+            proj = _json.loads(cfg.project_path.read_text())
+            for raw in proj.get("features") or []:
+                feature_paths.append(cfg.domain_root / raw)
+        except Exception:
+            pass
+
+    if cfg.base_path is not None or cfg.project_path is not None:
+        print("  config file found.. processing", flush=True)
+    if cfg.project_config_path is not None:
+        print(f"  config file path : {cfg.project_config_path.as_posix()}", flush=True)
+    if feature_paths:
+        print(f"  Features ({len(feature_paths)}) :", flush=True)
+        for i, fp in enumerate(feature_paths, 1):
+            name = fp.stem.removesuffix(".feature")
+            print(f"    {i}. {name} : {fp.as_posix()}", flush=True)
 
 
 def _split_domain_csv(raw: str | None) -> list[str | None]:
@@ -446,6 +542,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
             return rc
 
         ctx, sink = _make_context(args, dry_run=True)
+        _print_domain_header(ctx)
         result = ChopperRunner().run(ctx, command="validate")
         render_result(result, sink.snapshot())
         domain_results = [_make_domain_run_result(ctx, result)]
@@ -466,6 +563,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
             max_exit = max(max_exit, rc)
             continue
         ctx, sink = _make_context(domain_args, dry_run=True)
+        _print_domain_header(ctx)
         result = ChopperRunner().run(ctx, command="validate")
         render_result(result, sink.snapshot())
         domain_results.append(_make_domain_run_result(ctx, result))
@@ -488,7 +586,7 @@ def cmd_trim(args: argparse.Namespace) -> int:
         ctx, sink = _make_context(args, dry_run=bool(getattr(args, "dry_run", False)))
         if not ctx.config.dry_run:
             _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
-
+        _print_domain_header(ctx)
         result = ChopperRunner().run(ctx, command="trim")
         render_result(result, sink.snapshot())
         if not ctx.config.dry_run:
@@ -511,6 +609,7 @@ def cmd_trim(args: argparse.Namespace) -> int:
         ctx, sink = _make_context(domain_args, dry_run=bool(getattr(domain_args, "dry_run", False)))
         if not ctx.config.dry_run:
             _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
+        _print_domain_header(ctx)
         result = ChopperRunner().run(ctx, command="trim")
         render_result(result, sink.snapshot())
         if not ctx.config.dry_run:
@@ -572,6 +671,7 @@ def cmd_loc(args: argparse.Namespace) -> int:
             return rc
 
         ctx, sink = _make_context(args, dry_run=True)
+        _print_domain_header(ctx)
         result = ChopperRunner().run(ctx, command="loc")
         render_result(result, sink.snapshot())
         _render_loc_table(ctx, result)
@@ -593,6 +693,7 @@ def cmd_loc(args: argparse.Namespace) -> int:
             max_exit = max(max_exit, rc)
             continue
         ctx, sink = _make_context(domain_args, dry_run=True)
+        _print_domain_header(ctx)
         result = ChopperRunner().run(ctx, command="loc")
         render_result(result, sink.snapshot())
         _render_loc_table(ctx, result)

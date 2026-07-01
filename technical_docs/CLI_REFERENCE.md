@@ -67,7 +67,16 @@ options:
                        Tokens containing ``/`` or ending with ``.json`` pass through as file paths.
                        Validate-only: any entry may also be a directory, which
                        expands in place to its sorted *.json children (non-recursive).
-  --project PATH       Path to project JSON (mutually exclusive with --base/--features)
+                       Project-config auto-discovery (4.2.0+): when --domain is in name-mode
+                       and --project/--base/--features are all absent, Chopper looks for
+                       ``$WARD/project/<vendor>/<domain>/<leaf>.project.features.config``
+                       (plain text, one feature name per line) and resolves it as --features.
+                       See ARCHITECTURE.md §5.1.3.
+  --project PATH       Path to project JSON (mutually exclusive with --base/--features).
+                       Project-config auto-discovery (4.2.0+): when --domain is in name-mode
+                       and --project/--base/--features are all absent, Chopper looks for
+                       ``$WARD/project/<vendor>/<domain>/<leaf>.project.json`` first.
+                       See ARCHITECTURE.md §5.1.3.
   --tool-commands PATH Path to a plain-text file of known external tool-command
                        names (whitespace-separated tokens, '#' comments, blank
                        lines ignored). Repeatable. Each file extends the pool

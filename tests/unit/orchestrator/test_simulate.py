@@ -233,3 +233,47 @@ def test_simulate_skips_unreadable_source_file(tmp_path: Path, monkeypatch) -> N
     sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
     # The unreadable file was skipped, so the in-memory domain is empty.
     assert not sim.fs.exists(sim.domain_root / Path("unreadable.tcl"))
+
+
+def test_simulate_seeds_json_files_so_trimmer_loop_does_not_break(tmp_path: Path) -> None:
+    """walk_files excludes ``.json`` via EXCLUDED_SUFFIXES; without the json seed
+    fix the trimmer hits FileNotFoundError on jsons/base.json, breaks its per-file
+    dispatch loop, and files sorted after jsons/ are never written to domain_root
+    -- causing ``chopper loc`` to severely undercount sloc_after."""
+    ctx = _ctx(tmp_path)
+    domain = ctx.config.domain_root
+
+    # Files sorted BEFORE jsons/ alphabetically.
+    (domain / "alpha.tcl").write_text("proc alpha {} { return 1 }\n", encoding="utf-8")
+    # json file that walk_files excludes -- the trimmer still needs it.
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text('{"$schema":"base-v1","domain":"d"}\n', encoding="utf-8")
+    # File sorted AFTER jsons/ alphabetically -- previously dropped by the break.
+    (domain / "zeta.tcl").write_text("proc zeta {} { return 99 }\n", encoding="utf-8")
+
+    alpha_rel = Path("alpha.tcl")
+    json_rel = Path("jsons/base.json")
+    zeta_rel = Path("zeta.tcl")
+
+    manifest = CompiledManifest(
+        file_decisions={
+            alpha_rel: FileTreatment.FULL_COPY,
+            json_rel: FileTreatment.FULL_COPY,
+            zeta_rel: FileTreatment.FULL_COPY,
+        },
+        proc_decisions={},
+        provenance={
+            alpha_rel: FileProvenance(path=alpha_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal"),
+            json_rel: FileProvenance(path=json_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal"),
+            zeta_rel: FileProvenance(path=zeta_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal"),
+        },
+    )
+    loaded = LoadedConfig(base=BaseJson(source_path=domain / "jsons" / "base.json", domain="d"))
+    parsed = ParseResult(files={}, index={})
+
+    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+
+    # Both alpha.tcl (before jsons/) and zeta.tcl (after jsons/) must be
+    # in the rebuilt domain -- the trimmer loop must not break on jsons/base.json.
+    assert sim.fs.exists(sim.domain_root / alpha_rel), "alpha.tcl missing -- loop broke before jsons/"
+    assert sim.fs.exists(sim.domain_root / zeta_rel), "zeta.tcl missing -- loop broke on jsons/base.json"

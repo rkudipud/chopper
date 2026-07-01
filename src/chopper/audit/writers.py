@@ -386,13 +386,24 @@ def _physical_source_root(ctx: ChopperContext) -> Path | None:
 def _walk_relative_files(ctx: ChopperContext, root: Path) -> list[Path]:
     """Return every regular file under ``root`` as a domain-relative path.
 
-    The walk skips a top-level ``.chopper/`` directory (the audit bundle
-    itself, which must never be reported as a domain artifact) and is
-    deterministic: each directory is listed via :meth:`FileSystemPort.list`,
-    which is contractually sorted by POSIX path.
+    The walk skips two top-level directories unconditionally:
+
+    * ``.chopper/`` -- the audit bundle; internal Chopper state, never a
+      domain artifact.
+    * ``jsons/`` -- the Chopper authoring directory (base.json, feature
+      JSONs).  These files are owned by the domain author, always tracked
+      in source control, and preserved by ``input_preserver`` at P5.
+      They must never appear in ``files_removed.txt`` or the
+      ``exclude_file_list`` section of ``p4_commands.txt``.
+
+    Results are deterministic: each directory is listed via
+    :meth:`FileSystemPort.list`, which is contractually sorted by POSIX
+    path.
     """
 
     out: list[Path] = []
+
+    _top_level_skip = frozenset({".chopper", "jsons"})
 
     def _recurse(current: Path, *, top: bool) -> None:
         try:
@@ -400,7 +411,7 @@ def _walk_relative_files(ctx: ChopperContext, root: Path) -> list[Path]:
         except (FileNotFoundError, NotADirectoryError):
             return
         for child in children:
-            if top and child.name == ".chopper":
+            if top and child.name in _top_level_skip:
                 continue
             try:
                 child_stat = ctx.fs.stat(child)
@@ -681,7 +692,14 @@ def render_trim_stats(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]
     manifest = record.manifest
 
     before_files = _enumerate_before_files(ctx, record)
-    after_files = _enumerate_after_files(ctx)
+    # In dry-run derive the projected after-file count from the manifest
+    # so files_after reflects what a live trim would produce.
+    if ctx.config.dry_run and manifest is not None and before_files:
+        after_files = [
+            f for f in before_files if manifest.file_decisions.get(f, FileTreatment.REMOVE) is not FileTreatment.REMOVE
+        ]
+    else:
+        after_files = _enumerate_after_files(ctx)
     files_before = len(before_files) if before_files else (len(parsed.files) if parsed else 0)
     files_after = len(after_files) if after_files else 0
 
@@ -872,8 +890,13 @@ def _compute_line_counts(ctx: ChopperContext, record: RunRecord) -> tuple[int, i
 
     "Before" reads from whichever tree held the pre-trim domain: the
     backup root (re-trim) or the domain root (first-trim, read before
-    P5 rebuilds). "After" reads from the rebuilt domain root. Under
-    dry-run the domain is unchanged, so before==after.
+    P5 rebuilds). "After" reads from the rebuilt domain root.
+
+    Under dry-run the domain is unchanged; to produce meaningful
+    projected SLOC rather than the trivial before==after the function
+    derives the "after" file list from the manifest (excluding REMOVE
+    treatment). PROC_TRIM files are read at full size so the SLOC is
+    a slight overestimate for those files; FULL_COPY files are exact.
 
     Files that cannot be decoded contribute zero to the line counts
     and are tallied in the ``skipped_*`` counters so the audit summary
@@ -888,7 +911,14 @@ def _compute_line_counts(ctx: ChopperContext, record: RunRecord) -> tuple[int, i
     manifest = record.manifest
     parsed = record.parsed
     before_files = _enumerate_before_files(ctx, record)
-    after_files = _enumerate_after_files(ctx)
+    # In dry-run the domain root is untouched; use the manifest to derive
+    # the projected surviving-file list so sloc_after is meaningful.
+    if ctx.config.dry_run and manifest is not None and before_files:
+        after_files = [
+            f for f in before_files if manifest.file_decisions.get(f, FileTreatment.REMOVE) is not FileTreatment.REMOVE
+        ]
+    else:
+        after_files = _enumerate_after_files(ctx)
 
     sloc_before, raw_before, skipped_before = _read_and_count(
         ctx,
@@ -973,6 +1003,10 @@ def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:
         # P7), still prefer the configured backup_root so the audit
         # surfaces the absence rather than silently collapsing.
         return ctx.config.backup_root
+    # On ``--dry-run`` no backup is taken so the domain root IS the
+    # pre-trim source.  The "after" file list is derived from the
+    # manifest in _compute_line_counts / render_trim_stats rather than
+    # walking the live filesystem so the audit bundle shows projections.
     return ctx.config.domain_root
 
 
