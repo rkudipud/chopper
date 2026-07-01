@@ -274,6 +274,39 @@ def test_render_files_removed_lists_remove_paths_sorted() -> None:
     assert "lib/keep.tcl" not in content
 
 
+def test_render_files_removed_uses_ward_relative_paths_when_available() -> None:
+    ward = Path("/fake_ward")
+    domain = ward / "global" / "snps" / "test"
+    backup = domain.with_name(domain.name + "_backup")
+    audit = domain / ".chopper"
+
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=backup,
+        audit_root=audit,
+        strict=False,
+        dry_run=False,
+        ward_root=ward,
+    )
+    ctx = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    manifest = CompiledManifest(
+        file_decisions={Path("src/old.tcl"): FileTreatment.REMOVE},
+        proc_decisions={},
+        provenance={
+            Path("src/old.tcl"): FileProvenance(
+                path=Path("src/old.tcl"),
+                treatment=FileTreatment.REMOVE,
+                reason="default-exclude",
+            )
+        },
+    )
+
+    _, content = render_files_removed(ctx, _record(manifest=manifest), ward_root=ward)
+    data_lines = [line for line in content.splitlines() if line and not line.startswith("#")]
+    assert data_lines == ["global/snps/test/src/old.tcl\tdefault-exclude"]
+
+
 def test_render_files_kept_empty_record_produces_header_only() -> None:
     name, content = render_files_kept(_record())
     assert name == "files_kept.txt"

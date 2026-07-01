@@ -56,7 +56,7 @@ class AuditService:
         renderings.append(render_trim_report_json(ctx, record))
         renderings.append(render_trim_report_txt(ctx, record))
         renderings.append(render_trim_stats(ctx, record))
-        renderings.append(render_files_removed(ctx, record))
+        renderings.append(render_files_removed(ctx, record, ward_root=ctx.config.ward_root))
         renderings.append(render_files_kept(record))
         renderings.append(render_p4_commands(ctx, record, ward_root=ctx.config.ward_root))
 

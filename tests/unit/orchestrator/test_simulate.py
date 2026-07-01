@@ -277,3 +277,48 @@ def test_simulate_seeds_json_files_so_trimmer_loop_does_not_break(tmp_path: Path
     # in the rebuilt domain -- the trimmer loop must not break on jsons/base.json.
     assert sim.fs.exists(sim.domain_root / alpha_rel), "alpha.tcl missing -- loop broke before jsons/"
     assert sim.fs.exists(sim.domain_root / zeta_rel), "zeta.tcl missing -- loop broke on jsons/base.json"
+
+
+def test_simulate_skips_json_seed_when_file_missing_from_source_root(tmp_path: Path) -> None:
+    """A ``.json`` path named in the manifest that does not actually exist in
+    ``src_root`` is skipped during seeding rather than raising."""
+    ctx = _ctx(tmp_path)
+    json_rel = Path("jsons/missing.json")
+    # Note: the file is never written to disk -- ctx.fs.exists(json_path) is False.
+
+    manifest = CompiledManifest(
+        file_decisions={json_rel: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={json_rel: FileProvenance(path=json_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal")},
+    )
+    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
+    parsed = ParseResult(files={}, index={})
+
+    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+
+    assert not sim.fs.exists(sim.domain_root / json_rel)
+
+
+def test_simulate_skips_json_seed_when_unreadable(tmp_path: Path, monkeypatch) -> None:
+    """A ``.json`` path that exists but cannot be read (``_read_text`` returns
+    ``None``) is skipped during seeding rather than crashing."""
+    import chopper.orchestrator.simulate as sim_mod
+
+    ctx = _ctx(tmp_path)
+    (ctx.config.domain_root / "jsons").mkdir()
+    json_rel = Path("jsons/base.json")
+    (ctx.config.domain_root / json_rel).write_text('{"$schema":"base-v1","domain":"d"}\n', encoding="utf-8")
+
+    monkeypatch.setattr(sim_mod, "_read_text", lambda _ctx, _path: None)
+
+    manifest = CompiledManifest(
+        file_decisions={json_rel: FileTreatment.FULL_COPY},
+        proc_decisions={},
+        provenance={json_rel: FileProvenance(path=json_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal")},
+    )
+    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
+    parsed = ParseResult(files={}, index={})
+
+    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+
+    assert not sim.fs.exists(sim.domain_root / json_rel)

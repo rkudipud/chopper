@@ -399,7 +399,7 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | `trim_stats.json` | File and SLOC counts before/after (before reads from backup when present) |
 | `diagnostics.json` | Every diagnostic emitted (code, severity, phase, message, location, hint) |
 | `files_kept.txt` | Sorted paths that survived, with per-line provenance (`<path>\t<contributed_by>`) |
-| `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance |
+| `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance; Ward-relative when `$WARD` is available, otherwise domain-relative |
 | `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$WARD`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` — review and submit manually. |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |

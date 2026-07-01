@@ -433,6 +433,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.2.1 — 2026-06-30
+
+- **`files_removed.txt` now uses Ward-relative paths.** The removed-file audit artifact renders each path as `$WARD`-relative when the domain resolves under `$WARD` (falling back to domain-relative otherwise), matching the `exclude_file_list` section of `p4_commands.txt` introduced in 4.1.0. See ARCHITECTURE.md §14 revision history (4.2.1) and §3.7/§5.6.
+- **Coverage gap closure (incidental).** Added unit tests for two pre-existing untested branches in `src/chopper/orchestrator/simulate.py` (a manifest-listed `.json` file missing from, or unreadable in, the source root during the `chopper loc` in-memory replay). No behavior change; both the fast (`make check`) and full (`make ci`) coverage gates are green again.
+- Version bumped 4.2.0 → 4.2.1.
+
 ### 4.2.0 — 2026-06-30
 
 - **Project-config auto-discovery.** When `--domain` resolves in name-mode and no explicit `--project`, `--base`, or `--features` is supplied, Chopper searches `$WARD/project/<vendor>/<domain>/` for `<leaf>.project.json` (treated as `--project`) or `<leaf>.project.features.config` (plain-text feature list, one name per line — treated as `--features`). First match wins; discovery is silent when neither file is found. See ARCHITECTURE.md §5.1.3, FR-49.

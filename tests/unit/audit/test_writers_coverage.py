@@ -341,6 +341,29 @@ def test_p4_commands_ctx_ward_root_fallback() -> None:
     assert "(no Perforce commands" in content
 
 
+def test_format_exclusion_path_falls_back_to_ctx_ward_root() -> None:
+    """``_format_exclusion_path`` must fall back to ``ctx.config.ward_root`` when
+    called with ``ward_root=None`` -- exercised directly since callers
+    (``render_files_removed`` / ``render_p4_commands``) only reach the helper
+    when there is at least one removed path to render."""
+    from chopper.audit.writers import _format_exclusion_path
+
+    ward = Path("/fake_ward")
+    domain = ward / "global" / "snps" / "test"
+    cfg = RunConfig(
+        domain_root=domain,
+        backup_root=domain.with_name(domain.name + "_backup"),
+        audit_root=domain / ".chopper",
+        strict=False,
+        dry_run=False,
+        ward_root=ward,  # ctx.config.ward_root is set; helper called with ward_root=None
+    )
+    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
+
+    result = _format_exclusion_path(ctx2, Path("src/old.tcl"), ward_root=None)
+    assert result == "global/snps/test/src/old.tcl"
+
+
 def test_p4_commands_ward_relative_exclude_paths() -> None:
     """Lines 575-579, 617-621: domain under ward_root → exclude_file_list uses ward-relative paths."""
     from datetime import datetime

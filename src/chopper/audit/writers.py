@@ -426,8 +426,32 @@ def _walk_relative_files(ctx: ChopperContext, root: Path) -> list[Path]:
     return out
 
 
-def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, str]:
-    """Sorted list of domain-relative paths physically removed by the trim.
+def _format_exclusion_path(ctx: ChopperContext, rel_path: Path, *, ward_root: Path | None = None) -> str:
+    """Render a removed-file path as Ward-relative when possible.
+
+    When the domain lives under a resolved ``$WARD`` root, the path is
+    prefixed with the domain's relative location under that root (for
+    example ``global/snps/test/src/old.tcl``). Otherwise the domain-relative
+    path is emitted unchanged.
+    """
+
+    _ward_root = ward_root
+    if _ward_root is None and ctx.config.ward_root is not None:
+        _ward_root = ctx.config.ward_root
+
+    if _ward_root is None:
+        return rel_path.as_posix()
+
+    try:
+        ward_prefix = ctx.config.domain_root.relative_to(_ward_root.resolve()).as_posix()
+    except ValueError:
+        return rel_path.as_posix()
+
+    return f"{ward_prefix}/{rel_path.as_posix()}"
+
+
+def render_files_removed(ctx: ChopperContext, record: RunRecord, *, ward_root: Path | None = None) -> tuple[str, str]:
+    """Sorted list of removed paths, using Ward-relative paths when available.
 
     One entry per line, alphabetically sorted by path. Each line is
     tab-separated as ``<path>\\t<provenance>`` where ``<provenance>`` is
@@ -474,7 +498,8 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
             )
             for path, prov in removed_entries:
                 provenance = _format_removed_provenance(prov)
-                lines.append(f"{path.as_posix()}\t{provenance}")
+                display_path = _format_exclusion_path(ctx, path, ward_root=ward_root)
+                lines.append(f"{display_path}\t{provenance}")
         lines.append("")
         return "files_removed.txt", "\n".join(lines)
 
@@ -488,7 +513,8 @@ def render_files_removed(ctx: ChopperContext, record: RunRecord) -> tuple[str, s
     for path in removed_paths:
         prov = manifest.provenance.get(path) if manifest is not None else None
         provenance = _format_removed_provenance(prov)
-        lines.append(f"{path.as_posix()}\t{provenance}")
+        display_path = _format_exclusion_path(ctx, path, ward_root=ward_root)
+        lines.append(f"{display_path}\t{provenance}")
 
     lines.append("")
     return "files_removed.txt", "\n".join(lines)
@@ -572,23 +598,6 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Pat
                     adds.append(rel)
             # FULL_COPY -> no command; REMOVE handled below.
 
-    # Resolve ward_root: explicit parameter wins; then fall back to ctx.config.ward_root.
-    _ward_root = ward_root
-    if _ward_root is None and ctx.config.ward_root is not None:
-        _ward_root = ctx.config.ward_root
-
-    # Compute the prefix to prepend to each domain-relative path in the
-    # exclude_file_list section.  When we have a ward_root, the paths are
-    # $WARD-relative (e.g. global/snps/fev_formality/src/foo.tcl).
-    # When ward_root is not set, fall back to domain-relative paths.
-    _ward_prefix: str | None = None
-    if _ward_root is not None:
-        try:
-            _ward_prefix = ctx.config.domain_root.relative_to(_ward_root.resolve()).as_posix()
-        except ValueError:
-            # domain_root is not under ward_root — fall back to domain-relative paths
-            _ward_prefix = None
-
     # exclude_file_list set is parity with `files_removed.txt`:
     # walk(source_root) - kept_set. Falls back to manifest REMOVE
     # decisions when no source root is available.
@@ -624,12 +633,12 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Pat
         lines.extend(f"p4 add -t text+x {p}" for p in adds)
     if delete_domain_rels:
         lines.append("")
-        if _ward_prefix is not None:
+        if ward_root is not None or ctx.config.ward_root is not None:
             lines.append("# exclude_file_list -- files to remove from P4 client view.")
             lines.append("# Paths are $WARD-relative (relative to the $WARD workspace root).")
             lines.append("# Use these as exclusion mapping lines in your P4 client spec.")
             for rel_path in delete_domain_rels:
-                lines.append(f"{_ward_prefix}/{rel_path.as_posix()}")
+                lines.append(_format_exclusion_path(ctx, rel_path, ward_root=ward_root))
         else:
             lines.append("# exclude_file_list -- files to remove from P4 client view.")
             lines.append("# Paths are domain-relative ($WARD not set; use as-is from domain root).")
