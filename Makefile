@@ -1,4 +1,4 @@
-.PHONY: lint format format-check type-check imports-check docs-gate test test-unit test-integration test-golden test-property test-all check ci install-dev install-all clean bundle clean-bundle release-cth clean-cth install-cth test-cth-ward
+.PHONY: lint format format-check type-check imports-check docs-gate test test-unit test-integration test-golden test-property test-all check ci install-dev install-all clean bundle clean-bundle release-cth clean-cth install-cth test-cth-ward p4-plan-cth p4-open-cth
 
 # Determinism: pin the hash seed so dict/set iteration order is stable across
 # runs. Any test that depends on hash ordering leaking into output is a
@@ -283,3 +283,59 @@ test-cth-ward:
 	find $(WARD)/global/common/chopper -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true; \
 	echo "[3/3] Cleaned up test artifacts from ward."; \
 	exit $$STATUS
+
+# ────────────────────────────────────────────────────────────
+# P4 command list for a CTH ward deploy
+# ────────────────────────────────────────────────────────────
+# The CTH ward (e.g. r2g_1278_rel) is a Perforce-controlled checkout.
+# install-cth only touches the filesystem (rm -rf + rsync); it never talks
+# to P4. These two targets bridge that gap:
+#
+#   make p4-plan-cth WARD=/path/to/ward   # preview only (p4 reconcile -n);
+#                                          # writes a plain p4 edit/add/delete
+#                                          # command list, opens nothing
+#   make p4-open-cth WARD=/path/to/ward   # actually opens the files in P4
+#                                          # (add/edit/delete) — reversible via
+#                                          # 'p4 revert'; never submits
+#
+# Run install-cth first so the ward's working files reflect the new release,
+# then run p4-plan-cth to see exactly what will change in Perforce, then
+# p4-open-cth once you're happy with the plan. Submitting is always a manual,
+# explicit step — these targets never call 'p4 submit'.
+P4_PLAN := $(CTH_DIR)/p4_plan_cth.txt
+
+p4-plan-cth:
+	@test -n "$(WARD)" \
+	    || (echo "ERROR: set WARD=/path/to/ward, e.g. make p4-plan-cth WARD=\$$ward"; exit 1)
+	@test -d "$(WARD)/global/common/chopper/src" \
+	    || (echo "ERROR: Chopper not installed in $(WARD). Run 'make install-cth WARD=$(WARD)' first."; exit 1)
+	@test -f "$(WARD)/.p4config" \
+	    || (echo "ERROR: $(WARD)/.p4config not found — is WARD a P4-controlled ward?"; exit 1)
+	@mkdir -p $(CTH_DIR)
+	@echo "[1/2] Previewing P4 changes (p4 reconcile -n; opens nothing) for ward chopper paths..."
+	@( cd $(WARD) && P4CONFIG=.p4config p4 reconcile -n global/common/chopper/... global/eouFW/bin/chopper 2>&1 ) \
+	    | grep -E ' - opened for ' \
+	    | awk -F' - opened for ' '{ path=$$1; sub(/#[0-9]+$$/,"",path); print "p4 " $$2 " " path }' \
+	    > $(P4_PLAN); \
+	 if [ ! -s $(P4_PLAN) ]; then echo "# No changes detected -- ward already matches this release." > $(P4_PLAN); fi
+	@echo "[2/2] P4 command list written to $(P4_PLAN):"
+	@echo ""
+	@cat $(P4_PLAN)
+	@echo ""
+	@echo "Review the list above, then run:  make p4-open-cth WARD=$(WARD)"
+
+# Actually opens the files in P4 (add/edit/delete) via 'p4 reconcile' (no -n).
+# This only stages a pending changelist -- it is reversible with 'p4 revert'
+# and never submits. Submitting to the depot remains an explicit manual step.
+p4-open-cth:
+	@test -n "$(WARD)" \
+	    || (echo "ERROR: set WARD=/path/to/ward, e.g. make p4-open-cth WARD=\$$ward"; exit 1)
+	@test -f "$(WARD)/.p4config" \
+	    || (echo "ERROR: $(WARD)/.p4config not found — is WARD a P4-controlled ward?"; exit 1)
+	@echo "Opening files in P4 (add/edit/delete) under ward chopper paths..."
+	@echo "(reversible via 'p4 revert' -- nothing is submitted by this target)"
+	@( cd $(WARD) && P4CONFIG=.p4config p4 reconcile global/common/chopper/... global/eouFW/bin/chopper )
+	@echo ""
+	@echo "Review the pending changelist:  cd $(WARD) && p4 opened"
+	@echo 'Submit manually when ready, e.g.:'
+	@echo "  cd $(WARD) && p4 submit -d \"chopper $$(grep -E '^version' pyproject.toml | head -1 | cut -d'\"' -f2) ward deploy\""

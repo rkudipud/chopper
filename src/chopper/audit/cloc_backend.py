@@ -170,7 +170,7 @@ def count_sloc_via_cloc(path: Path, text: str) -> int | None:
 def count_sloc_via_cloc_batch(items: list[tuple[Path, str]]) -> list[int | None]:
     """Batch-count logical lines for many ``(path, text)`` pairs in one cloc call.
 
-    Spawns a *single* ``perl cloc.pl`` subprocess for the whole batch
+    Spawns a *single* ``/usr/intel/bin/perl5.40.1 cloc.pl`` subprocess for the whole batch
     instead of one per file. On large domains (thousands of files) this
     turns an O(N)-fork hot path into a single fork, eliminating the
     biggest perf wart flagged by the production-readiness review (S1/L2).

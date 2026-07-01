@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/intel/bin/perl5.40.1
 # cloc -- Count Lines of Code                  {{{1
 # Copyright (C) 2006-2026 Al Danial <al.danial@gmail.com>
 # First release August 2006
@@ -7008,8 +7008,8 @@ sub classify_file {                          # {{{1
     if ($look_at_first_line) {
         # maybe it is a shell/Perl/Python/Ruby/etc script that
         # starts with pound bang:
-        #   #!/usr/bin/perl
-        #   #!/usr/bin/env perl
+        #   #!/usr/intel/bin/perl5.40.1
+        #   #!/usr/intel/bin/perl5.40.1
         my ($script_language, $L) = peek_at_first_line($full_file ,
                                                        $rh_Err    ,
                                                        $raa_errors);
