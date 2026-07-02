@@ -2089,13 +2089,13 @@ chopper cleanup
 
 ---
 
-### Pitfall P-43: `$WARD` Path Contains Symlinks — Always `.resolve()` Before `relative_to()`
+### Pitfall P-43: `$ward` Path Contains Symlinks — Always `.resolve()` Before `relative_to()`
 
 **THE TRAP:**
 ```python
-ward_root = Path(os.environ["WARD"])
+ward_root = Path(os.environ["ward"])
 domain_root = Path("/p/work/my_ward/global/snps/fev_formality")
-# WRONG: relative_to may fail if $WARD contains symlinks
+# WRONG: relative_to may fail if $ward contains symlinks
 rel = domain_root.relative_to(ward_root)
 
 # CORRECT: resolve both before computing relative path
@@ -2149,11 +2149,11 @@ chopper trim --domain "snps/fev,eco,trim"
 
 **THE TRAP:**
 ```bash
-# One domain from $WARD (name-mode), one as absolute path (path-mode)
+# One domain from $ward (name-mode), one as absolute path (path-mode)
 chopper trim --domain "fev_formality,/p/abs/other_domain"
 ```
 
-**Correct Behavior:** Each token in the CSV is resolved independently. Name-mode tokens get `ward_root` and `domain_logical_name` set on their `RunConfig`; path-mode tokens get `ward_root=None` and `domain_logical_name=None`. The `exclude_file_list` section in `p4_commands.txt` uses domain-relative paths for path-mode domains (no `$WARD` available).
+**Correct Behavior:** Each token in the CSV is resolved independently. Name-mode tokens get `ward_root` and `domain_logical_name` set on their `RunConfig`; path-mode tokens get `ward_root=None` and `domain_logical_name=None`. The `exclude_file_list` section in `p4_commands.txt` uses domain-relative paths for path-mode domains (no `$ward` available).
 
 **Why It Matters:** The multi-domain loop calls `_build_run_config` for each token independently, so each domain's `RunConfig` is fully isolated. Mixing modes is valid but the audit output differs per domain.
 

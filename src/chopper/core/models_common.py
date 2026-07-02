@@ -48,7 +48,7 @@ class DomainRunResult:
     """
 
     domain_logical_name: str
-    """Label for this domain — the ``vendor/name`` string or basename of the
+    """Label for this domain -- the ``vendor/name`` string or basename of the
     domain root when name-mode was not used."""
 
     exit_code: int

@@ -88,7 +88,7 @@ chopper validate [--domain PATH]
 
 | Flag | Effect |
 |---|---|
-| `--domain PATH\|NAME\|CSV` | Domain root, logical name, or vendor-qualified name (4.1.0+). Logical names (`fev_formality`, `snps/power`) are resolved via `$WARD/global/<vendor>/<name>`. CSV for multi-domain runs. Default: cwd. |
+| `--domain PATH\|NAME\|CSV` | Domain root, logical name, or vendor-qualified name (4.1.0+). Logical names (`fev_formality`, `snps/power`) are resolved via `$ward/global/<vendor>/<name>`. CSV for multi-domain runs. Default: cwd. |
 | `--base PATH` | Base JSON. **Optional** when `--domain` is a named domain — Chopper auto-discovers `<domain>/jsons/base.json` (VE-35 if missing). Required for plain-path domains. |
 | `--features PATHS` | Comma-separated **paths or names** (4.1.0+; e.g. `dft,power`). Names resolved from `<domain>/jsons/features/*.feature.json`. **Order matters for F3 `flow_actions`.** For `validate` only, any entry may also be a directory expanding to sorted `*.json` children. |
 | `--project PATH` | Project JSON. Mutually exclusive with `--base` and `--features`. |
@@ -399,8 +399,8 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | `trim_stats.json` | File and SLOC counts before/after (before reads from backup when present) |
 | `diagnostics.json` | Every diagnostic emitted (code, severity, phase, message, location, hint) |
 | `files_kept.txt` | Sorted paths that survived, with per-line provenance (`<path>\t<contributed_by>`) |
-| `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance; Ward-relative when `$WARD` is available, otherwise domain-relative |
-| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$WARD`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` — review and submit manually. |
+| `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance; Ward-relative when `$ward` is available, otherwise domain-relative |
+| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$ward`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` — review and submit manually. |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
 | `input_features/NN_name.json` | Verbatim copies of feature JSONs, prefixed by feature order |
@@ -513,8 +513,8 @@ After `chopper trim --base jsons/base.json`:
 | `VE-17 project-domain-mismatch` | `cd` into the folder whose name matches the JSON `domain` field |
 | `VE-21 no-domain-or-backup` | You are in a folder with neither `<domain>/` nor `<domain>_backup/` |
 | `VI-03 domain-suffix-strip-applied` | Info, not an error. Your `--domain` (or cwd) ended in `_backup` and a live sibling exists, so Chopper redirected to the live sibling. If you genuinely meant the `_backup` path, rename the colliding live sibling or run from inside the intended domain. |
-| `VE-32 ward-env-not-set` | `--domain` is a logical name but `$WARD` is not set. Run `setenv WARD /your/workspace` or pass an absolute path. |
-| `VE-33 domain-not-found` | Named domain not found under `$WARD/global/`. Run `ls $WARD/global/` to see available vendors and domains. |
+| `VE-32 ward-env-not-set` | `--domain` is a logical name but `$ward` is not set. Run `setenv ward /your/workspace` or pass an absolute path. |
+| `VE-33 domain-not-found` | Named domain not found under `$ward/global/`. Run `ls $ward/global/` to see available vendors and domains. |
 | `VE-34 ambiguous-domain-name` | Bare name matches multiple vendors. Use `--domain vendor/name` notation (e.g. `--domain snps/fev_formality`). |
 | `VE-35 base-autodiscovery-failed` | Auto-discovery could not find `jsons/base.json` in the named domain. Pass `--base <path>` or add `jsons/base.json` to the domain. |
 | `VE-36 feature-name-not-found` | Feature name not found in `<domain>/jsons/features/`. Check the hint for close matches; run `ls <domain>/jsons/features/` to see available names. |

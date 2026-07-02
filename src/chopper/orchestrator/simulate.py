@@ -106,8 +106,8 @@ def simulate_trim_in_memory(
     # copies surviving json files (e.g. jsons/base.json) from backup to the
     # rebuilt domain.  If those files are absent from the InMemoryFS seed the
     # trimmer gets FileNotFoundError, breaks its per-file dispatch loop, and
-    # files sorted after jsons/ (kpi_metrics.tcl, procs.tcl, …) are never
-    # written — producing a severely undercounted sloc_after in the loc report.
+    # files sorted after jsons/ (kpi_metrics.tcl, procs.tcl, ...) are never
+    # written -- producing a severely undercounted sloc_after in the loc report.
     # Seed them separately so the trimmer loop completes without interruption.
     for rel in manifest.file_decisions:
         if rel.suffix.lower() != ".json":

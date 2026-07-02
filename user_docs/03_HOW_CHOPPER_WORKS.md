@@ -280,7 +280,7 @@ Add `"skip_if_no_stage": true` to each flow_action that targets the feature-crea
 
 ### What is `p4_commands.txt` in `.chopper/`?
 
-A Perforce audit file for this trim. Two `p4` command sections (`p4 edit`, `p4 add`) plus an `exclude_file_list` section of `$WARD`-relative paths (4.1.0+) for files removed from the domain. Use the exclude list as P4 client-spec exclusion mapping lines. Chopper never invokes `p4` itself.
+A Perforce audit file for this trim. Two `p4` command sections (`p4 edit`, `p4 add`) plus an `exclude_file_list` section of `$ward`-relative paths (4.1.0+) for files removed from the domain. Use the exclude list as P4 client-spec exclusion mapping lines. Chopper never invokes `p4` itself.
 
 ---
 

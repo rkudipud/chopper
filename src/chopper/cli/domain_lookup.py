@@ -1,17 +1,17 @@
-"""Domain name resolution via ``$WARD/global/<vendor>/<name>``.
+"""Domain name resolution via ``$ward/global/<vendor>/<name>``.
 
 Resolves the ``--domain`` CLI argument to a concrete filesystem path using
 three modes:
 
 1. **Path-mode (absolute):** argument starts with a drive letter or ``/``;
-   used as-is with no ``$WARD`` lookup.
+   used as-is with no ``$ward`` lookup.
 2. **Path-mode (relative-existing):** argument is an existing directory
    relative to the current working directory; used as-is.
 3. **Name-mode:** argument is a bare name (e.g. ``fev_formality``) or a
    vendor-qualified name (e.g. ``snps/fev_formality``); resolved under
-   ``$WARD/global/``.
+   ``$ward/global/``.
 
-See ``technical_docs/ARCHITECTURE.md`` §5.1.0.
+See ``technical_docs/ARCHITECTURE.md`` Section 5.1.0.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class DomainLookupResult:
 
     Attributes:
         domain_root: The resolved filesystem path to the domain directory.
-        ward_root:   The resolved ``$WARD`` root, or ``None`` in path-mode.
+        ward_root:   The resolved ``$ward`` root, or ``None`` in path-mode.
         domain_logical_name: ``"vendor/name"`` string (e.g. ``"snps/fev_formality"``),
             or ``None`` in path-mode.
     """
@@ -51,9 +51,9 @@ def resolve_domain(
     the emitted diagnostic into a process exit.
 
     Three forms:
-    - Absolute path → path-mode, no WARD lookup.
-    - Existing relative directory → path-mode, no WARD lookup.
-    - Name or vendor/name → name-mode, requires ``$WARD``.
+    - Absolute path -> path-mode, no ward lookup.
+    - Existing relative directory -> path-mode, no ward lookup.
+    - Name or vendor/name -> name-mode, requires ``$ward``.
 
     Args:
         domain_arg: The raw string from the ``--domain`` CLI flag.
@@ -78,7 +78,7 @@ def resolve_domain(
             domain_logical_name=None,
         )
 
-    # Form 3: name-mode lookup via $WARD
+    # Form 3: name-mode lookup via $ward
     return _resolve_by_name(domain_arg, emit_diagnostic)
 
 
@@ -86,18 +86,18 @@ def _resolve_by_name(
     name_arg: str,
     emit_diagnostic: Callable[[str, str, str], None],
 ) -> DomainLookupResult | None:
-    """Resolve a bare name or vendor/name under ``$WARD/global/``."""
-    ward_str = os.environ.get("WARD")
+    """Resolve a bare name or vendor/name under ``$ward/global/``."""
+    ward_str = os.environ.get("ward")
     if not ward_str:
         emit_diagnostic(
             "VE-32",
             (
-                f"--domain {name_arg!r} looks like a domain name, but the $WARD "
-                "environment variable is not set; Chopper cannot locate $WARD/global/ "
+                f"--domain {name_arg!r} looks like a domain name, but the $ward "
+                "environment variable is not set; Chopper cannot locate $ward/global/ "
                 "for name-based lookup."
             ),
             (
-                "Set WARD to your workspace root (e.g. setenv WARD /p/workarea/my_ward), "
+                "Set ward to your workspace root (e.g. setenv ward /p/workarea/my_ward), "
                 "or pass --domain as an absolute filesystem path to bypass name-based lookup."
             ),
         )
@@ -117,7 +117,7 @@ def _resolve_by_name(
                 (f"Domain {name_arg!r} was not found: {target.as_posix()!r} is not an existing directory."),
                 (
                     f"Check that {global_root.as_posix()}/{vendor}/{domain_name} exists. "
-                    "Run `ls $WARD/global/<vendor>/` to see available domains."
+                    "Run `ls $ward/global/<vendor>/` to see available domains."
                 ),
             )
             return None
@@ -132,8 +132,8 @@ def _resolve_by_name(
     if not global_root.is_dir():
         emit_diagnostic(
             "VE-33",
-            (f"Domain {bare_name!r} not found: $WARD/global/ does not exist at {global_root.as_posix()!r}."),
-            "Verify that $WARD points to a valid workspace root containing a 'global/' directory.",
+            (f"Domain {bare_name!r} not found: $ward/global/ does not exist at {global_root.as_posix()!r}."),
+            "Verify that $ward points to a valid workspace root containing a 'global/' directory.",
         )
         return None
 
@@ -148,8 +148,8 @@ def _resolve_by_name(
     except OSError as exc:
         emit_diagnostic(
             "VE-33",
-            f"Could not enumerate $WARD/global/ ({exc}): domain {bare_name!r} search failed.",
-            "Verify filesystem permissions on $WARD/global/.",
+            f"Could not enumerate $ward/global/ ({exc}): domain {bare_name!r} search failed.",
+            "Verify filesystem permissions on $ward/global/.",
         )
         return None
 

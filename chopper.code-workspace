@@ -46,9 +46,14 @@
       "**/.pytest_cache": true
     },
     "github.copilot.enable": {
-      "markdown": true,
+      "*": true,
       "plaintext": true,
-      "scminput": true
+      "markdown": true,
+      "scminput": true,
+      "chatagent": true,
+      "tcl": true,
+      "python": true,
+      "perl": true
     }
   },
   "launch": {

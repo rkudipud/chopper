@@ -7,7 +7,7 @@ Tokens containing ``/`` or ending with ``.json`` pass through unchanged
 as direct file-path references (backward compatibility for scripts that
 already pass explicit paths).
 
-See ``technical_docs/ARCHITECTURE.md`` §5.1 (``--features`` as names).
+See ``technical_docs/ARCHITECTURE.md`` Section 5.1 (``--features`` as names).
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def resolve_feature_names(
     """
     tokens = [t.strip() for t in features_csv.split(",") if t.strip()]
 
-    # Build the name → path map lazily (only when a name-mode token is found)
+    # Build the name -> path map lazily (only when a name-mode token is found)
     _name_map: dict[str, Path] | None = None
 
     def _get_name_map() -> dict[str, Path]:

@@ -54,7 +54,7 @@ options:
                        (1) Absolute path, used as-is.
                        (2) Existing relative directory, used as-is.
                        (3) Logical name (e.g. ``fev_formality`` or ``snps/fev_formality``)
-                           resolved via ``$WARD/global/<vendor>/<name>``.
+                           resolved via ``$ward/global/<vendor>/<name>``.
                        Also accepts a comma-separated list for multi-domain runs (§5.1.2).
                        If the resolved path ends in ``_backup`` and a stripped sibling exists,
                        redirects to that sibling and emits VI-03.
@@ -69,13 +69,13 @@ options:
                        expands in place to its sorted *.json children (non-recursive).
                        Project-config auto-discovery (4.2.0+): when --domain is in name-mode
                        and --project/--base/--features are all absent, Chopper looks for
-                       ``$WARD/project/<vendor>/<domain>/<leaf>.project.features.config``
+                       ``$ward/project/<vendor>/<domain>/<leaf>.project.features.config``
                        (plain text, one feature name per line) and resolves it as --features.
                        See ARCHITECTURE.md §5.1.3.
   --project PATH       Path to project JSON (mutually exclusive with --base/--features).
                        Project-config auto-discovery (4.2.0+): when --domain is in name-mode
                        and --project/--base/--features are all absent, Chopper looks for
-                       ``$WARD/project/<vendor>/<domain>/<leaf>.project.json`` first.
+                       ``$ward/project/<vendor>/<domain>/<leaf>.project.json`` first.
                        See ARCHITECTURE.md §5.1.3.
   --tool-commands PATH Path to a plain-text file of known external tool-command
                        names (whitespace-separated tokens, '#' comments, blank
@@ -126,7 +126,7 @@ options:
 The `.chopper/` audit bundle written by `chopper trim` includes
 `p4_commands.txt` — a sorted Perforce command list with `p4 edit -t text+x` /
 `p4 add -t text+x` sections, and an `exclude_file_list` section of
-`$WARD`-relative paths for files to remove from the depot (4.1.0+, replaces
+`$ward`-relative paths for files to remove from the depot (4.1.0+, replaces
 former `p4 delete` commands). Chopper never invokes `p4` itself.
 A P4 branch analysis summary is printed to stdout after every run. See
 architecture doc §5.5.14, §5.5.15, and FR-47/FR-48.

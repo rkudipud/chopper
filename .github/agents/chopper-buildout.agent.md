@@ -256,6 +256,7 @@ class DiagnosticSink(Protocol):
 - `snake_case` functions/variables, `CamelCase` classes, `UPPER_CASE` constants
 - Full type hints on all public APIs
 - `mypy --strict` for `core/`
+- **ASCII-only source.** Never introduce non-ASCII characters (em dash, en dash, right arrow, section sign, ellipsis, curly quotes, etc.) in any file under `src/`, `tests/`, or `technical_docs/`. Use plain ASCII substitutes: `--` for an em/en dash, `->` for an arrow, `Section` for a section sign, `...` for an ellipsis, straight quotes only. This includes code, comments, and docstrings that reference the architecture doc (write `Section 5.1.0`, not `§5.1.0`). Verify with `grep -rnP '[^\x00-\x7F]' src/` before every commit; treat any hit as drift to fix, not a style nit. (Root cause: several `cli/` and `core/` modules picked up em dashes/arrows/section signs from pasted spec text and shipped to the CTH ward deployment — see `.github/agent_memory/chopper-buildout.md`.)
 
 ### Phase 4: Quality Gates
 
@@ -295,6 +296,7 @@ After implementing ANY feature, perform this checklist:
 - [ ] Diagnostic codes match DIAGNOSTIC_CODES.md exactly
 - [ ] Exit codes follow architecture doc §5.10 policy
 - [ ] Tests cover spec requirements, not implementation details
+- [ ] No non-ASCII characters introduced (`grep -rnP '[^\x00-\x7F]' <changed files>` is clean)
 ```
 
 ### Phase 6: Local Self-Check Before Finishing

@@ -51,8 +51,8 @@ class TestPathMode:
         assert errors == []
 
     def test_absolute_path_no_ward_needed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Absolute path bypasses WARD entirely even when WARD is unset."""
-        monkeypatch.delenv("WARD", raising=False)
+        """Absolute path bypasses ward entirely even when ward is unset."""
+        monkeypatch.delenv("ward", raising=False)
         errors, emit = _collect_errors()
         result = resolve_domain(tmp_path.as_posix(), emit)  # type: ignore[arg-type]
         assert result is not None
@@ -62,7 +62,7 @@ class TestPathMode:
 
 class TestNameModeBareName:
     def _make_ward(self, tmp_path: Path, domains: list[tuple[str, str]]) -> Path:
-        """Create $WARD/global/<vendor>/<domain> structure."""
+        """Create $ward/global/<vendor>/<domain> structure."""
         ward = tmp_path / "ward"
         global_dir = ward / "global"
         for vendor, domain in domains:
@@ -71,7 +71,7 @@ class TestNameModeBareName:
 
     def test_bare_name_single_match(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ward = self._make_ward(tmp_path, [("snps", "fev_formality")])
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is not None
@@ -82,7 +82,7 @@ class TestNameModeBareName:
 
     def test_bare_name_no_match_emits_ve33(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ward = self._make_ward(tmp_path, [("snps", "other_domain")])
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is None
@@ -92,7 +92,7 @@ class TestNameModeBareName:
 
     def test_bare_name_ambiguous_emits_ve34(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ward = self._make_ward(tmp_path, [("snps", "fev_formality"), ("cdns", "fev_formality")])
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is None
@@ -101,19 +101,19 @@ class TestNameModeBareName:
         assert "fev_formality" in errors[0].message
 
     def test_ward_not_set_emits_ve32(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("WARD", raising=False)
+        monkeypatch.delenv("ward", raising=False)
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is None
         assert len(errors) == 1
         assert errors[0].code == "VE-32"
-        assert "WARD" in errors[0].message
+        assert "ward" in errors[0].message
 
     def test_global_dir_missing_emits_ve33(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ward = tmp_path / "ward"
         ward.mkdir()
         # No global/ subdir
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is None
@@ -123,7 +123,7 @@ class TestNameModeBareName:
     def test_bare_name_multiple_vendors_finds_correct(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Multiple vendor dirs, only one has the domain → single match."""
         ward = self._make_ward(tmp_path, [("snps", "fev_formality"), ("cdns", "different_domain")])
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is not None
@@ -131,8 +131,8 @@ class TestNameModeBareName:
         assert errors == []
 
     def test_ward_empty_string_emits_ve32(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Empty string WARD is treated same as unset."""
-        monkeypatch.setenv("WARD", "")
+        """Empty string ward is treated same as unset."""
+        monkeypatch.setenv("ward", "")
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
         assert result is None
@@ -144,7 +144,7 @@ class TestNameModeVendorQualified:
     def test_vendor_qualified_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ward = tmp_path / "ward"
         (ward / "global" / "snps" / "fev_formality").mkdir(parents=True)
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("snps/fev_formality", emit)  # type: ignore[arg-type]
         assert result is not None
@@ -156,7 +156,7 @@ class TestNameModeVendorQualified:
     def test_vendor_qualified_not_found_emits_ve33(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         ward = tmp_path / "ward"
         (ward / "global").mkdir(parents=True)
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("snps/nonexistent", emit)  # type: ignore[arg-type]
         assert result is None
@@ -165,7 +165,7 @@ class TestNameModeVendorQualified:
         assert "snps/nonexistent" in errors[0].message
 
     def test_ward_not_set_vendor_qualified_emits_ve32(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("WARD", raising=False)
+        monkeypatch.delenv("ward", raising=False)
         errors, emit = _collect_errors()
         result = resolve_domain("snps/fev_formality", emit)  # type: ignore[arg-type]
         assert result is None
@@ -173,10 +173,10 @@ class TestNameModeVendorQualified:
         assert errors[0].code == "VE-32"
 
     def test_vendor_qualified_ward_root_recorded(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ward_root must be the resolved $WARD, not None."""
+        """ward_root must be the resolved $ward, not None."""
         ward = tmp_path / "ward"
         (ward / "global" / "cdns" / "fev_formality").mkdir(parents=True)
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("cdns/fev_formality", emit)  # type: ignore[arg-type]
         assert result is not None
@@ -187,7 +187,7 @@ class TestNameModeVendorQualified:
         """domain_logical_name must be 'vendor/name' exactly."""
         ward = tmp_path / "ward"
         (ward / "global" / "snps" / "fev_eco").mkdir(parents=True)
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()
         result = resolve_domain("snps/fev_eco", emit)  # type: ignore[arg-type]
         assert result is not None
@@ -202,7 +202,7 @@ class TestBareNameOSError:
         ward = tmp_path / "ward"
         global_dir = ward / "global"
         global_dir.mkdir(parents=True)
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
 
         errors, emit = _collect_errors()
         with patch("chopper.cli.domain_lookup.Path.iterdir", side_effect=OSError("perm denied")):
@@ -214,12 +214,12 @@ class TestBareNameOSError:
         assert "perm denied" in errors[0].message
 
     def test_non_directory_entry_in_global_is_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Line 144: a regular file inside $WARD/global/ triggers 'continue' and is skipped."""
+        """Line 144: a regular file inside $ward/global/ triggers 'continue' and is skipped."""
         ward = tmp_path / "ward"
         global_dir = ward / "global"
         (global_dir / "snps" / "fev_formality").mkdir(parents=True)
         (global_dir / "not_a_vendor.txt").write_text("file")  # non-directory entry
-        monkeypatch.setenv("WARD", ward.as_posix())
+        monkeypatch.setenv("ward", ward.as_posix())
 
         errors, emit = _collect_errors()
         result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]

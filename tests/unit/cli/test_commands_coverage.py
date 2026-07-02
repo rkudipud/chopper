@@ -723,7 +723,7 @@ def test_resolve_domain_root_backup_redirect_from_name_mode(tmp_path: Path, monk
     """
     from chopper.cli.commands import _resolve_domain_root
 
-    # Set up $WARD/global/snps/fev_formality_backup (the name-mode result)
+    # Set up $ward/global/snps/fev_formality_backup (the name-mode result)
     ward = tmp_path / "ward"
     global_dir = ward / "global" / "snps"
     global_dir.mkdir(parents=True)
@@ -733,7 +733,7 @@ def test_resolve_domain_root_backup_redirect_from_name_mode(tmp_path: Path, monk
     live_domain = global_dir / "fev_formality"
     live_domain.mkdir()
 
-    monkeypatch.setenv("WARD", ward.as_posix())
+    monkeypatch.setenv("ward", ward.as_posix())
     args = argparse.Namespace(domain="snps/fev_formality_backup")
     root, original, lookup = _resolve_domain_root(args)
 
@@ -1174,7 +1174,7 @@ def test_print_domain_header_shows_project_config_path(tmp_path: Path, capsys: p
 
 def test_build_run_config_auto_discovers_project_features_config(tmp_path: Path) -> None:
     """_build_run_config resolves feature_paths from a project features config file
-    in $WARD/project/ when --features is not supplied."""
+    in $ward/project/ when --features is not supplied."""
     import argparse
 
     from chopper.cli.commands import _build_run_config
@@ -1221,7 +1221,7 @@ def test_build_run_config_auto_discovers_project_features_config(tmp_path: Path)
 
 def test_build_run_config_auto_discovers_project_json(tmp_path: Path) -> None:
     """_build_run_config sets project_path from an auto-discovered project JSON
-    in $WARD/project/ when neither --project/--base/--features is supplied."""
+    in $ward/project/ when neither --project/--base/--features is supplied."""
     import argparse
 
     from chopper.cli.commands import _build_run_config
@@ -1261,7 +1261,7 @@ def test_build_run_config_auto_discovers_project_json(tmp_path: Path) -> None:
 
 def test_build_run_config_auto_discovery_no_project_files(tmp_path: Path) -> None:
     """Auto-discovery block is a no-op when neither .project.json nor
-    .project.features.config exists in $WARD/project/. Covers 203->210 branch."""
+    .project.features.config exists in $ward/project/. Covers 203->210 branch."""
     import argparse
 
     from chopper.cli.commands import _build_run_config
@@ -1402,7 +1402,7 @@ def test_resolve_domain_root_exits_2_on_name_mode_failure(tmp_path: Path) -> Non
 
     def _fake_resolve(name_arg, emit):
         # Must call emit so that errors[0] is populated (lines 74, 79-82).
-        emit("VE-33", "Domain not found", "Check $WARD")
+        emit("VE-33", "Domain not found", "Check $ward")
         return None
 
     with patch("chopper.cli.commands.resolve_domain", side_effect=_fake_resolve):

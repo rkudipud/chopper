@@ -75,10 +75,10 @@ class RunConfig:
       ``technical_docs/ARCHITECTURE.md`` Sec.3.10). The order does
       not affect behaviour -- the pool is a set -- but is preserved for
       audit reproducibility.
-    * ``ward_root``: the ``$WARD`` workspace root resolved when the user
+    * ``ward_root``: the ``$ward`` workspace root resolved when the user
       passed a domain name to ``--domain`` instead of a filesystem path.
       ``None`` in path-mode (absolute or cwd-relative path given). Used by
-      P7 audit to compute ``$WARD``-relative paths in ``p4_commands.txt``.
+      P7 audit to compute ``$ward``-relative paths in ``p4_commands.txt``.
     * ``domain_logical_name``: the logical ``vendor/name`` string for the
       domain (e.g. ``snps/fev_formality``). Set by the CLI domain-name
       resolver; ``None`` in path-mode. Used in the P4 branch analysis print
@@ -95,7 +95,7 @@ class RunConfig:
     feature_paths: tuple[Path, ...] = ()
     tool_command_paths: tuple[Path, ...] = ()
     ward_root: Path | None = None
-    """$WARD workspace root used to resolve domain name lookup. ``None`` when
+    """$ward workspace root used to resolve domain name lookup. ``None`` when
     ``--domain`` was provided as a path rather than a logical name."""
     domain_logical_name: str | None = None
     """Logical domain name in ``vendor/name`` form (e.g. ``snps/fev_formality``).
@@ -106,7 +106,7 @@ class RunConfig:
     ``<ward_root>/project/<domain_logical_name>/<leaf>.project.features.config``.
     ``None`` when features were provided via ``--features``, via a project JSON, or
     not set at all. Displayed in the domain header as ``config file path``.
-    See ``technical_docs/ARCHITECTURE.md`` §5.1.3 and §5.5.16."""
+    See ``technical_docs/ARCHITECTURE.md`` Section 5.1.3 and Section 5.5.16."""
 
 
 @dataclass(frozen=True)

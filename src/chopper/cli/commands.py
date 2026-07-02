@@ -53,9 +53,9 @@ def _resolve_domain_root(
 ) -> tuple[Path, Path | None, DomainLookupResult | None]:
     """Resolve the operational domain root.
 
-    Extended to support named domain lookup via ``$WARD/global/`` when
+    Extended to support named domain lookup via ``$ward/global/`` when
     ``--domain`` is a logical name rather than a filesystem path.
-    See ``technical_docs/ARCHITECTURE.md`` §5.1.0.
+    See ``technical_docs/ARCHITECTURE.md`` Section 5.1.0.
 
     Returns ``(domain_root, original_candidate_if_redirected, lookup_result_or_none)``.
     The third element is the :class:`~chopper.cli.domain_lookup.DomainLookupResult`
@@ -171,13 +171,13 @@ def _autodiscover_project_config(
     ward_root: Path,
     domain_logical_name: str,
 ) -> tuple[str | None, str | None, Path | None]:
-    """Search ``$WARD/project/<domain_logical_name>/`` for a project-level config.
+    """Search ``$ward/project/<domain_logical_name>/`` for a project-level config.
 
     Returns ``(explicit_project, explicit_features, project_config_path)``.
-    Search order per ``technical_docs/ARCHITECTURE.md`` §5.1.3:
+    Search order per ``technical_docs/ARCHITECTURE.md`` Section 5.1.3:
 
-    1. ``<leaf>.project.json``            → ``(str(path), None, None)``
-    2. ``<leaf>.project.features.config`` → ``(None, "name1,name2", resolved_path)``
+    1. ``<leaf>.project.json``            -> ``(str(path), None, None)``
+    2. ``<leaf>.project.features.config`` -> ``(None, "name1,name2", resolved_path)``
 
     All three are ``None`` when neither file is found or the config is empty.
     """
@@ -205,12 +205,12 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
     domain_logical_name: str | None = lookup_result.domain_logical_name if lookup_result is not None else None
 
     # ------------------------------------------------------------------
-    # Auto-discover project config from $WARD/project/ when no explicit
+    # Auto-discover project config from $ward/project/ when no explicit
     # --project/--base/--features were supplied.
-    # Mirrors $WARD/global/<vendor>/<domain> → $WARD/project/<vendor>/<domain>.
+    # Mirrors $ward/global/<vendor>/<domain> -> $ward/project/<vendor>/<domain>.
     # Looks for (in order):
-    #   <leaf>.project.json            → treated as --project <path>
-    #   <leaf>.project.features.config → treated as --features <names>
+    #   <leaf>.project.json            -> treated as --project <path>
+    #   <leaf>.project.features.config -> treated as --features <names>
     # ------------------------------------------------------------------
     explicit_project: str | None = getattr(args, "project", None)
     explicit_base: str | None = getattr(args, "base", None)
@@ -533,7 +533,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     domain_tokens = _split_domain_csv(getattr(args, "domain", None))
 
     if len(domain_tokens) <= 1:
-        # Single domain — original behaviour.
+        # Single domain -- original behaviour.
         if getattr(args, "project", None) is None:
             args.features = _expand_feature_dirs(getattr(args, "features", None))
 
@@ -578,7 +578,7 @@ def cmd_trim(args: argparse.Namespace) -> int:
     domain_tokens = _split_domain_csv(getattr(args, "domain", None))
 
     if len(domain_tokens) <= 1:
-        # Single domain — original behaviour (plus new auto-discovery).
+        # Single domain -- original behaviour (plus new auto-discovery).
         rc = _check_project_paths_resolvable(args)
         if rc is not None:
             return rc
@@ -662,7 +662,7 @@ def cmd_loc(args: argparse.Namespace) -> int:
     domain_tokens = _split_domain_csv(getattr(args, "domain", None))
 
     if len(domain_tokens) <= 1:
-        # Single domain — original behaviour.
+        # Single domain -- original behaviour.
         if getattr(args, "project", None) is None:
             args.features = _expand_feature_dirs(getattr(args, "features", None))
 

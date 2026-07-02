@@ -429,7 +429,7 @@ def _walk_relative_files(ctx: ChopperContext, root: Path) -> list[Path]:
 def _format_exclusion_path(ctx: ChopperContext, rel_path: Path, *, ward_root: Path | None = None) -> str:
     """Render a removed-file path as Ward-relative when possible.
 
-    When the domain lives under a resolved ``$WARD`` root, the path is
+    When the domain lives under a resolved ``$ward`` root, the path is
     prefixed with the domain's relative location under that root (for
     example ``global/snps/test/src/old.tcl``). Otherwise the domain-relative
     path is emitted unchanged.
@@ -553,7 +553,7 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Pat
     * ``p4 add -t text+x <path>`` -- every ``GENERATED`` file whose path
       does not exist pre-trim (newly created stage file).
     * ``exclude_file_list`` (4.1.0+) -- bare path list replacing the former
-      ``p4 delete`` section. Paths are ``$WARD``-relative when ``$WARD`` is
+      ``p4 delete`` section. Paths are ``$ward``-relative when ``$ward`` is
       set and the domain is under it; domain-relative otherwise. Use as
       P4 client-spec exclusion mapping lines.
 
@@ -635,13 +635,13 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Pat
         lines.append("")
         if ward_root is not None or ctx.config.ward_root is not None:
             lines.append("# exclude_file_list -- files to remove from P4 client view.")
-            lines.append("# Paths are $WARD-relative (relative to the $WARD workspace root).")
+            lines.append("# Paths are $ward-relative (relative to the $ward workspace root).")
             lines.append("# Use these as exclusion mapping lines in your P4 client spec.")
             for rel_path in delete_domain_rels:
                 lines.append(_format_exclusion_path(ctx, rel_path, ward_root=ward_root))
         else:
             lines.append("# exclude_file_list -- files to remove from P4 client view.")
-            lines.append("# Paths are domain-relative ($WARD not set; use as-is from domain root).")
+            lines.append("# Paths are domain-relative ($ward not set; use as-is from domain root).")
             for rel_path in delete_domain_rels:
                 lines.append(rel_path.as_posix())
 

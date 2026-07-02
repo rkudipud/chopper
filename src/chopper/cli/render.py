@@ -452,14 +452,14 @@ def render_p4_branch_analysis(
     """Print a P4 branch analysis summary after trim or dry-run.
 
     For each domain, classifies the run as "NO BRANCH NEEDED" (only file
-    removals — a P4 template resync is sufficient) or "BRANCH NEEDED"
+    removals -- a P4 template resync is sufficient) or "BRANCH NEEDED"
     (at least one ``PROC_TRIM`` or ``GENERATED`` treatment means files
     will be modified or added, requiring a P4 branch).
 
     In multi-domain mode the per-domain verdicts are followed by an
     aggregate verdict and the list of domains that need a branch.
 
-    See ``technical_docs/ARCHITECTURE.md`` §5.5.15 and FR-48.
+    See ``technical_docs/ARCHITECTURE.md`` Section 5.5.15 and FR-48.
     """
     if not domain_results:
         return
@@ -474,7 +474,7 @@ def render_p4_branch_analysis(
             verdict = f"BRANCH NEEDED ({detail})"
             needs_branch.append(dr.domain_logical_name)
         else:
-            verdict = f"NO BRANCH NEEDED — only {dr.removes_count} removal(s); P4 template resync sufficient"
+            verdict = f"NO BRANCH NEEDED -- only {dr.removes_count} removal(s); P4 template resync sufficient"
 
         if len(domain_results) == 1:
             stream.write(f"{dr.domain_logical_name}: {verdict}\n")
@@ -487,6 +487,6 @@ def render_p4_branch_analysis(
             stream.write("Final verdict     : BRANCH NEEDED\n")
             stream.write(f"Domains needing branch: {', '.join(needs_branch)}\n")
         else:
-            stream.write("Final verdict     : NO BRANCH NEEDED — all domains are removal-only\n")
+            stream.write("Final verdict     : NO BRANCH NEEDED -- all domains are removal-only\n")
 
     stream.write("\n")

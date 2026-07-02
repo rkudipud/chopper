@@ -8,7 +8,7 @@
 ## TL;DR — from zero to a trimmed domain in 4 commands
 
 ```text
-# Named domain via $WARD (4.1.0+) — Chopper finds jsons/base.json automatically:
+# Named domain via $ward (4.1.0+) — Chopper finds jsons/base.json automatically:
 chopper validate --domain fev_formality           # safe, read-only preflight
 chopper trim --dry-run --domain fev_formality      # preview what would change
 chopper trim --domain fev_formality                # live trim — domain rebuilt on disk
