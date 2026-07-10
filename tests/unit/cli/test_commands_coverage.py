@@ -1016,6 +1016,77 @@ def test_cmd_trim_single_domain_calls_render_trim_stats_on_live_run(
     assert stats_called["n"] == 1  # render_trim_stats was called once
 
 
+def test_cmd_trim_single_domain_renders_p4_checkout_opened_paths(tmp_path: Path) -> None:
+    """cmd_trim single-domain live run must call render_p4_checkout_opened with
+    the absolute paths from ``trim_report.p4_checkout.checked_out``."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+    from chopper.core.models_trimmer import P4CheckoutResult, TrimReport
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    p4_checkout = P4CheckoutResult(attempted=True, checked_out=(Path("a.tcl"), Path("b.tcl")))
+    trim_report = MagicMock(spec=TrimReport, p4_checkout=p4_checkout)
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None, trim_report=trim_report)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,
+        p4_checkout=True,
+    )
+
+    captured: list = []
+
+    def _fake_render_p4_opened(entries, **kwargs):  # type: ignore[misc]
+        captured.append(entries)
+
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats"),
+        patch("chopper.cli.commands.render_p4_checkout_opened", _fake_render_p4_opened),
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    assert len(captured) == 1
+    [(label, paths)] = captured[0]
+    assert paths == [(domain / "a.tcl").resolve(), (domain / "b.tcl").resolve()]
+
+
+def test_p4_checked_out_abs_paths_empty_when_no_trim_report() -> None:
+    """_p4_checked_out_abs_paths returns [] when result has no trim_report
+    (e.g. an error/early-exit result)."""
+    from chopper.cli.commands import _p4_checked_out_abs_paths
+
+    ctx = MagicMock()
+    result = MagicMock(spec=[])  # no trim_report attribute at all
+    assert _p4_checked_out_abs_paths(ctx, result) == []
+
+
+def test_p4_checked_out_abs_paths_empty_when_p4_checkout_none() -> None:
+    """_p4_checked_out_abs_paths returns [] when p4_checkout is None (--p4 not passed)."""
+    from chopper.cli.commands import _p4_checked_out_abs_paths
+    from chopper.core.models_trimmer import TrimReport
+
+    ctx = MagicMock()
+    result = MagicMock(trim_report=MagicMock(spec=TrimReport, p4_checkout=None))
+    assert _p4_checked_out_abs_paths(ctx, result) == []
+
+
 def _make_ctx_for_header(
     tmp_path: Path,
     *,

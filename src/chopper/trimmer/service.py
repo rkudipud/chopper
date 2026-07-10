@@ -19,26 +19,49 @@ next invocation rebuilds cleanly from the intact backup
 
 Optional P4 checkout-before-edit (``--p4``, opt-in, FR-53)
 -----------------------------------------------------------
-When ``RunConfig.p4_checkout`` is True and the run is not a dry-run,
-``run()`` runs ``p4 edit -t text+x`` on every ``PROC_TRIM`` / regenerate-
-in-place ``GENERATED`` path *before* ``_prepare_workspace()`` renames
-anything -- Perforce tracks "opened" state by client path, not inode, so
-checking out the real pre-trim files before the rename/rebuild still
-counts as "that path got edited" once the new content lands. This only
-runs on ``DomainState.case == 1`` (a genuine first trim): on a re-trim
-(cases 2/3) ``domain_root`` no longer holds the original p4-synced
-files, so checkout is skipped with a reason rather than attempted.
+When ``RunConfig.p4_checkout`` is True, the run is not a dry-run, and
+the domain is a genuine first trim (``DomainState.case == 1``), ``run()``
+uses a two-phase backup strategy so ``p4 edit`` always targets files that
+still exist at their original P4-tracked paths:
+
+1. **Backup phase** (``_p4_backup_phase``): move ``.chopper/`` aside, then
+   *copy* ``domain/`` to ``domain_backup/``.  The original ``domain/``
+   directory is left fully intact -- its files are still reachable at the
+   paths Perforce knows about.
+2. **p4 edit**: ``p4 edit -t text+x`` is issued on each ``PROC_TRIM`` /
+   regenerate-in-place ``GENERATED`` path with ``cwd=domain_root``.  The
+   files exist on disk at those paths, so Perforce registers the checkout
+   in its client workspace database.
+3. **Clear phase** (``_p4_clear_phase``): ``domain/`` is now removed and
+   recreated empty, ready for the per-file dispatch loop to rebuild it
+   from ``domain_backup/``.
+
+On a re-trim with ``DomainState.case == 2`` (domain + backup both present),
+``domain/`` holds the *trimmed* content from the last run, which makes ``p4
+edit`` report ``"file(s) not on client"`` with exit 0.  The fix:
+``_p4_precopy_from_backup`` copies each ``PROC_TRIM`` / regenerate-in-place
+``GENERATED`` file from ``domain_backup/`` back into ``domain/``, restoring
+depot-matching content.  ``p4 edit`` then succeeds, and the subsequent
+``_prepare_workspace`` (Case 2: delete domain, recreate empty) plus dispatch
+(rebuild with proc-drop from backup) leave the files at their trimmed content
+while P4 retains the opened-for-edit registration.
+
+On ``DomainState.case == 3`` (backup only, no domain), checkout is skipped
+with a notice -- the domain does not exist yet, so there is nothing to open.
+Pre-copying from backup would create the domain directory, conflicting with
+``_prepare_workspace`` Case 3's ``exist_ok=False`` mkdir call.
 
 Failure handling is asymmetric by design:
 
-* If checkout itself fails partway through the batch, nothing has been
-  renamed or rewritten yet -- rollback is just ``p4 revert`` on whatever
-  succeeded before the failing file, then the whole trim aborts
+* If the backup phase fails, domain is untouched; any partial backup tree
+  is cleaned up best-effort.
+* If checkout itself fails partway through the batch, the backup is
+  removed (domain was never modified) and rollback is ``p4 revert`` on
+  whatever succeeded before the failing file; the whole trim aborts
   (``VE-37``).
-* If a *later* P5 step fails after checkout already succeeded, rollback
-  additionally restores ``domain/`` from ``domain_backup/`` immediately
-  (rather than deferring to the next invocation, which is the default
-  recovery timing for every other P5 failure).
+* If a *later* P5 step fails after checkout and clear already succeeded,
+  rollback additionally restores ``domain/`` from ``domain_backup/``
+  immediately (rather than deferring to the next invocation).
 
 Chopper never runs ``p4 add``, ``p4 delete``, or ``p4 submit`` here --
 only ``p4 edit`` (checkout) and, on rollback, ``p4 revert``. See
@@ -96,25 +119,86 @@ class TrimmerService:
             return _plan_only_report(manifest)
 
         # ------------------------------------------------------------------
-        # Optional P4 checkout-before-edit (opt-in --p4). Must run before
-        # _prepare_workspace() -- see module docstring for why.
+        # Optional P4 checkout-before-edit (opt-in --p4).
+        #
+        # Case 1 + --p4: two-phase backup so p4 edit targets files that
+        # still exist at their original P4-tracked paths (see module
+        # docstring for the full rationale).
+        #
+        # All other cases (Case 2/3 + --p4, or --p4 not passed): original
+        # single-phase _prepare_workspace (may use fast OS rename).
         # ------------------------------------------------------------------
         p4_result: P4CheckoutResult | None = None
-        if ctx.config.p4_checkout:
-            p4_result = _perform_p4_checkout(ctx, manifest, state)
+
+        if ctx.config.p4_checkout and state.case == 1:
+            # Phase A: backup by copy -- domain stays intact for p4 edit.
+            try:
+                self._p4_backup_phase(ctx)
+            except OSError as exc:
+                # Clean up any partial backup; domain was never touched.
+                try:
+                    ctx.fs.remove(ctx.config.backup_root, recursive=True)
+                except OSError:
+                    pass
+                _emit_ve23(ctx, f"workspace preparation failed: {exc}")
+                return _empty_report(interrupted=True)
+
+            # p4 edit while domain files are still at their original paths.
+            p4_result = _perform_p4_checkout(ctx, manifest)
             if p4_result.failed:
                 _emit_ve37(ctx, p4_result)
+                # Remove the backup -- domain was never modified.
+                try:
+                    ctx.fs.remove(ctx.config.backup_root, recursive=True)
+                except OSError:
+                    pass
                 return _empty_report(interrupted=True, p4_checkout=p4_result)
 
-        # ------------------------------------------------------------------
-        # Phase 5a prep
-        # ------------------------------------------------------------------
-        try:
-            self._prepare_workspace(ctx, state)
-        except OSError as exc:
-            p4_result = _rollback_late_failure(ctx, p4_result, state)
-            _emit_ve23(ctx, f"workspace preparation failed: {exc}")
-            return _empty_report(interrupted=True, p4_checkout=p4_result)
+            # Phase B: clear domain now that backup and checkout are done.
+            try:
+                self._p4_clear_phase(ctx)
+            except OSError as exc:
+                p4_result = _rollback_late_failure(ctx, p4_result, state)
+                _emit_ve23(ctx, f"workspace preparation failed: {exc}")
+                return _empty_report(interrupted=True, p4_checkout=p4_result)
+
+        else:
+            # Cases 2/3 + --p4, or --p4 not passed.
+            if ctx.config.p4_checkout and state.case == 2:
+                # Re-trim + --p4: restore PROC_TRIM files to depot content so
+                # p4 edit sees the right baseline, then do normal Case 2 prep.
+                try:
+                    self._p4_precopy_from_backup(ctx, manifest)
+                except OSError as exc:
+                    # Pre-copy failed; fall through with a skip notice.
+                    p4_result = P4CheckoutResult(
+                        attempted=False,
+                        skip_reason=f"pre-copy from backup failed: {exc}",
+                    )
+                else:
+                    p4_result = _perform_p4_checkout(ctx, manifest)
+                    if p4_result.failed:
+                        _emit_ve37(ctx, p4_result)
+                        return _empty_report(interrupted=True, p4_checkout=p4_result)
+
+            elif ctx.config.p4_checkout:
+                # Case 3 (no domain): can't open files that don't exist; skip.
+                p4_result = P4CheckoutResult(
+                    attempted=False,
+                    skip_reason=(
+                        "domain directory is absent (Case 3 recovery); p4 edit requires files to exist in the workspace"
+                    ),
+                )
+
+            # ------------------------------------------------------------------
+            # Phase 5a prep
+            # ------------------------------------------------------------------
+            try:
+                self._prepare_workspace(ctx, state)
+            except OSError as exc:
+                p4_result = _rollback_late_failure(ctx, p4_result, state)
+                _emit_ve23(ctx, f"workspace preparation failed: {exc}")
+                return _empty_report(interrupted=True, p4_checkout=p4_result)
 
         # ------------------------------------------------------------------
         # Per-file dispatch
@@ -153,8 +237,63 @@ class TrimmerService:
         return _build_report(outcomes, rebuild_interrupted=interrupted, p4_checkout=p4_result)
 
     # ------------------------------------------------------------------
-    # Workspace prep per Sec.2.8
+    # Workspace prep helpers
     # ------------------------------------------------------------------
+
+    def _p4_precopy_from_backup(self, ctx: ChopperContext, manifest: CompiledManifest) -> None:
+        """Case 2 + ``--p4`` pre-copy: restore ``PROC_TRIM`` / regenerate-in-place
+        ``GENERATED`` files in ``domain/`` to their depot-synced content by
+        copying from ``domain_backup/``.
+
+        After this call, ``p4 edit`` can open those files because their content
+        matches the last-synced depot revision.  ``_prepare_workspace`` (Case 2)
+        subsequently deletes the domain and rebuilds it from backup; P4 retains
+        the opened-for-edit registration regardless of the intermediate delete.
+        """
+        backup_root = ctx.config.backup_root
+        domain_root = ctx.config.domain_root
+        for rel_path, treatment in manifest.file_decisions.items():
+            if treatment is FileTreatment.PROC_TRIM:
+                src = backup_root / rel_path
+                if ctx.fs.exists(src):
+                    ctx.fs.copy_file(src, domain_root / rel_path)
+            elif treatment is FileTreatment.GENERATED:
+                # Only regenerate-in-place files need checkout; new-file GENERATED
+                # paths (not yet in backup) are p4 add territory, not p4 edit.
+                src = backup_root / rel_path
+                dst = domain_root / rel_path
+                if ctx.fs.exists(src) and ctx.fs.exists(dst):
+                    ctx.fs.copy_file(src, dst)
+
+    def _p4_backup_phase(self, ctx: ChopperContext) -> None:
+        """Case 1 + ``--p4`` backup phase: move ``.chopper/`` aside, then
+        *copy* ``domain/`` to ``domain_backup/``.
+
+        Unlike the normal Case 1 rename, ``domain/`` is left fully intact
+        so ``p4 edit`` can target files at their original on-disk paths.
+        ``_p4_clear_phase`` runs after checkout to empty ``domain/`` ready
+        for the per-file rebuild.
+        """
+        domain = ctx.config.domain_root
+        backup = ctx.config.backup_root
+        audit_in_domain = domain / ".chopper"
+        if ctx.fs.exists(audit_in_domain):
+            ctx.fs.remove(audit_in_domain, recursive=True)
+        ctx.fs.copy_tree(domain, backup)
+
+    def _p4_clear_phase(self, ctx: ChopperContext) -> None:
+        """Case 1 + ``--p4`` clear phase: remove ``domain/`` and recreate
+        it empty, ready for the per-file dispatch loop to populate from
+        ``domain_backup/``.
+
+        Called after ``p4 edit`` succeeds (backup exists, checkouts
+        registered).  On failure, ``_rollback_late_failure`` reverts the
+        p4 checkouts and restores ``domain/`` from the backup.
+        """
+        domain = ctx.config.domain_root
+        ctx.fs.remove(domain, recursive=True)
+        ctx.fs.mkdir(domain, parents=True, exist_ok=False)
+
     def _prepare_workspace(self, ctx: ChopperContext, state: DomainState) -> None:
         """Execute the case-specific prep step.
 
@@ -367,10 +506,10 @@ def _build_report(
 def _compute_p4_edit_paths(ctx: ChopperContext, manifest: CompiledManifest) -> list[Path]:
     """Sorted ``PROC_TRIM`` + regenerate-in-place ``GENERATED`` paths to check out.
 
-    Resolved against ``domain_root`` directly (not ``backup_root``) because
-    this only ever runs before :meth:`TrimmerService._prepare_workspace`
-    renames anything -- the caller gates this on ``DomainState.case == 1``,
-    so ``domain_root`` still holds the original, un-rebuilt files.
+    Resolved against ``domain_root``.  The caller is responsible for ensuring
+    those files are at their depot-synced content before ``p4 edit`` is
+    invoked -- see ``_p4_backup_phase`` (Case 1) and ``_p4_precopy_from_backup``
+    (Case 2).
 
     ``GENERATED`` paths that do not yet exist in ``domain_root`` are newly
     created stage files (``p4 add`` territory, not ``p4 edit``) -- excluded
@@ -387,27 +526,26 @@ def _compute_p4_edit_paths(ctx: ChopperContext, manifest: CompiledManifest) -> l
     return paths
 
 
-def _perform_p4_checkout(ctx: ChopperContext, manifest: CompiledManifest, state: DomainState) -> P4CheckoutResult:
-    """Run the pre-P5 P4 checkout step and return its typed outcome.
+def _perform_p4_checkout(ctx: ChopperContext, manifest: CompiledManifest) -> P4CheckoutResult:
+    """Run the P4 checkout step and return its typed outcome.
 
-    Skips (``attempted=False``, with a reason) rather than attempting
-    checkout when this is a re-trim (``state.case != 1`` -- ``domain_root``
-    no longer holds the original p4-synced files) or when ``p4`` is
-    unavailable / the domain is not a working p4 client workspace.
+    Skips (``attempted=False``, with a reason) only when ``p4`` is
+    unavailable or the domain is not a working p4 client workspace.
 
-    On checkout failure, already-succeeded paths are reverted immediately
-    (nothing has been renamed or rewritten yet at this point in ``run()``,
-    so ``domain_restored`` stays ``False`` -- there is nothing to restore).
+    The caller is responsible for ensuring the files at ``domain_root`` are
+    at their depot-synced content before calling this function:
+
+    * ``DomainState.case == 1``: ``_p4_backup_phase`` keeps ``domain/`` intact
+      so files are still at their original (synced) state.
+    * ``DomainState.case == 2``: ``_p4_precopy_from_backup`` restores the
+      ``PROC_TRIM`` / regenerate-in-place ``GENERATED`` files to their depot
+      content before this call.
+
+    On checkout failure, already-succeeded paths are reverted immediately.
+    ``domain/`` has not been cleared yet at this point, so
+    ``domain_restored`` stays ``False`` -- the caller removes the backup (Case
+    1) or proceeds to ``_prepare_workspace`` (Case 2) with the domain intact.
     """
-    if state.case != 1:
-        return P4CheckoutResult(
-            attempted=False,
-            skip_reason=(
-                "a previous trim already exists (<domain>_backup/ present); P4 checkout "
-                "only runs on a first trim, before any rebuild has occurred"
-            ),
-        )
-
     available, reason = check_p4_available(ctx.config.domain_root)
     if not available:
         return P4CheckoutResult(attempted=False, skip_reason=reason)

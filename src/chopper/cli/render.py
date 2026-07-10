@@ -31,6 +31,7 @@ __all__ = [
     "render_diagnostics",
     "render_p4_branch_analysis",
     "render_p4_checkout_notice",
+    "render_p4_checkout_opened",
     "render_result",
     "render_trim_stats",
 ]
@@ -527,14 +528,16 @@ def render_audit_bundle_locations(
 
     if len(domain_paths) == 1:
         _label, audit_root = domain_paths[0]
-        stream.write(f"\nThe output logs of this run can be found at: {audit_root.resolve().as_posix()}\n")
+        resolved = audit_root.resolve().as_posix()
+        stream.write(f"\nThe output logs and other files of this run can be found at: {resolved}\n\n")
         stream.flush()
         return
 
     stream.write("\n=== Audit Bundle Locations ===\n")
-    stream.write("The output logs of this run can be found at:\n")
+    stream.write("The output logs and other files of this run can be found at:\n")
     for label, audit_root in domain_paths:
         stream.write(f"  {label:<30s} : {audit_root.resolve().as_posix()}\n")
+    stream.write("\n")
     stream.flush()
 
 
@@ -571,3 +574,53 @@ def render_p4_checkout_notice(
         out.write(f"\x1b[31m{text}\x1b[0m\n")
     else:
         out.write(f"{text}\n")
+
+
+# ---------------------------------------------------------------------------
+# P4 files opened for edit (rendered on stdout after a successful --p4 checkout)
+# ---------------------------------------------------------------------------
+
+
+def render_p4_checkout_opened(
+    entries: Sequence[tuple[str, Sequence[Path]]],
+    *,
+    stream: TextIO = sys.stdout,
+) -> None:
+    """Print the absolute paths Chopper opened for edit via ``--p4`` checkout.
+
+    Rendered once, after ``chopper trim`` (live only -- ``--p4`` is a strict
+    no-op under ``--dry-run``) finishes processing every domain in the run,
+    immediately after the audit bundle location summary
+    (:func:`render_audit_bundle_locations`).
+
+    ``entries`` is a ``(label, checked_out_paths)`` pair per domain, mirroring
+    the shape consumed by :func:`render_audit_bundle_locations`. Domains that
+    checked out zero files (``--p4`` not passed, checkout skipped, checkout
+    failed, or a manifest with no ``PROC_TRIM`` / regenerate-in-place
+    ``GENERATED`` files) are silently excluded from the printed path list --
+    this function is a no-op when every entry is empty. Multi-domain form
+    (per-domain ``label:`` line) is chosen by the *original* entry count
+    (``len(entries) > 1``), matching :func:`render_audit_bundle_locations` --
+    a multi-domain CSV run keeps its per-domain labels even when only one
+    domain actually checked out files, so the label is never ambiguous.
+
+    This mirrors what a user would otherwise have to run ``p4 opened``
+    to see -- Chopper already tracks exactly which paths it successfully
+    opened via ``p4 edit`` (:attr:`~chopper.core.models_trimmer.P4CheckoutResult.checked_out`),
+    so it reports them directly instead of requiring a separate manual
+    check. No new ``p4`` subprocess call is made to produce this output.
+
+    See ``technical_docs/ARCHITECTURE.md`` FR-53.
+    """
+    non_empty = [(label, paths) for label, paths in entries if paths]
+    if not non_empty:
+        return
+
+    multi_domain = len(entries) > 1
+    stream.write("=== P4 Files Opened for Edit ===\n")
+    for label, paths in non_empty:
+        if multi_domain:
+            stream.write(f"{label}:\n")
+        for path in paths:
+            stream.write(f"  {path.as_posix()}\n")
+    stream.flush()

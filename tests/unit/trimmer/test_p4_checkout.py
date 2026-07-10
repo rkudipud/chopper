@@ -23,6 +23,11 @@ def _completed(returncode: int = 0, stdout: str = "", stderr: str = "") -> Magic
     return proc
 
 
+def _p4_edit_ok(path: str = "a.tcl") -> MagicMock:
+    """Simulate a successful ``p4 edit`` response (stdout non-empty)."""
+    return _completed(returncode=0, stdout=f"//depot/path/{path}#1 - opened for edit\n")
+
+
 # ---------------------------------------------------------------------------
 # check_p4_available
 # ---------------------------------------------------------------------------
@@ -126,7 +131,7 @@ class TestCheckoutFiles:
         paths = [Path("a.tcl"), Path("b.tcl"), Path("c.tcl")]
         with patch(
             "chopper.trimmer.p4_checkout.subprocess.run",
-            return_value=_completed(returncode=0),
+            return_value=_p4_edit_ok(),
         ) as mock_run:
             succeeded, failed_path, failure_message = checkout_files(DOMAIN_ROOT, paths)
         assert succeeded == tuple(paths)
@@ -135,13 +140,13 @@ class TestCheckoutFiles:
         assert mock_run.call_count == 3
         for call, path in zip(mock_run.call_args_list, paths, strict=True):
             args, kwargs = call
-            assert args[0] == ["p4", "edit", "-t", "text+x", path.as_posix()]
+            assert args[0] == ["p4", "edit", "-t", "text+x", (DOMAIN_ROOT / path).as_posix()]
             assert kwargs["cwd"] == DOMAIN_ROOT
 
     def test_failure_on_nth_path(self) -> None:
         paths = [Path("a.tcl"), Path("b.tcl"), Path("c.tcl")]
         responses = [
-            _completed(returncode=0),
+            _p4_edit_ok("a.tcl"),
             _completed(returncode=1, stderr="no such file"),
         ]
         with patch("chopper.trimmer.p4_checkout.subprocess.run", side_effect=responses) as mock_run:
@@ -167,13 +172,41 @@ class TestCheckoutFiles:
         paths = [Path("a.tcl"), Path("b.tcl")]
         with patch(
             "chopper.trimmer.p4_checkout.subprocess.run",
-            side_effect=[_completed(returncode=0), OSError("boom")],
+            side_effect=[_p4_edit_ok("a.tcl"), OSError("boom")],
         ):
             succeeded, failed_path, failure_message = checkout_files(DOMAIN_ROOT, paths)
         assert succeeded == (Path("a.tcl"),)
         assert failed_path == Path("b.tcl")
         assert failure_message is not None
         assert "OSError" in failure_message
+
+    def test_exit_0_empty_stdout_treated_as_failure(self) -> None:
+        """P4 silent-failure: exit 0 but stdout is empty (e.g. 'file(s) not
+        on client' in stderr). Must be treated as a checkout failure so
+        Chopper does not silently proceed with un-opened files."""
+        paths = [Path("a.tcl"), Path("b.tcl")]
+        responses = [
+            _p4_edit_ok("a.tcl"),
+            _completed(returncode=0, stdout="", stderr="b.tcl - file(s) not on client."),
+        ]
+        with patch("chopper.trimmer.p4_checkout.subprocess.run", side_effect=responses):
+            succeeded, failed_path, failure_message = checkout_files(DOMAIN_ROOT, paths)
+        assert succeeded == (Path("a.tcl"),)
+        assert failed_path == Path("b.tcl")
+        assert failure_message is not None
+        assert "not on client" in failure_message
+
+    def test_exit_0_empty_stdout_no_stderr_treated_as_failure(self) -> None:
+        """Exit 0 with both stdout and stderr empty: still treated as failure."""
+        paths = [Path("a.tcl")]
+        with patch(
+            "chopper.trimmer.p4_checkout.subprocess.run",
+            return_value=_completed(returncode=0, stdout="", stderr=""),
+        ):
+            succeeded, failed_path, failure_message = checkout_files(DOMAIN_ROOT, paths)
+        assert succeeded == ()
+        assert failed_path == Path("a.tcl")
+        assert failure_message is not None
 
     def test_exception_timeout_mid_batch(self) -> None:
         paths = [Path("a.tcl")]
@@ -204,7 +237,7 @@ class TestRevertFiles:
         assert mock_run.call_count == 2
         for call, path in zip(mock_run.call_args_list, paths, strict=True):
             args, kwargs = call
-            assert args[0] == ["p4", "revert", path.as_posix()]
+            assert args[0] == ["p4", "revert", (DOMAIN_ROOT / path).as_posix()]
             assert kwargs["cwd"] == DOMAIN_ROOT
 
     def test_oserror_does_not_raise_and_continues(self) -> None:

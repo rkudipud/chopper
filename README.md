@@ -375,12 +375,48 @@ Required test coverage of 99% reached. Total coverage: 99.XX%
 
 If anything fails, fix the root cause in the repo, rebuild with `make release-cth`, reinstall with `make install-cth WARD=...`, and rerun `make test-cth-ward WARD=...`.
 
-### Step 5 — Production deployment
+### Step 5 — Stage the Perforce changes (edit / add / delete)
 
-Once all checks pass:
+`install-cth` only touches the filesystem (`rm -rf` + `rsync`) — it never talks to `p4`. After installing, the ward's working files reflect the new release, but nothing is opened in Perforce yet. Two targets bridge that gap, both scoped to exactly `global/common/chopper/...` and `global/eouFW/bin/chopper`:
+
+```tcsh
+# Preview only -- opens nothing, safe to run any time after install-cth.
+# Diffs the ward's working files against the depot have-revision (via
+# `p4 reconcile -n`) and writes a plain p4 edit/add/delete command list.
+make p4-plan-cth WARD=$ward
+```
+
+This prints (and writes to `dist/chopper-cth/p4_plan_cth.txt`) one line per file that changed, e.g.:
+
+```text
+p4 edit //depot/.../pyproject.toml
+p4 edit //depot/.../src/chopper/cli/render.py
+p4 add  //depot/.../src/chopper/trimmer/p4_checkout.py
+p4 delete //depot/.../src/chopper/some_removed_module.py
+```
+
+Review the plan. `p4 reconcile` classifies every path correctly on its own — modified files become `edit`, new files become `add`, files present in the depot but no longer on disk (removed in this release) become `delete`. Once it matches your expectations:
+
+```tcsh
+# Actually opens the files (add/edit/delete) in a pending changelist.
+# Reversible via 'p4 revert' -- never runs 'p4 submit'.
+make p4-open-cth WARD=$ward
+```
+
+Review the pending changelist (`cd $ward && p4 opened`), then submit manually when ready:
+
+```tcsh
+cd $ward && p4 submit -d "chopper $(grep -E '^version' pyproject.toml | head -1 | cut -d'"' -f2) ward deploy"
+```
+
+> **Why copy-then-reconcile is correct here (and different from Chopper's own `--p4` trim flag):** `install-cth` fully deletes and recreates `global/common/chopper/`, so it never edits a synced (possibly read-only) file in place — there is nothing to "check out before overwriting." `p4 reconcile` is Perforce's native tool for exactly this scenario: diff the working tree against the depot *after* a build system has already regenerated it, and open files accordingly. This is the opposite of the checkout-before-edit ordering Chopper's own `chopper trim --p4` flag needs (see ARCHITECTURE.md §5.5.18) — that flag rewrites files itself, in place, inside a live domain still tracked at the same path, so it must open them before rewriting. The ward deploy process here never edits in place, so there is no equivalent risk to guard against.
+
+### Step 6 — Production deployment
+
+Once the P4 changelist is staged and reviewed:
 
 1. Merge `dist/chopper-cth/requirements.chopper.txt` entries into the py-flow `requirements.txt` for the `eou_sandbox_pydev` venv.
-2. Submit the ward changelist to `eou_sandbox_pydev`.
+2. Submit the ward changelist (see Step 5) to `eou_sandbox_pydev`.
 3. On a flow host after the submit, run `rehash; chopper --version` as a final sanity check.
 
 ---
@@ -432,6 +468,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 4.4.1 — 2026-07-09
+
+- **`--p4` bug fixes: checkout now actually opens files for edit.** Real CTH-ward testing found 4.4.0's `--p4` was a no-op (`p4 opened` showed nothing after trim). Fixed two root causes: (1) checkout ran before the domain-to-backup rename, but Perforce couldn't track the opened-for-edit state across that OS-level rename — fixed by copying (not renaming) `domain/` to `domain_backup/` before checkout, then clearing `domain/` for the rebuild afterward; (2) some Perforce client/server combinations silently fail relative-path `p4 edit`/`p4 revert` from a subprocess (exit 0, no file opened) — fixed by using absolute paths and by treating an exit-0-with-empty-stdout response as a failure.
+- **`--p4` now supports re-trims.** Previously any re-trim (`<domain>_backup/` already present) unconditionally skipped checkout with a "P4 EDIT NOT POSSIBLE" notice. Chopper now restores the relevant files from the existing backup to their depot-synced content first, then checks them out normally, so re-running `chopper trim --p4` on the same domain works as expected. Skips only when the domain directory itself is absent (no file to open).
+- **New `=== P4 Files Opened for Edit ===` stdout summary.** After a successful `--p4` checkout, Chopper prints the absolute paths it opened for edit directly to stdout — the same information a user would otherwise get from running `p4 opened` manually. See ARCHITECTURE.md §5.5.18, FR-53.
 
 ### 4.4.0 — 2026-07-09
 

@@ -33,6 +33,7 @@ from chopper.cli.render import (
     render_diagnostics,
     render_p4_branch_analysis,
     render_p4_checkout_notice,
+    render_p4_checkout_opened,
     render_result,
     render_trim_stats,
 )
@@ -593,6 +594,21 @@ def _render_p4_checkout_notice_if_skipped(result: object, *, plain: bool) -> Non
     render_p4_checkout_notice(p4_checkout.skip_reason or "unknown reason", plain=plain)
 
 
+def _p4_checked_out_abs_paths(ctx: ChopperContext, result: object) -> list[Path]:
+    """Absolute paths Chopper successfully opened for edit via ``--p4`` checkout.
+
+    Empty list when ``--p4`` was not passed, checkout was skipped or failed,
+    or the run is a dry-run (``--p4`` never attempts checkout under
+    ``--dry-run``, so ``trim_report.p4_checkout`` is ``None`` in that case).
+    """
+    trim_report = getattr(result, "trim_report", None)
+    p4_checkout = getattr(trim_report, "p4_checkout", None) if trim_report is not None else None
+    if p4_checkout is None or not p4_checkout.checked_out:
+        return []
+    domain_root = ctx.config.domain_root
+    return [(domain_root / rel).resolve() for rel in p4_checkout.checked_out]
+
+
 def cmd_trim(args: argparse.Namespace) -> int:
     """Execute the full trim pipeline, supporting multiple domains via CSV ``--domain``."""
     domain_tokens = _split_domain_csv(getattr(args, "domain", None))
@@ -615,11 +631,13 @@ def cmd_trim(args: argparse.Namespace) -> int:
         domain_results = [_make_domain_run_result(ctx, result)]
         render_p4_branch_analysis(domain_results)
         render_audit_bundle_locations([(domain_results[0].domain_logical_name, ctx.config.audit_root)])
+        render_p4_checkout_opened([(domain_results[0].domain_logical_name, _p4_checked_out_abs_paths(ctx, result))])
         return result.exit_code
 
     # Multi-domain loop.
     domain_results = []  # list[DomainRunResult]
     audit_paths: list[tuple[str, Path]] = []
+    p4_opened_entries: list[tuple[str, list[Path]]] = []
     max_exit = 0
     for token in domain_tokens:
         domain_args = copy.copy(args)
@@ -640,10 +658,12 @@ def cmd_trim(args: argparse.Namespace) -> int:
             _render_p4_checkout_notice_if_skipped(result, plain=domain_args.plain)
         domain_results.append(_make_domain_run_result(ctx, result))
         audit_paths.append((domain_results[-1].domain_logical_name, ctx.config.audit_root))
+        p4_opened_entries.append((domain_results[-1].domain_logical_name, _p4_checked_out_abs_paths(ctx, result)))
         max_exit = max(max_exit, result.exit_code)
 
     render_p4_branch_analysis(domain_results)
     render_audit_bundle_locations(audit_paths)
+    render_p4_checkout_opened(p4_opened_entries)
     return max_exit
 
 

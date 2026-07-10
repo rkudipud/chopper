@@ -64,12 +64,27 @@ def checkout_files(domain_root: Path, paths: Sequence[Path]) -> tuple[tuple[Path
     Returns ``(succeeded, failed_path_or_None, failure_message_or_None)``.
     ``paths`` are domain-relative POSIX paths; commands run with
     ``cwd=domain_root``. Never raises.
+
+    Paths are passed as absolute values to ``p4 edit`` to avoid CWD-based
+    resolution failures (some P4 server/client combinations return exit 0
+    with "file(s) not on client" in stderr when given a relative path from
+    a Python subprocess, even though the same relative path works fine from
+    an interactive shell).
+
+    Failure detection covers two cases:
+
+    * ``returncode != 0`` -- explicit P4 error.
+    * ``returncode == 0`` but ``stdout`` is empty -- P4's silent-failure
+      pattern (e.g. ``"file(s) not on client"`` in stderr with exit 0).
+      A genuine successful ``p4 edit`` always emits at least one
+      ``- opened for edit`` line on stdout.
     """
     succeeded: list[Path] = []
     for rel in paths:
+        abs_path = (domain_root / rel).as_posix()
         try:
             proc = subprocess.run(
-                ["p4", "edit", "-t", "text+x", rel.as_posix()],
+                ["p4", "edit", "-t", "text+x", abs_path],
                 cwd=domain_root,
                 capture_output=True,
                 text=True,
@@ -80,6 +95,11 @@ def checkout_files(domain_root: Path, paths: Sequence[Path]) -> tuple[tuple[Path
         if proc.returncode != 0:
             stderr = proc.stderr.strip() or "non-zero exit with no stderr output"
             return tuple(succeeded), rel, stderr
+        if not proc.stdout.strip():
+            # Exit 0 with no stdout: P4 silent failure (e.g. "file(s) not
+            # on client" in stderr, or workspace mapping mismatch).
+            diag = proc.stderr.strip() or "p4 edit exit 0 with no stdout confirmation"
+            return tuple(succeeded), rel, diag
         succeeded.append(rel)
     return tuple(succeeded), None, None
 
@@ -92,9 +112,10 @@ def revert_files(domain_root: Path, paths: Sequence[Path]) -> None:
     a worse, half-reverted state with no diagnostic at all.
     """
     for rel in paths:
+        abs_path = (domain_root / rel).as_posix()
         try:
             subprocess.run(
-                ["p4", "revert", rel.as_posix()],
+                ["p4", "revert", abs_path],
                 cwd=domain_root,
                 capture_output=True,
                 text=True,
