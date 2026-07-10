@@ -32,6 +32,7 @@ from chopper.cli.render import (
     render_cleanup_message,
     render_diagnostics,
     render_p4_branch_analysis,
+    render_p4_checkout_enabled_notice,
     render_p4_checkout_notice,
     render_p4_checkout_opened,
     render_result,
@@ -623,6 +624,8 @@ def cmd_trim(args: argparse.Namespace) -> int:
         if not ctx.config.dry_run:
             _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
         _print_domain_header(ctx)
+        if ctx.config.p4_checkout and not ctx.config.dry_run:
+            render_p4_checkout_enabled_notice()
         result = ChopperRunner().run(ctx, command="trim")
         render_result(result, sink.snapshot())
         if not ctx.config.dry_run:
@@ -651,6 +654,8 @@ def cmd_trim(args: argparse.Namespace) -> int:
         if not ctx.config.dry_run:
             _warn_if_cwd_will_be_renamed(ctx.config.domain_root, ctx.config.backup_root)
         _print_domain_header(ctx)
+        if ctx.config.p4_checkout and not ctx.config.dry_run:
+            render_p4_checkout_enabled_notice()
         result = ChopperRunner().run(ctx, command="trim")
         render_result(result, sink.snapshot())
         if not ctx.config.dry_run:

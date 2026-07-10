@@ -22,7 +22,7 @@ from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest
-from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, TrimReport
+from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, P4CheckoutResult, TrimReport
 
 __all__ = ["TclIndentationService", "format_tcl_indentation", "tcl_output_paths"]
 
@@ -263,7 +263,12 @@ def _with_updated_bytes(report: TrimReport, normalized: dict[Path, str]) -> Trim
         )
     if not changed:
         return report
-    return _build_report(tuple(outcomes), rebuild_interrupted=report.rebuild_interrupted)
+    return _build_report(
+        tuple(outcomes),
+        rebuild_interrupted=report.rebuild_interrupted,
+        p4_checkout=report.p4_checkout,
+        inputs_preserved=report.inputs_preserved,
+    )
 
 
 def _with_updated_artifacts(
@@ -292,10 +297,21 @@ def _with_updated_artifacts(
 def _mark_interrupted(report: TrimReport) -> TrimReport:
     if report.rebuild_interrupted:
         return report
-    return _build_report(report.outcomes, rebuild_interrupted=True)
+    return _build_report(
+        report.outcomes,
+        rebuild_interrupted=True,
+        p4_checkout=report.p4_checkout,
+        inputs_preserved=report.inputs_preserved,
+    )
 
 
-def _build_report(outcomes: tuple[FileOutcome, ...], *, rebuild_interrupted: bool) -> TrimReport:
+def _build_report(
+    outcomes: tuple[FileOutcome, ...],
+    *,
+    rebuild_interrupted: bool,
+    p4_checkout: P4CheckoutResult | None = None,
+    inputs_preserved: int = 0,
+) -> TrimReport:
     return TrimReport(
         outcomes=outcomes,
         files_copied=sum(1 for outcome in outcomes if outcome.treatment is FileTreatment.FULL_COPY),
@@ -304,6 +320,8 @@ def _build_report(outcomes: tuple[FileOutcome, ...], *, rebuild_interrupted: boo
         procs_kept_total=sum(len(outcome.procs_kept) for outcome in outcomes),
         procs_removed_total=sum(len(outcome.procs_removed) for outcome in outcomes),
         rebuild_interrupted=rebuild_interrupted,
+        p4_checkout=p4_checkout,
+        inputs_preserved=inputs_preserved,
     )
 
 

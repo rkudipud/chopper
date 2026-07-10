@@ -469,6 +469,14 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.4.3 — 2026-07-09
+
+- **Fixed: `--p4` checkout succeeded but the "P4 Files Opened for Edit" summary never printed for domains with companion-file sync.** Root cause: P5c (Tcl indentation, opt-in) and P5d (companion-file sync, e.g. `default_config.<sfx>.csv` / `default_milestone.<sfx>.tcl`) both rebuild `TrimReport` from scratch when they have byte-count updates to apply, and neither carried forward `TrimReport.p4_checkout` (or `.inputs_preserved`) onto the new object — silently resetting it to `None` even though `p4 edit` had genuinely opened the files (confirmed via `p4 opened`). Any domain that triggers P5d (any `PROC_TRIM` `default_rules.<sfx>.tcl` with a synced companion CSV/milestone file, e.g. `fev_formality`) lost the checkout data before it reached the CLI layer, so the summary silently rendered nothing. Fixed both rebuild paths to preserve `p4_checkout` and `inputs_preserved`. See ARCHITECTURE.md §5.5.18, FR-53.
+
+### 4.4.2 — 2026-07-09
+
+- **New `--p4 enabled` stdout notice.** Immediately after each domain's run header (and before the pipeline starts), `chopper trim --p4` now prints a one-line notice confirming the flag is active for that domain: `--p4 enabled: files will be checked out via 'p4 edit' before rewriting.` Suppressed under `--dry-run` (checkout never runs there). Repeats once per domain in multi-domain CSV `--domain` runs, matching the existing per-domain header convention. See ARCHITECTURE.md §5.5.18, FR-53.
+
 ### 4.4.1 — 2026-07-09
 
 - **`--p4` bug fixes: checkout now actually opens files for edit.** Real CTH-ward testing found 4.4.0's `--p4` was a no-op (`p4 opened` showed nothing after trim). Fixed two root causes: (1) checkout ran before the domain-to-backup rename, but Perforce couldn't track the opened-for-edit state across that OS-level rename — fixed by copying (not renaming) `domain/` to `domain_backup/` before checkout, then clearing `domain/` for the rebuild afterward; (2) some Perforce client/server combinations silently fail relative-path `p4 edit`/`p4 revert` from a subprocess (exit 0, no file opened) — fixed by using absolute paths and by treating an exit-0-with-empty-stdout response as a failure.

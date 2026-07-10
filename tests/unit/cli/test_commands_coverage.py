@@ -1067,6 +1067,138 @@ def test_cmd_trim_single_domain_renders_p4_checkout_opened_paths(tmp_path: Path)
     assert paths == [(domain / "a.tcl").resolve(), (domain / "b.tcl").resolve()]
 
 
+def test_cmd_trim_single_domain_renders_p4_checkout_enabled_notice(tmp_path: Path) -> None:
+    """cmd_trim single-domain live run with --p4 must call
+    render_p4_checkout_enabled_notice once, before the pipeline runs."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+    from chopper.core.models_trimmer import P4CheckoutResult, TrimReport
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    trim_report = MagicMock(spec=TrimReport, p4_checkout=P4CheckoutResult(attempted=True, checked_out=()))
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None, trim_report=trim_report)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,
+        p4_checkout=True,
+    )
+
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats"),
+        patch("chopper.cli.commands.render_p4_checkout_opened"),
+        patch("chopper.cli.commands.render_p4_checkout_enabled_notice") as mock_notice,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    mock_notice.assert_called_once_with()
+
+
+def test_cmd_trim_does_not_render_p4_checkout_enabled_notice_under_dry_run(tmp_path: Path) -> None:
+    """--p4 combined with --dry-run must not print the enabled notice --
+    --p4 is a strict no-op under --dry-run."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None, trim_report=None)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,
+        p4_checkout=True,
+    )
+
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_p4_checkout_opened"),
+        patch("chopper.cli.commands.render_p4_checkout_enabled_notice") as mock_notice,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    mock_notice.assert_not_called()
+
+
+def test_cmd_trim_multi_domain_renders_p4_checkout_enabled_notice_per_domain(tmp_path: Path) -> None:
+    """Multi-domain CSV --domain with --p4 must call
+    render_p4_checkout_enabled_notice once per domain."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+    from chopper.core.models_trimmer import P4CheckoutResult, TrimReport
+
+    dom_a = tmp_path / "dom_a"
+    dom_a.mkdir()
+    (dom_a / "jsons").mkdir()
+    (dom_a / "jsons" / "base.json").write_text("{}")
+    dom_b = tmp_path / "dom_b"
+    dom_b.mkdir()
+    (dom_b / "jsons").mkdir()
+    (dom_b / "jsons" / "base.json").write_text("{}")
+
+    trim_report = MagicMock(spec=TrimReport, p4_checkout=P4CheckoutResult(attempted=True, checked_out=()))
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None, trim_report=trim_report)
+
+    args = argparse.Namespace(
+        domain=f"{dom_a},{dom_b}",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,
+        p4_checkout=True,
+    )
+
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats"),
+        patch("chopper.cli.commands.render_p4_checkout_opened"),
+        patch("chopper.cli.commands.render_p4_checkout_enabled_notice") as mock_notice,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    assert mock_notice.call_count == 2
+
+
 def test_p4_checked_out_abs_paths_empty_when_no_trim_report() -> None:
     """_p4_checked_out_abs_paths returns [] when result has no trim_report
     (e.g. an error/early-exit result)."""

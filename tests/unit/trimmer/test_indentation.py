@@ -152,6 +152,32 @@ def test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl() -> None
     assert updated_artifacts[0].content == fs.read_text(DOMAIN / "stage.tcl")
 
 
+def test_service_preserves_p4_checkout_and_inputs_preserved_when_bytes_change() -> None:
+    """Regression: rebuilding the report for updated PROC_TRIM bytes must not
+    silently drop TrimReport.p4_checkout or .inputs_preserved -- both are set
+    independently by earlier P5 steps and have no other way to reach the CLI
+    layer once P5c rebuilds the report."""
+    from dataclasses import replace
+
+    from chopper.core.models_trimmer import P4CheckoutResult
+
+    trim_text = "proc kept {} {\nputs kept\n}\n"
+    fs = InMemoryFS({DOMAIN / "trim.tcl": trim_text})
+    ctx, sink = make_ctx(fs=fs)
+    manifest = _manifest({"trim.tcl": FileTreatment.PROC_TRIM})
+    report = _report(_outcome("trim.tcl", FileTreatment.PROC_TRIM, bytes_out=len(trim_text.encode("utf-8"))))
+    p4_result = P4CheckoutResult(attempted=True, checked_out=(Path("trim.tcl"),))
+    report_with_p4 = replace(report, p4_checkout=p4_result, inputs_preserved=2)
+
+    updated_report, _, _ = TclIndentationService().run(ctx, manifest, report_with_p4, ())
+
+    assert sink.codes() == []
+    # Confirm the report was actually rebuilt (bytes changed due to reindent).
+    assert updated_report.outcomes[0].bytes_out != report.outcomes[0].bytes_out
+    assert updated_report.p4_checkout is p4_result
+    assert updated_report.inputs_preserved == 2
+
+
 def test_service_formats_read_only_proc_trim_file_and_restores_mode(tmp_path: Path) -> None:
     domain = tmp_path / "domain"
     target = domain / "trim.tcl"

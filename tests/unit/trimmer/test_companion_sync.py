@@ -11,6 +11,7 @@ Tests cover:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from chopper.adapters import InMemoryFS
@@ -319,6 +320,22 @@ class TestCompanionSyncService:
 
         assert csv_outcome.bytes_out == new_csv_size
         assert ms_outcome.bytes_out == new_ms_size
+
+    def test_preserves_p4_checkout_and_inputs_preserved(self) -> None:
+        """Regression: rebuilding the report for updated companion bytes must
+        not silently drop TrimReport.p4_checkout or .inputs_preserved --
+        both are set independently by earlier P5 steps and have no other
+        way to reach the CLI layer once P5d rebuilds the report."""
+        from chopper.core.models_trimmer import P4CheckoutResult
+
+        ctx, sink, manifest, report, fs = self._setup()
+        p4_result = P4CheckoutResult(attempted=True, checked_out=(Path("a.tcl"),))
+        report_with_p4 = replace(report, p4_checkout=p4_result, inputs_preserved=3)
+
+        new_report = CompanionSyncService().run(ctx, manifest, report_with_p4)
+
+        assert new_report.p4_checkout is p4_result
+        assert new_report.inputs_preserved == 3
 
     def test_emits_vw24_for_missing_csv(self) -> None:
         sfx = "fm"

@@ -30,6 +30,7 @@ __all__ = [
     "render_cleanup_message",
     "render_diagnostics",
     "render_p4_branch_analysis",
+    "render_p4_checkout_enabled_notice",
     "render_p4_checkout_notice",
     "render_p4_checkout_opened",
     "render_result",
@@ -538,6 +539,37 @@ def render_audit_bundle_locations(
     for label, audit_root in domain_paths:
         stream.write(f"  {label:<30s} : {audit_root.resolve().as_posix()}\n")
     stream.write("\n")
+    stream.flush()
+
+
+# ---------------------------------------------------------------------------
+# P4 checkout enabled notice (rendered once per domain, before the pipeline
+# runs, whenever --p4 was passed)
+# ---------------------------------------------------------------------------
+
+
+def render_p4_checkout_enabled_notice(*, stream: TextIO = sys.stdout) -> None:
+    """Print a notice that ``--p4`` checkout-before-edit is enabled for this domain.
+
+    Printed once per domain, immediately after the domain run header
+    (``_print_domain_header``) and before the pipeline starts, whenever
+    ``--p4`` was passed and the run is not a ``--dry-run`` (``--p4`` is a
+    strict no-op under ``--dry-run``, so the notice is suppressed there --
+    printing it would imply checkout runs when it never does).
+
+    Purely informational: it does not report whether checkout will
+    ultimately succeed, be skipped (``p4`` unavailable, or
+    ``DomainState.case == 3``), or fail. Those outcomes are reported
+    separately after the pipeline runs -- :func:`render_p4_checkout_notice`
+    for skips, ``VE-37`` in ``diagnostics.json``/stderr for failures, and
+    :func:`render_p4_checkout_opened` for the final list of paths actually
+    opened. In a multi-domain CSV ``--domain`` run, this prints once per
+    domain, right after that domain's own header -- matching the existing
+    per-domain header convention.
+
+    See ``technical_docs/ARCHITECTURE.md`` FR-53.
+    """
+    stream.write("  --p4 enabled: files will be checked out via 'p4 edit' before rewriting.\n")
     stream.flush()
 
 

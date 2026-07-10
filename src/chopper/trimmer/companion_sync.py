@@ -258,4 +258,5 @@ def _with_updated_companion_bytes(
         procs_removed_total=sum(len(o.procs_removed) for o in outcomes_t),
         rebuild_interrupted=report.rebuild_interrupted,
         inputs_preserved=report.inputs_preserved,
+        p4_checkout=report.p4_checkout,
     )
