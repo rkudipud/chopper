@@ -3,6 +3,7 @@ artifacts_present:
 - compiled_manifest.json
 - dependency_graph.json
 - diagnostics.json
+- files_exclude_p4.txt
 - files_kept.txt
 - files_removed.txt
 - input_base.json

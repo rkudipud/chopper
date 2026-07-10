@@ -118,6 +118,16 @@ def test_count_sloc_csv_ignores_comma_only_lines(monkeypatch) -> None:
     assert count_sloc(Path("d.csv"), text) == 2
 
 
+def test_count_sloc_prefers_cloc_backend_result_when_available(monkeypatch) -> None:
+    """When the cloc backend returns a real count, count_sloc returns it
+    directly without falling through to the Python fallback."""
+    from chopper.audit import cloc_backend
+
+    monkeypatch.delenv("CHOPPER_SLOC_BACKEND", raising=False)
+    monkeypatch.setattr(cloc_backend, "count_sloc_via_cloc", lambda path, text: 42)
+    assert count_sloc(Path("d.tcl"), "irrelevant content\n") == 42
+
+
 def test_count_sloc_unknown_extension_counts_all_nonblank() -> None:
     text = "one\n\n# hash\nthree\n"
     assert count_sloc(Path("weird.xyz"), text) == 3
@@ -275,7 +285,10 @@ def test_render_files_removed_lists_remove_paths_sorted() -> None:
 
 
 def test_render_files_removed_uses_ward_relative_paths_when_available() -> None:
-    ward = Path("/fake_ward")
+    # Anchored to the OS root (drive letter on Windows, "/" on POSIX) so
+    # Path.resolve() -- used internally by _format_exclusion_path -- is a
+    # no-op and the test behaves identically cross-platform.
+    ward = Path(Path.cwd().anchor) / "fake_ward"
     domain = ward / "global" / "snps" / "test"
     backup = domain.with_name(domain.name + "_backup")
     audit = domain / ".chopper"

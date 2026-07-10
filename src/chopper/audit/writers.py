@@ -31,6 +31,7 @@ __all__ = [
     "render_compiled_manifest",
     "render_dependency_graph",
     "render_diagnostics",
+    "render_files_exclude_p4",
     "render_files_kept",
     "render_files_removed",
     "render_p4_commands",
@@ -539,6 +540,30 @@ def _format_removed_provenance(prov) -> str:  # type: ignore[no-untyped-def]
     return f"shadowed-by:{last.layer}:procedures.exclude"
 
 
+def _compute_excluded_paths(ctx: ChopperContext, record: RunRecord) -> list[Path]:
+    """Return the sorted domain-relative paths excluded from the trimmed output.
+
+    This is the exact set backing both the ``exclude_file_list`` section of
+    :func:`render_p4_commands` and the standalone :func:`render_files_exclude_p4`
+    artifact: ``set(walk(source_root)) - set(kept_paths)``, falling back to the
+    manifest's explicit ``REMOVE`` decisions when no source root is available
+    (mirrors :func:`render_files_removed`'s source-root resolution).
+    """
+
+    manifest = record.manifest
+    source_root = _physical_source_root(ctx)
+
+    if source_root is not None:
+        kept_paths: set[Path] = set()
+        if manifest is not None:
+            kept_paths = {p for p, t in manifest.file_decisions.items() if t in _KEPT_TREATMENTS}
+        physical_paths = _walk_relative_files(ctx, source_root)
+        return sorted(set(physical_paths) - kept_paths)
+    if manifest is not None:
+        return sorted(p for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE)
+    return []
+
+
 def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Path | None = None) -> tuple[str, str]:
     """Perforce command list correlating each file-treatment decision to a
     ready-to-execute ``p4`` command.
@@ -598,20 +623,9 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Pat
                     adds.append(rel)
             # FULL_COPY -> no command; REMOVE handled below.
 
-    # exclude_file_list set is parity with `files_removed.txt`:
-    # walk(source_root) - kept_set. Falls back to manifest REMOVE
-    # decisions when no source root is available.
-    delete_domain_rels: list[Path]
-    if source_root is not None:
-        kept_paths: set[Path] = set()
-        if manifest is not None:
-            kept_paths = {p for p, t in manifest.file_decisions.items() if t in _KEPT_TREATMENTS}
-        physical_paths = _walk_relative_files(ctx, source_root)
-        delete_domain_rels = sorted(set(physical_paths) - kept_paths)
-    elif manifest is not None:
-        delete_domain_rels = sorted(p for p, t in manifest.file_decisions.items() if t is FileTreatment.REMOVE)
-    else:
-        delete_domain_rels = []
+    # exclude_file_list set is parity with `files_removed.txt` and the
+    # standalone `files_exclude_p4.txt` artifact: walk(source_root) - kept_set.
+    delete_domain_rels: list[Path] = _compute_excluded_paths(ctx, record)
 
     edits.sort()
     adds.sort()
@@ -650,6 +664,52 @@ def render_p4_commands(ctx: ChopperContext, record: RunRecord, *, ward_root: Pat
         lines.append("# (no Perforce commands -- nothing to submit)")
 
     return "p4_commands.txt", "\n".join(lines) + "\n"
+
+
+def render_files_exclude_p4(
+    ctx: ChopperContext, record: RunRecord, *, ward_root: Path | None = None
+) -> tuple[str, str]:
+    """Standalone bare list of excluded-file paths (P4 client-spec exclusion list).
+
+    Byte-for-byte the same path set and formatting as the ``exclude_file_list``
+    section of :func:`render_p4_commands` -- one path per line, sorted, ``$ward``-
+    relative when the domain resolves under a known ``$ward`` root, domain-relative
+    otherwise -- but written as its own artifact so tooling that only needs the
+    exclusion list does not have to parse the ``p4 edit``/``p4 add`` sections out
+    of ``p4_commands.txt``.
+
+    Source-root resolution and the excluded-path set are identical to
+    :func:`render_files_removed` and the ``exclude_file_list`` section of
+    :func:`render_p4_commands` (both backed by :func:`_compute_excluded_paths`).
+
+    Determinism: sorted lexicographically by POSIX (or `$ward`-relative) path;
+    LF line endings; trailing newline. Emission policy mirrors `p4_commands.txt`:
+    written on both live trim and ``--dry-run``; not emitted by ``validate``,
+    ``loc``, or ``cleanup``.
+
+    See architecture doc Sec.5.5.14 and FR-51.
+    """
+
+    excluded = _compute_excluded_paths(ctx, record)
+
+    lines: list[str] = [
+        "# files_exclude_p4.txt -- files excluded from this Chopper trim (P4 client exclusion list).",
+        "# Same path set as the exclude_file_list section of p4_commands.txt.",
+    ]
+    if ward_root is not None or ctx.config.ward_root is not None:
+        lines.append("# Paths are $ward-relative (relative to the $ward workspace root).")
+    else:
+        lines.append("# Paths are domain-relative ($ward not set; use as-is from domain root).")
+
+    if excluded:
+        lines.append("")
+        for rel_path in excluded:
+            lines.append(_format_exclusion_path(ctx, rel_path, ward_root=ward_root))
+    else:
+        lines.append("")
+        lines.append("# (no files excluded)")
+
+    return "files_exclude_p4.txt", "\n".join(lines) + "\n"
 
 
 def render_files_kept(record: RunRecord) -> tuple[str, str]:

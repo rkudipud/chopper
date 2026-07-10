@@ -28,9 +28,11 @@ from chopper.cli.loc_report import (
     render_loc_report,
 )
 from chopper.cli.render import (
+    render_audit_bundle_locations,
     render_cleanup_message,
     render_diagnostics,
     render_p4_branch_analysis,
+    render_p4_checkout_notice,
     render_result,
     render_trim_stats,
 )
@@ -293,6 +295,7 @@ def _build_run_config(args: argparse.Namespace, *, dry_run: bool) -> tuple[RunCo
         ward_root=ward_root,
         domain_logical_name=domain_logical_name,
         project_config_path=project_config_path,
+        p4_checkout=bool(getattr(args, "p4_checkout", False)),
     )
     return cfg, stripped_candidate
 
@@ -573,6 +576,23 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return max_exit
 
 
+def _render_p4_checkout_notice_if_skipped(result: object, *, plain: bool) -> None:
+    """Render the red "P4 EDIT NOT POSSIBLE" notice when ``--p4`` was passed
+    but checkout was skipped (p4 unavailable, or a re-trim with no live
+    p4-mapped domain content to check out).
+
+    No-op when ``--p4`` was never passed (``p4_checkout`` is ``None`` on
+    the trim report), or when checkout was actually attempted (whether it
+    succeeded or failed -- a failure is already reported via ``VE-37`` in
+    ``diagnostics.json``/stderr, not this advisory notice).
+    """
+    trim_report = getattr(result, "trim_report", None)
+    p4_checkout = getattr(trim_report, "p4_checkout", None) if trim_report is not None else None
+    if p4_checkout is None or p4_checkout.attempted:
+        return
+    render_p4_checkout_notice(p4_checkout.skip_reason or "unknown reason", plain=plain)
+
+
 def cmd_trim(args: argparse.Namespace) -> int:
     """Execute the full trim pipeline, supporting multiple domains via CSV ``--domain``."""
     domain_tokens = _split_domain_csv(getattr(args, "domain", None))
@@ -591,12 +611,15 @@ def cmd_trim(args: argparse.Namespace) -> int:
         render_result(result, sink.snapshot())
         if not ctx.config.dry_run:
             render_trim_stats(ctx, result)
+            _render_p4_checkout_notice_if_skipped(result, plain=args.plain)
         domain_results = [_make_domain_run_result(ctx, result)]
         render_p4_branch_analysis(domain_results)
+        render_audit_bundle_locations([(domain_results[0].domain_logical_name, ctx.config.audit_root)])
         return result.exit_code
 
     # Multi-domain loop.
     domain_results = []  # list[DomainRunResult]
+    audit_paths: list[tuple[str, Path]] = []
     max_exit = 0
     for token in domain_tokens:
         domain_args = copy.copy(args)
@@ -614,10 +637,13 @@ def cmd_trim(args: argparse.Namespace) -> int:
         render_result(result, sink.snapshot())
         if not ctx.config.dry_run:
             render_trim_stats(ctx, result)
+            _render_p4_checkout_notice_if_skipped(result, plain=domain_args.plain)
         domain_results.append(_make_domain_run_result(ctx, result))
+        audit_paths.append((domain_results[-1].domain_logical_name, ctx.config.audit_root))
         max_exit = max(max_exit, result.exit_code)
 
     render_p4_branch_analysis(domain_results)
+    render_audit_bundle_locations(audit_paths)
     return max_exit
 
 

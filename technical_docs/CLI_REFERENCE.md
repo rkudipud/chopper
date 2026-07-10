@@ -95,7 +95,7 @@ options:
 ```text
 usage: chopper trim [--domain PATH]
                     (--base PATH [--features PATHS] | --project PATH)
-                    [--tool-commands PATH]... [--dry-run] [global options]
+                    [--tool-commands PATH]... [--dry-run] [--p4] [global options]
 
 Execute the full trim pipeline: compile selections, trace proc dependencies,
 build trimmed output, validate results, and emit audit trail.
@@ -121,15 +121,30 @@ options:
                        known-tool-command for listed names during P4 trace.
                        See architecture doc §3.10.
   --dry-run            Compile, trace, run synthetic post-trim validation, and emit reports without rebuilding domain content files
+  --p4                 Opt-in, trim-only (4.4.0+). Runs `p4 edit -t text+x` on every
+                       PROC_TRIM / regenerate-in-place GENERATED file before rebuilding
+                       the domain, so a later `p4 submit` doesn't fight Perforce's
+                       checkout-before-edit protocol. Only attempted on a first trim;
+                       no-op (red notice, not an error) if p4 is unavailable, the domain
+                       isn't a p4 workspace, or this is a re-trim. Never active under
+                       --dry-run. On failure the whole trim aborts and reverts (VE-37).
+                       Chopper never runs p4 add/delete/submit here. See architecture
+                       doc §5.5.18, FR-53.
 ```
 
 The `.chopper/` audit bundle written by `chopper trim` includes
 `p4_commands.txt` — a sorted Perforce command list with `p4 edit -t text+x` /
 `p4 add -t text+x` sections, and an `exclude_file_list` section of
 `$ward`-relative paths for files to remove from the depot (4.1.0+, replaces
-former `p4 delete` commands). Chopper never invokes `p4` itself.
-A P4 branch analysis summary is printed to stdout after every run. See
-architecture doc §5.5.14, §5.5.15, and FR-47/FR-48.
+former `p4 delete` commands). Chopper never invokes `p4` itself to produce or
+act on this artifact (the separate `--p4` flag above is the one deliberate
+exception, invoking only `p4 edit`/`p4 revert`, never `p4 add`/`p4 delete`/
+`p4 submit`). The same `exclude_file_list` path set is also written standalone
+as `files_exclude_p4.txt` (4.3.0+), for tooling that only needs the exclusion
+list. A P4 branch analysis summary is printed to stdout after every run,
+followed by the resolved `.chopper/` audit bundle path for each domain run
+(4.3.0+). See architecture doc §5.5.14, §5.5.15, §5.5.17, §5.5.18, and
+FR-47/FR-48/FR-51/FR-52/FR-53.
 
 ---
 

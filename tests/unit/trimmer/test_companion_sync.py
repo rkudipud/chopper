@@ -681,8 +681,16 @@ class TestCompanionSyncService:
         read_only_mode = original_mode & ~stat.S_IWUSR  # remove write for owner
         csv_file.chmod(read_only_mode)
 
+        # Windows' NTFS only exposes a binary read-only/writable attribute via
+        # chmod() -- it cannot represent the fine-grained owner/group/other
+        # bits POSIX does, so os.stat() reports back a coarser mode than what
+        # was requested (e.g. 0o444 instead of 0o466). Capture what the OS
+        # *actually* set as the reference value so the restore assertion below
+        # holds identically on POSIX and Windows.
+        actual_read_only_mode = stat.S_IMODE(csv_file.stat().st_mode)
+
         # Verify file is actually read-only
-        assert not (csv_file.stat().st_mode & stat.S_IWUSR)
+        assert not (actual_read_only_mode & stat.S_IWUSR)
 
         # Set up context with LocalFS pointing to temp directory
         sink = CollectingSink()
@@ -718,7 +726,7 @@ class TestCompanionSyncService:
 
         # Verify permissions were restored to read-only
         final_mode = stat.S_IMODE(csv_file.stat().st_mode)
-        assert final_mode == read_only_mode
+        assert final_mode == actual_read_only_mode
         assert not (csv_file.stat().st_mode & stat.S_IWUSR)
 
         # VI-04 diagnostic emitted

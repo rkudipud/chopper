@@ -67,6 +67,17 @@ def build_parser() -> argparse.ArgumentParser:
         dest="dry_run",
         help=("Compile, trace, run synthetic post-trim validation, and emit reports without modifying domain files"),
     )
+    p_trim.add_argument(
+        "--p4",
+        action="store_true",
+        dest="p4_checkout",
+        help=(
+            "Check out files via 'p4 edit -t text+x' before rewriting them, so a "
+            "human's later 'p4 submit' doesn't fight Perforce's checkout-before-edit "
+            "protocol. No-op (prints a notice) if p4 is unavailable or the domain "
+            "isn't a working p4 client workspace. Never active under --dry-run."
+        ),
+    )
     p_trim.set_defaults(func=cmd_trim)
 
     # --- loc ---------------------------------------------------------------

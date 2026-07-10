@@ -128,10 +128,10 @@ chopper validate --project project.json
 
 ## `chopper trim`
 
-Same flags as `validate`, plus `--dry-run`. Live trim renames `<domain>/` → `<domain>_backup/`, rebuilds a clean trimmed `<domain>/`, generates run scripts (if any), runs post-validation, and writes `.chopper/`.
+Same flags as `validate`, plus `--dry-run` and `--p4`. Live trim renames `<domain>/` → `<domain>_backup/`, rebuilds a clean trimmed `<domain>/`, generates run scripts (if any), runs post-validation, and writes `.chopper/`.
 
 ```text
-chopper trim [--domain PATH|NAME|CSV] [--dry-run]
+chopper trim [--domain PATH|NAME|CSV] [--dry-run] [--p4]
              (--base PATH [--features PATHS|NAMES] | --project PATH)
 ```
 
@@ -141,10 +141,23 @@ chopper trim [--domain PATH|NAME|CSV] [--dry-run]
 | `--base PATH` | Base JSON. Optional when domain is a named domain (auto-discovery). |
 | `--features PATHS\|NAMES` | Paths or names (4.1.0+). Names resolved from `<domain>/jsons/features/*.feature.json`. |
 | `--dry-run` | Run the full analysis under the `trim` command surface, but **skip** the rename, the file rewrites, and the generated stage emission. `.chopper/` still updates. |
+| `--p4` | Opt-in, live-trim-only (4.4.0+). Runs `p4 edit -t text+x` on every file about to be rewritten, *before* rewriting it, so your later `p4 submit` doesn't fight Perforce's checkout-before-edit protocol. See "P4 checkout before edit" below. |
 
 ### Dry-run vs validate
 
 Both are read-only. The difference is reporting context: `trim --dry-run` writes the trim-flavoured `.chopper/trim_report.txt` and exposes the trim-time `compiled_manifest.json`, including `GENERATED` entries for stages. Use `validate` for the cheapest possible check; use `trim --dry-run` when you specifically want the trim report shape.
+
+### P4 checkout before edit (`--p4`)
+
+Perforce's default behavior keeps synced files read-only until you `p4 edit` them. Editing a file out-of-band and running `p4 edit` afterward is an unsupported recovery path, not a first-class Perforce workflow — some sites will outright reject it. `--p4` closes that gap by checking files out *before* Chopper rewrites them.
+
+- Only attempted on a genuine **first trim** (no `<domain>_backup/` yet). On a re-trim, `--p4` is silently skipped — the domain no longer holds the original p4-synced files.
+- If `p4` isn't installed or the domain isn't a working p4 client workspace, you'll see a red notice on screen and the trim proceeds normally, with no `p4` interaction at all.
+- If a checkout fails partway through, the whole trim aborts, everything already checked out is reverted (`p4 revert`), and the domain is left completely untouched.
+- If a *later* step fails after checkout already succeeded, Chopper reverts the checkouts **and** immediately restores the domain from its backup (rather than waiting for your next `chopper trim` invocation).
+- Chopper only ever runs `p4 edit` and, on failure, `p4 revert`. It never runs `p4 add`, `p4 delete`, or `p4 submit` — submitting your change is still your job.
+
+See architecture doc §5.5.18 and FR-53.
 
 ### Live trim — what actually happens on disk
 
@@ -400,7 +413,8 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | `diagnostics.json` | Every diagnostic emitted (code, severity, phase, message, location, hint) |
 | `files_kept.txt` | Sorted paths that survived, with per-line provenance (`<path>\t<contributed_by>`) |
 | `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance; Ward-relative when `$ward` is available, otherwise domain-relative |
-| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$ward`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` — review and submit manually. |
+| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$ward`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` to produce or act on this file — review and submit manually. (The separate `--p4` flag checks files out live during the trim itself; see "P4 checkout before edit" above.) |
+| `files_exclude_p4.txt` | Standalone list of the same `exclude_file_list` paths as `p4_commands.txt`, without the `p4 edit`/`p4 add` sections (4.3.0+). |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
 | `input_features/NN_name.json` | Verbatim copies of feature JSONs, prefixed by feature order |

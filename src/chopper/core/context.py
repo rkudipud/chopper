@@ -83,6 +83,11 @@ class RunConfig:
       domain (e.g. ``snps/fev_formality``). Set by the CLI domain-name
       resolver; ``None`` in path-mode. Used in the P4 branch analysis print
       and as the audit label for multi-domain runs.
+    * ``p4_checkout``: when ``True`` (set by the ``--p4`` CLI flag on
+      ``chopper trim``) and the run is not a dry-run, Chopper checks out
+      PROC_TRIM / regenerate-in-place GENERATED files via ``p4 edit``
+      before P5 rebuilds the domain. ``False`` by default; never active
+      under ``dry_run``.
     """
 
     domain_root: Path
@@ -107,6 +112,15 @@ class RunConfig:
     ``None`` when features were provided via ``--features``, via a project JSON, or
     not set at all. Displayed in the domain header as ``config file path``.
     See ``technical_docs/ARCHITECTURE.md`` Section 5.1.3 and Section 5.5.16."""
+    p4_checkout: bool = False
+    """When True (set by the ``--p4`` CLI flag on ``chopper trim``) and the
+    run is not a dry-run, Chopper runs ``p4 edit -t text+x`` on every
+    PROC_TRIM / regenerate-in-place GENERATED file before P5 rebuilds the
+    domain, so a human's later ``p4 submit`` doesn't fight Perforce's
+    checkout-before-edit protocol. Skipped with an on-screen notice (not
+    an error) when the ``p4`` binary is unavailable or the domain is not
+    a working p4 client workspace. Never active under ``dry_run``. See
+    ``technical_docs/ARCHITECTURE.md`` FR-53."""
 
 
 @dataclass(frozen=True)

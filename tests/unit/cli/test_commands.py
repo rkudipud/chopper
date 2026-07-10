@@ -297,6 +297,33 @@ def test_build_run_config_with_project_ignores_base_and_features(tmp_path: Path)
     assert cfg.feature_paths == ()
 
 
+def test_build_run_config_threads_p4_checkout_flag(tmp_path: Path) -> None:
+    """``--p4`` on ``trim`` threads through to ``RunConfig.p4_checkout``."""
+    from chopper.cli.commands import _build_run_config
+
+    base = tmp_path / "base.json"
+    base.write_text("{}", encoding="utf-8")
+
+    args = _ns(domain=str(tmp_path), base=str(base), p4_checkout=True)
+    cfg, _stripped = _build_run_config(args, dry_run=False)
+    assert cfg.p4_checkout is True
+
+
+def test_build_run_config_defaults_p4_checkout_false_when_absent(tmp_path: Path) -> None:
+    """Subcommands other than ``trim`` never carry ``p4_checkout`` on their
+    Namespace at all -- ``_build_run_config`` must not raise and must default
+    to False."""
+    from chopper.cli.commands import _build_run_config
+
+    base = tmp_path / "base.json"
+    base.write_text("{}", encoding="utf-8")
+
+    args = _ns(domain=str(tmp_path), base=str(base))
+    assert not hasattr(args, "p4_checkout")
+    cfg, _stripped = _build_run_config(args, dry_run=False)
+    assert cfg.p4_checkout is False
+
+
 # ---------------------------------------------------------------------------
 # _expand_feature_dirs -- validate-only directory expansion (architecture doc Sec.5.1)
 # ---------------------------------------------------------------------------

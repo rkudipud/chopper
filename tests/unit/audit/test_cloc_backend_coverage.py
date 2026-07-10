@@ -301,6 +301,27 @@ def test_cloc_script_path_returns_none_on_as_file_oserror(monkeypatch: pytest.Mo
     assert result is None
 
 
+def test_cloc_script_path_returns_real_path_when_vendor_file_present() -> None:
+    """cloc_script_path returns the real, existing vendored cloc.pl path when
+    resource lookup succeeds (line 81 -- the ``return real`` success path).
+
+    Deliberately does not mock ``importlib.resources`` -- the vendored file
+    genuinely ships at ``src/chopper/audit/vendor/cloc.pl`` in every install
+    (wheel or source checkout), so this exercises the real lookup end to
+    end. Independent of whether Perl itself is installed on the test
+    machine (that's ``_perl_executable()``'s concern, not this function's).
+    """
+    from chopper.audit import cloc_backend
+
+    cloc_backend.cloc_script_path.cache_clear()
+    result = cloc_backend.cloc_script_path()
+    cloc_backend.cloc_script_path.cache_clear()
+
+    assert result is not None
+    assert result.is_file()
+    assert result.name == "cloc.pl"
+
+
 def test_cloc_count_sloc_oserror_on_unlink_passes(monkeypatch: pytest.MonkeyPatch) -> None:
     """count_sloc_via_cloc handles OSError from tmp_path.unlink in finally (lines 166-167)."""
     from chopper.audit import cloc_backend
@@ -577,9 +598,12 @@ def test_cloc_batch_success_path_with_matching_file(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(cloc_backend, "cloc_script_path", lambda: Path("/cloc.pl"))
 
     def _mock_run(*args, **kwargs):  # type: ignore[misc]
-        # Extract the temp file paths from argv and include them in the payload
+        # Extract the temp file paths from argv and include them in the payload.
+        # Match on "chopper_sloc" alone (no leading "/") so this works on both
+        # POSIX (/tmp/chopper_sloc_batch_.../...) and Windows
+        # (C:\Users\...\Temp\chopper_sloc_batch_...\...) temp paths.
         argv = args[0]
-        tmp_paths_in_argv = [p for p in argv if p.startswith("/tmp") or "/chopper_sloc" in p]
+        tmp_paths_in_argv = [p for p in argv if "chopper_sloc" in p]
         payload: dict[str, object] = {"header": {"cloc_version": "1.92"}}
         for tp in tmp_paths_in_argv:
             payload[tp] = {"code": 7, "blank": 0, "comment": 0, "language": "Tcl"}

@@ -158,6 +158,12 @@ def test_service_formats_read_only_proc_trim_file_and_restores_mode(tmp_path: Pa
     target.parent.mkdir()
     target.write_text("proc kept {} {\nputs kept\n}\n", encoding="utf-8")
     target.chmod(0o555)
+    # Windows' NTFS only exposes a binary read-only/writable attribute via
+    # chmod() -- it cannot represent POSIX exec/write bit granularity, so
+    # os.stat() reports back a coarser mode than 0o555 was requested. Capture
+    # what the OS actually set as the reference value so the restore
+    # assertion below holds identically on POSIX and Windows.
+    actual_mode = target.stat().st_mode & 0o777
 
     ctx, sink = make_ctx(fs=LocalFS(), domain_root=domain, backup_root=tmp_path / "domain_backup")
     manifest = _manifest({"trim.tcl": FileTreatment.PROC_TRIM})
@@ -168,7 +174,7 @@ def test_service_formats_read_only_proc_trim_file_and_restores_mode(tmp_path: Pa
     assert sink.codes() == []
     assert rewritten == (target,)
     assert target.read_text(encoding="utf-8") == "proc kept {} {\n    puts kept\n}\n"
-    assert target.stat().st_mode & 0o777 == 0o555
+    assert target.stat().st_mode & 0o777 == actual_mode
     assert updated_report.outcomes[0].bytes_out == target.stat().st_size
 
 

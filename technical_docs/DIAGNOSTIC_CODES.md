@@ -24,7 +24,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01–VE-40 | 36 | 4 | 40 | Schema, path, action, ordering, filesystem failures — block output |
+| `VE` Validation Errors | VE-01–VE-40 | 37 | 3 | 40 | Schema, path, action, ordering, filesystem failures — block output |
 | `VW` Validation Warnings | VW-01–VW-30 | 23 | 5 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing, already-absent exclude-literal target (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01–VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01–TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
@@ -32,7 +32,7 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | `PE` Parse Errors | PE-01–PE-10 | 3 | 6 | 10 | Fatal parse failures; file skipped or partial (1 retired slot: PE-04) |
 | `PW` Parse Warnings | PW-01–PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01–PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **82** | **40** | **125** | |
+| **Total** | | **83** | **39** | **125** | |
 
 ---
 
@@ -78,7 +78,8 @@ Reserved rows (marked `—`) are intentionally blank — fill them sequentially 
 | VE-34 | `ambiguous-domain-name` | 1 | cli | **2** | Bare domain name was found under multiple vendor directories in `$ward/global/`. The message lists all matching paths. Chopper cannot pick one without more information. | Use explicit `vendor/domain` notation (e.g. `--domain snps/fev_formality`) to select a specific vendor's copy. |
 | VE-35 | `base-autodiscovery-failed` | 1 | cli | **2** | No base JSON was found via auto-discovery. When `--base` is not supplied, Chopper searches `<domain>/jsons/base.json` then `<domain>/jsons/<domain_name>.json`; neither path exists. | Pass `--base <path>` explicitly, or add `jsons/base.json` to the domain. |
 | VE-36 | `feature-name-not-found` | 1 | cli | **2** | A feature name passed in `--features` does not match any `*.feature.json` file under `<domain>/jsons/features/`. The message includes the closest available feature name when one can be inferred. | Check the feature name spelling. Run `ls <domain>/jsons/features/` to see available features. Use the exact stem before `.feature.json` (e.g. `dft` for `dft.feature.json`). |
-| — | — | — | — | — | **VE-37 through VE-40 reserved** | — |
+| VE-37 | `p4-checkout-failed` | 5 | trimmer | 1 | `p4 edit -t text+x <path>` failed for a file Chopper needed to check out before rewriting it (opt-in `--p4` flag). Emitted only when `--p4` was passed, the domain was confirmed p4-tracked, and at least one checkout call failed partway through the batch. All files successfully checked out before the failure are reverted via `p4 revert`; if the domain rename/rebuild had already started, it is also immediately restored from `<domain>_backup/`. Never emitted under `--dry-run` (p4 integration is fully disabled there). | Check the reported file/reason (locked by another user, wrong client workspace, `p4` not logged in, network/server issue), fix it, and re-run `chopper trim --p4`. The domain is left exactly as it was before this run -- no partial state. |
+| — | — | — | — | — | **VE-38 through VE-40 reserved** | — |
 
 ---
 

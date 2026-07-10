@@ -20,6 +20,7 @@ from chopper.audit.writers import (
     render_compiled_manifest,
     render_dependency_graph,
     render_diagnostics,
+    render_files_exclude_p4,
     render_files_kept,
     render_files_removed,
     render_p4_commands,
@@ -59,6 +60,7 @@ class AuditService:
         renderings.append(render_files_removed(ctx, record, ward_root=ctx.config.ward_root))
         renderings.append(render_files_kept(record))
         renderings.append(render_p4_commands(ctx, record, ward_root=ctx.config.ward_root))
+        renderings.append(render_files_exclude_p4(ctx, record, ward_root=ctx.config.ward_root))
 
         # Preserve input files as exact byte-for-byte copies.
         input_copies = self._copy_inputs(ctx, record)

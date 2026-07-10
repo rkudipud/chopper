@@ -16,10 +16,39 @@ faithful.
 If dispatch aborts mid-run, the partial domain is left in place and the
 next invocation rebuilds cleanly from the intact backup
 (``rebuild_interrupted=True`` in the trim report).
+
+Optional P4 checkout-before-edit (``--p4``, opt-in, FR-53)
+-----------------------------------------------------------
+When ``RunConfig.p4_checkout`` is True and the run is not a dry-run,
+``run()`` runs ``p4 edit -t text+x`` on every ``PROC_TRIM`` / regenerate-
+in-place ``GENERATED`` path *before* ``_prepare_workspace()`` renames
+anything -- Perforce tracks "opened" state by client path, not inode, so
+checking out the real pre-trim files before the rename/rebuild still
+counts as "that path got edited" once the new content lands. This only
+runs on ``DomainState.case == 1`` (a genuine first trim): on a re-trim
+(cases 2/3) ``domain_root`` no longer holds the original p4-synced
+files, so checkout is skipped with a reason rather than attempted.
+
+Failure handling is asymmetric by design:
+
+* If checkout itself fails partway through the batch, nothing has been
+  renamed or rewritten yet -- rollback is just ``p4 revert`` on whatever
+  succeeded before the failing file, then the whole trim aborts
+  (``VE-37``).
+* If a *later* P5 step fails after checkout already succeeded, rollback
+  additionally restores ``domain/`` from ``domain_backup/`` immediately
+  (rather than deferring to the next invocation, which is the default
+  recovery timing for every other P5 failure).
+
+Chopper never runs ``p4 add``, ``p4 delete``, or ``p4 submit`` here --
+only ``p4 edit`` (checkout) and, on rollback, ``p4 revert``. See
+``src/chopper/trimmer/p4_checkout.py`` and
+``technical_docs/ARCHITECTURE.md`` FR-53.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from chopper.core.context import ChopperContext
@@ -27,8 +56,9 @@ from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.models_common import DomainState, FileTreatment
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_parser import ParseResult
-from chopper.core.models_trimmer import FileOutcome, TrimReport
+from chopper.core.models_trimmer import FileOutcome, P4CheckoutResult, TrimReport
 from chopper.trimmer.file_writer import full_copy_file, proc_trim_file, remove_file
+from chopper.trimmer.p4_checkout import check_p4_available, checkout_files, revert_files
 from chopper.trimmer.proc_dropper import ProcDropError
 
 __all__ = ["TrimmerService"]
@@ -59,10 +89,22 @@ class TrimmerService:
 
         # ------------------------------------------------------------------
         # Dry-run short-circuit. Produce a plan-only report from the
-        # manifest without touching the filesystem.
+        # manifest without touching the filesystem. p4 checkout never runs
+        # under --dry-run, regardless of --p4.
         # ------------------------------------------------------------------
         if ctx.config.dry_run:
             return _plan_only_report(manifest)
+
+        # ------------------------------------------------------------------
+        # Optional P4 checkout-before-edit (opt-in --p4). Must run before
+        # _prepare_workspace() -- see module docstring for why.
+        # ------------------------------------------------------------------
+        p4_result: P4CheckoutResult | None = None
+        if ctx.config.p4_checkout:
+            p4_result = _perform_p4_checkout(ctx, manifest, state)
+            if p4_result.failed:
+                _emit_ve37(ctx, p4_result)
+                return _empty_report(interrupted=True, p4_checkout=p4_result)
 
         # ------------------------------------------------------------------
         # Phase 5a prep
@@ -70,8 +112,9 @@ class TrimmerService:
         try:
             self._prepare_workspace(ctx, state)
         except OSError as exc:
+            p4_result = _rollback_late_failure(ctx, p4_result, state)
             _emit_ve23(ctx, f"workspace preparation failed: {exc}")
-            return _empty_report(interrupted=True)
+            return _empty_report(interrupted=True, p4_checkout=p4_result)
 
         # ------------------------------------------------------------------
         # Per-file dispatch
@@ -92,19 +135,22 @@ class TrimmerService:
             except ProcDropError as exc:
                 _emit_ve26(ctx, rel_path, str(exc))
                 interrupted = True
+                p4_result = _rollback_late_failure(ctx, p4_result, state)
                 break
             except FileNotFoundError as exc:
                 _emit_ve24(ctx, rel_path, str(exc))
                 interrupted = True
+                p4_result = _rollback_late_failure(ctx, p4_result, state)
                 break
             except OSError as exc:
                 _emit_ve25(ctx, rel_path, str(exc))
                 interrupted = True
+                p4_result = _rollback_late_failure(ctx, p4_result, state)
                 break
             outcomes.append(outcome)
 
         outcomes.sort(key=lambda o: o.path.as_posix())
-        return _build_report(outcomes, rebuild_interrupted=interrupted)
+        return _build_report(outcomes, rebuild_interrupted=interrupted, p4_checkout=p4_result)
 
     # ------------------------------------------------------------------
     # Workspace prep per Sec.2.8
@@ -227,7 +273,7 @@ def _keep_by_file(manifest: CompiledManifest) -> dict[Path, frozenset[str]]:
     return {p: frozenset(v) for p, v in out.items()}
 
 
-def _empty_report(*, interrupted: bool) -> TrimReport:
+def _empty_report(*, interrupted: bool, p4_checkout: P4CheckoutResult | None = None) -> TrimReport:
     return TrimReport(
         outcomes=(),
         files_copied=0,
@@ -236,6 +282,7 @@ def _empty_report(*, interrupted: bool) -> TrimReport:
         procs_kept_total=0,
         procs_removed_total=0,
         rebuild_interrupted=interrupted,
+        p4_checkout=p4_checkout,
     )
 
 
@@ -292,7 +339,9 @@ def _plan_only_report(manifest: CompiledManifest) -> TrimReport:
     return _build_report(outcomes, rebuild_interrupted=False)
 
 
-def _build_report(outcomes: list[FileOutcome], *, rebuild_interrupted: bool) -> TrimReport:
+def _build_report(
+    outcomes: list[FileOutcome], *, rebuild_interrupted: bool, p4_checkout: P4CheckoutResult | None = None
+) -> TrimReport:
     files_copied = sum(1 for o in outcomes if o.treatment is FileTreatment.FULL_COPY)
     files_trimmed = sum(1 for o in outcomes if o.treatment is FileTreatment.PROC_TRIM)
     files_removed = sum(1 for o in outcomes if o.treatment is FileTreatment.REMOVE)
@@ -306,7 +355,116 @@ def _build_report(outcomes: list[FileOutcome], *, rebuild_interrupted: bool) -> 
         procs_kept_total=procs_kept_total,
         procs_removed_total=procs_removed_total,
         rebuild_interrupted=rebuild_interrupted,
+        p4_checkout=p4_checkout,
     )
+
+
+# ---------------------------------------------------------------------------
+# Optional P4 checkout-before-edit (opt-in --p4, FR-53)
+# ---------------------------------------------------------------------------
+
+
+def _compute_p4_edit_paths(ctx: ChopperContext, manifest: CompiledManifest) -> list[Path]:
+    """Sorted ``PROC_TRIM`` + regenerate-in-place ``GENERATED`` paths to check out.
+
+    Resolved against ``domain_root`` directly (not ``backup_root``) because
+    this only ever runs before :meth:`TrimmerService._prepare_workspace`
+    renames anything -- the caller gates this on ``DomainState.case == 1``,
+    so ``domain_root`` still holds the original, un-rebuilt files.
+
+    ``GENERATED`` paths that do not yet exist in ``domain_root`` are newly
+    created stage files (``p4 add`` territory, not ``p4 edit``) -- excluded
+    here by design; Chopper never runs ``p4 add``.
+    """
+    domain_root = ctx.config.domain_root
+    paths: list[Path] = []
+    for rel_path, treatment in manifest.file_decisions.items():
+        if treatment is FileTreatment.PROC_TRIM:
+            paths.append(rel_path)
+        elif treatment is FileTreatment.GENERATED and ctx.fs.exists(domain_root / rel_path):
+            paths.append(rel_path)
+    paths.sort(key=lambda p: p.as_posix())
+    return paths
+
+
+def _perform_p4_checkout(ctx: ChopperContext, manifest: CompiledManifest, state: DomainState) -> P4CheckoutResult:
+    """Run the pre-P5 P4 checkout step and return its typed outcome.
+
+    Skips (``attempted=False``, with a reason) rather than attempting
+    checkout when this is a re-trim (``state.case != 1`` -- ``domain_root``
+    no longer holds the original p4-synced files) or when ``p4`` is
+    unavailable / the domain is not a working p4 client workspace.
+
+    On checkout failure, already-succeeded paths are reverted immediately
+    (nothing has been renamed or rewritten yet at this point in ``run()``,
+    so ``domain_restored`` stays ``False`` -- there is nothing to restore).
+    """
+    if state.case != 1:
+        return P4CheckoutResult(
+            attempted=False,
+            skip_reason=(
+                "a previous trim already exists (<domain>_backup/ present); P4 checkout "
+                "only runs on a first trim, before any rebuild has occurred"
+            ),
+        )
+
+    available, reason = check_p4_available(ctx.config.domain_root)
+    if not available:
+        return P4CheckoutResult(attempted=False, skip_reason=reason)
+
+    edit_paths = _compute_p4_edit_paths(ctx, manifest)
+    if not edit_paths:
+        return P4CheckoutResult(attempted=True)
+
+    succeeded, failed_path, failure_message = checkout_files(ctx.config.domain_root, edit_paths)
+    if failed_path is not None:
+        revert_files(ctx.config.domain_root, succeeded)
+        return P4CheckoutResult(
+            attempted=True,
+            checked_out=succeeded,
+            failed_path=failed_path,
+            failure_message=failure_message,
+            reverted=succeeded,
+            domain_restored=False,
+        )
+    return P4CheckoutResult(attempted=True, checked_out=succeeded)
+
+
+def _rollback_late_failure(
+    ctx: ChopperContext, p4_result: P4CheckoutResult | None, state: DomainState
+) -> P4CheckoutResult | None:
+    """Recover from a P5 failure that happened *after* checkout already succeeded.
+
+    No-op (returns ``p4_result`` unchanged) when checkout was never
+    attempted, skipped, already failed, or checked out zero files -- in
+    every one of those cases there is nothing p4-side to revert.
+
+    Otherwise: ``p4 revert`` every checked-out path, and -- only for
+    ``DomainState.case == 1``, the sole case checkout can run in --
+    immediately restore ``domain/`` from ``domain_backup/`` rather than
+    deferring to the next invocation's default rebuild-from-backup
+    recovery. Best-effort: filesystem errors during the restore itself are
+    swallowed so the original failure's diagnostic is what the user sees.
+    """
+    if p4_result is None or not p4_result.attempted or p4_result.failed or not p4_result.checked_out:
+        return p4_result
+
+    revert_files(ctx.config.domain_root, list(p4_result.checked_out))
+
+    restored = False
+    if state.case == 1:
+        domain = ctx.config.domain_root
+        backup = ctx.config.backup_root
+        try:
+            if ctx.fs.exists(domain):
+                ctx.fs.remove(domain, recursive=True)
+            if ctx.fs.exists(backup):
+                ctx.fs.rename(backup, domain)
+                restored = True
+        except OSError:
+            pass
+
+    return replace(p4_result, reverted=p4_result.checked_out, domain_restored=restored)
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +517,23 @@ def _emit_ve26(ctx: ChopperContext, rel_path: Path, detail: str) -> None:
             hint=(
                 "Parser output is stale relative to the file on disk; re-run after reconciling "
                 "the backup contents with the expected domain state"
+            ),
+        )
+    )
+
+
+def _emit_ve37(ctx: ChopperContext, p4_result: P4CheckoutResult) -> None:
+    failed_display = p4_result.failed_path.as_posix() if p4_result.failed_path is not None else "<unknown>"
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-37",
+            phase=Phase.P5_TRIM,
+            message=f"p4 edit -t text+x failed for {failed_display!r}: {p4_result.failure_message}",
+            path=p4_result.failed_path,
+            hint=(
+                "Check the reported file/reason (locked by another user, wrong client workspace, "
+                "p4 not logged in, network/server issue), fix it, and re-run 'chopper trim --p4'. "
+                "The domain is left exactly as it was before this run -- no partial state."
             ),
         )
     )

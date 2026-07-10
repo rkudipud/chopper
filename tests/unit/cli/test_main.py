@@ -32,6 +32,23 @@ def test_trim_accepts_dry_run_flag() -> None:
     assert ns.dry_run is True
 
 
+def test_trim_p4_flag_defaults_false_and_is_settable() -> None:
+    ns = build_parser().parse_args(["trim", "--base", "base.json"])
+    assert ns.p4_checkout is False
+
+    ns = build_parser().parse_args(["trim", "--base", "base.json", "--p4"])
+    assert ns.p4_checkout is True
+
+
+def test_p4_flag_not_available_on_other_subcommands() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["validate", "--base", "base.json", "--p4"])
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["loc", "--base", "base.json", "--p4"])
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["cleanup", "--confirm", "--p4"])
+
+
 def test_global_flags_are_parsed_before_subcommand() -> None:
     ns = build_parser().parse_args(["-v", "-q", "--plain", "--strict", "validate", "--base", "base.json"])
     assert ns.verbose == 1

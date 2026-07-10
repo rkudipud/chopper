@@ -280,7 +280,15 @@ Add `"skip_if_no_stage": true` to each flow_action that targets the feature-crea
 
 ### What is `p4_commands.txt` in `.chopper/`?
 
-A Perforce audit file for this trim. Two `p4` command sections (`p4 edit`, `p4 add`) plus an `exclude_file_list` section of `$ward`-relative paths (4.1.0+) for files removed from the domain. Use the exclude list as P4 client-spec exclusion mapping lines. Chopper never invokes `p4` itself.
+A Perforce audit file for this trim. Two `p4` command sections (`p4 edit`, `p4 add`) plus an `exclude_file_list` section of `$ward`-relative paths (4.1.0+) for files removed from the domain. Use the exclude list as P4 client-spec exclusion mapping lines. Chopper never invokes `p4` itself to produce or act on this file (see the separate `--p4` flag below for the one exception, which checks files out live during the trim itself).
+
+### What is `files_exclude_p4.txt` in `.chopper/`?
+
+The same `exclude_file_list` path set from `p4_commands.txt`, written as its own standalone file (4.3.0+) with no `p4 edit`/`p4 add` sections. Use it when a script only needs the exclusion list and shouldn't have to parse it out of `p4_commands.txt`.
+
+### What does `chopper trim --p4` do?
+
+Opt-in, live-trim-only (4.4.0+): before rewriting a file, Chopper runs `p4 edit -t text+x` on it, so a later `p4 submit` doesn't fight Perforce's checkout-before-edit protocol (Perforce keeps synced files read-only until checked out; editing them out-of-band and running `p4 edit` afterward is an unsupported recovery path). Only runs on a genuine first trim; skipped with an on-screen notice (not an error) if `p4` isn't available or this is a re-trim. Never active under `--dry-run`. On failure the whole trim aborts and reverts everything already checked out — if the failure happens after checkout succeeded, the domain is also restored from backup immediately. Chopper never runs `p4 add`, `p4 delete`, or `p4 submit` — only `p4 edit` and, on rollback, `p4 revert`. See [ARCHITECTURE.md §5.5.18](../technical_docs/ARCHITECTURE.md).
 
 ---
 

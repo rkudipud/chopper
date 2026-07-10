@@ -58,9 +58,9 @@ class _Entry:
 
 
 # Derived from the diagnostic registry. Order follows the registry:
-# VE-01..VE-36, VW-01..VW-25, VI-01..VI-05, TW-01..TW-04, TI-01,
-# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 87 active + 3 retired (VW-18,
-# VW-19, PE-04) = 90 registered entries; matches the Code Space Summary table
+# VE-01..VE-37, VW-01..VW-25, VI-01..VI-05, TW-01..TW-04, TI-01,
+# PE-01..PE-04, PW-01..PW-11, PI-01..PI-04 -- 88 active + 3 retired (VW-18,
+# VW-19, PE-04) = 91 registered entries; matches the Code Space Summary table
 # in the registry doc.
 _REGISTRY: dict[str, _Entry] = {
     "VE-01": _Entry(slug="missing-schema", severity=Severity.ERROR, phase=1, source="schema", exit_code=1),
@@ -109,6 +109,7 @@ _REGISTRY: dict[str, _Entry] = {
     "VE-34": _Entry(slug="ambiguous-domain-name", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
     "VE-35": _Entry(slug="base-autodiscovery-failed", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
     "VE-36": _Entry(slug="feature-name-not-found", severity=Severity.ERROR, phase=1, source="cli", exit_code=2),
+    "VE-37": _Entry(slug="p4-checkout-failed", severity=Severity.ERROR, phase=5, source="trimmer", exit_code=1),
     "VW-01": _Entry(
         slug="file-in-both-include-lists", severity=Severity.WARNING, phase=1, source="compiler", exit_code=0
     ),

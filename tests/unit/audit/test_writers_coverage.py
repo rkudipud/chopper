@@ -348,7 +348,8 @@ def test_format_exclusion_path_falls_back_to_ctx_ward_root() -> None:
     when there is at least one removed path to render."""
     from chopper.audit.writers import _format_exclusion_path
 
-    ward = Path("/fake_ward")
+    # Anchored to the OS root so Path.resolve() is a no-op cross-platform.
+    ward = Path(Path.cwd().anchor) / "fake_ward"
     domain = ward / "global" / "snps" / "test"
     cfg = RunConfig(
         domain_root=domain,
@@ -374,7 +375,8 @@ def test_p4_commands_ward_relative_exclude_paths() -> None:
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
 
-    ward = Path("/fake_ward")
+    # Anchored to the OS root so Path.resolve() is a no-op cross-platform.
+    ward = Path(Path.cwd().anchor) / "fake_ward"
     domain = ward / "global" / "snps" / "test"
     backup = domain.with_name(domain.name + "_backup")
     audit = domain / ".chopper"

@@ -26,9 +26,11 @@ from chopper.core.models_common import DomainRunResult, FileTreatment
 from chopper.core.models_trimmer import TrimReport
 
 __all__ = [
+    "render_audit_bundle_locations",
     "render_cleanup_message",
     "render_diagnostics",
     "render_p4_branch_analysis",
+    "render_p4_checkout_notice",
     "render_result",
     "render_trim_stats",
 ]
@@ -490,3 +492,82 @@ def render_p4_branch_analysis(
             stream.write("Final verdict     : NO BRANCH NEEDED -- all domains are removal-only\n")
 
     stream.write("\n")
+
+
+# ---------------------------------------------------------------------------
+# Audit bundle location summary (rendered after ``chopper trim`` completes)
+# ---------------------------------------------------------------------------
+
+
+def render_audit_bundle_locations(
+    domain_paths: Sequence[tuple[str, Path]],
+    *,
+    stream: TextIO = sys.stdout,
+) -> None:
+    """Print the resolved ``.chopper/`` audit bundle path for each domain.
+
+    Rendered once, after ``chopper trim`` (live or ``--dry-run``) finishes
+    processing every domain in the run. ``--domain`` accepts a CSV list for
+    sequential multi-domain trims, so each domain gets its own audit bundle
+    path on its own line rather than a single shared path.
+
+    ``domain_paths`` entries that were never run (e.g. a domain that failed
+    the pre-flight ``--project`` path check before a context was built) must
+    be excluded by the caller -- this function assumes every entry it
+    receives has a real, already-resolved ``.chopper/`` root.
+
+    Flushed immediately (matching the domain-run-header convention in
+    ``_print_domain_header``) so the message is visible right away even
+    when stdout is redirected to a log file.
+
+    See ``technical_docs/ARCHITECTURE.md`` Section 5.5.17 and FR-52.
+    """
+    if not domain_paths:
+        return
+
+    if len(domain_paths) == 1:
+        _label, audit_root = domain_paths[0]
+        stream.write(f"\nThe output logs of this run can be found at: {audit_root.resolve().as_posix()}\n")
+        stream.flush()
+        return
+
+    stream.write("\n=== Audit Bundle Locations ===\n")
+    stream.write("The output logs of this run can be found at:\n")
+    for label, audit_root in domain_paths:
+        stream.write(f"  {label:<30s} : {audit_root.resolve().as_posix()}\n")
+    stream.flush()
+
+
+# ---------------------------------------------------------------------------
+# P4 checkout notice (rendered when --p4 could not run)
+# ---------------------------------------------------------------------------
+
+
+def render_p4_checkout_notice(
+    message: str,
+    *,
+    plain: bool,
+    stream: TextIO | None = None,
+) -> None:
+    """Print a screen-visible notice when ``--p4`` checkout could not run.
+
+    Rendered in red (ANSI ``\\x1b[31m``...``\\x1b[0m``) when the target
+    stream is a real terminal and ``plain`` is False; degrades to plain
+    text otherwise (``--plain`` flag, non-tty redirection, or a captured
+    stream in tests) -- matching the existing ``--plain`` convention used
+    by :class:`~chopper.adapters.progress_rich.RichProgress` elsewhere in
+    the CLI layer.
+
+    This is advisory UX only -- no diagnostic code is emitted and the
+    exit code is unaffected. ``chopper trim --p4`` falls back to a normal
+    (non-p4) trim whenever this fires.
+
+    See ``technical_docs/ARCHITECTURE.md`` FR-53.
+    """
+    out = stream if stream is not None else sys.stderr
+    use_color = not plain and hasattr(out, "isatty") and out.isatty()
+    text = f"[chopper] P4 EDIT NOT POSSIBLE -- {message}. Trimming in place without P4 checkout."
+    if use_color:
+        out.write(f"\x1b[31m{text}\x1b[0m\n")
+    else:
+        out.write(f"{text}\n")

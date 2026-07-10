@@ -8,7 +8,7 @@ from typing import Literal
 
 from chopper.core.models_common import FileTreatment
 
-__all__ = ["FileOutcome", "GeneratedArtifact", "TrimReport"]
+__all__ = ["FileOutcome", "GeneratedArtifact", "P4CheckoutResult", "TrimReport"]
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,66 @@ class FileOutcome:
 
 
 @dataclass(frozen=True)
+class P4CheckoutResult:
+    """Outcome of the optional pre-P5 ``--p4`` checkout step.
+
+    Constructed only when ``RunConfig.p4_checkout`` is True and the run is
+    not a dry-run; :attr:`TrimReport.p4_checkout` is ``None`` otherwise
+    (including whenever ``--p4`` was not passed at all).
+    """
+
+    attempted: bool
+    """True once checkout actually ran (p4 was available and the domain
+    was a working p4 client workspace). False when skipped entirely --
+    in that case ``skip_reason`` explains why, and none of the other
+    fields are meaningful (all left at their defaults)."""
+
+    skip_reason: str | None = None
+    """Human-readable reason checkout was skipped (e.g. "the 'p4'
+    executable was not found on PATH"). ``None`` when ``attempted`` is
+    True."""
+
+    checked_out: tuple[Path, ...] = ()
+    """Paths successfully opened for edit (``p4 edit -t text+x``), in the
+    order they were opened (lex-sorted, matching the input file set)."""
+
+    failed_path: Path | None = None
+    """The path whose ``p4 edit`` call failed, if any. ``None`` on full
+    success (or when skipped)."""
+
+    failure_message: str | None = None
+    """Captured stderr / exception text for ``failed_path``. ``None``
+    unless ``failed_path`` is set."""
+
+    reverted: tuple[Path, ...] = ()
+    """Paths that were ``p4 revert``-ed during rollback after a failure.
+    Empty unless a failure occurred after at least one successful
+    checkout."""
+
+    domain_restored: bool = False
+    """True when rollback also restored ``domain/`` from
+    ``domain_backup/`` immediately (a later-P5-stage failure after
+    checkout had already succeeded). False for the common case where
+    checkout itself failed before any rename/rewrite occurred (nothing
+    to restore)."""
+
+    @property
+    def failed(self) -> bool:
+        """True when a checkout attempt failed partway through the batch."""
+        return self.failed_path is not None
+
+    def __post_init__(self) -> None:
+        if not self.attempted and self.skip_reason is None:
+            raise ValueError("P4CheckoutResult: attempted=False requires a non-None skip_reason")
+        if self.attempted and self.skip_reason is not None:
+            raise ValueError("P4CheckoutResult: attempted=True must not carry a skip_reason")
+        if self.failed_path is not None and self.failure_message is None:
+            raise ValueError("P4CheckoutResult: failed_path set requires a non-None failure_message")
+        if self.domain_restored and not self.reverted:
+            raise ValueError("P4CheckoutResult: domain_restored=True requires at least one reverted path")
+
+
+@dataclass(frozen=True)
 class TrimReport:
     """Frozen output of :class:`~chopper.trimmer.TrimmerService` (P5a)."""
 
@@ -50,6 +110,7 @@ class TrimReport:
     procs_removed_total: int
     rebuild_interrupted: bool = False
     inputs_preserved: int = 0
+    p4_checkout: P4CheckoutResult | None = None
 
     def __post_init__(self) -> None:
         paths = [o.path.as_posix() for o in self.outcomes]

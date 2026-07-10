@@ -29,7 +29,14 @@ class LocalFS:
 
     def write_text(self, path: Path, content: str, *, encoding: str = "utf-8") -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding=encoding)
+        # newline="" disables universal-newline translation on write: every
+        # "\n" in ``content`` lands on disk as a single LF byte, even on
+        # Windows (which otherwise silently expands "\n" -> "\r\n"). Chopper's
+        # byte/SLOC accounting (bytes_out, trim_stats.json, sloc counters) is
+        # computed from the in-memory string length -- without this, every
+        # rewritten file would be larger on disk than Chopper's own reports
+        # claim, breaking NFR-03 byte-identical determinism on Windows hosts.
+        path.write_text(content, encoding=encoding, newline="")
 
     def exists(self, path: Path) -> bool:
         return path.exists()

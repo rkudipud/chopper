@@ -433,6 +433,15 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.4.0 — 2026-07-09
+
+- **`--p4` checkout-before-edit.** New opt-in, `chopper trim`-only flag: runs `p4 edit -t text+x` on every `PROC_TRIM` / regenerate-in-place `GENERATED` file *before* rebuilding the domain, so a later `p4 submit` doesn't fight Perforce's checkout-before-edit protocol. Only attempted on a genuine first trim; skipped with a red on-screen notice (not an error) when `p4` is unavailable, the domain isn't a working p4 client workspace, or this is a re-trim. Never active under `--dry-run`. On checkout failure the whole trim aborts (new `VE-37`) after reverting everything already checked out; a later failure after checkout succeeded additionally restores the domain from backup immediately. Chopper never runs `p4 add`, `p4 delete`, or `p4 submit` — only `p4 edit` and, on rollback, `p4 revert`. See ARCHITECTURE.md §5.5.18, FR-53.
+
+### 4.3.0 — 2026-07-09
+
+- **Standalone `files_exclude_p4.txt` audit artifact.** The `exclude_file_list` path set already written inside `p4_commands.txt` is now also emitted as its own file, `files_exclude_p4.txt`, so tooling that only needs the exclusion list doesn't have to parse it out of the Perforce command file. Byte-for-byte the same path set and `$ward`-relative-or-domain-relative formatting; both artifacts now share one `_compute_excluded_paths()` helper. Emitted on live trim and `--dry-run`; not by `validate`/`loc`/`cleanup`. See ARCHITECTURE.md §5.5.14, FR-51.
+- **Audit bundle location message.** After `chopper trim` finishes processing every domain, Chopper now prints the resolved `.chopper/` audit bundle path to stdout, right after the P4 Branch Analysis summary — one line per domain under an `=== Audit Bundle Locations ===` banner for multi-domain CSV `--domain` runs. See ARCHITECTURE.md §5.5.17, FR-52.
+
 ### 4.2.1 — 2026-06-30
 
 - **`files_removed.txt` now uses Ward-relative paths.** The removed-file audit artifact renders each path as `$ward`-relative when the domain resolves under `$ward` (falling back to domain-relative otherwise), matching the `exclude_file_list` section of `p4_commands.txt` introduced in 4.1.0. See ARCHITECTURE.md §14 revision history (4.2.1) and §3.7/§5.6.

@@ -21,7 +21,7 @@ from chopper.core.models_compiler import (
 )
 from chopper.core.models_config import AddStepAction, LoadedConfig, ProcEntryRef, StageDefinition
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
-from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, TrimReport
+from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, P4CheckoutResult, TrimReport
 
 
 class TestFileTreatment:
@@ -593,6 +593,30 @@ class TestTrimReport:
                 procs_removed_total=99,
             )
 
+    def test_constructs_without_p4_checkout_kwarg(self) -> None:
+        report = TrimReport(
+            outcomes=(),
+            files_copied=0,
+            files_trimmed=0,
+            files_removed=0,
+            procs_kept_total=0,
+            procs_removed_total=0,
+        )
+        assert report.p4_checkout is None
+
+    def test_constructs_with_p4_checkout_kwarg(self) -> None:
+        result = P4CheckoutResult(attempted=False, skip_reason="not requested")
+        report = TrimReport(
+            outcomes=(),
+            files_copied=0,
+            files_trimmed=0,
+            files_removed=0,
+            procs_kept_total=0,
+            procs_removed_total=0,
+            p4_checkout=result,
+        )
+        assert report.p4_checkout is result
+
 
 # ---------------------------------------------------------------------------
 # GeneratedArtifact
@@ -603,6 +627,73 @@ class TestGeneratedArtifact:
     def test_empty_source_stage_rejected(self) -> None:
         with pytest.raises(ValueError, match="source_stage must be non-empty"):
             GeneratedArtifact(path=Path("syn.tcl"), kind="tcl", content="", source_stage="")
+
+
+# ---------------------------------------------------------------------------
+# P4CheckoutResult
+# ---------------------------------------------------------------------------
+
+
+class TestP4CheckoutResult:
+    def test_valid_skipped_instance(self) -> None:
+        result = P4CheckoutResult(attempted=False, skip_reason="the 'p4' executable was not found on PATH")
+        assert result.attempted is False
+        assert result.skip_reason is not None
+        assert result.checked_out == ()
+        assert result.failed is False
+
+    def test_valid_attempted_all_succeeded_instance(self) -> None:
+        result = P4CheckoutResult(attempted=True, checked_out=(Path("a.tcl"), Path("b.tcl")))
+        assert result.attempted is True
+        assert result.skip_reason is None
+        assert result.checked_out == (Path("a.tcl"), Path("b.tcl"))
+        assert result.failed is False
+
+    def test_valid_attempted_failed_instance(self) -> None:
+        result = P4CheckoutResult(
+            attempted=True,
+            checked_out=(Path("a.tcl"),),
+            failed_path=Path("b.tcl"),
+            failure_message="no such file",
+        )
+        assert result.failed is True
+
+    def test_valid_attempted_failed_reverted_domain_restored_instance(self) -> None:
+        result = P4CheckoutResult(
+            attempted=True,
+            checked_out=(Path("a.tcl"),),
+            failed_path=Path("b.tcl"),
+            failure_message="no such file",
+            reverted=(Path("a.tcl"),),
+            domain_restored=True,
+        )
+        assert result.failed is True
+        assert result.reverted == (Path("a.tcl"),)
+        assert result.domain_restored is True
+
+    def test_attempted_false_without_skip_reason_rejected(self) -> None:
+        with pytest.raises(ValueError, match="attempted=False requires a non-None skip_reason"):
+            P4CheckoutResult(attempted=False)
+
+    def test_attempted_true_with_skip_reason_rejected(self) -> None:
+        with pytest.raises(ValueError, match="attempted=True must not carry a skip_reason"):
+            P4CheckoutResult(attempted=True, skip_reason="should not be here")
+
+    def test_failed_path_without_failure_message_rejected(self) -> None:
+        with pytest.raises(ValueError, match="failed_path set requires a non-None failure_message"):
+            P4CheckoutResult(attempted=True, failed_path=Path("b.tcl"))
+
+    def test_domain_restored_without_reverted_rejected(self) -> None:
+        with pytest.raises(ValueError, match="domain_restored=True requires at least one reverted path"):
+            P4CheckoutResult(attempted=True, domain_restored=True)
+
+    def test_failed_property_false_when_no_failed_path(self) -> None:
+        result = P4CheckoutResult(attempted=True)
+        assert result.failed is False
+
+    def test_failed_property_true_when_failed_path_set(self) -> None:
+        result = P4CheckoutResult(attempted=True, failed_path=Path("b.tcl"), failure_message="boom")
+        assert result.failed is True
 
 
 # ---------------------------------------------------------------------------

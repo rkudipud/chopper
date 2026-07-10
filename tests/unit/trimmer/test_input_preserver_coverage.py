@@ -21,6 +21,27 @@ from tests.unit._coverage_helpers import (  # noqa: F401
     _Sink,
 )
 
+# input_preserver.py calls Path.resolve() on domain_root/backup_root/source
+# paths before touching ctx.fs. On Windows, Path("/work/d").resolve() prepends
+# the current drive letter, but InMemoryFS stores keys unresolved -- so a
+# root-relative-but-driveless domain (the shared DOMAIN/BACKUP constants) and
+# an unresolved lookup key silently mismatch there. Anchor these three tests'
+# paths to the OS root instead so resolve() is a no-op, matching the fix
+# applied elsewhere in this session for the same underlying issue.
+_LOCAL_DOMAIN = Path(Path.cwd().anchor) / "work" / "d"
+_LOCAL_BACKUP = Path(Path.cwd().anchor) / "work" / "d_backup"
+
+
+def _anchored_ctx(fs: InMemoryFS) -> ChopperContext:
+    cfg = RunConfig(
+        domain_root=_LOCAL_DOMAIN,
+        backup_root=_LOCAL_BACKUP,
+        audit_root=_LOCAL_DOMAIN / ".chopper",
+        strict=False,
+        dry_run=False,
+    )
+    return ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
+
 
 def test_input_preserver_copies_jsons_dir_from_backup() -> None:
     """preserve_input_sources must mirror the jsons/ tree from backup to the
@@ -30,13 +51,13 @@ def test_input_preserver_copies_jsons_dir_from_backup() -> None:
 
     fs = InMemoryFS()
     # Backup has jsons/
-    fs.write_text(BACKUP / "jsons" / "base.json", '{"name": "b"}')
-    fs.write_text(BACKUP / "jsons" / "feat.json", '{"name": "f"}')
+    fs.write_text(_LOCAL_BACKUP / "jsons" / "base.json", '{"name": "b"}')
+    fs.write_text(_LOCAL_BACKUP / "jsons" / "feat.json", '{"name": "f"}')
 
-    ctx = _ctx(fs=fs)
+    ctx = _anchored_ctx(fs)
 
     base = BaseJson(
-        source_path=DOMAIN / "jsons" / "base.json",  # in-tree
+        source_path=_LOCAL_DOMAIN / "jsons" / "base.json",  # in-tree
         domain="d",
         files=FilesSection(include=()),
         options=BaseOptions(),
@@ -45,7 +66,7 @@ def test_input_preserver_copies_jsons_dir_from_backup() -> None:
     count = preserve_input_sources(ctx, loaded)
     assert count >= 1
     # jsons/ should now exist in domain
-    assert fs.exists(DOMAIN / "jsons" / "base.json")
+    assert fs.exists(_LOCAL_DOMAIN / "jsons" / "base.json")
 
 
 def test_input_preserver_emits_vw20_on_mkdir_failure() -> None:
@@ -62,11 +83,11 @@ def test_input_preserver_emits_vw20_on_mkdir_failure() -> None:
 
     fs = _FailMkdir()
     # Backup has jsons/
-    fs.write_text(BACKUP / "jsons" / "base.json", "{}")
-    ctx = _ctx(fs=fs)
+    fs.write_text(_LOCAL_BACKUP / "jsons" / "base.json", "{}")
+    ctx = _anchored_ctx(fs)
 
     base = BaseJson(
-        source_path=DOMAIN / "jsons" / "base.json",
+        source_path=_LOCAL_DOMAIN / "jsons" / "base.json",
         domain="d",
         files=FilesSection(include=()),
         options=BaseOptions(),
@@ -84,10 +105,10 @@ def test_input_preserver_copies_out_of_tree_sources() -> None:
 
     fs = InMemoryFS()
     # Source JSON is outside the domain root.
-    out_of_tree = Path("/outside/project/feature_a.json")
+    out_of_tree = Path(Path.cwd().anchor) / "outside" / "project" / "feature_a.json"
     fs.write_text(out_of_tree, '{"name": "feat_a"}')
 
-    ctx = _ctx(fs=fs)
+    ctx = _anchored_ctx(fs)
 
     base = BaseJson(
         source_path=out_of_tree,  # out-of-tree

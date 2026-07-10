@@ -1387,6 +1387,223 @@ def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
     assert stats_called["n"] == 2  # once per domain
 
 
+def test_cmd_trim_single_domain_prints_audit_bundle_location(tmp_path: Path) -> None:
+    """FR-52: single-domain ``cmd_trim`` calls ``render_audit_bundle_locations`` with the
+    domain's resolved ``.chopper/`` path."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_audit_bundle_locations") as mock_locations,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    mock_locations.assert_called_once()
+    (paths,), _ = mock_locations.call_args
+    assert len(paths) == 1
+    label, audit_root = paths[0]
+    assert label == "dom"
+    assert audit_root == domain / ".chopper"
+
+
+def test_cmd_trim_renders_p4_checkout_notice_when_skipped(tmp_path: Path) -> None:
+    """FR-53: when --p4 checkout was skipped, cmd_trim renders the red notice
+    with the exact skip_reason, using the --plain flag."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+    from chopper.core.models_trimmer import P4CheckoutResult, TrimReport
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    trim_report = TrimReport(
+        outcomes=(),
+        files_copied=0,
+        files_trimmed=0,
+        files_removed=0,
+        procs_kept_total=0,
+        procs_removed_total=0,
+        p4_checkout=P4CheckoutResult(attempted=False, skip_reason="the 'p4' executable was not found on PATH"),
+    )
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None, trim_report=trim_report)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats"),
+        patch("chopper.cli.commands.render_p4_checkout_notice") as mock_notice,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    mock_notice.assert_called_once_with("the 'p4' executable was not found on PATH", plain=True)
+
+
+def test_cmd_trim_does_not_render_p4_checkout_notice_when_attempted(tmp_path: Path) -> None:
+    """No notice when checkout actually ran (success or failure -- failure is
+    reported via VE-37, not this advisory notice)."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+    from chopper.core.models_trimmer import P4CheckoutResult, TrimReport
+
+    domain = tmp_path / "dom"
+    domain.mkdir()
+    (domain / "jsons").mkdir()
+    (domain / "jsons" / "base.json").write_text("{}")
+
+    trim_report = TrimReport(
+        outcomes=(),
+        files_copied=0,
+        files_trimmed=0,
+        files_removed=0,
+        procs_kept_total=0,
+        procs_removed_total=0,
+        p4_checkout=P4CheckoutResult(attempted=True, checked_out=(Path("a.tcl"),)),
+    )
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None, trim_report=trim_report)
+
+    args = argparse.Namespace(
+        domain=str(domain),
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=False,
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_trim_stats"),
+        patch("chopper.cli.commands.render_p4_checkout_notice") as mock_notice,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    mock_notice.assert_not_called()
+
+
+def test_cmd_trim_multi_domain_prints_audit_bundle_location_per_domain(tmp_path: Path) -> None:
+    """FR-52: multi-domain ``cmd_trim`` calls ``render_audit_bundle_locations`` with one
+    entry per successfully-run domain."""
+    from chopper.cli import commands as cmds
+    from chopper.core.models_audit import RunResult
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    (domain_a / "jsons").mkdir()
+    (domain_a / "jsons" / "base.json").write_text("{}")
+
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+    (domain_b / "jsons").mkdir()
+    (domain_b / "jsons" / "base.json").write_text("{}")
+
+    def _fake_run(self, ctx, *, command):  # type: ignore[misc]
+        return MagicMock(spec=RunResult, exit_code=0, manifest=None)
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=None,
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,
+    )
+    with (
+        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.render_audit_bundle_locations") as mock_locations,
+    ):
+        rc = cmds.cmd_trim(args)
+
+    assert rc == 0
+    mock_locations.assert_called_once()
+    (paths,), _ = mock_locations.call_args
+    assert paths == [("dom_a", domain_a / ".chopper"), ("dom_b", domain_b / ".chopper")]
+
+
+def test_cmd_trim_multi_domain_all_checks_fail_prints_no_audit_locations(tmp_path: Path) -> None:
+    """When every domain fails the pre-flight check, no context is ever built, so
+    ``render_audit_bundle_locations`` is called with an empty list."""
+    import json as _json
+
+    from chopper.cli import commands as cmds
+
+    project = tmp_path / "proj.json"
+    project.write_text(_json.dumps({"base": "missing.json", "features": []}))
+
+    domain_a = tmp_path / "dom_a"
+    domain_a.mkdir()
+    domain_b = tmp_path / "dom_b"
+    domain_b.mkdir()
+
+    args = argparse.Namespace(
+        domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
+        base=None,
+        features=None,
+        project=str(project),
+        strict=False,
+        quiet=True,
+        plain=True,
+        verbose=0,
+        tool_commands=[],
+        dry_run=True,
+    )
+    with patch("chopper.cli.commands.render_audit_bundle_locations") as mock_locations:
+        rc = cmds.cmd_trim(args)
+    assert rc == 2
+    mock_locations.assert_called_once_with([])
+
+
 # ---------------------------------------------------------------------------
 # 99.8% coverage top-up tests
 # ---------------------------------------------------------------------------

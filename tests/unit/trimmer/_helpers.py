@@ -43,6 +43,7 @@ def make_ctx(
     dry_run: bool = False,
     domain_root: Path = DOMAIN,
     backup_root: Path = BACKUP,
+    p4_checkout: bool = False,
 ) -> tuple[ChopperContext, CollectingSink]:
     sink = CollectingSink()
     cfg = RunConfig(
@@ -51,6 +52,7 @@ def make_ctx(
         audit_root=domain_root / ".chopper",
         strict=False,
         dry_run=dry_run,
+        p4_checkout=p4_checkout,
     )
     ctx = ChopperContext(
         config=cfg,
