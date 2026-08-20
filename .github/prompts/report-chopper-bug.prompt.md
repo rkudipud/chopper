@@ -14,7 +14,7 @@ Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), 
    - Exit code and failing phase
    - The top offending diagnostic codes (from `diagnostics.json`)
    - A minimal reproducible JSON input (trim down `input_base.json` to the smallest failing case)
-3. Classify the issue against [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) — is this a known pitfall, a new risk, or truly novel?
+3. Classify the issue against [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) -- is this a known pitfall, a new risk, or truly novel?
 4. Produce the final issue fields and write a payload JSON for `python schemas/scripts/file_bug_report.py --payload <payload> --create`. Include:
    - a short issue title
    - what happened (expected vs actual)
@@ -34,4 +34,4 @@ Deliverables:
 - The minimal JSON reproduction
 - The local bundle path, if one was prepared
 
-Do not attempt to fix Chopper's source — surface the bug cleanly so a maintainer can.
+Do not attempt to fix Chopper's source -- surface the bug cleanly so a maintainer can.

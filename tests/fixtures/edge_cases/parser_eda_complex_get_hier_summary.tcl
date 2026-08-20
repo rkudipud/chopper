@@ -35,7 +35,7 @@ proc get_hier_summary { design } {
         set uoutr [get_unmap_points -PO -extra -unreachable -notmapped -revised -count]
     }
 
-    # vpx / vpxmode / tclmode: Cadence LEC EDA commands — not user procs (§5.5)
+    # vpx / vpxmode / tclmode: Cadence LEC EDA commands -- not user procs (Sec.5.5)
     vpxmode
     vpx report hier_compare result -NONEQ
     vpx report hier_compare result -NONEQ >> fev_results.log
@@ -43,7 +43,7 @@ proc get_hier_summary { design } {
 
     set header "----HIER EC Results for job: $design ----"
 
-    # puts/echo with complex format strings: all suppressed by §5.5 Level 3/4
+    # puts/echo with complex format strings: all suppressed by Sec.5.5 Level 3/4
     puts "[string repeat - [string length $header]]"
     puts $header
     puts "[string repeat = [string length $header]]"

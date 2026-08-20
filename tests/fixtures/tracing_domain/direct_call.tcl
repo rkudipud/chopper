@@ -1,4 +1,4 @@
-# chain.tcl — Linear call chain: entry -> step1 -> step2 -> step3
+# chain.tcl -- Linear call chain: entry -> step1 -> step2 -> step3
 
 proc entry_point {} {
     step1

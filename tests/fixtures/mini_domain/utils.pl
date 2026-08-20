@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# utils.pl — Mini domain Perl utility (file-level only, no proc extraction)
+# utils.pl -- Mini domain Perl utility (file-level only, no proc extraction)
 
 use strict;
 use warnings;

@@ -1,11 +1,11 @@
-# 🤝 Contributing to Chopper
+# ? Contributing to Chopper
 
 ![Audience](https://img.shields.io/badge/audience-contributors-8a3ffc)
 ![Gate](https://img.shields.io/badge/gate-make%20check%20%7C%20make%20ci-0a7a3d)
 
 This guide covers the practical workflow for contributing code or documentation to Chopper. Product overview, user setup, and the documentation map stay in [README.md](README.md); this file is only for contributor-specific guidance.
 
-## 📖 Before You Start
+## ? Before You Start
 
 Read the documents that define the behavior you are changing:
 
@@ -19,7 +19,7 @@ Read the documents that define the behavior you are changing:
 > [!IMPORTANT]
 > If your change affects CLI behavior, JSON structure, diagnostics, or generated artifacts, update the corresponding docs in the **same** pull request.
 
-## 🛠️ Setup
+## ?? Setup
 
 Use one of the repository bootstrap scripts, then run the local quality gates before you open a pull request:
 
@@ -43,7 +43,7 @@ make test
 > [!NOTE]
 > If `make` is not available on your platform, use the matching tools and tasks defined in [pyproject.toml](pyproject.toml) and the VS Code workspace.
 
-## 🔒 Working Rules
+## ? Working Rules
 
 These are the constraints that matter most during day-to-day implementation:
 
@@ -57,7 +57,7 @@ These are the constraints that matter most during day-to-day implementation:
 > [!WARNING]
 > For the full scope lock and rejected decisions, see [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) and [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md). Adding features, stubs, or reserved seams outside the spec is a violation.
 
-## 🔄 Typical Workflow
+## ? Typical Workflow
 
 1. Create or update tests close to the affected module.
 2. Implement the smallest change that satisfies the documented behavior.
@@ -73,14 +73,14 @@ make test
 pytest tests/unit/<package>/ -v
 ```
 
-## 🗒️ Design Notes
+## ?? Design Notes
 
 - Chopper uses `schemas/` as the runtime schema source.
 - The CLI entry point is `chopper`, defined in [pyproject.toml](pyproject.toml).
 - `trim --dry-run` produces trim-side reports without rebuilding domain content.
 - `cleanup` is a direct filesystem operation and requires `--confirm`.
 
-## ✅ Pull Request Checklist
+## [OK] Pull Request Checklist
 
 - [ ] Tests or validation checks were run for the touched area.
 - [ ] `make check` passes locally, or equivalent checks were run if `make` is unavailable.

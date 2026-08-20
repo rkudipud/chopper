@@ -1,4 +1,4 @@
-# Chopper — CLI Reference
+# Chopper -- CLI Reference
 
 > **Purpose:** Canonical reference for all CLI subcommands, flags, and help text. The `argparse` help strings in `src/chopper/cli/` are derived from this file; the two must stay in lockstep.
 
@@ -10,7 +10,7 @@
 usage: chopper [-h] [--version] [-v] [-q] [--plain] [--strict]
                {validate,trim,loc,cleanup} ...
 
-Chopper — EDA TFM domain trimming tool.
+Chopper -- EDA TFM domain trimming tool.
 
 Trims EDA tool flow domains to project-specific subsets using JSON
 configuration. Supports whole-file (F1), proc-level (F2), and run-file
@@ -50,15 +50,15 @@ parses Tcl, compiles selections, and runs the trace phase.
 Does not modify domain content files.
 
 options:
-  --domain PATH        Domain root — accepts three forms (4.1.0+):
+  --domain PATH        Domain root -- accepts three forms (4.1.0+):
                        (1) Absolute path, used as-is.
                        (2) Existing relative directory, used as-is.
                        (3) Logical name (e.g. ``fev_formality`` or ``snps/fev_formality``)
                            resolved via ``$ward/global/<vendor>/<name>``.
-                       Also accepts a comma-separated list for multi-domain runs (§5.1.2).
+                       Also accepts a comma-separated list for multi-domain runs (Sec.5.1.2).
                        If the resolved path ends in ``_backup`` and a stripped sibling exists,
                        redirects to that sibling and emits VI-03.
-                       Default: current working directory. See ARCHITECTURE.md §5.1.0.
+                       Default: current working directory. See ARCHITECTURE.md Sec.5.1.0.
   --base PATH          Path to base JSON. Optional when ``--domain`` provides a named domain;
                        Chopper auto-discovers ``<domain>/jsons/base.json`` (VE-35 if not found).
                        Required when using a plain path domain and ``--project`` is not used.
@@ -71,12 +71,12 @@ options:
                        and --project/--base/--features are all absent, Chopper looks for
                        ``$ward/project/<vendor>/<domain>/<leaf>.project.features.config``
                        (plain text, one feature name per line) and resolves it as --features.
-                       See ARCHITECTURE.md §5.1.3.
+                       See ARCHITECTURE.md Sec.5.1.3.
   --project PATH       Path to project JSON (mutually exclusive with --base/--features).
                        Project-config auto-discovery (4.2.0+): when --domain is in name-mode
                        and --project/--base/--features are all absent, Chopper looks for
                        ``$ward/project/<vendor>/<domain>/<leaf>.project.json`` first.
-                       See ARCHITECTURE.md §5.1.3.
+                       See ARCHITECTURE.md Sec.5.1.3.
   --tool-commands PATH Path to a plain-text file of known external tool-command
                        names (whitespace-separated tokens, '#' comments, blank
                        lines ignored). Repeatable. Each file extends the pool
@@ -85,7 +85,7 @@ options:
                        built-in lists under src/chopper/data/tool_commands/
                        (e.g. pt.commands) are always loaded; this flag only
                        adds to that set. No effect on F1/F2/F3 decisions.
-                       See architecture doc §3.10.
+                       See architecture doc Sec.3.10.
 ```
 
 ---
@@ -107,9 +107,9 @@ On failure:  leave state as-is and exit non-zero; re-run to resume (the next
              or manually run `rm -rf domain && mv domain_backup domain` to reset.
 
 options:
-  --domain PATH        Domain root — same three forms as ``chopper validate`` (see above).
-                       Also accepts CSV for multi-domain runs (§5.1.2).
-                       Default: current working directory. See ARCHITECTURE.md §5.1.0.
+  --domain PATH        Domain root -- same three forms as ``chopper validate`` (see above).
+                       Also accepts CSV for multi-domain runs (Sec.5.1.2).
+                       Default: current working directory. See ARCHITECTURE.md Sec.5.1.0.
   --base PATH          Path to base JSON. Optional when ``--domain`` provides a named domain;
                        Chopper auto-discovers ``<domain>/jsons/base.json`` (VE-35 if not found).
   --features PATHS     Comma-separated ordered list of feature JSON paths or names.
@@ -119,7 +119,7 @@ options:
                        names. Repeatable. Extends the built-in tool-command
                        pool so TW-02 unresolved-proc-call becomes TI-01
                        known-tool-command for listed names during P4 trace.
-                       See architecture doc §3.10.
+                       See architecture doc Sec.3.10.
   --dry-run            Compile, trace, run synthetic post-trim validation, and emit reports without rebuilding domain content files
   --p4                 Opt-in, trim-only (4.4.0+). Runs `p4 edit -t text+x` on every
                        PROC_TRIM / regenerate-in-place GENERATED file before rebuilding
@@ -129,11 +129,11 @@ options:
                        isn't a p4 workspace, or this is a re-trim. Never active under
                        --dry-run. On failure the whole trim aborts and reverts (VE-37).
                        Chopper never runs p4 add/delete/submit here. See architecture
-                       doc §5.5.18, FR-53.
+                       doc Sec.5.5.18, FR-53.
 ```
 
 The `.chopper/` audit bundle written by `chopper trim` includes
-`p4_commands.txt` — a sorted Perforce command list with `p4 edit -t text+x` /
+`p4_commands.txt` -- a sorted Perforce command list with `p4 edit -t text+x` /
 `p4 add -t text+x` sections, and an `exclude_file_list` section of
 `$ward`-relative paths for files to remove from the depot (4.1.0+, replaces
 former `p4 delete` commands). Chopper never invokes `p4` itself to produce or
@@ -143,7 +143,7 @@ exception, invoking only `p4 edit`/`p4 revert`, never `p4 add`/`p4 delete`/
 as `files_exclude_p4.txt` (4.3.0+), for tooling that only needs the exclusion
 list. A P4 branch analysis summary is printed to stdout after every run,
 followed by the resolved `.chopper/` audit bundle path for each domain run
-(4.3.0+). See architecture doc §5.5.14, §5.5.15, §5.5.17, §5.5.18, and
+(4.3.0+). See architecture doc Sec.5.5.14, Sec.5.5.15, Sec.5.5.17, Sec.5.5.18, and
 FR-47/FR-48/FR-51/FR-52/FR-53.
 
 ---
@@ -156,9 +156,9 @@ usage: chopper loc [--domain PATH]
                    [--tool-commands PATH]... [global options]
 
 Print a read-only LOC report comparing the source domain against the
-rebuilt trimmed domain. Runs the same P0–P4 + dry-run-P6 pipeline as
+rebuilt trimmed domain. Runs the same P0-P4 + dry-run-P6 pipeline as
 `chopper trim --dry-run`, then **replays the real P5 trim phases**
-(trim → generators → indentation → companion-sync) against an
+(trim -> generators -> indentation -> companion-sync) against an
 in-memory copy of the source tree and counts the *actual* rebuilt
 output, then emits a stdout table:
 
@@ -167,17 +167,17 @@ output, then emits a stdout table:
   - SLOC (non-blank, non-comment) before / after / percent reduction
   - Per-treatment breakdown (FULL_COPY / PROC_TRIM / REMOVE / GENERATED)
 
-Writes nothing to the real filesystem — no domain modifications and no
+Writes nothing to the real filesystem -- no domain modifications and no
 `.chopper/` audit bundle (the trim replay happens entirely in memory).
-Diagnostics emitted along the P0–P4 path are
+Diagnostics emitted along the P0-P4 path are
 still summarized to stderr. Exit codes match `validate`: 0 clean,
 1 validation errors (or `--strict` with warnings), 2 CLI/environment
 error, 3 internal programmer error.
 
 options:
-  --domain PATH        Domain root — same three forms as ``chopper validate``.
-                       Also accepts CSV for multi-domain runs (§5.1.2).
-                       Default: current working directory. See ARCHITECTURE.md §5.1.0.
+  --domain PATH        Domain root -- same three forms as ``chopper validate``.
+                       Also accepts CSV for multi-domain runs (Sec.5.1.2).
+                       Default: current working directory. See ARCHITECTURE.md Sec.5.1.0.
   --base PATH          Path to base JSON. Optional when domain is a named domain (auto-discovery).
   --features PATHS     Comma-separated ordered list of feature JSON paths or names.
                        Names resolved from ``<domain>/jsons/features/*.feature.json``.
@@ -185,16 +185,16 @@ options:
   --project PATH       Path to project JSON (mutually exclusive with --base/--features)
   --tool-commands PATH Path to a plain-text file of known external tool-command
                        names. Repeatable. Same semantics as `chopper trim`.
-                       See architecture doc §3.10.
+                       See architecture doc Sec.3.10.
 ```
 
-See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) §5.7 for the per-treatment
+See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) Sec.5.7 for the per-treatment
 line-accounting contract.
 
 ### Counted file types
 
 The source-domain walk uses a fixed extension allow-list. Files whose
-extension is **not** in this list are skipped — they neither contribute to
+extension is **not** in this list are skipped -- they neither contribute to
 the "before" totals nor count as REMOVE candidates.
 
 | Counted | Extensions | SLOC rule |
@@ -202,9 +202,9 @@ the "before" totals nor count as REMOVE candidates.
 | yes | `.tcl`, `.py`, `.pl`, `.pm`, `.sh`, `.bash`, `.csh`, `.tcsh`, `.zsh`, `.ksh` | non-blank, non-full-`#`-line; shell `#!` shebang on line 1 counts |
 | yes | `.json` | every non-blank line |
 | yes | `.csv` | every line that contains a non-comma, non-whitespace token |
-| no | everything else (`.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, binaries, …) | silently skipped |
+| no | everything else (`.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, binaries, ...) | silently skipped |
 
-Generated stage artifacts are language-detected the same way — a generated
+Generated stage artifacts are language-detected the same way -- a generated
 `<stage>.tcl` follows the hash-comment SLOC rule.
 
 ### Caveats
@@ -215,7 +215,7 @@ Generated stage artifacts are language-detected the same way — a generated
   the already-trimmed `<domain>/`. This mirrors the parser and keeps the
   "before" numbers stable across re-runs.
 - **PROC_TRIM after-count is the real trimmed file,** measured from the
-  in-memory replay of the production `ProcDropper` — not a span-masking
+  in-memory replay of the production `ProcDropper` -- not a span-masking
   reconstruction.
 - **P5c indentation and P5d companion-sync are modeled.** The replay runs
   the optional P5c whitespace-only indentation pass and the P5d companion
@@ -227,7 +227,7 @@ Generated stage artifacts are language-detected the same way — a generated
   silently dropped from the report.
 - **Byte-identical to a live trim.** Because `loc` reuses the production P5
   services against an in-memory filesystem, its totals match `chopper trim`
-  and the audit bundle's `trim_stats.json` exactly — it is a real
+  and the audit bundle's `trim_stats.json` exactly -- it is a real
   (in-memory) trim, not a separate projection that could drift.
 
 ---
@@ -241,7 +241,7 @@ Remove domain_backup/ permanently after the trim window is complete.
 This operation is irreversible. Requires --confirm flag.
 
 options:
-  --domain PATH   Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md §5.1.
+  --domain PATH   Domain root path (default: current directory). If the path ends in `_backup` and the stripped sibling exists as a directory, redirects to that sibling and emits VI-03 (otherwise honored as-is). Takes precedence over cwd. See ARCHITECTURE.md Sec.5.1.
   --confirm       Required confirmation flag (cleanup refuses to run without it)
 ```
 

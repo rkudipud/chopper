@@ -9,7 +9,7 @@ Invoke the **Chopper Agent**.
 Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), then:
 
 1. Ask me for the proc name or file path in question, and the `.chopper/` bundle path
-2. Search `dependency_graph.json` for the symbol — surface its callers, callees, and reachability
+2. Search `dependency_graph.json` for the symbol -- surface its callers, callees, and reachability
 3. Check `compiled_manifest.json` for the file's treatment (`FULL_COPY` / `PROC_TRIM` / `GENERATED` / `DROPPED`)
 4. Cross-reference against the input JSONs (`input_base.json` + `input_features/NN_name.json`) to identify which include/exclude rule won
 5. Report the R1 merge outcome that produced the decision

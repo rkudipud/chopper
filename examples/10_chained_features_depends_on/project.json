@@ -11,9 +11,9 @@
   ],
   "notes": [
     "Order is authoritative and required by depends_on chains:",
-    "  1. dft_support — no prerequisites",
-    "  2. power_analysis — depends_on: [dft_support]",
-    "  3. pipeline_signoff — depends_on: [dft_support, power_analysis]",
+    "  1. dft_support -- no prerequisites",
+    "  2. power_analysis -- depends_on: [dft_support]",
+    "  3. pipeline_signoff -- depends_on: [dft_support, power_analysis]",
     "Swapping any entry would violate the dependency declaration in the feature JSONs."
   ]
 }

@@ -1,8 +1,8 @@
-# ambiguous.tcl — Ambiguous short-name resolution.
+# ambiguous.tcl -- Ambiguous short-name resolution.
 #
 # Fixture target: the tracer must emit `TW-01 ambiguous-proc-match` when a
 # bare call token matches two distinct canonical procs in the selected
-# domain. See `technical_docs/ARCHITECTURE.md` §5.4 and technical_docs/DIAGNOSTIC_CODES.md.
+# domain. See `technical_docs/ARCHITECTURE.md` Sec.5.4 and technical_docs/DIAGNOSTIC_CODES.md.
 #
 # Shape:
 #   - Two files (this file plus ambiguous_other.tcl) each define

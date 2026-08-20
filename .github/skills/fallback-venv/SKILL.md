@@ -11,9 +11,9 @@ Use this when `source setup.csh` (or `setup.sh`) fails because:
 - Your `$HOME` is over quota and `pip install` aborts with `OSError: [Errno 122] Disk quota exceeded`, **or**
 - `git pull` in `setup.csh` fails with `Permission denied` on `.git/FETCH_HEAD`.
 
-`make check` / `make ci` still need `pytest`, `ruff`, `mypy`, etc. The fix is a venv on a writable, roomy filesystem (`/tmp` on the build host) — **not** in `$HOME` and **not** in the repo.
+`make check` / `make ci` still need `pytest`, `ruff`, `mypy`, etc. The fix is a venv on a writable, roomy filesystem (`/tmp` on the build host) -- **not** in `$HOME` and **not** in the repo.
 
-## Detection (tcsh — PRIMARY)
+## Detection (tcsh -- PRIMARY)
 
 ```tcsh
 # 1. Repo writable by me?
@@ -81,18 +81,18 @@ source /tmp/chopper_venv_${USER}/bin/activate.csh
 rehash
 ```
 
-If `activate.csh` is missing, the venv was reaped — recreate it with the procedure above.
+If `activate.csh` is missing, the venv was reaped -- recreate it with the procedure above.
 
 ## Gotchas
 
 - **tcsh redirection**: use `cmd |& tail` (not `cmd 2>&1 | tail`). Plain `>&` works, `2>&1` does not.
 - **`rehash`** is required in tcsh after creating or activating a venv, or `which pytest` will report `Command not found.` even though it exists in `$PATH`.
-- Do **not** edit `setup.csh` to point at `/tmp` — the script is shared infrastructure for the repo owner. The fallback venv is a per-user workaround that lives outside the repo.
+- Do **not** edit `setup.csh` to point at `/tmp` -- the script is shared infrastructure for the repo owner. The fallback venv is a per-user workaround that lives outside the repo.
 - Do **not** commit anything from this procedure. It produces no repo changes; it only enables the gate to run.
 - If `pip install` still fails on `/tmp` (rare), check `df -h /tmp` and try `/tmp/$USER/chopper_venv` on a different shared scratch disk.
 
 ## When to Tell the User
 
-Mention it once, briefly, when reporting test results — so they know why the standard `source setup.csh` path was skipped. Example:
+Mention it once, briefly, when reporting test results -- so they know why the standard `source setup.csh` path was skipped. Example:
 
 > Used a fallback venv at `/tmp/chopper_venv_${USER}` because the checkout is owned by another user and `setup.csh` couldn't create `.venv` in-tree.

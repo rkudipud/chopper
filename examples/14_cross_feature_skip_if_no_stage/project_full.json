@@ -11,8 +11,8 @@
   ],
   "notes": [
     "This project loads ALL features: dft, power, and coverage_reporting.",
-    "coverage_reporting injects into main, dft_check, and power_check — all present.",
-    "No skip needed — all actions succeed. No VI-05 emitted.",
+    "coverage_reporting injects into main, dft_check, and power_check -- all present.",
+    "No skip needed -- all actions succeed. No VI-05 emitted.",
     "Result: exit 0 with zero skipped actions."
   ]
 }

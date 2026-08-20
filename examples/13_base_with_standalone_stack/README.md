@@ -1,9 +1,9 @@
-# Example 13 — Aggregate stack + per-stage standalone stack
+# Example 13 -- Aggregate stack + per-stage standalone stack
 
 Mixes `options.generate_stack: true` (aggregate) with one stage that sets
 `standalone_stack: true` (verbatim per-stage stack file).
 
-**Inputs:** [jsons/base.json](jsons/base.json) declares two stages —
+**Inputs:** [jsons/base.json](jsons/base.json) declares two stages --
 `setup` and `eco_apply_patch`. The aggregate flag is on, and
 `eco_apply_patch` additionally opts in to its own standalone stack
 file.
@@ -34,17 +34,17 @@ bash $ward/apply.sh
 The standalone file is the Intel header + one blank line + the `steps`
 array joined by `\n`, verbatim. `command`, `exit_codes`,
 `dependencies`, `inputs`, `outputs`, `load_from`, and `run_mode` are
-**ignored** for the standalone file — they affect only the aggregate
+**ignored** for the standalone file -- they affect only the aggregate
 record.
 
-**Orthogonality summary (per [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) §3.6):**
+**Orthogonality summary (per [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) Sec.3.6):**
 
 | `options.generate_stack` | stage `standalone_stack` | `<stage>.tcl` | `<stage>.stack` | `<basename>.stack` |
 |---|---|---|---|---|
-| false | false | ✓ | — | — |
-| false | true | ✓ | ✓ | — |
-| true | false | ✓ | — | ✓ (record for stage) |
-| true | true | ✓ | ✓ | ✓ (record for stage) |
+| false | false | ? | -- | -- |
+| false | true | ? | ? | -- |
+| true | false | ? | -- | ? (record for stage) |
+| true | true | ? | ? | ? (record for stage) |
 
 **Run it:**
 

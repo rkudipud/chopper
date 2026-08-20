@@ -1,4 +1,4 @@
-# absolute_override.tcl — Absolute proc names override namespace context
+# absolute_override.tcl -- Absolute proc names override namespace context
 
 namespace eval local {
     proc local_proc {} {

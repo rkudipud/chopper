@@ -3,7 +3,7 @@
 # a spurious PE-02 unbalanced-braces error in chopper before the
 # Dodekalogue rule-5 opener-prefix tightening landed.
 #
-# Tcl reference: Dodekalogue rule 6 (brace word) — contents of `{...}`
+# Tcl reference: Dodekalogue rule 6 (brace word) -- contents of `{...}`
 # are LITERAL bytes; `"` inside a brace word is just a byte, never a
 # quoted-word opener. The lexer-level rule that makes this work is
 # rule 5: a `"` only opens a quoted word when it appears at a real word

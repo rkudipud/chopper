@@ -1,9 +1,9 @@
 # Verbatim from sta_pt/generate_clock_arrival_reports.tcl line 32 + 168.
-# Bug: PW-11/PI-04 — DPA-name extractor absorbs `\`-continued flag args
+# Bug: PW-11/PI-04 -- DPA-name extractor absorbs `\`-continued flag args
 # into the proc-name string, producing a false PW-11 mismatch and a
 # PI-04 with a trailing `\` in the message field.
 #
-# Expected after fix: zero PW-11 and zero PI-04 against this file —
+# Expected after fix: zero PW-11 and zero PI-04 against this file --
 # the DPA target name is exactly `gen_clock_arrival_report` and matches
 # the preceding proc.
 

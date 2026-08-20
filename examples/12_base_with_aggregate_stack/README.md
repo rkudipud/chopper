@@ -1,9 +1,9 @@
-# Example 12 — Aggregate scheduler stack (`options.generate_stack: true`)
+# Example 12 -- Aggregate scheduler stack (`options.generate_stack: true`)
 
 Demonstrates the 3.3.0 aggregate stack-file contract.
 
-**Inputs:** [jsons/base.json](jsons/base.json) declares three stages — `setup`,
-`verify`, `promote` — and turns on `options.generate_stack`.
+**Inputs:** [jsons/base.json](jsons/base.json) declares three stages -- `setup`,
+`verify`, `promote` -- and turns on `options.generate_stack`.
 
 **Generated outputs (under `<domain_root>/`):**
 
@@ -41,12 +41,12 @@ J vw promote.tcl -B BLOCK -T verify -force
 D verify
 ```
 
-Notes on line derivation (per [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) §3.6):
+Notes on line derivation (per [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) Sec.3.6):
 
 - `J` is omitted when `command` is empty.
 - `L` is omitted when `exit_codes` is empty.
 - `I` / `O` are omitted when the corresponding `inputs` / `outputs` list is empty.
-- `D` derivation: `dependencies` (one line per entry) → else `load_from` → else bare `D`.
+- `D` derivation: `dependencies` (one line per entry) -> else `load_from` -> else bare `D`.
 - `R parallel` is emitted only for `run_mode: "parallel"`; serial is implicit and the line is suppressed.
 
 **Run it:**

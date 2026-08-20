@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scan.py — Collect project discovery information for the acquire-codebase-knowledge skill.
+scan.py -- Collect project discovery information for the acquire-codebase-knowledge skill.
 Run from the project root directory.
 
 Usage: python3 scan.py [OPTIONS]
@@ -580,7 +580,7 @@ def main():
                 manifest_path = Path(manifest)
                 manifest_content.append(f"--- {manifest} ---")
                 if manifest == "bun.lockb":
-                    manifest_content.append("[Binary lockfile — see package.json for dependency details.]")
+                    manifest_content.append("[Binary lockfile -- see package.json for dependency details.]")
                 else:
                     manifest_content.append(read_file_preview(manifest_path))
             print_section("STACK DETECTION (manifest files)", manifest_content, output_file)

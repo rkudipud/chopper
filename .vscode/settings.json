@@ -1,7 +1,7 @@
 {
   // JSON Schema wiring for Chopper authoring files. Gives schema-driven
   // completion, validation, and hover documentation in any `base.json`,
-  // `*.feature.json`, or `project.json` opened in this workspace —
+  // `*.feature.json`, or `project.json` opened in this workspace --
   // including every file under `examples/` and any customer JSON the
   // user drops at the repo root or in a `jsons/` subdirectory.
   //

@@ -71,14 +71,14 @@ class TestResolveFeatureNames:
         assert result.resolved_paths[1] == Path("jsons/features/power.feature.json")
 
     def test_empty_features_dir(self, tmp_path: Path) -> None:
-        """No .feature.json files → name not found."""
+        """No .feature.json files -> name not found."""
         domain = tmp_path
         (domain / "jsons" / "features").mkdir(parents=True)
         result = resolve_feature_names("dft", domain)
         assert "dft" in result.unresolved_names
 
     def test_no_features_dir(self, tmp_path: Path) -> None:
-        """Missing jsons/features dir → name not found."""
+        """Missing jsons/features dir -> name not found."""
         result = resolve_feature_names("dft", tmp_path)
         assert "dft" in result.unresolved_names
 

@@ -1,6 +1,6 @@
-# Chopper — Testing Strategy
+# Chopper -- Testing Strategy
 
-> **Scope:** §1–§3 apply from Stage 1 (Parser) onward; §4 applies from Stage 3 (Trimmer) onward.
+> **Scope:** Sec.1-Sec.3 apply from Stage 1 (Parser) onward; Sec.4 applies from Stage 3 (Trimmer) onward.
 
 Stage boundaries used throughout this document:
 
@@ -21,15 +21,15 @@ A scenario tagged with a stage must pass before that module is declared complete
 
 | Module | Target | CI gate |
 | --- | --- | --- |
-| `parser/` | ≥ 85% branch | ✅ enforced via `--cov-fail-under` |
-| `compiler/` | ≥ 80% branch | ✅ |
-| `trimmer/` | ≥ 80% branch | ✅ |
-| `validator/` | ≥ 75% branch | ✅ |
-| `core/` | ≥ 80% branch | ✅ |
-| `config/` | ≥ 85% branch | ✅ |
-| `cli/` | ≥ 70% line | ✅ |
-| **Full suite (`make ci`)** | **100% line + branch** | ✅ `--cov-fail-under=100` on the aggregate `test` target |
-| **Fast unit-only gate (`make check`)** | **≥ 99.8% line** | ✅ `--cov-fail-under=99.8` (pyproject default) |
+| `parser/` | >= 85% branch | [OK] enforced via `--cov-fail-under` |
+| `compiler/` | >= 80% branch | [OK] |
+| `trimmer/` | >= 80% branch | [OK] |
+| `validator/` | >= 75% branch | [OK] |
+| `core/` | >= 80% branch | [OK] |
+| `config/` | >= 85% branch | [OK] |
+| `cli/` | >= 70% line | [OK] |
+| **Full suite (`make ci`)** | **100% line + branch** | [OK] `--cov-fail-under=100` on the aggregate `test` target |
+| **Fast unit-only gate (`make check`)** | **>= 99.8% line** | [OK] `--cov-fail-under=99.8` (pyproject default) |
 
 Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 
@@ -45,14 +45,14 @@ Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 
 ### 2.2 Integration Tests (`tests/integration/`)
 
-- Use the `ChopperSubprocess` harness (§4) and mini-domain fixtures (§3).
-- Test full end-to-end pipelines: validate → trim → cleanup.
-- Named scenarios (see §5).
+- Use the `ChopperSubprocess` harness (Sec.4) and mini-domain fixtures (Sec.3).
+- Test full end-to-end pipelines: validate -> trim -> cleanup.
+- Named scenarios (see Sec.5).
 
 ### 2.3 Property Tests (`tests/property/`)
 
 - Use `hypothesis` (configured in `pyproject.toml` with `max_examples=200`).
-- See §6 for property definitions.
+- See Sec.6 for property definitions.
 
 ---
 
@@ -231,14 +231,14 @@ Scenario numbering is stable within this document; each scenario below names the
 | 2 | Re-trim with same selection | Stage 3 | State=TRIMMED; output byte-identical to first trim |
 | 3 | Re-trim with different features | Stage 3 | State=TRIMMED; new manifest differs from first |
 | 4 | Cleanup after trim | Stage 3 | State=CLEANED; `domain_backup/` absent |
-| ~~5–9~~ | ~~Crash at each of 5 state transitions~~ | *Deferred* | *See note below* |
+| ~~5-9~~ | ~~Crash at each of 5 state transitions~~ | *Deferred* | *See note below* |
 | 10 | Dry-run produces no filesystem changes | Stage 3 | No `domain_backup/`; no `.chopper/` |
 | 11a | `--project` path resolution is correct | Stage 5 | Resolved base/features match expected paths |
 | 11b | `--project` trim file list matches `--base/--features` | Stage 5 | Identical file trees |
 | 11c | `--project` audit artifact `input_project.json` present | Stage 5 | Exact copy of project JSON |
 | 12 | Feature order preserved in manifest | Stage 5 | `feature_json_paths` in manifest matches CLI order |
 | 13 | Include-wins enforcement | Stage 2 | PI+ always superset of PI |
-| 14 | Trace cycle (A→B→A) | Stage 2 | `TW-04 cycle-in-call-graph` WARNING emitted listing the cycle path; BFS terminates via visited-set; cycle procs appear in `dependency_graph.json` only when already reachable from explicit PI — they are NOT auto-copied into the trimmed domain |
+| 14 | Trace cycle (A->B->A) | Stage 2 | `TW-04 cycle-in-call-graph` WARNING emitted listing the cycle path; BFS terminates via visited-set; cycle procs appear in `dependency_graph.json` only when already reachable from explicit PI -- they are NOT auto-copied into the trimmed domain |
 | 15 | Empty domain (no procs) | Stage 2 | 0 procs after trim; no error |
 | 16 | Re-trim discards manual edits | Stage 3 | Fixed pre-flight warning emitted; rerun rebuilds from `<domain>_backup/` rather than preserving edits in `<domain>/` |
 | 17 | `--strict` escalates `VW-16 step-source-missing` to ERROR | Stage 4 | exit code 1 when F3 references trimmed step file |
@@ -247,14 +247,14 @@ Scenario numbering is stable within this document; each scenario below names the
 | 20 | `template_script` field removed in v1 | Stage 4 | Schema rejects `options.template_script` as `additionalProperties: false`; domain owners run their own generation scripts outside Chopper (see `FD-12`) |
 | 21 | Dry-run artifact set | Stage 2 | `compiled_manifest.json`, `dependency_graph.json`, `trim_report.json`, `trim_report.txt` all emitted with documented fields; no domain files written |
 | **22** | **Re-trim idempotency** | Stage 3 | `compiled_manifest.json` hash identical across two identical-input runs; trimmed files byte-identical |
-| 23 | Overlay model — later layer's PE shadows base PI | Stage 2 | Base includes proc; later feature `procedures.exclude` removes it; final manifest drops the proc; `VW-21 layer-shadowed` warning emitted with `(layer, prior_layer, action="remove-proc")` provenance |
-| 24 | Overlay model — later layer's PI re-includes a previously-excluded proc | Stage 2 | Base PE excludes proc `foo`; later feature PI re-includes `foo`; final manifest keeps `foo`; `VW-21 layer-shadowed` warning emitted (the feature shadowed the base PE) |
+| 23 | Overlay model -- later layer's PE shadows base PI | Stage 2 | Base includes proc; later feature `procedures.exclude` removes it; final manifest drops the proc; `VW-21 layer-shadowed` warning emitted with `(layer, prior_layer, action="remove-proc")` provenance |
+| 24 | Overlay model -- later layer's PI re-includes a previously-excluded proc | Stage 2 | Base PE excludes proc `foo`; later feature PI re-includes `foo`; final manifest keeps `foo`; `VW-21 layer-shadowed` warning emitted (the feature shadowed the base PE) |
 | 25 | Overlay audit-trail visibility | Stage 2 | `compiled_manifest.json` records `contributed_by` (last winning layer) and `shadowed_by[]` (every transition); `files_kept.txt` shows the `contributed_by` token; `files_removed.txt` shows `removed-by:<layer>:files.exclude` for files removed by a later layer |
 | 26 | `VE-27 no-op-exclude` catches typo-class excludes | Stage 4 | Feature lists `files.exclude` (or `procedures.exclude`) entry that matches nothing in any earlier layer's running set and matches nothing on disk via glob; validator emits `VE-27` and exits 1 |
 | 27 | `project.json` features ordering authoritative for F1, F2, **and** F3 | Stage 2 | Swapping the order of two features in `project.features[]` changes the `compiled_manifest.json` for files/procs the two features touch in conflicting ways (was F3-only in 1.x); identical orderings yield byte-identical manifests |
 | 28 | Same-layer rules unaffected by overlay model | Stage 2 | Within one JSON, `VW-09` / `VW-11` / `VW-12` / `VW-13` still fire for the same-source authoring conveniences they always covered; cross-layer transitions surface as `VW-21` instead |
 
-> **Deferred — Scenarios 5–9 (crash-injection).** Forcing failure at each of the 5 state transitions (P5/P6 boundary) and asserting `assert_domain_recoverable` is deferred post-D0. The backup/rebuild model (architecture doc §2.8 Case 2) handles crash recovery at the operator level: a user rebuilds from `<domain>_backup/`. These tests may be added in a future hardening phase.
+> **Deferred -- Scenarios 5-9 (crash-injection).** Forcing failure at each of the 5 state transitions (P5/P6 boundary) and asserting `assert_domain_recoverable` is deferred post-D0. The backup/rebuild model (architecture doc Sec.2.8 Case 2) handles crash recovery at the operator level: a user rebuilds from `<domain>_backup/`. These tests may be added in a future hardening phase.
 
 ---
 
@@ -303,7 +303,7 @@ def test_parser_canonical_name_uniqueness(proc_entries):
 ```python
 @given(...)
 def test_compiler_determinism(base_json, feature_jsons, domain):
-    """Same selection → identical CompiledManifest (excluding timestamps)."""
+    """Same selection -> identical CompiledManifest (excluding timestamps)."""
     manifest1 = compile(base_json, feature_jsons, domain)
     manifest2 = compile(base_json, feature_jsons, domain)
     assert manifest1.files == manifest2.files
@@ -343,4 +343,4 @@ def test_compiler_f1_f2_order_independence(feature_order):
     )
 ```
 
-Parametrize over all permutations of 2–4 independent features drawn from `tracing_domain` or `mini_domain` fixtures. The reference manifest is produced by the canonical topo-sort order.
+Parametrize over all permutations of 2-4 independent features drawn from `tracing_domain` or `mini_domain` fixtures. The reference manifest is produced by the canonical topo-sort order.

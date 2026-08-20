@@ -2,7 +2,7 @@
   "$schema": "feature-v1",
   "name": "pipeline_signoff",
   "domain": "my_domain",
-  "description": "Pipeline signoff feature. Requires both dft_support and power_analysis — it aggregates DFT scan results and power reports into a combined signoff report. Must be applied last.",
+  "description": "Pipeline signoff feature. Requires both dft_support and power_analysis -- it aggregates DFT scan results and power reports into a combined signoff report. Must be applied last.",
   "depends_on": ["dft_support", "power_analysis"],
   "metadata": {
     "owner": "signoff-team",

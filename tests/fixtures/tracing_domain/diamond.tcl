@@ -1,4 +1,4 @@
-# diamond.tcl — Diamond dependency: top -> left + right -> bottom
+# diamond.tcl -- Diamond dependency: top -> left + right -> bottom
 
 proc top {} {
     left

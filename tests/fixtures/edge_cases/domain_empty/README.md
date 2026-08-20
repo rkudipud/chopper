@@ -1,4 +1,4 @@
-// marker — domain_empty fixture
+// marker -- domain_empty fixture
 // This fixture is intentionally a directory containing zero `.tcl` files.
 // It validates the P5 / P7 statistics path against `files_out=0` and
 // `procs_out=0` without division-by-zero in trim-ratio rendering.

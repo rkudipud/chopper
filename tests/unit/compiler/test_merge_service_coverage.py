@@ -308,7 +308,7 @@ def test_extract_facts_fe_glob_both_branches() -> None:
     source = BaseJson(
         source_path=Path("/w/base.json"),
         domain="d",
-        # *.tcl matches a.tcl (→ line 386); nomatch_*.txt matches nothing (→ line 388)
+        # *.tcl matches a.tcl (-> line 386); nomatch_*.txt matches nothing (-> line 388)
         files=FilesSection(include=("a.tcl",), exclude=("*.tcl", "nomatch_*.txt")),
         options=BaseOptions(),
     )

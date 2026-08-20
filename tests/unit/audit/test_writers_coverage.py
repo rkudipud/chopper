@@ -335,7 +335,7 @@ def test_p4_commands_ctx_ward_root_fallback() -> None:
     t0 = datetime(2026, 1, 1, tzinfo=UTC)
     record = RunRecord(run_id="r", command="trim", started_at=t0, ended_at=t0, exit_code=0)
 
-    # Call with ward_root=None (default) — must fall back to ctx.config.ward_root.
+    # Call with ward_root=None (default) -- must fall back to ctx.config.ward_root.
     _name, content = render_p4_commands(ctx2, record, ward_root=None)
     # No Perforce commands (empty manifest) but function must complete without error.
     assert "(no Perforce commands" in content
@@ -366,7 +366,7 @@ def test_format_exclusion_path_falls_back_to_ctx_ward_root() -> None:
 
 
 def test_p4_commands_ward_relative_exclude_paths() -> None:
-    """Lines 575-579, 617-621: domain under ward_root → exclude_file_list uses ward-relative paths."""
+    """Lines 575-579, 617-621: domain under ward_root -> exclude_file_list uses ward-relative paths."""
     from datetime import datetime
 
     from chopper.audit.writers import render_p4_commands
@@ -413,7 +413,7 @@ def test_p4_commands_ward_relative_exclude_paths() -> None:
 
 
 def test_p4_commands_ward_prefix_valueerror_falls_back_to_domain_relative() -> None:
-    """Lines 577-579: domain_root not under ward_root → relative_to raises ValueError,
+    """Lines 577-579: domain_root not under ward_root -> relative_to raises ValueError,
     _ward_prefix falls back to None and domain-relative paths are used."""
     from datetime import datetime
 
@@ -423,7 +423,7 @@ def test_p4_commands_ward_prefix_valueerror_falls_back_to_domain_relative() -> N
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
 
-    # domain is NOT under ward → relative_to raises ValueError
+    # domain is NOT under ward -> relative_to raises ValueError
     ward = Path("/unrelated_ward")
     domain = Path("/some/other/domain")
     backup = domain.with_name(domain.name + "_backup")
@@ -454,6 +454,6 @@ def test_p4_commands_ward_prefix_valueerror_falls_back_to_domain_relative() -> N
     t0 = datetime(2026, 1, 1, tzinfo=UTC)
     record = RunRecord(run_id="r", command="trim", started_at=t0, ended_at=t0, exit_code=0, manifest=manifest)
 
-    # Ward-root is set but domain is not under it → domain-relative paths used.
+    # Ward-root is set but domain is not under it -> domain-relative paths used.
     _name, content = render_p4_commands(ctx2, record, ward_root=ward)
     assert "lib/old.tcl" in content  # domain-relative path

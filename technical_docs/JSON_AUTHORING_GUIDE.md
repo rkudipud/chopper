@@ -1,6 +1,6 @@
 # Chopper JSON Authoring Guide
 
-**Standalone edition — no Chopper runtime required.**  
+**Standalone edition -- no Chopper runtime required.**  
 Use this guide to author and validate all three Chopper JSON types before Chopper is available.
 
 ---
@@ -8,14 +8,14 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 ## Contents
 
 1. [The Three JSON Types](#1-the-three-json-types)
-2. [Stack File Semantics — N J L I O D R](#2-stack-file-semantics)
-3. [Base JSON — Complete Field Reference](#3-base-json)
-4. [Feature JSON — Complete Field Reference](#4-feature-json)
-5. [Project JSON — Complete Field Reference](#5-project-json)
+2. [Stack File Semantics -- N J L I O D R](#2-stack-file-semantics)
+3. [Base JSON -- Complete Field Reference](#3-base-json)
+4. [Feature JSON -- Complete Field Reference](#4-feature-json)
+5. [Project JSON -- Complete Field Reference](#5-project-json)
 6. [Feature Dependency Chains (depends_on)](#6-feature-dependency-chains)
 7. [Flow Actions Reference](#7-flow-actions-reference)
 8. [Authoring Rules and Constraints](#8-authoring-rules-and-constraints)
-9. [Decision Guide — Which JSON to Use](#9-decision-guide)
+9. [Decision Guide -- Which JSON to Use](#9-decision-guide)
 10. [Validation Workflow](#10-validation-workflow)
 11. [Common Mistakes](#11-common-mistakes)
 
@@ -33,13 +33,13 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 
 ```
 project.json
-  └── jsons/base.json                           (one, required)
-  └── jsons/features/feature_a.feature.json    (optional)
-  └── jsons/features/feature_b.feature.json    (optional)
-  └── jsons/features/feature_c.feature.json    (optional)
+  ??? jsons/base.json                           (one, required)
+  ??? jsons/features/feature_a.feature.json    (optional)
+  ??? jsons/features/feature_b.feature.json    (optional)
+  ??? jsons/features/feature_c.feature.json    (optional)
 ```
 
-Feature order in the project file is **authoritative for everything** — F1 (file trimming), F2 (proc trimming), and F3 (flow_actions). The base is layer 0; each entry of `project.features[]` is the next layer in declared order. Layers are folded as an **ordered overlay**: the last layer that mentions a file or proc wins. Reordering features can therefore change which files and procs survive (an earlier feature's include may be cancelled by a later feature's exclude, and vice versa). `depends_on` validation also uses this order: each prerequisite must appear earlier in the list.
+Feature order in the project file is **authoritative for everything** -- F1 (file trimming), F2 (proc trimming), and F3 (flow_actions). The base is layer 0; each entry of `project.features[]` is the next layer in declared order. Layers are folded as an **ordered overlay**: the last layer that mentions a file or proc wins. Reordering features can therefore change which files and procs survive (an earlier feature's include may be cancelled by a later feature's exclude, and vice versa). `depends_on` validation also uses this order: each prerequisite must appear earlier in the list.
 
 ### Starting from `examples/`
 
@@ -86,7 +86,7 @@ When stages are defined in a base or feature JSON, Chopper generates one `<stage
 | `inputs` | `I <artifact>` | `I $ward/runs/BLOCK/TECH/release/latest/finish/design.v.gz` |
 | `outputs` | `O <artifact>` | `O $ward/runs/BLOCK/TECH/my_domain/outputs/result.rpt` |
 
-**Example — direct translation from stack file to JSON stage:**
+**Example -- direct translation from stack file to JSON stage:**
 
 Stack file (`run_analysis.stack`):
 ```
@@ -112,7 +112,7 @@ Equivalent JSON stage definition:
 ```
 
 > **What Chopper emits:**  
-> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to additionally emit one aggregate `<basename(domain_root)>.stack` containing one record per stage — record order is the **topological sort** of the stage dependency graph (`dependencies` ∪ `{load_from}` edges); see the auto-generation subsection below. For wrapper stages whose `steps` are themselves a verbatim scheduler record, set `standalone_stack: true` on the stage to emit `<stage>.stack` **instead of** `<stage>.tcl` (the standalone stack becomes the stage's sole driver).
+> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to additionally emit one aggregate `<basename(domain_root)>.stack` containing one record per stage -- record order is the **topological sort** of the stage dependency graph (`dependencies` ? `{load_from}` edges); see the auto-generation subsection below. For wrapper stages whose `steps` are themselves a verbatim scheduler record, set `standalone_stack: true` on the stage to emit `<stage>.stack` **instead of** `<stage>.tcl` (the standalone stack becomes the stage's sole driver).
 >
 > **Note on `load_from` vs `dependencies`:**  
 > `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). It is **not** the stack `D` line.  
@@ -122,7 +122,7 @@ Equivalent JSON stage definition:
 
 ### 2.1 Auto-generation via `options.generate_stack`
 
-Set `"generate_stack": true` in the base JSON `options` block to have Chopper assemble **one** aggregate scheduler stack file at the domain root named `<basename(domain_root)>.stack` (filename sourced from the runtime domain-root basename — there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage, with records separated by a single blank line. **Record order is the topological sort of the stage dependency graph**, *not* authored order — see the ordering rules below. The flag has no effect when the base declares no stages.
+Set `"generate_stack": true` in the base JSON `options` block to have Chopper assemble **one** aggregate scheduler stack file at the domain root named `<basename(domain_root)>.stack` (filename sourced from the runtime domain-root basename -- there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage, with records separated by a single blank line. **Record order is the topological sort of the stage dependency graph**, *not* authored order -- see the ordering rules below. The flag has no effect when the base declares no stages.
 
 ```json
 {
@@ -139,7 +139,7 @@ Set `"generate_stack": true` in the base JSON `options` block to have Chopper as
 ####################################################################################################
 # INTEL CONFIDENTIAL
 # Copyright (c) <YEAR> Intel Corporation
-# ... (full Intel notice; see ARCHITECTURE.md §6.6.1)
+# ... (full Intel notice; see ARCHITECTURE.md Sec.6.6.1)
 ####################################################################################################
 
 # Chopper-generated stack: <stage1.name>
@@ -155,39 +155,39 @@ R parallel             # only when run_mode == "parallel"; omitted for serial
 ...
 ```
 
-Per-record line order is fixed: `N` → `J` → `L` → `I` → `O` → `D` → (optional `R parallel`). The `R` line is **omitted** for the default `serial` mode (matches the production stack-file convention — no reference `.stack` file emits an `R` line for serial stages). The Intel header appears once at the top of the file regardless of how many records follow. The provenance line (`# Chopper-generated stack: <name>`) precedes every record so audit consumers can correlate.
+Per-record line order is fixed: `N` -> `J` -> `L` -> `I` -> `O` -> `D` -> (optional `R parallel`). The `R` line is **omitted** for the default `serial` mode (matches the production stack-file convention -- no reference `.stack` file emits an `R` line for serial stages). The Intel header appears once at the top of the file regardless of how many records follow. The provenance line (`# Chopper-generated stack: <name>`) precedes every record so audit consumers can correlate.
 
 **`D`-line derivation (in order):**
 
-1. If `dependencies` is non-empty → one `D <dep>` line per entry, in authored order.
-2. Else if `load_from` is non-empty → a single `D <load_from>` line.
-3. Else → a bare `D` line (first stage, no predecessor).
+1. If `dependencies` is non-empty -> one `D <dep>` line per entry, in authored order.
+2. Else if `load_from` is non-empty -> a single `D <load_from>` line.
+3. Else -> a bare `D` line (first stage, no predecessor).
 
-The aggregate `<domain>.stack` participates in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like generated `.tcl` files (treatment `GENERATED`, reason `fi-literal`). If a stage in the aggregate has an empty `command` (the `J` line is omitted), Chopper emits `VW-23 stack-stage-empty-command` — the scheduler will almost certainly reject that record at runtime.
+The aggregate `<domain>.stack` participates in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like generated `.tcl` files (treatment `GENERATED`, reason `fi-literal`). If a stage in the aggregate has an empty `command` (the `J` line is omitted), Chopper emits `VW-23 stack-stage-empty-command` -- the scheduler will almost certainly reject that record at runtime.
 
-**Record ordering — topological sort.** Records in the aggregate stack are emitted in topological order over the stage dependency graph. For each stage `S`, the incoming edges are the union of (1) `P → S` for every `P` in `S.dependencies` and (2) `S.load_from → S` when `S.load_from` is non-empty. Ordering uses Kahn's algorithm with **authored position** as the tiebreaker: among stages of equal in-degree at any step, the one declared earliest in the resolved `stages` array wins. This is fully deterministic and preserves authoring intent for unrelated subgraphs.
+**Record ordering -- topological sort.** Records in the aggregate stack are emitted in topological order over the stage dependency graph. For each stage `S`, the incoming edges are the union of (1) `P -> S` for every `P` in `S.dependencies` and (2) `S.load_from -> S` when `S.load_from` is non-empty. Ordering uses Kahn's algorithm with **authored position** as the tiebreaker: among stages of equal in-degree at any step, the one declared earliest in the resolved `stages` array wins. This is fully deterministic and preserves authoring intent for unrelated subgraphs.
 
-**Cycles and dangling references are hard errors** — they fire whenever `stages` is non-empty, regardless of `generate_stack`:
+**Cycles and dangling references are hard errors** -- they fire whenever `stages` is non-empty, regardless of `generate_stack`:
 
-* `VE-30 stage-dependency-cycle` — the graph contains a cycle (including a self-loop where a stage names itself in `dependencies` or `load_from`). Compilation aborts with exit 1. The diagnostic names the cycle in the order discovered.
-* `VE-31 stage-dependency-unresolved` — a `dependencies` entry or `load_from` reference names a stage that does not exist in the resolved flow. The diagnostic names the referrer, the unresolved name, and which field carried it.
+* `VE-30 stage-dependency-cycle` -- the graph contains a cycle (including a self-loop where a stage names itself in `dependencies` or `load_from`). Compilation aborts with exit 1. The diagnostic names the cycle in the order discovered.
+* `VE-31 stage-dependency-unresolved` -- a `dependencies` entry or `load_from` reference names a stage that does not exist in the resolved flow. The diagnostic names the referrer, the unresolved name, and which field carried it.
 
 Break cycles by removing the offending edge; resolve unresolved references by defining the missing stage or correcting the name.
 
 ### 2.2 Per-stage standalone stacks via `standalone_stack`
 
-A stage may set `"standalone_stack": true` (default `false`) to emit a `<stage>.stack` whose body is the Intel header followed by the authored `steps` verbatim — no N/J/L/D record derivation. This is the right surface for wrapper stages whose `steps` field already encodes a scheduler-format record (ECO hooks, scheduler-only sub-flows).
+A stage may set `"standalone_stack": true` (default `false`) to emit a `<stage>.stack` whose body is the Intel header followed by the authored `steps` verbatim -- no N/J/L/D record derivation. This is the right surface for wrapper stages whose `steps` field already encodes a scheduler-format record (ECO hooks, scheduler-only sub-flows).
 
 The flag **suppresses** that stage's `<stage>.tcl`: the standalone stack becomes the stage's sole driver. The stage is still included as a derived record in the aggregate `<domain>.stack` when `options.generate_stack` is on, and its `dependencies` / `load_from` edges still participate in the topological ordering. The four combinations:
 
 | `options.generate_stack` | stage `standalone_stack` | Artifacts emitted for this stage |
 |---|---|---|
 | `false` | `false` | `<stage>.tcl` |
-| `false` | `true` | `<stage>.stack` (verbatim `steps`) — **no `<stage>.tcl`** |
+| `false` | `true` | `<stage>.stack` (verbatim `steps`) -- **no `<stage>.tcl`** |
 | `true` | `false` | `<stage>.tcl` + record in `<domain>.stack` (topological order) |
-| `true` | `true` | `<stage>.stack` (verbatim `steps`) + record in `<domain>.stack` — **no `<stage>.tcl`** |
+| `true` | `true` | `<stage>.stack` (verbatim `steps`) + record in `<domain>.stack` -- **no `<stage>.tcl`** |
 
-Working example: a stage that wraps an external scheduler invocation —
+Working example: a stage that wraps an external scheduler invocation --
 
 ```json
 {
@@ -239,7 +239,7 @@ A standalone `<stage>.stack` collision with `files.*` entries or with the aggreg
 | `description` | string | No | Human-readable summary |
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
 | `options.indent` | boolean | No | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Default: `false` (skip indentation entirely). |
-| `options.generate_stack` | boolean | No | Emit aggregate `<basename(domain_root)>.stack` with one record per stage (see §2.1). Default: `false` |
+| `options.generate_stack` | boolean | No | Emit aggregate `<basename(domain_root)>.stack` with one record per stage (see Sec.2.1). Default: `false` |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
@@ -284,16 +284,16 @@ A standalone `<stage>.stack` collision with `files.*` entries or with the aggreg
 | Field | Required | Stack line | Notes |
 |-------|----------|-----------|-------|
 | `name` | Yes | `N` | Unique within domain |
-| `load_from` | Yes | — | Data predecessor for generated script; can be empty string |
-| `steps` | Yes | — | Ordered step strings written into `<stage>.tcl` |
+| `load_from` | Yes | -- | Data predecessor for generated script; can be empty string |
+| `steps` | Yes | -- | Ordered step strings written into `<stage>.tcl` |
 | `command` | No | `J` | Scheduler job command |
 | `exit_codes` | No | `L` | Legal exit codes (integers) |
 | `dependencies` | No | `D` | Scheduler dependency (parent task names) |
 | `inputs` | No | `I` | Input artifact markers |
 | `outputs` | No | `O` | Output artifact markers |
 | `run_mode` | No | `R` | `"serial"` (default) or `"parallel"`. Aggregate stack emits `R parallel` only when set to `"parallel"`; serial is implicit. |
-| `language` | No | — | `"tcl"` (default) or `"python"` |
-| `standalone_stack` | No | — | When `true`, additionally emit `<stage>.stack` with the authored `steps` verbatim (see §2.2). Orthogonal to `options.generate_stack` and to `<stage>.tcl` emission. Default: `false`. |
+| `language` | No | -- | `"tcl"` (default) or `"python"` |
+| `standalone_stack` | No | -- | When `true`, additionally emit `<stage>.stack` with the authored `steps` verbatim (see Sec.2.2). Orthogonal to `options.generate_stack` and to `<stage>.tcl` emission. Default: `false`. |
 
 ---
 
@@ -321,7 +321,7 @@ A standalone `<stage>.stack` collision with `files.*` entries or with the aggreg
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `$schema` | `"feature-v1"` | Yes | Schema identifier |
-| `name` | string | Yes | Feature identifier — referenced by `depends_on` and project `features` list |
+| `name` | string | Yes | Feature identifier -- referenced by `depends_on` and project `features` list |
 | `domain` | string | No | Target domain. If set, Chopper warns if mismatched with selected base |
 | `description` | string | No | Human-readable summary |
 | `depends_on` | string[] | No | Prerequisite feature names (must appear earlier in project) |
@@ -367,7 +367,7 @@ A standalone `<stage>.stack` collision with `files.*` entries or with the aggreg
 |-------|------|----------|-------------|
 | `$schema` | `"project-v1"` | Yes | Schema identifier |
 | `project` | string | Yes | Project identifier (e.g., `PROJECT_ABC`) |
-| `domain` | string | Yes | Domain identifier — must match base `domain` field |
+| `domain` | string | Yes | Domain identifier -- must match base `domain` field |
 | `base` | string | Yes | Domain-relative path to the base JSON |
 | `owner` | string | No | Project owner |
 | `release_branch` | string | No | Git branch for this trim |
@@ -396,19 +396,19 @@ All paths in `base` and `features` must be:
 3. Each prerequisite must appear **earlier** in the list than the feature declaring the dependency.
 4. Chopper validates this at project-level (`VE-15 missing-depends-on-feature` and `VE-16 depends-on-out-of-order`).
 
-### Example — three-level chain
+### Example -- three-level chain
 
 ```json
-// dft_support.feature.json — no prerequisites
+// dft_support.feature.json -- no prerequisites
 { "$schema": "feature-v1", "name": "dft_support", ... }
 
-// power_analysis.feature.json — needs dft first
+// power_analysis.feature.json -- needs dft first
 { "$schema": "feature-v1", "name": "power_analysis", "depends_on": ["dft_support"], ... }
 
-// pipeline_signoff.feature.json — needs both
+// pipeline_signoff.feature.json -- needs both
 { "$schema": "feature-v1", "name": "pipeline_signoff", "depends_on": ["dft_support", "power_analysis"], ... }
 
-// project.json — order must respect all depends_on
+// project.json -- order must respect all depends_on
 {
   "$schema": "project-v1",
   "project": "FULL_SIGNOFF",
@@ -416,13 +416,13 @@ All paths in `base` and `features` must be:
   "base": "jsons/base.json",
   "features": [
     "jsons/features/dft_support.feature.json",       // position 1: no deps
-    "jsons/features/power_analysis.feature.json",    // position 2: dft_support at 1 ✓
-    "jsons/features/pipeline_signoff.feature.json"   // position 3: both above ✓
+    "jsons/features/power_analysis.feature.json",    // position 2: dft_support at 1 ?
+    "jsons/features/pipeline_signoff.feature.json"   // position 3: both above ?
   ]
 }
 ```
 
-**Invalid ordering** — would fail validation:
+**Invalid ordering** -- would fail validation:
 
 ```json
 "features": [
@@ -521,8 +521,8 @@ Cross-cutting features often inject steps into stages that may not be loaded in 
 - Example: `sequential_const_check` injects into `eco_pre_synth` (created by `fm_eco`). When `fm_eco` is not selected, the injection is correctly skipped.
 
 **When NOT to use:**
-- The action targets a base stage (always present — no skip needed).
-- The action targets a stage created earlier in the same feature (intra-feature chaining — always present by top-to-bottom application).
+- The action targets a base stage (always present -- no skip needed).
+- The action targets a stage created earlier in the same feature (intra-feature chaining -- always present by top-to-bottom application).
 
 `skip_if_no_stage` is accepted on every flow_action variant: `add_step_before`, `add_step_after`, `remove_step`, `replace_step`, `add_stage_before`, `add_stage_after`, `remove_stage`, `replace_stage`, `load_from`.
 
@@ -585,9 +585,9 @@ Glob patterns support three special characters to match multiple files:
 
 ### Arrays
 
-- `files.include` / `files.exclude`: `minItems: 1` — never leave empty arrays
+- `files.include` / `files.exclude`: `minItems: 1` -- never leave empty arrays
 - `procedures.include` / `procedures.exclude`: `minItems: 1`
-- `procedures[*].procs`: `minItems: 1` — use `files.include` for whole-file inclusion
+- `procedures[*].procs`: `minItems: 1` -- use `files.include` for whole-file inclusion
 - `stages`: `minItems: 1`
 - `flow_actions`: `minItems: 1`
 - `dependencies`, `exit_codes`, `inputs`, `outputs`, `steps`: all `minItems: 1`
@@ -598,25 +598,25 @@ Glob patterns support three special characters to match multiple files:
 "dependencies": ["setup"]
 ```
 
-**Wrong — will fail schema validation:**
+**Wrong -- will fail schema validation:**
 ```json
 "dependencies": []
 ```
 
 ### Merge and conflict semantics (when Chopper runs)
 
-**F1/F2/F3 — Ordered Overlay (later layer wins):**
+**F1/F2/F3 -- Ordered Overlay (later layer wins):**
 1. Within a single layer, literal `files.include` beats matching `files.exclude`; glob `files.include` is pruned by matching `files.exclude` (set subtraction). Same-layer FI+FE subtraction is intentional and does not raise `VE-27` by itself.
 2. Across layers, the **base is layer 0** and each entry of `project.features[]` is the next layer in declared order. Layers are folded left-to-right and the last layer that mentions a file/proc/step **wins**.
 3. A later layer's `files.exclude` / `procedures.exclude` can therefore remove content contributed by an earlier layer; a later layer's `files.include` / `procedures.include` can re-add content removed by an earlier layer; and a later layer's `flow_actions` see the cumulative result of all preceding layers.
 4. Every transition that actually changes a prior decision (cancelled include, removed proc, downgraded whole-file include) emits `VW-21 layer-shadowed` with `(layer, prior_layer, action)` provenance recorded in the audit bundle.
 5. `depends_on` ordering is validated: each prerequisite feature must appear earlier in the `features` list than the dependent feature.
 
-> **F1/F2/F3 Aggregation — Ordered Overlay, Later Layer Wins**
+> **F1/F2/F3 Aggregation -- Ordered Overlay, Later Layer Wins**
 > All `files.include`, `files.exclude`, `procedures.include`, `procedures.exclude`, and `flow_actions` selections are folded as an ordered overlay: base first, then each feature in declared order. Reordering features in the project file **does** change which files and procs are included in the trimmed domain, because a later layer can cancel or replace an earlier layer's contribution. The compiler emits `VW-21 layer-shadowed` for every transition that actually changes a prior decision.
 >
-> **Trace is logging-only — it does not copy procs.**
-> Chopper's P4 trace expansion walks your `procedures.include` set to build a call tree (`dependency_graph.json`) and emit `TW-*` warnings. Traced callees appear in the call tree and in `trim_report.json`, but **only procs explicitly listed in `procedures.include`** (or whole-file-included via `files.include`) by the winning layer are copied into the trimmed domain. Example: if you list `foo` and `foo` calls `bar`, `foo` is copied and `bar` is logged. To keep `bar`, list it explicitly. This is why `procedures.exclude` never needs to "hide" traced callees — they were never going to be copied.
+> **Trace is logging-only -- it does not copy procs.**
+> Chopper's P4 trace expansion walks your `procedures.include` set to build a call tree (`dependency_graph.json`) and emit `TW-*` warnings. Traced callees appear in the call tree and in `trim_report.json`, but **only procs explicitly listed in `procedures.include`** (or whole-file-included via `files.include`) by the winning layer are copied into the trimmed domain. Example: if you list `foo` and `foo` calls `bar`, `foo` is copied and `bar` is logged. To keep `bar`, list it explicitly. This is why `procedures.exclude` never needs to "hide" traced callees -- they were never going to be copied.
 
 **Per-file input interaction matrix:**
 
@@ -629,26 +629,26 @@ Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`)
 
 | # | FI | FE | PI | PE | Treatment | Surviving procs | Warning |
 |---|---|---|---|---|---|---|---|
-| 1 | — | — | — | — | `REMOVE` | — | — |
-| 2 | ✓ | — | — | — | `FULL_COPY` | all | — |
-| 3 | — | ✓ | — | — | `REMOVE` | — | — |
-| 4 | ✓ | ✓ | — | — | `FULL_COPY` (literal) / `REMOVE` (glob) | all / — | — |
-| 5 | — | — | ✓ | — | `PROC_TRIM` | PI only | — |
-| 6 | — | — | — | ✓ | `PROC_TRIM` | all − PE | — |
-| 7 | — | — | ✓ | ✓ | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
-| 8 | ✓ | — | ✓ | — | `FULL_COPY` | all (PI redundant) | `VW-09` |
-| 9 | ✓ | — | — | ✓ | `PROC_TRIM` | all − PE | — |
-| 10 | ✓ | — | ✓ | ✓ | `PROC_TRIM` | all − PE (PI redundant with FI) | `VW-09` |
-| 11 | — | ✓ | ✓ | — | `PROC_TRIM` | PI only (FE overridden) | — |
-| 12 | — | ✓ | — | ✓ | `REMOVE` | — | `VW-11` |
-| 13 | — | ✓ | ✓ | ✓ | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
-| 14 | ✓ | ✓ | ✓ | — | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
-| 15 | ✓ | ✓ | — | ✓ | `PROC_TRIM` (literal) / `REMOVE` (glob) | all − PE / — | — |
-| 16 | ✓ | ✓ | ✓ | ✓ | `PROC_TRIM` (literal FI) / `PROC_TRIM` (glob-only) | all − PE / PI only | `VW-09` / `VW-12` |
+| 1 | -- | -- | -- | -- | `REMOVE` | -- | -- |
+| 2 | ? | -- | -- | -- | `FULL_COPY` | all | -- |
+| 3 | -- | ? | -- | -- | `REMOVE` | -- | -- |
+| 4 | ? | ? | -- | -- | `FULL_COPY` (literal) / `REMOVE` (glob) | all / -- | -- |
+| 5 | -- | -- | ? | -- | `PROC_TRIM` | PI only | -- |
+| 6 | -- | -- | -- | ? | `PROC_TRIM` | all ? PE | -- |
+| 7 | -- | -- | ? | ? | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 8 | ? | -- | ? | -- | `FULL_COPY` | all (PI redundant) | `VW-09` |
+| 9 | ? | -- | -- | ? | `PROC_TRIM` | all ? PE | -- |
+| 10 | ? | -- | ? | ? | `PROC_TRIM` | all ? PE (PI redundant with FI) | `VW-09` |
+| 11 | -- | ? | ? | -- | `PROC_TRIM` | PI only (FE overridden) | -- |
+| 12 | -- | ? | -- | ? | `REMOVE` | -- | `VW-11` |
+| 13 | -- | ? | ? | ? | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
+| 14 | ? | ? | ? | -- | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
+| 15 | ? | ? | -- | ? | `PROC_TRIM` (literal) / `REMOVE` (glob) | all ? PE / -- | -- |
+| 16 | ? | ? | ? | ? | `PROC_TRIM` (literal FI) / `PROC_TRIM` (glob-only) | all ? PE / PI only | `VW-09` / `VW-12` |
 
 **Key rules:**
-- **PE downgrades FULL_COPY:** FI + PE → `PROC_TRIM` (cases 9 and 10; literal side of 15 and 16). 100 procs minus 4 PE = 96 survive.
-- **FE + PE = both remove:** neither says "keep" → file removed (case 12). Use PE alone to keep the file.
+- **PE downgrades FULL_COPY:** FI + PE -> `PROC_TRIM` (cases 9 and 10; literal side of 15 and 16). 100 procs minus 4 PE = 96 survive.
+- **FE + PE = both remove:** neither says "keep" -> file removed (case 12). Use PE alone to keep the file.
 - **PI wins over PE only without a whole-file FI signal:** same file in PI and PE with no FI keeps PI and ignores PE (cases 7 and 13). With FI + PI + PE, PI is redundant and PE qualifies the FI contribution.
 - **PI overrides FE:** PI forces file survival regardless of FE (cases 11, 13).
 - **FI + PI (no PE) stays FULL_COPY:** PI is redundant on a fully included file (cases 8, 14).
@@ -721,7 +721,7 @@ This trace-first workflow improves explainability for users and speeds up author
 ### Stage naming
 
 - Stage `name` values must be unique within the compiled flow
-- Feature `add_stage_*` introduces new names — ensure no collision with base stage names
+- Feature `add_stage_*` introduces new names -- ensure no collision with base stage names
 - `reference` in `add_stage_after` / `add_stage_before` must match an existing stage name
 
 ---
@@ -730,32 +730,32 @@ This trace-first workflow improves explainability for users and speeds up author
 
 ```
 Does the domain have existing stack files?
-  YES → Extract N/J/L/D/I/O → Put in base.stages (or feature flow_actions)
-  NO  → Skip stages section; use files/procedures only
+  YES -> Extract N/J/L/D/I/O -> Put in base.stages (or feature flow_actions)
+  NO  -> Skip stages section; use files/procedures only
 
 Do you want file-level trimming?
-  YES → Add files.include (and optionally files.exclude) to base or feature
-  NO  → Skip files section
+  YES -> Add files.include (and optionally files.exclude) to base or feature
+  NO  -> Skip files section
 
 Do you need proc-level granularity?
-  YES → Add procedures.include (procs that MUST survive) and/or procedures.exclude (procs to remove)
-  NO  → Rely on file-level trimming only
+  YES -> Add procedures.include (procs that MUST survive) and/or procedures.exclude (procs to remove)
+  NO  -> Rely on file-level trimming only
 
 Does the change apply to ALL projects?
-  YES → Put it in base JSON
-  NO  → Create a feature JSON
+  YES -> Put it in base JSON
+  NO  -> Create a feature JSON
 
 Is the feature optional or project-specific?
-  YES → It is a feature
-  NO  → It belongs in the base
+  YES -> It is a feature
+  NO  -> It belongs in the base
 
 Does feature A require feature B to be applied first?
-  YES → Add depends_on: ["feature_b_name"] to feature A's JSON
-  NO  → No depends_on needed
+  YES -> Add depends_on: ["feature_b_name"] to feature A's JSON
+  NO  -> No depends_on needed
 
 Are you selecting which features to apply for a specific project run?
-  YES → Create a project JSON, list base path + ordered feature paths
-  NO  → Not needed (single-base-only trim)
+  YES -> Create a project JSON, list base path + ordered feature paths
+  NO  -> Not needed (single-base-only trim)
 ```
 
 When using an agent or assistant, the expected task is: inspect the user-provided codebase, help generate `jsons/base.json` and any needed feature JSONs, and then validate them with `schemas/scripts/validate_jsons.py`.
@@ -768,7 +768,7 @@ Before broad scanning, ask the user where the domain boundary stops. In most cas
 
 ## 10. Validation Workflow
 
-### Step 1 — JSON syntax check
+### Step 1 -- JSON syntax check
 
 Run any JSON validator or use Python's built-in:
 
@@ -776,7 +776,7 @@ Run any JSON validator or use Python's built-in:
 python -m json.tool jsons/base.json > /dev/null
 ```
 
-### Step 2 — Schema validation
+### Step 2 -- Schema validation
 
 Use the repository helper script (recommended):
 
@@ -837,7 +837,7 @@ for json_file in pathlib.Path(".").rglob("*.json"):
         print(f"ERR {json_file}: {e.message}")
 ```
 
-### Step 3 — Semantic checks (manual)
+### Step 3 -- Semantic checks (manual)
 
 These are not enforced by JSON schema but are validated at runtime by Chopper:
 
@@ -854,30 +854,30 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 
 ## 11. Common Mistakes
 
-### Mistake 1 — Empty array where minItems:1 is enforced
+### Mistake 1 -- Empty array where minItems:1 is enforced
 
 ```json
 // WRONG
 "dependencies": []
 
-// CORRECT — omit the field if empty, or provide at least one value
+// CORRECT -- omit the field if empty, or provide at least one value
 "dependencies": ["setup"]
 ```
 
-### Mistake 2 — `depends_on` with file paths instead of feature names
+### Mistake 2 -- `depends_on` with file paths instead of feature names
 
 ```json
 // WRONG
 "depends_on": ["jsons/features/dft_support.feature.json"]
 
-// CORRECT — use the feature's `name` value
+// CORRECT -- use the feature's `name` value
 "depends_on": ["dft_support"]
 ```
 
-### Mistake 3 — Wrong ordering in project features
+### Mistake 3 -- Wrong ordering in project features
 
 ```json
-// WRONG — power_analysis declared depends_on dft_support, but dft_support comes after
+// WRONG -- power_analysis declared depends_on dft_support, but dft_support comes after
 "features": [
   "jsons/features/power_analysis.feature.json",
   "jsons/features/dft_support.feature.json"
@@ -890,7 +890,7 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 ]
 ```
 
-### Mistake 4 — `load_from` and `dependencies` confused
+### Mistake 4 -- `load_from` and `dependencies` confused
 
 ```json
 {
@@ -900,27 +900,27 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 }
 ```
 
-### Mistake 5 — Backslashes in paths
+### Mistake 5 -- Backslashes in paths
 
 ```json
-// WRONG — backslashes are rejected
+// WRONG -- backslashes are rejected
 "file": "procs\\core_procs.tcl"
 
 // CORRECT
 "file": "procs/core_procs.tcl"
 ```
 
-### Mistake 6 — Referencing a non-existent stage in a flow action
+### Mistake 6 -- Referencing a non-existent stage in a flow action
 
 ```json
-// WRONG — if base has no stage named "main_verify", this will fail at runtime
+// WRONG -- if base has no stage named "main_verify", this will fail at runtime
 {
   "action": "add_stage_after",
   "name": "dft_check",
   "reference": "main_verify"
 }
 
-// CORRECT — use the exact stage name from base JSON
+// CORRECT -- use the exact stage name from base JSON
 {
   "action": "add_stage_after",
   "name": "dft_check",
@@ -928,17 +928,17 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 }
 ```
 
-### Mistake 7 — Duplicate stage name from feature
+### Mistake 7 -- Duplicate stage name from feature
 
 ```json
-// WRONG — if base already has a stage named "setup", adding another "setup" causes a collision
+// WRONG -- if base already has a stage named "setup", adding another "setup" causes a collision
 {
   "action": "add_stage_after",
   "name": "setup",   // already exists in base
   "reference": "main"
 }
 
-// CORRECT — use a new unique name
+// CORRECT -- use a new unique name
 {
   "action": "add_stage_after",
   "name": "dft_setup",

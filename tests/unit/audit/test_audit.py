@@ -1065,7 +1065,7 @@ def test_trim_stats_dry_run_derives_after_counts_from_manifest() -> None:
 
     # Before: all 4 source files on disk.
     assert payload["files_before"] == 4
-    # After: manifest-derived — obsolete.tcl (REMOVE) excluded; full+trim+gen = 3.
+    # After: manifest-derived -- obsolete.tcl (REMOVE) excluded; full+trim+gen = 3.
     assert payload["files_after"] == 3
     assert payload["trim_ratio_files"] < 1.0
 

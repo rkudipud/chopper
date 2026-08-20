@@ -20,7 +20,7 @@ This is the symptom of Intel **EC/HPC URLfilter Policy 241**, which blocks
 segment (source IP in the `10.90.x.x` range). The GitHub REST API
 (`api.github.com`) is on a different policy and is allowed through.
 
-The script uses the Git Data API (blob → tree → commit → update-ref) instead of
+The script uses the Git Data API (blob -> tree -> commit -> update-ref) instead of
 git's smart HTTPS protocol, bypassing the block entirely.
 
 ---
@@ -29,7 +29,7 @@ git's smart HTTPS protocol, bypassing the block entirely.
 
 This is the exact sequence to follow every time `git push` is blocked.
 
-### Step 1 — Confirm the block
+### Step 1 -- Confirm the block
 
 ```tcsh
 git push origin main
@@ -46,17 +46,17 @@ ssh -T git@github.com
 
 If both HTTPS and SSH are blocked, continue to Step 2.
 
-### Step 2 — Check what is pending
+### Step 2 -- Check what is pending
 
 ```tcsh
 git status
 # Confirm: "Your branch is ahead of 'origin/main' by N commit(s)"
 
 git log origin/main..HEAD --oneline
-# Lists every unpushed commit — review before pushing
+# Lists every unpushed commit -- review before pushing
 ```
 
-### Step 3 — Verify gh CLI authentication
+### Step 3 -- Verify gh CLI authentication
 
 ```tcsh
 /nfs/site/itools/em64t_SLES15/pkgs/github-cli/2.83.1/bin/gh auth status
@@ -66,14 +66,14 @@ Expected output:
 
 ```
 github.com
-  ✓ Logged in to github.com account <user> (...)
+  ? Logged in to github.com account <user> (...)
   - Token scopes: 'repo', ...
 ```
 
 The `repo` scope is required. If the token is expired or missing, see
 **Token acquisition** below before continuing.
 
-### Step 4 — Run the push script
+### Step 4 -- Run the push script
 
 From the repo root (canonical location):
 
@@ -106,12 +106,12 @@ Sync local branch to the new remote SHA:
   git fetch origin && git rebase origin/main
 ```
 
-### Step 5 — Sync local branch (mandatory)
+### Step 5 -- Sync local branch (mandatory)
 
 The API rebuilds commits server-side, creating new SHAs. Without this sync,
 `git status` will still show "ahead by N" and `git push` will fail again.
 
-**Option A — rebase (preferred, preserves any local-only commits):**
+**Option A -- rebase (preferred, preserves any local-only commits):**
 
 ```tcsh
 git fetch origin
@@ -125,7 +125,7 @@ warning: skipped previously applied commit e059213
 Successfully rebased and updated refs/heads/main.
 ```
 
-**Option B — hard reset (simpler, discards any local-only state):**
+**Option B -- hard reset (simpler, discards any local-only state):**
 
 ```tcsh
 git fetch origin
@@ -142,38 +142,38 @@ Understanding the pipeline helps diagnose failures:
 
 ```
 1. GET  /repos/{owner}/{repo}/git/ref/heads/{branch}
-        → remote HEAD SHA
+        -> remote HEAD SHA
 
 2. git log {remote_sha}..HEAD --reverse
-        → list of local commits to push, oldest-first
+        -> list of local commits to push, oldest-first
 
 For each commit (chained, oldest first):
   3. GET  /repos/.../git/commits/{parent_sha}
-          → base tree SHA of the parent
+          -> base tree SHA of the parent
 
   4. git diff-tree --name-status {commit_sha}
-          → list of changed files with status (M/A/D/R/C)
+          -> list of changed files with status (M/A/D/R/C)
 
   5. For each modified/added file:
-       git show {commit_sha}:{filepath}   → raw bytes
-       POST /repos/.../git/blobs          → blob SHA
+       git show {commit_sha}:{filepath}   -> raw bytes
+       POST /repos/.../git/blobs          -> blob SHA
 
      For each deleted file:
        tree item with sha: null (GitHub removes it from the tree)
 
   6. POST /repos/.../git/trees  { base_tree, tree_items }
-          → new tree SHA
+          -> new tree SHA
 
   7. POST /repos/.../git/commits
           { message, tree, parents: [parent_sha],
             author/committer with original name/email/date }
-          → new commit SHA (different from local SHA — this is expected)
+          -> new commit SHA (different from local SHA -- this is expected)
 
   parent_sha = new commit SHA   (chain to next commit)
 
 8. PATCH /repos/.../git/refs/heads/{branch}
          { sha: final_commit_sha, force: false }
-         → branch pointer updated
+         -> branch pointer updated
 ```
 
 Every file's executable bit is preserved: the script reads `git ls-tree` for
@@ -189,8 +189,8 @@ Binary files are handled transparently via base64 blob encoding.
 curl -s -x http://proxy-dmz.intel.com:912 \
   "https://github.com/<owner>/<repo>.git/info/refs?service=git-receive-pack" \
   | head -5
-# "Site blocked by EC/HPC Policy: PolicyID: 241" → Policy 241 confirmed
-# git pack-refs output → proxy not blocking; check token auth instead
+# "Site blocked by EC/HPC Policy: PolicyID: 241" -> Policy 241 confirmed
+# git pack-refs output -> proxy not blocking; check token auth instead
 
 # Confirm the REST API is reachable (should return 200)
 curl -s -o /dev/null -w "%{http_code}" \
@@ -203,9 +203,9 @@ curl -s -o /dev/null -w "%{http_code}" \
 
 ## Token acquisition
 
-The script tries these sources in order — no token is ever stored in the repo:
+The script tries these sources in order -- no token is ever stored in the repo:
 
-### 1. gh CLI — already authenticated (fastest, recommended for this repo)
+### 1. gh CLI -- already authenticated (fastest, recommended for this repo)
 
 ```tcsh
 /nfs/site/itools/em64t_SLES15/pkgs/github-cli/2.83.1/bin/gh auth status
@@ -213,7 +213,7 @@ The script tries these sources in order — no token is ever stored in the repo:
 python3 gh_api_push.py
 ```
 
-> **Intel gh CLI paths** — the script probes these in order before falling back to `$PATH`:
+> **Intel gh CLI paths** -- the script probes these in order before falling back to `$PATH`:
 > - `/nfs/site/itools/em64t_SLES15/pkgs/github-cli/2.83.1/bin/gh`
 > - `/nfs/site/itools/em64t_SLES15/pkgs/github-cli/2.25.1/bin/gh`
 
@@ -224,7 +224,7 @@ setenv GITHUB_TOKEN ghp_...
 python3 gh_api_push.py
 ```
 
-### 3. gh CLI — token expired, refresh it
+### 3. gh CLI -- token expired, refresh it
 
 The refresh uses device-flow: prints a one-time code and opens
 `https://github.com/login/device` in the browser.
@@ -237,7 +237,7 @@ python3 gh_api_push.py
 
 ### 4. Create a Personal Access Token (when gh is unavailable)
 
-1. Go to <https://github.com/settings/tokens> → **Generate new token (classic)**
+1. Go to <https://github.com/settings/tokens> -> **Generate new token (classic)**
 2. Required scopes: **`repo`** (private repos) or **`public_repo`** (public-only)
 3. Copy the token:
 
@@ -251,7 +251,7 @@ python3 gh_api_push.py
 ## Proxy auto-detection
 
 The script reads proxy from environment variables in this order:
-`HTTPS_PROXY` → `https_proxy` → `HTTP_PROXY` → `http_proxy` → falls back to
+`HTTPS_PROXY` -> `https_proxy` -> `HTTP_PROXY` -> `http_proxy` -> falls back to
 `http://proxy-dmz.intel.com:912`.
 
 To use a different proxy:
@@ -263,21 +263,21 @@ python3 gh_api_push.py
 
 ---
 
-## After a successful push — sync local branch (mandatory)
+## After a successful push -- sync local branch (mandatory)
 
 The API push rebuilds every commit server-side. The new GitHub commit SHAs will
 **differ** from the local SHAs even though the content is identical. Without
 syncing, `git status` will still show "ahead by N" and a second `git push` attempt
 will fail with 403 again (or diverged-history errors if somehow HTTPS push is tried).
 
-**Preferred (rebase — skips already-applied commits):**
+**Preferred (rebase -- skips already-applied commits):**
 
 ```tcsh
 git fetch origin
 git rebase origin/main
 ```
 
-**Alternative (hard reset — discards any unpushed state):**
+**Alternative (hard reset -- discards any unpushed state):**
 
 ```tcsh
 git fetch origin
@@ -299,7 +299,7 @@ git status
 
 ### SHA divergence after push (always happens)
 
-Every commit pushed via the API gets a new SHA. This is structural — the API
+Every commit pushed via the API gets a new SHA. This is structural -- the API
 creates commits server-side and returns new object identifiers. Always run the
 sync step. Skipping it leaves the local repo in a confusing "ahead by N"
 state that looks like the push never happened.
@@ -324,7 +324,7 @@ use it when invoking the script in a tcsh session. The script writes errors to
 stderr by default; if you need to capture both streams, run it from bash or use
 tcsh's `(command) >& file` syntax.
 
-### force: false — will not overwrite diverged history
+### force: false -- will not overwrite diverged history
 
 The ref PATCH is sent with `"force": false`. If the remote has been updated by
 someone else since you last fetched, the script will fail at Step 8 with a 422.
@@ -344,7 +344,7 @@ before running the script.
 
 ### Multi-commit pushes
 
-The script handles multiple unpushed commits correctly — it walks them
+The script handles multiple unpushed commits correctly -- it walks them
 oldest-first and chains each new API commit as the parent of the next.
 The tree is rebuilt incrementally from each commit's diff, not from
 a full snapshot. Merges and complex histories with multiple parents are
@@ -369,7 +369,7 @@ ERROR 422 POST /repos/.../git/blobs:
 
 A file in the commit contains an embedded token or key. Steps to fix:
 
-1. Identify the file from the `bypass_placeholders` → `token_type` field in the error JSON.
+1. Identify the file from the `bypass_placeholders` -> `token_type` field in the error JSON.
 2. Edit the file to remove the secret.
 3. Amend the commit:
    ```tcsh
@@ -390,7 +390,7 @@ A file in the commit contains an embedded token or key. Steps to fix:
 - `force: false` prevents overwriting diverged remote history.
 - The script only pushes commits already present in the local git object store.
 - The token is passed via HTTP `Authorization` header over TLS, never in the URL.
-- The script prints every file it touches before creating blobs — review the
+- The script prints every file it touches before creating blobs -- review the
   output before running on sensitive repos.
 
 ---
@@ -401,4 +401,4 @@ A file in the commit contains an embedded token or key. Steps to fix:
 |------|---------|
 | `SKILL.md` | This runbook |
 | `gh_api_push.py` | Push script (local copy, kept in sync with repo root) |
-| `../../gh_api_push.py` | Canonical push script at repo root — blob → tree → commit → update-ref via GitHub REST API |
+| `../../gh_api_push.py` | Canonical push script at repo root -- blob -> tree -> commit -> update-ref via GitHub REST API |

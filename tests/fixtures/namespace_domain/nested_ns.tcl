@@ -1,4 +1,4 @@
-# nested_ns.tcl — Deeply nested namespace eval blocks
+# nested_ns.tcl -- Deeply nested namespace eval blocks
 
 namespace eval a {
     namespace eval b {

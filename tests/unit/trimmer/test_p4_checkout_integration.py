@@ -112,7 +112,7 @@ def test_p4_skipped_on_retrim_case_2_full_copy_only() -> None:
     ):
         report = TrimmerService().run(ctx, manifest, _EMPTY_PARSED, state)
 
-    mock_checkout.assert_not_called()  # no PROC_TRIM files → no edit paths
+    mock_checkout.assert_not_called()  # no PROC_TRIM files -> no edit paths
     assert report.p4_checkout is not None
     assert report.p4_checkout.attempted is True
     assert report.p4_checkout.checked_out == ()
@@ -224,7 +224,7 @@ def test_p4_case2_precopy_failure_emits_skip_and_trim_proceeds() -> None:
 
 
 def test_p4_case2_p4_edit_failure_aborts_trim() -> None:
-    """Case 2 + --p4: pre-copy succeeds but p4 edit fails → VE-37, trim aborts."""
+    """Case 2 + --p4: pre-copy succeeds but p4 edit fails -> VE-37, trim aborts."""
     from chopper.adapters import InMemoryFS
 
     fs = InMemoryFS(
@@ -254,7 +254,7 @@ def test_p4_case2_p4_edit_failure_aborts_trim() -> None:
 
 
 def test_p4_precopy_skips_when_backup_file_absent() -> None:
-    """_p4_precopy_from_backup: PROC_TRIM file missing from backup → skips copy."""
+    """_p4_precopy_from_backup: PROC_TRIM file missing from backup -> skips copy."""
     from chopper.adapters import InMemoryFS
 
     # PROC_TRIM file exists in domain but NOT in backup (unusual but must not crash)

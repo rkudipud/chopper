@@ -9,7 +9,7 @@
     "jsons/features/power.feature.json"
   ],
   "notes": [
-    "DFT and power are independent features — order does not matter for correctness here.",
+    "DFT and power are independent features -- order does not matter for correctness here.",
     "Both add stages after main in the order listed."
   ]
 }

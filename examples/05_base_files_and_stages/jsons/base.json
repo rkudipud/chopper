@@ -3,7 +3,7 @@
   "domain": "my_domain",
   "owner": "platform-team",
   "tool": "my_tool",
-  "description": "Base with files and stages. Use when you need both file inclusion control and flow generation — common in tools that read input scripts and generate run artifacts.",
+  "description": "Base with files and stages. Use when you need both file inclusion control and flow generation -- common in tools that read input scripts and generate run artifacts.",
   "files": {
     "include": [
       "setup.tcl",

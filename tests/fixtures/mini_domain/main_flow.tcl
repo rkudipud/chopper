@@ -1,4 +1,4 @@
-# main_flow.tcl — Mini domain primary flow file
+# main_flow.tcl -- Mini domain primary flow file
 # 3 procs: setup_flow, run_main, cleanup_flow
 
 proc setup_flow {} {

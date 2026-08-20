@@ -1,17 +1,17 @@
-# 01 — Chopper Overview
+# 01 -- Chopper Overview
 
 > **Audience:** anyone who just finished the onboarding deck and wants the full picture before touching the CLI.
 > **Goal:** by the end you can describe what Chopper does, what F1/F2/F3 mean, what JSON you need, and the rules that govern every trim.
 
 ---
 
-## TL;DR — from zero to a trimmed domain in 4 commands
+## TL;DR -- from zero to a trimmed domain in 4 commands
 
 ```text
-# Named domain via $ward (4.1.0+) — Chopper finds jsons/base.json automatically:
+# Named domain via $ward (4.1.0+) -- Chopper finds jsons/base.json automatically:
 chopper validate --domain fev_formality           # safe, read-only preflight
 chopper trim --dry-run --domain fev_formality      # preview what would change
-chopper trim --domain fev_formality                # live trim — domain rebuilt on disk
+chopper trim --domain fev_formality                # live trim -- domain rebuilt on disk
 
 # Explicit path + base (classic form, always works):
 chopper validate --domain /path/to/domain --base jsons/base.json
@@ -28,9 +28,9 @@ A typical VLSI EDA tool-flow **domain** is a directory of Tcl, Perl, Python, csh
 
 Today, teams cope by:
 
-- **Hand-editing** the domain on a project branch — fast to start, painful to maintain, impossible to audit.
-- **Forking** the domain per project — explodes in count, drifts immediately, doubles the maintenance load.
-- **Conditional flags inside Tcl** (`if {$project eq "abc"} { ... }`) — embeds project knowledge in the wrong place, makes the domain harder to read for everyone.
+- **Hand-editing** the domain on a project branch -- fast to start, painful to maintain, impossible to audit.
+- **Forking** the domain per project -- explodes in count, drifts immediately, doubles the maintenance load.
+- **Conditional flags inside Tcl** (`if {$project eq "abc"} { ... }`) -- embeds project knowledge in the wrong place, makes the domain harder to read for everyone.
 
 All three approaches fail the same way: there is no machine-checkable record of *which files, which procs, which run-script stages a given project actually depends on*. When something breaks two months later, nobody can say why a particular helper was kept or dropped.
 
@@ -48,7 +48,7 @@ Tcl    >|     chopper      |>  generated run scripts
         +------------------+
 ```
 
-The output is **deterministic** (same inputs → byte-identical output) and **reproducible** (commit the JSON; anyone can rebuild the slice). The `.chopper/` bundle records every decision, every diagnostic, and every trace edge so a reviewer can answer *"why did this survive?"* without rerunning the tool.
+The output is **deterministic** (same inputs -> byte-identical output) and **reproducible** (commit the JSON; anyone can rebuild the slice). The `.chopper/` bundle records every decision, every diagnostic, and every trace edge so a reviewer can answer *"why did this survive?"* without rerunning the tool.
 
 ### Conceptual relative
 
@@ -61,15 +61,15 @@ Chopper is closest in spirit to **Flow Builder**: both derive a specialised flow
 | Run-file generation from JSON stages | Yes | **Yes (F3)** |
 | Proc-level call-graph trace | No | Yes (reporting) |
 
-The "Chopper" name suggests aggressive deletion. In practice it is a *declarative subset selector* — closer to a build system than to a chainsaw.
+The "Chopper" name suggests aggressive deletion. In practice it is a *declarative subset selector* -- closer to a build system than to a chainsaw.
 
 ---
 
-## 3. The three capabilities — F1, F2, F3
+## 3. The three capabilities -- F1, F2, F3
 
 Every trim runs through the same pipeline. Capabilities are orthogonal: use one, two, or all three.
 
-### F1 — File trimming
+### F1 -- File trimming
 
 Keep or drop entire files (`.tcl`, `.pl`, `.py`, `.csh`, configs, binaries) by literal path or glob.
 
@@ -83,10 +83,10 @@ Keep or drop entire files (`.tcl`, `.pl`, `.py`, `.csh`, configs, binaries) by l
 ```
 
 - Globs accepted: `*` (one segment), `?` (one char), `**` (any depth).
-- Non-Tcl files are treated as opaque byte streams — copied verbatim, never decoded.
+- Non-Tcl files are treated as opaque byte streams -- copied verbatim, never decoded.
 - `files.exclude` prunes glob expansions but **never** literal includes.
 
-### F2 — Proc trimming
+### F2 -- Proc trimming
 
 Keep or drop individual Tcl procedures inside a file, leaving the rest of the file intact.
 
@@ -99,11 +99,11 @@ Keep or drop individual Tcl procedures inside a file, leaving the rest of the fi
 }
 ```
 
-- Proc entries require **exact** file paths and proc names — no glob patterns.
+- Proc entries require **exact** file paths and proc names -- no glob patterns.
 - The chosen file becomes a `PROC_TRIM` output: kept procs survive, the rest are removed; comments and surrounding code stay.
 - Empty `procs: []` is an authoring error (`VE-03`).
 
-### F3 — Run-file generation
+### F3 -- Run-file generation
 
 Emit `<stage>.tcl` run scripts (and optional `<stage>.stack` scheduler files) from JSON stage definitions, replacing hand-authored stack files.
 
@@ -121,10 +121,10 @@ Emit `<stage>.tcl` run scripts (and optional `<stage>.stack` scheduler files) fr
 ```
 
 - One `<stage>.tcl` is emitted per resolved stage. With `generate_stack: true`, Chopper also emits an aggregate `<domain>.stack` file containing one record per stage (topologically sorted by dependencies).
-- A stage that sets `standalone_stack: true` emits a `<stage>.stack` with the authored `steps` verbatim (useful for wrapper stages that encode scheduler-format records directly). The standalone stack suppresses that stage's `<stage>.tcl` — see [example 13](../examples/13_base_with_standalone_stack/).
-- Stage step references (procs, sourced files) are validated post-trim when `options.cross_validate` is `true` (default) — broken refs become `VW-14`/`VW-15`/`VW-16` warnings.
-- Features can extend stages with `flow_actions` (see §3.1). Feature **order** matters here.
-- Cross-cutting features can safely target stages created by other features using `"skip_if_no_stage": true` — absent stages emit `VI-05` (info) and the action is skipped, rather than failing with `VE-05`.
+- A stage that sets `standalone_stack: true` emits a `<stage>.stack` with the authored `steps` verbatim (useful for wrapper stages that encode scheduler-format records directly). The standalone stack suppresses that stage's `<stage>.tcl` -- see [example 13](../examples/13_base_with_standalone_stack/).
+- Stage step references (procs, sourced files) are validated post-trim when `options.cross_validate` is `true` (default) -- broken refs become `VW-14`/`VW-15`/`VW-16` warnings.
+- Features can extend stages with `flow_actions` (see Sec.3.1). Feature **order** matters here.
+- Cross-cutting features can safely target stages created by other features using `"skip_if_no_stage": true` -- absent stages emit `VI-05` (info) and the action is skipped, rather than failing with `VE-05`.
 
 #### Stage definition fields
 
@@ -133,22 +133,22 @@ A stage object (in `base.stages[]`, in an `add_stage_*` action, or inside a `rep
 | Field | Required? | Stack line | Purpose |
 |---|---|---|---|
 | `name` | Yes | `N` | Stage name; becomes the generated `<name>.tcl` filename |
-| `steps` | Yes | — | Ordered list of step strings written verbatim into `<name>.tcl` |
-| `load_from` | Yes (in actions) | — | Predecessor stage the generated script loads data from (typically via `ivar(src_task)`) |
+| `steps` | Yes | -- | Ordered list of step strings written verbatim into `<name>.tcl` |
+| `load_from` | Yes (in actions) | -- | Predecessor stage the generated script loads data from (typically via `ivar(src_task)`) |
 | `command` | No | `J` | Execution command for the scheduler record |
 | `exit_codes` | No | `L` | Legal exit codes |
 | `dependencies` | No | `D` | Parent task names for the stack dependency graph (distinct from `load_from`) |
 | `inputs` | No | `I` | Input artifact markers |
 | `outputs` | No | `O` | Output artifact markers |
 | `run_mode` | No (`serial`) | `R` | `serial` (implicit) or `parallel` (emits `R parallel`) |
-| `language` | No (`tcl`) | — | `tcl` or `python` |
-| `standalone_stack` | No (`false`) | — | When `true`, emit `<name>.stack` from `steps` verbatim and suppress `<name>.tcl` |
+| `language` | No (`tcl`) | -- | `tcl` or `python` |
+| `standalone_stack` | No (`false`) | -- | When `true`, emit `<name>.stack` from `steps` verbatim and suppress `<name>.tcl` |
 
-> `load_from` is the **data** predecessor (what the script reads). `dependencies` is the **scheduler** parent list (`D` in the stack). They are independent — set both when they differ.
+> `load_from` is the **data** predecessor (what the script reads). `dependencies` is the **scheduler** parent list (`D` in the stack). They are independent -- set both when they differ.
 
-### 3.1 F3 flow actions — how features modify the stage flow
+### 3.1 F3 flow actions -- how features modify the stage flow
 
-A feature mutates the working stage sequence with an ordered `flow_actions` list. Actions apply top-to-bottom within a feature, and features apply in selected order (§5). Each action names a target by `action` type; step-level actions also match a step by its exact `reference` string.
+A feature mutates the working stage sequence with an ordered `flow_actions` list. Actions apply top-to-bottom within a feature, and features apply in selected order (Sec.5). Each action names a target by `action` type; step-level actions also match a step by its exact `reference` string.
 
 | Action | Required fields | Effect |
 |---|---|---|
@@ -162,13 +162,13 @@ A feature mutates the working stage sequence with an ordered `flow_actions` list
 
 Every action also accepts the optional `skip_if_no_stage` flag.
 
-**Targeting a step that repeats — `@n`.** If the same step string appears more than once in a stage, append `@n` to the `reference` to pick the *n*-th occurrence (1-based: `@1` is the first). Ambiguous references fail loudly rather than guessing:
+**Targeting a step that repeats -- `@n`.** If the same step string appears more than once in a stage, append `@n` to the `reference` to pick the *n*-th occurrence (1-based: `@1` is the first). Ambiguous references fail loudly rather than guessing:
 
-- `@0` → `VE-19` occurrence-suffix-zero (indices start at 1)
-- `@n` past the last match → `VE-10` occurrence-suffix-overflow
-- a repeated step string with no `@n` → `VE-20` ambiguous-step-target
+- `@0` -> `VE-19` occurrence-suffix-zero (indices start at 1)
+- `@n` past the last match -> `VE-10` occurrence-suffix-overflow
+- a repeated step string with no `@n` -> `VE-20` ambiguous-step-target
 
-**`skip_if_no_stage` — tolerant cross-cutting features.** A feature that injects into a stage *another* feature creates cannot assume that stage is always present. Setting `"skip_if_no_stage": true` makes a *missing stage* emit `VI-05` (info, exit 0) and skip the action instead of failing with `VE-05`. Note: it softens only a missing **stage** — if the stage is present but the step `reference` does not match, that is still a hard `VE-05`.
+**`skip_if_no_stage` -- tolerant cross-cutting features.** A feature that injects into a stage *another* feature creates cannot assume that stage is always present. Setting `"skip_if_no_stage": true` makes a *missing stage* emit `VI-05` (info, exit 0) and skip the action instead of failing with `VE-05`. Note: it softens only a missing **stage** -- if the stage is present but the step `reference` does not match, that is still a hard `VE-05`.
 
 ```json
 {
@@ -193,11 +193,11 @@ Every action also accepts the optional `skip_if_no_stage` flag.
 }
 ```
 
-> **Anchor comments are the stable insertion points.** Inject after a named anchor comment (e.g. `#Anchor for COVERAGE if enabled\n`) instead of guessing a line. The trailing `\n` is part of the anchor string and must match byte-for-byte. When several features inject at the *same* anchor, they land in selected feature order — which is why `project.features[]` order is authoritative.
+> **Anchor comments are the stable insertion points.** Inject after a named anchor comment (e.g. `#Anchor for COVERAGE if enabled\n`) instead of guessing a line. The trailing `\n` is part of the anchor string and must match byte-for-byte. When several features inject at the *same* anchor, they land in selected feature order -- which is why `project.features[]` order is authoritative.
 
 ---
 
-## 4. JSON inputs — base, feature, project
+## 4. JSON inputs -- base, feature, project
 
 Chopper uses **two or three** JSON files. Base and feature JSONs live inside the domain. The project JSON is optional and can live anywhere.
 
@@ -205,9 +205,9 @@ Chopper uses **two or three** JSON files. Base and feature JSONs live inside the
 |---|---|---|---|
 | **`base.json`** | `<domain>/jsons/base.json` | Yes | Universal files / procs / stages every project in this domain needs |
 | **Feature JSON** (0..N) | `<domain>/jsons/features/<name>.feature.json` | No | Adds files / procs / stage modifications for one optional capability |
-| **`project.json`** | Anywhere — domain, configs/, team repo | No | A named recipe: one base path + ordered list of feature paths |
+| **`project.json`** | Anywhere -- domain, configs/, team repo | No | A named recipe: one base path + ordered list of feature paths |
 
-You **do not need** a project JSON to use features — pass `--base` and `--features` directly. The project JSON is a way to *commit* a named combination so a single `--project` flag invokes it.
+You **do not need** a project JSON to use features -- pass `--base` and `--features` directly. The project JSON is a way to *commit* a named combination so a single `--project` flag invokes it.
 
 ### Directory layouts
 
@@ -215,31 +215,31 @@ You **do not need** a project JSON to use features — pass `--base` and `--feat
 
 ```text
 <domain>/
-└── jsons/
-    └── base.json
+??? jsons/
+    ??? base.json
 ```
 
 **Base + features**, no project file:
 
 ```text
 <domain>/
-└── jsons/
-    ├── base.json
-    └── features/
-        ├── dft.feature.json
-        └── scan_eco.feature.json
+??? jsons/
+    ??? base.json
+    ??? features/
+        ??? dft.feature.json
+        ??? scan_eco.feature.json
 ```
 
 **Base + features + project recipe**:
 
 ```text
 <domain>/
-├── jsons/
-│   ├── base.json
-│   └── features/
-│       ├── dft.feature.json
-│       └── scan_eco.feature.json
-└── project.json     ← names base + [dft, scan_eco]
+??? jsons/
+?   ??? base.json
+?   ??? features/
+?       ??? dft.feature.json
+?       ??? scan_eco.feature.json
+??? project.json     <- names base + [dft, scan_eco]
 ```
 
 The project JSON can also sit outside the domain (a shared `configs/` dir, a release repo). It just stores paths.
@@ -256,11 +256,11 @@ The project JSON can also sit outside the domain (a shared `configs/` dir, a rel
 }
 ```
 
-That is enough. The full field reference lives in [../technical_docs/JSON_AUTHORING_GUIDE.md](../technical_docs/JSON_AUTHORING_GUIDE.md). Worked patterns for every common intent are in §6 below.
+That is enough. The full field reference lives in [../technical_docs/JSON_AUTHORING_GUIDE.md](../technical_docs/JSON_AUTHORING_GUIDE.md). Worked patterns for every common intent are in Sec.6 below.
 
 ### `$schema` IDs
 
-Always one of: `"base-v1"`, `"feature-v1"`, `"project-v1"`. These are short identifiers Chopper resolves against the bundled `schemas/` directory — they are **not** filesystem paths and stay valid regardless of where the repo is checked out.
+Always one of: `"base-v1"`, `"feature-v1"`, `"project-v1"`. These are short identifiers Chopper resolves against the bundled `schemas/` directory -- they are **not** filesystem paths and stay valid regardless of where the repo is checked out.
 
 ---
 
@@ -269,12 +269,12 @@ Always one of: `"base-v1"`, `"feature-v1"`, `"project-v1"`. These are short iden
 > **Three rules. Memorise these. Every result follows from them.**
 
 1. **Default is exclude.** If no JSON keeps a file, it is removed. There is no "keep everything unless I say otherwise" mode.
-2. **Within a layer, explicit include wins; across layers, the later layer wins.** Within a single JSON (base or one feature), an explicit `include` always overrides an `exclude` at the same granularity. Across layers, base + features are folded as an ordered overlay — the **last layer that mentions a file or proc wins**, so a later feature can add, remove, or replace what an earlier layer contributed. Reordering features in `project.features[]` can change the trimmed output.
-3. **Tracing is reporting-only.** The call-graph trace produces `dependency_graph.json` and `TW-*` warnings so you understand coupling. It **never auto-copies** procs into the output — only procs you listed explicitly survive.
+2. **Within a layer, explicit include wins; across layers, the later layer wins.** Within a single JSON (base or one feature), an explicit `include` always overrides an `exclude` at the same granularity. Across layers, base + features are folded as an ordered overlay -- the **last layer that mentions a file or proc wins**, so a later feature can add, remove, or replace what an earlier layer contributed. Reordering features in `project.features[]` can change the trimmed output.
+3. **Tracing is reporting-only.** The call-graph trace produces `dependency_graph.json` and `TW-*` warnings so you understand coupling. It **never auto-copies** procs into the output -- only procs you listed explicitly survive.
 
 ### Layer ordering (when JSONs disagree)
 
-A **source** is one JSON file: the base, or any one selected feature. The project JSON is *not* a source — it is a list of sources. Layers are applied in order: base first, then `project.features[]` left-to-right. The last layer that mentions a file or proc wins.
+A **source** is one JSON file: the base, or any one selected feature. The project JSON is *not* a source -- it is a list of sources. Layers are applied in order: base first, then `project.features[]` left-to-right. The last layer that mentions a file or proc wins.
 
 | Situation | Result |
 |---|---|
@@ -291,9 +291,9 @@ Features are **layered, not additive**. A later layer's exclude can remove what 
 |---|---|---|
 | `VW-21` layer-shadowed | A later layer cancelled an include, removed a proc that was kept, or downgraded a whole-file include to PROC_TRIM | The message is action-specific: `add-proc` shows added procs, prior keep-set, and combined set; `remove-proc` shows removed procs, prior keep-set, and remaining set; `downgrade-whole-to-trim` shows the resulting keep-set; `remove` names the excluding layer; `replace` shows old vs new proc sets |
 
-`VW-21` is informational (exit 0). It is the audit trail for ordered-overlay merges — use it to verify the layer order in `project.features[]` reflects your intent. Run with `--strict` if CI should fail on any warning.
+`VW-21` is informational (exit 0). It is the audit trail for ordered-overlay merges -- use it to verify the layer order in `project.features[]` reflects your intent. Run with `--strict` if CI should fail on any warning.
 
-**Example** — feature 1 selects procs `a, b, c` from `procs.tcl`; feature 2 selects `c, e, r`:
+**Example** -- feature 1 selects procs `a, b, c` from `procs.tcl`; feature 2 selects `c, e, r`:
 
 ```
 WARNING VW-21: 'feature:feat2' added proc(s) [e, r] to 'procs.tcl'
@@ -308,8 +308,8 @@ The message for each of these codes names the specific proc(s) involved so you c
 |---|---|---|---|
 | `VW-09` fi-pi-overlap | Same JSON has both `files.include` and `procedures.include` for the same file | The redundant PI proc names | Drop the PI entries. FI alone keeps everything unless PE is also present; then PE qualifies the FI contribution. |
 | `VW-11` fe-pe-same-source-conflict | Same JSON has `files.exclude` and `procedures.exclude` for the same file, no `files.include` | The PE proc names | Pick one: `files.exclude` alone to drop the file, or `procedures.exclude` alone to keep it with some procs removed |
-| `VW-12` pi-pe-same-file | Same JSON has `procedures.include` and `procedures.exclude` for the same file, with no whole-file include signal | Both the PI proc names and the PE proc names | Choose one model — PI wins, PE is ignored; remove the PE entries or switch to PE-only |
-| `VW-13` pe-removes-all-procs | The PE set covers every proc in the file | All excluded proc names | File survives as comment-only — consider `files.exclude` |
+| `VW-12` pi-pe-same-file | Same JSON has `procedures.include` and `procedures.exclude` for the same file, with no whole-file include signal | Both the PI proc names and the PE proc names | Choose one model -- PI wins, PE is ignored; remove the PE entries or switch to PE-only |
+| `VW-13` pe-removes-all-procs | The PE set covers every proc in the file | All excluded proc names | File survives as comment-only -- consider `files.exclude` |
 
 ---
 
@@ -320,7 +320,7 @@ The message for each of these codes names the specific proc(s) involved so you c
 | Keep a directory tree of Tcl files | `{"files": {"include": ["procs/**/*.tcl"]}}` |
 | Keep every domain file except a negative list | `{"files": {"include": ["**"], "exclude": ["legacy/**", "debug*.tcl"]}}` |
 | Keep a file, drop a few procs | `{"files": {"include": ["procs/shared.tcl"]}, "procedures": {"exclude": [{"file": "procs/shared.tcl", "procs": ["debug_dump"]}]}}` |
-| Keep only a few procs from a big file | `{"procedures": {"include": [{"file": "procs/core.tcl", "procs": ["run_setup"]}]}}` (do **not** also list the file in `files.include` — emits `VW-09`) |
+| Keep only a few procs from a big file | `{"procedures": {"include": [{"file": "procs/core.tcl", "procs": ["run_setup"]}]}}` (do **not** also list the file in `files.include` -- emits `VW-09`) |
 | Layer a feature on top of base | Feature JSON with its own `files.include` / `procedures.include` / `flow_actions`, selected via `--features` or in `project.json`'s `features` array |
 | Express feature dependency | `{"$schema": "feature-v1", "name": "scan_eco", "depends_on": ["dft"]}` |
 
@@ -338,7 +338,7 @@ The message for each of these codes names the specific proc(s) involved so you c
 | File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
 | Feature tries to remove a base file | Base includes file, a later feature excludes file | Feature is the later layer under R1 ordered overlay; the file is removed and `VW-21 layer-shadowed` records the transition. |
 
-For each pattern, copy from the matching folder in [../examples/](../examples/) — see the example map at the end of this document.
+For each pattern, copy from the matching folder in [../examples/](../examples/) -- see the example map at the end of this document.
 
 ---
 
@@ -348,7 +348,7 @@ For each pattern, copy from the matching folder in [../examples/](../examples/) 
 |---|---|---|---|
 | `options.cross_validate` | `base.json` | `true` | Cross-validate F3 stage steps against surviving F1/F2 set. When `true`, missing file/proc references emit `VW-14`/`VW-15`/`VW-16` warnings. Set to `false` to suppress when stages intentionally reference content outside the trimmed domain. |
 | `options.generate_stack` | `base.json` | `false` | When `stages` are defined, emit an aggregate `<domain>.stack` alongside per-stage `<stage>.tcl` files |
-| `options.indent` | `base.json` | `false` | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Off by default — the current formatter has known limitations; only opt in after verifying it on your domain. |
+| `options.indent` | `base.json` | `false` | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Off by default -- the current formatter has known limitations; only opt in after verifying it on your domain. |
 | `depends_on` | feature JSON | `[]` | Topologically order this feature after the named features |
 | `flow_actions` | feature JSON | none | Append/insert/replace stage entries from the base or earlier features |
 
@@ -370,20 +370,20 @@ CLI-side switches (covered in [02_CLI_GUIDE.md](02_CLI_GUIDE.md)):
 2. **Keep base minimal; push variability into features.** A base that needs every feature JSON to function is a smell.
 3. **Validate before trim, every time.** `chopper validate` is cheap (seconds) and catches schema, missing-file, unknown-proc, broken `depends_on`, and domain-mismatch problems before you touch disk.
 4. **Review `dependency_graph.json` before shipping.** Every `TW-01`/`TW-02`/`TW-03` is a place Chopper could not prove a dependency. Decide consciously: include explicitly or accept.
-5. **Commit JSONs, not the trimmed domain.** Teammates can reproduce your trim exactly from the JSONs alone — and `.chopper/trim_report.json` for cross-checking.
+5. **Commit JSONs, not the trimmed domain.** Teammates can reproduce your trim exactly from the JSONs alone -- and `.chopper/trim_report.json` for cross-checking.
 6. **Use `--strict` in CI.** Warnings in CI should fail the build; they always indicate something worth a human glance.
-7. **Use a tool-command pool.** Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) and loaded automatically. For site-local or additional tools, pass `--tool-commands` so vendor commands surface as `TI-01` (info, exit 0) rather than `TW-02` (warning) — keeps the diagnostic stream signal-rich.
+7. **Use a tool-command pool.** Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure) and loaded automatically. For site-local or additional tools, pass `--tool-commands` so vendor commands surface as `TI-01` (info, exit 0) rather than `TW-02` (warning) -- keeps the diagnostic stream signal-rich.
 
 ---
 
-## 9. Caveats — read before you author
+## 9. Caveats -- read before you author
 
 - **The filesystem must be quiesced during a run.** No locks, no mtime polling. If something else mutates `<domain>/` or `<domain>_backup/` mid-run, behaviour is undefined.
 - **Re-trim is destructive.** Every re-trim discards `<domain>/` and rebuilds from `<domain>_backup/`. **Hand-edits to the trimmed domain are lost.** Move edits into source files under the backup, or commit the trimmed output to git and re-apply post-trim.
 - **Tracing is bounded to the domain path.** Calls to procs defined outside the selected domain are treated as external (the `TW-02` family), not followed.
 - **Dynamic Tcl is not resolved.** `${prefix}_helper`, `eval "..."`, `uplevel`, `$cmd $args` emit `PW-01` / `TW-03` and are not followed. If your domain relies on dynamic dispatch, list the targets explicitly.
 - **Globs only apply to `files.*`.** Proc entries require exact file paths and proc names.
-- **`domain` field must match the cwd basename** (case-insensitive). Mismatch → `VE-17`.
+- **`domain` field must match the cwd basename** (case-insensitive). Mismatch -> `VE-17`.
 - **Non-Tcl files are file-level only.** No subroutine-level trimming for Perl/Python/shell. This is a permanent design decision (`OOS-01`).
 - **`--strict` is exit-code policy only.** It never rewrites `Diagnostic.severity`.
 
@@ -395,14 +395,14 @@ CLI-side switches (covered in [02_CLI_GUIDE.md](02_CLI_GUIDE.md)):
 |---|---|
 | **Domain owner** | The domain itself, `base.json`, the catalogue of feature JSONs, and the BKMs for trimming it |
 | **Project lead** | The project's `project.json` (or the base+features combination), and the validated `.chopper/` audit bundle for each release |
-| **Release engineer** | Cleanup window — running `chopper cleanup --confirm` once the team agrees the trim window is closed |
-| **Tool maintainer** | Chopper itself — schemas, parser, pipeline, diagnostics |
+| **Release engineer** | Cleanup window -- running `chopper cleanup --confirm` once the team agrees the trim window is closed |
+| **Tool maintainer** | Chopper itself -- schemas, parser, pipeline, diagnostics |
 
-If you are reading this because you inherited a domain you did not author, the [Chopper Agent](../.github/agents/chopper-agent.agent.md) can run a **Q1–Q5 discovery protocol** that produces starter JSON from a cold scan.
+If you are reading this because you inherited a domain you did not author, the [Chopper Agent](../.github/agents/chopper-agent.agent.md) can run a **Q1-Q5 discovery protocol** that produces starter JSON from a cold scan.
 
 ---
 
-## 11. Worked examples — pick the closest one
+## 11. Worked examples -- pick the closest one
 
 Copy the nearest example into your domain root, replace placeholders, validate, then trim.
 
@@ -414,7 +414,7 @@ Copy the nearest example into your domain root, replace placeholders, validate, 
 | Files + procs | [../examples/04_base_files_and_procs/](../examples/04_base_files_and_procs/) |
 | Files + stages | [../examples/05_base_files_and_stages/](../examples/05_base_files_and_stages/) |
 | Procs + stages | [../examples/06_base_procs_and_stages/](../examples/06_base_procs_and_stages/) |
-| Full base — files + procs + stages | [../examples/07_base_full/](../examples/07_base_full/) |
+| Full base -- files + procs + stages | [../examples/07_base_full/](../examples/07_base_full/) |
 | Base + one feature | [../examples/08_base_plus_one_feature/](../examples/08_base_plus_one_feature/) |
 | Base + multiple features | [../examples/09_base_plus_multiple_features/](../examples/09_base_plus_multiple_features/) |
 | Feature dependency chain | [../examples/10_chained_features_depends_on/](../examples/10_chained_features_depends_on/) |

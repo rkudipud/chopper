@@ -1,31 +1,31 @@
-# Chopper — Implementation Reference
+# Chopper -- Implementation Reference
 
 > **Scope.** Per-module engineering specifications, implementation pitfalls, and the recorded design decisions that shaped both. This document is the working reference for engineers writing or modifying any of Chopper's services. The architecture doc ([ARCHITECTURE.md](ARCHITECTURE.md)) defines the system contract; this doc describes how each module honors that contract in code.
 
 > **What changed in this consolidation.** This file replaces four previous docs that drifted apart over time:
 >
 > - The Tcl parser engineering spec
-> - The technical-risks and implementation-pitfalls ledger (P-01 … P-48 + TC-01 … TC-10)
-> - The parser implementation decision log (D-1b-01 … D-1e-03)
-> - The future-planned-developments ledger (OOS-01 … OOS-04 + FD-01 … FD-14)
+> - The technical-risks and implementation-pitfalls ledger (P-01 ... P-48 + TC-01 ... TC-10)
+> - The parser implementation decision log (D-1b-01 ... D-1e-03)
+> - The future-planned-developments ledger (OOS-01 ... OOS-04 + FD-01 ... FD-14)
 >
 > All content is preserved, but it is now organised **by module** rather than by document type, so the spec for a behaviour, the pitfalls that motivated it, and the decisions taken when implementing it sit next to each other. References that previously pointed at one of the four sources have been rewritten to point at the corresponding section of this doc.
 
 ## Contents
 
-1. [Parser Module](#1-parser-module) — Tcl parser engineering spec, parser pitfalls (P-01 … P-07, P-32 … P-43, P-46 … P-48), and parser decisions (D-1b-01 … D-1e-03)
-2. [Compiler & Tracer Module](#2-compiler--tracer-module) — Merge algorithm and trace expansion (P-08 … P-12, P-41, P-42)
-3. [Trimmer Module](#3-trimmer-module) — Backup / rebuild / write contract (P-13, P-15, P-37, P-44)
-4. [Validator Module](#4-validator-module) — Pre/post-trim integrity checks (P-16, P-17)
-5. [Audit & Diagnostics](#5-audit--diagnostics) — Diagnostic emission and audit-bundle invariants (P-18, P-19)
-6. [Backup & Recovery](#6-backup--recovery) — Re-trim semantics (P-20)
-7. [Configuration & Paths](#7-configuration--paths) — Path normalization, config-file resolution (P-21, P-22)
-8. [CLI & Presentation](#8-cli--presentation) — Dry-run, project JSON path resolution, mutually-exclusive flags, --strict, cleanup, domain name resolution (P-23, P-25, P-26, P-27, P-28, P-43 … P-47)
-9. [Hook Files](#9-hook-files) — `-use_hooks` discovery-only contract (P-29)
-10. [Project JSON](#10-project-json) — Project-mode metadata flow and domain consistency (P-30, P-31)
-11. [Testing Strategy](#11-testing-strategy) — Stage gating and edge-case timing (P-24)
-12. [Quick Reference](#12-quick-reference-common-mistakes-by-module) — One-table-per-mistake summary
-13. [Standalone Risk Items](#13-standalone-risk-items) — TC-06, TC-09 (no dedicated pitfall)
+1. [Parser Module](#1-parser-module) -- Tcl parser engineering spec, parser pitfalls (P-01 ... P-07, P-32 ... P-43, P-46 ... P-48), and parser decisions (D-1b-01 ... D-1e-03)
+2. [Compiler & Tracer Module](#2-compiler--tracer-module) -- Merge algorithm and trace expansion (P-08 ... P-12, P-41, P-42)
+3. [Trimmer Module](#3-trimmer-module) -- Backup / rebuild / write contract (P-13, P-15, P-37, P-44)
+4. [Validator Module](#4-validator-module) -- Pre/post-trim integrity checks (P-16, P-17)
+5. [Audit & Diagnostics](#5-audit--diagnostics) -- Diagnostic emission and audit-bundle invariants (P-18, P-19)
+6. [Backup & Recovery](#6-backup--recovery) -- Re-trim semantics (P-20)
+7. [Configuration & Paths](#7-configuration--paths) -- Path normalization, config-file resolution (P-21, P-22)
+8. [CLI & Presentation](#8-cli--presentation) -- Dry-run, project JSON path resolution, mutually-exclusive flags, --strict, cleanup, domain name resolution (P-23, P-25, P-26, P-27, P-28, P-43 ... P-47)
+9. [Hook Files](#9-hook-files) -- `-use_hooks` discovery-only contract (P-29)
+10. [Project JSON](#10-project-json) -- Project-mode metadata flow and domain consistency (P-30, P-31)
+11. [Testing Strategy](#11-testing-strategy) -- Stage gating and edge-case timing (P-24)
+12. [Quick Reference](#12-quick-reference-common-mistakes-by-module) -- One-table-per-mistake summary
+13. [Standalone Risk Items](#13-standalone-risk-items) -- TC-06, TC-09 (no dedicated pitfall)
 - [Future Considerations (FD-xx)](#future-considerations)
 
 ---
@@ -34,13 +34,13 @@
 
 The parser is the foundation of F2 (proc-level trimming) and transitive tracing. Every rule in this section is derived from the Tcl 8.6 Dodekalogue (the twelve rules that define Tcl syntax and semantics) and adapted for Chopper's static analysis context.
 
-The architecture doc [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 fixes the parser's role in the pipeline (P2). This section is the engineering specification: tokenization rules, proc-detection algorithm, call-extraction rules, the `ProcEntry` output shape, edge cases, the test-fixture catalog, and the design decisions taken during implementation.
+The architecture doc [ARCHITECTURE.md](ARCHITECTURE.md) Sec.5.4 fixes the parser's role in the pipeline (P2). This section is the engineering specification: tokenization rules, proc-detection algorithm, call-extraction rules, the `ProcEntry` output shape, edge cases, the test-fixture catalog, and the design decisions taken during implementation.
 
 **Risk statements covered by this section.**
 
-> **TC-01 — Tcl Proc Boundary Detection.** Chopper must correctly find proc boundaries even with nested braces and namespace constructs. Without a reliable parser, F2 (proc-level trimming) is not viable.
+> **TC-01 -- Tcl Proc Boundary Detection.** Chopper must correctly find proc boundaries even with nested braces and namespace constructs. Without a reliable parser, F2 (proc-level trimming) is not viable.
 >
-> **TC-02 — Canonical Proc Naming.** Resolved to **file + proc name** with namespace-qualified synthesis. Canonical form: `file.tcl::proc_name`. Incorrect canonicalization breaks JSON stability and traceability. JSON authoring uses the short proc name; Chopper resolves the canonical form internally.
+> **TC-02 -- Canonical Proc Naming.** Resolved to **file + proc name** with namespace-qualified synthesis. Canonical form: `file.tcl::proc_name`. Incorrect canonicalization breaks JSON stability and traceability. JSON authoring uses the short proc name; Chopper resolves the canonical form internally.
 
 ---
 
@@ -48,7 +48,7 @@ The architecture doc [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 fixes the parser's
 
 This document specifies the tokenization, parsing, and indexing rules for Chopper's Tcl parser. The parser is the foundation of F2 (proc-level trimming) and transitive tracing. Every rule here is derived from the Tcl 8.6 Dodekalogue (the twelve rules that define Tcl syntax and semantics) and adapted for Chopper's static analysis context.
 
-**Non-goal:** Chopper does not execute or interpret Tcl. It performs structural analysis only — finding proc boundaries, extracting namespace context, and identifying static call references. find the line numbers for the proc definition in the file.
+**Non-goal:** Chopper does not execute or interpret Tcl. It performs structural analysis only -- finding proc boundaries, extracting namespace context, and identifying static call references. find the line numbers for the proc definition in the file.
 
 ---
 
@@ -63,11 +63,11 @@ This document specifies the tokenization, parsing, and indexing rules for Choppe
 | **Line endings** | Normalize all line endings to `\n` on read (strip `\r`) |
 | **Line indexing** | 1-indexed. Line 1 is the first line of the file |
 | **Span convention** | Inclusive: `start_line=5, end_line=10` means lines 5, 6, 7, 8, 9, 10 ; internal markers for initial comments, proc body and set_proc_Attributes (if available)|
-| **Output** | A list of `ProcEntry` records (see §1.6) |
+| **Output** | A list of `ProcEntry` records (see Sec.1.6) |
 
 #### 1.2.1 Public Function Signature
 
-**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`technical_docs/ENGINEERING.md`](ENGINEERING.md) §1.9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps — it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and operates on already-decoded text supplied by the service. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
+**Canonical public entry point:** `ParserService.run(ctx, files) -> ParseResult`, defined in [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.1.9.2. The service is what the orchestrator and every other service depend on. The `parse_file()` function below is the **pure internal utility** the service wraps -- it knows nothing about `ChopperContext`, `DiagnosticSink`, or the filesystem port, and operates on already-decoded text supplied by the service. Implementations and unit tests should target `parse_file()` directly; integration tests and the runner use `ParserService.run()`.
 
 ```python
 def parse_file(
@@ -81,13 +81,13 @@ def parse_file(
         file_path: Domain-relative or absolute path identifying the Tcl file.
         text: Already-decoded file content supplied by ParserService.
         on_diagnostic: Optional callback for emitting Diagnostic records
-            (PE-01, PW-01, PW-02, etc. — see technical_docs/DIAGNOSTIC_CODES.md).
+            (PE-01, PW-01, PW-02, etc. -- see technical_docs/DIAGNOSTIC_CODES.md).
             When None, diagnostics are silently discarded.
 
     Returns:
         List of ProcEntry records. May be empty (not an error).
         Return contract on PE-* diagnostics is specified in
-        technical_docs/ARCHITECTURE.md §5.4.1.
+        technical_docs/ARCHITECTURE.md Sec.5.4.1.
     """
 ```
 
@@ -95,12 +95,12 @@ def parse_file(
 
 #### 1.2.2 Return-Value Contract on Diagnostics
 
-The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
+The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) Sec.5.4.1 is authoritative for the per-file return-value contract. Duplicated here for parser implementers:
 
 | Condition in file | `parse_file()` returns | Diagnostic emitted |
 |---|---|---|
-| Clean parse, zero procs defined | `[]` (empty list) | — |
-| Clean parse, N procs defined | `[ProcEntry, ..., ProcEntry]` (length N) | — |
+| Clean parse, zero procs defined | `[]` (empty list) | -- |
+| Clean parse, N procs defined | `[ProcEntry, ..., ProcEntry]` (length N) | -- |
 | Duplicate proc definition in same file | Full list; **last-wins** replaces the earlier entry in-place at the same index | `PE-01 duplicate-proc-definition` (one per collision) |
 | Unbalanced braces (depth never returns to 0 or goes negative) | `[]` (empty list) | `PE-02 unbalanced-braces` |
 | Two procs collapse to the same short name after namespace stripping | Full list with both entries; F2 short-name lookup becomes ambiguous | `PE-03 ambiguous-short-name` |
@@ -117,20 +117,20 @@ The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 is authoritati
 
 ### 1.3 Tokenization Rules
 
-Chopper uses a simplified, brace-aware tokenizer that follows Tcl 8.6 Rules [1], [6], [9], and [10]. The tokenizer does NOT interpret variables, commands, or expressions — it only tracks structural delimiters.
+Chopper uses a simplified, brace-aware tokenizer that follows Tcl 8.6 Rules [1], [6], [9], and [10]. The tokenizer does NOT interpret variables, commands, or expressions -- it only tracks structural delimiters.
 
 #### 1.3.0 State-Machine Summary
 
-The tokenizer state is the tuple `(brace_depth: int, in_quote: bool, quoted_bracket_depth: int, in_comment: bool, context_stack_top)` where `context_stack_top` is one of `FILE_ROOT | NAMESPACE_EVAL | CONTROL_FLOW | PROC_BODY` (see §1.4.2 for the full context stack). Transitions are per-character within the current logical line; `\\\n` line continuation (§1.3.2) does not reset state. The table below specifies every structural transition; characters not listed are inert and only advance position.
+The tokenizer state is the tuple `(brace_depth: int, in_quote: bool, quoted_bracket_depth: int, in_comment: bool, context_stack_top)` where `context_stack_top` is one of `FILE_ROOT | NAMESPACE_EVAL | CONTROL_FLOW | PROC_BODY` (see Sec.1.4.2 for the full context stack). Transitions are per-character within the current logical line; `\\\n` line continuation (Sec.1.3.2) does not reset state. The table below specifies every structural transition; characters not listed are inert and only advance position.
 
-**Tcl Endekas/Dodekalogue Rule 5 (Double quotes), authoritative:** an unescaped `"` at a *word boundary* opens a quoted word **at any brace depth**. Inside the quoted word, `;`, `\n`, whitespace and `}` are LITERAL; only an unescaped `"` at quoted-bracket-depth 0 closes the word. `[...]` inside a quoted word is command substitution (§1.3.3.3); the inner command is parsed as Tcl and any `"` inside the substitution belongs to the inner command, not the outer word. (See this doc Pitfall P-01 for the production bug that motivated this clarification.)
+**Tcl Endekas/Dodekalogue Rule 5 (Double quotes), authoritative:** an unescaped `"` at a *word boundary* opens a quoted word **at any brace depth**. Inside the quoted word, `;`, `\n`, whitespace and `}` are LITERAL; only an unescaped `"` at quoted-bracket-depth 0 closes the word. `[...]` inside a quoted word is command substitution (Sec.1.3.3.3); the inner command is parsed as Tcl and any `"` inside the substitution belongs to the inner command, not the outer word. (See this doc Pitfall P-01 for the production bug that motivated this clarification.)
 
 | Current state | Input | Next state | Side effect |
 |---|---|---|---|
 | `brace_depth=d`, `in_quote=False`, `in_comment=False` | unescaped `{` | `brace_depth=d+1` | If the `{` opens a proc body, push `PROC_BODY` onto context stack. If it opens `namespace eval`, push `NAMESPACE_EVAL` + push the name onto namespace stack. If it opens a control-flow body (`if`, `for`, `foreach`, `while`, `switch`, `catch`, `eval`), push `CONTROL_FLOW`. |
 | `brace_depth=d>0`, `in_quote=False`, `in_comment=False` | unescaped `}` | `brace_depth=d-1` | If the new depth matches the `entered_at_depth` of the context-stack top, pop the context. If popping `NAMESPACE_EVAL`, also pop the namespace stack. If popping `PROC_BODY`, finalize the current `ProcEntry` (record `end_line`). |
 | any | `\` followed by `\n` | (unchanged) | Log-only; `PW-05 backslash-continuation` on first occurrence in a file. Does **not** reset `in_comment` or `in_quote`. |
-| `in_quote=False`, `in_comment=False`, at word boundary, **any `brace_depth`** | unescaped `"` | `in_quote=True`, `quoted_bracket_depth=0` | Open a quoted word per Endekas Rule 5. Applies inside proc bodies, switch arms, control-flow bodies — anywhere a word boundary exists. |
+| `in_quote=False`, `in_comment=False`, at word boundary, **any `brace_depth`** | unescaped `"` | `in_quote=True`, `quoted_bracket_depth=0` | Open a quoted word per Endekas Rule 5. Applies inside proc bodies, switch arms, control-flow bodies -- anywhere a word boundary exists. |
 | `in_quote=True`, `quoted_bracket_depth=0` | unescaped `"` | `in_quote=False` | Close the quoted word. Escaped `\"` does not close. |
 | `in_quote=True` | unescaped `[` | `quoted_bracket_depth+=1` | Enter command substitution inside the quoted word. |
 | `in_quote=True`, `quoted_bracket_depth>0` | unescaped `]` | `quoted_bracket_depth-=1` | Exit one level of command substitution. While `quoted_bracket_depth>0`, `"` is parsed by the inner command, not as the outer word's terminator. |
@@ -138,11 +138,11 @@ The tokenizer state is the tuple `(brace_depth: int, in_quote: bool, quoted_brac
 | `brace_depth=d`, `in_quote=False`, `in_comment=False`, at command position | `#` | `in_comment=True` | Comment extends to end of logical line (respecting `\\\n` continuation). |
 | `in_comment=True` | `\n` not preceded by `\` | `in_comment=False` | End of comment line. |
 | `in_comment=True` | `{` / `}` | (unchanged) | Inert; `brace_depth` unchanged. |
-| any | `[` / `]` (outside `in_quote`) | (unchanged) | Inert for brace tracking. Call-extraction (§5) inspects bracketed tokens separately. |
-| `brace_depth<0` at any point | — | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
-| end-of-file with `brace_depth>0` | — | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
+| any | `[` / `]` (outside `in_quote`) | (unchanged) | Inert for brace tracking. Call-extraction (Sec.5) inspects bracketed tokens separately. |
+| `brace_depth<0` at any point | -- | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
+| end-of-file with `brace_depth>0` | -- | (error) | Emit `PE-02 unbalanced-braces`; `parse_file()` returns `[]`. |
 
-**Order of precedence when multiple conditions would apply on the same character:** `in_comment` beats `in_quote` beats brace tracking. `in_quote=True` suppresses `#` → comment. `\` before any special character escapes it for the purpose of state transitions (escape counting is "odd number of trailing backslashes escapes").
+**Order of precedence when multiple conditions would apply on the same character:** `in_comment` beats `in_quote` beats brace tracking. `in_quote=True` suppresses `#` -> comment. `\` before any special character escapes it for the purpose of state transitions (escape counting is "odd number of trailing backslashes escapes").
 
 #### 1.3.1 Brace Matching (Tcl Rule 6)
 
@@ -152,9 +152,9 @@ Braces `{` and `}` define word boundaries in Tcl. Chopper must track brace depth
 1. An unescaped `{` increments brace depth by 1.
 2. An unescaped `}` decrements brace depth by 1.
 3. A brace preceded by an odd number of consecutive backslashes is **escaped** and does NOT affect depth.
-4. Inside braces, no substitutions occur for the *value* of the brace-quoted word (no `$`, `[...]` substitution at this level). However, when the brace-quoted region is later interpreted as Tcl script (e.g. a proc body, an `if`/`while`/`foreach` body, a `namespace eval` body), it is re-parsed as Tcl and Endekas Rule 5 applies inside it — `"` opens a quoted word at the inner depth. Chopper's tokenizer therefore tracks `in_quote` independently of `brace_depth`.
+4. Inside braces, no substitutions occur for the *value* of the brace-quoted word (no `$`, `[...]` substitution at this level). However, when the brace-quoted region is later interpreted as Tcl script (e.g. a proc body, an `if`/`while`/`foreach` body, a `namespace eval` body), it is re-parsed as Tcl and Endekas Rule 5 applies inside it -- `"` opens a quoted word at the inner depth. Chopper's tokenizer therefore tracks `in_quote` independently of `brace_depth`.
 5. The only exception inside braces: backslash-newline (`\` immediately before `\n`) is a line continuation at the parser level. This affects the **line count** but does NOT affect brace depth.
-6. Nested braces must balance: `{ { } }` is valid (depth goes 0→1→2→1→0).
+6. Nested braces must balance: `{ { } }` is valid (depth goes 0->1->2->1->0).
 
 **Why this matters:** Proc bodies are brace-delimited. Incorrect brace tracking means incorrect proc boundaries.
 
@@ -165,7 +165,7 @@ A backslash `\` immediately before a newline character joins the next line.
 **Rules:**
 1. When `\` appears immediately before `\n`, the parser treats the next line as a continuation of the current line.
 2. Continuation only occurs when the backslash count before `\n` is **odd**.
-3. For brace-depth tracking, continuation does NOT change depth — it only affects line numbering.
+3. For brace-depth tracking, continuation does NOT change depth -- it only affects line numbering.
 4. For line counting purposes, each `\n` in the source (including inside continuations) increments the line counter.
 
 **Implementation note:** Do NOT physically join lines. Track them as separate source lines but recognize that a `\` at end-of-line means the logical command continues.
@@ -195,11 +195,11 @@ While the parser is at `brace_depth == 0` scanning the proc name or args specifi
 - Inside it, braces and other word-boundary characters are literal.
 - The word ends at the next unescaped `"` at `quoted_bracket_depth == 0`.
 
-Example: `proc foo "arg1 {arg2}" { body }` — the `{` inside the quoted args is literal, does not increment `brace_depth`. The body `{` is found after the closing `"`.
+Example: `proc foo "arg1 {arg2}" { body }` -- the `{` inside the quoted args is literal, does not increment `brace_depth`. The body `{` is found after the closing `"`.
 
 ##### 1.3.3.2 In-Body Rule (Inside Brace-Delimited Blocks)
 
-Once the parser is inside a brace-delimited block (`brace_depth > 0`) — proc body, `namespace eval` body, control-flow body — the **same** quote rule applies:
+Once the parser is inside a brace-delimited block (`brace_depth > 0`) -- proc body, `namespace eval` body, control-flow body -- the **same** quote rule applies:
 
 - `"` at a word boundary opens a quoted word.
 - The quoted word's contents are literal w.r.t. command separation and brace counting.
@@ -218,10 +218,10 @@ A `#` character is a comment only when it appears where Tcl expects the first wo
 **Rules:**
 1. `#` at the start of a line (ignoring leading whitespace) begins a comment.
 2. `#` after a semicolon `;` with optional whitespace begins a comment.
-3. `#` inside a brace block follows the same rule — it is a comment only in command position.
+3. `#` inside a brace block follows the same rule -- it is a comment only in command position.
 4. Comment extends to the next unescaped newline.
 5. A `\` at end of a comment line continues the comment onto the next line.
-6. Comment lines are preserved in line numbering — they do not compress line counts.
+6. Comment lines are preserved in line numbering -- they do not compress line counts.
 7. Braces inside comments DO NOT affect brace depth (comments are inert).
 
 **Critical edge case:** Inside a proc body (which is a brace-delimited block), `#` at command position IS a comment. But the `}` that closes a comment line could be confused with the closing brace of the proc. The parser must NOT count braces inside comments.
@@ -231,7 +231,7 @@ A `#` character is a comment only when it appears where Tcl expects the first wo
 **Rules for Chopper:**
 1. Square brackets `[` and `]` denote command substitution.
 2. Inside brace-delimited blocks (including proc bodies), `[...]` is NOT executed but is still text.
-3. For brace tracking purposes, brackets are irrelevant — only braces matter for proc boundary detection.
+3. For brace tracking purposes, brackets are irrelevant -- only braces matter for proc boundary detection.
 4. For **call extraction** (tracing), bracketed expressions like `[helper_proc arg1]` are parsed to extract the proc name (first token after `[`).
 
 ---
@@ -244,17 +244,17 @@ A `#` character is a comment only when it appears where Tcl expects the first wo
 
 **Decision.** LBRACE records the depth *before* the brace increments it; RBRACE records the depth *after* the brace decrements it. Both end up as the depth of the *enclosing* scope in which the brace sits, which reads correctly for `token.brace_depth == 0` checks on either kind.
 
-**Rationale.** Downstream consumers (NamespaceTracker, proc extractor) test "is this brace at top level?" via `brace_depth == 0`, which should be true for both the opening `{` of a top-level proc and the matching `}`. The spec (§1.3.1) does not dictate which convention to use — it says only that "depth increments on `{` and decrements on `}`".
+**Rationale.** Downstream consumers (NamespaceTracker, proc extractor) test "is this brace at top level?" via `brace_depth == 0`, which should be true for both the opening `{` of a top-level proc and the matching `}`. The spec (Sec.1.3.1) does not dictate which convention to use -- it says only that "depth increments on `{` and decrements on `}`".
 
 **Outcome.** Documented in `Token.brace_depth` docstring at [src/chopper/parser/tokenizer.py](../src/chopper/parser/tokenizer.py). Unit-tested in `TestBraces::test_empty_braces` at [tests/unit/parser/test_tokenizer.py](../tests/unit/parser/test_tokenizer.py).
 
-##### D-1b-02: Four devil's-advocate hardening tests — spec-compliant `;` + `#` inside braces
+##### D-1b-02: Four devil's-advocate hardening tests -- spec-compliant `;` + `#` inside braces
 
 **Context.** A mid-stage review raised the claim that `;` followed by `#` inside a brace-delimited data block would swallow the closing `}` as part of the comment, which would be a spec-violating bug.
 
-**Decision.** The behaviour is **by design** per §1.3.0 state table + §1.3.4 rule 3 + §1.3.3.2. Brace-delimited bodies **are** Tcl scripts (the spec says so explicitly for `proc` bodies, and there is no syntactic distinction between a proc body and any other brace-delimited script). A `;` at any depth terminates the current command and re-establishes command position; a subsequent `#` at command position starts a comment that scans to the next unescaped newline.
+**Decision.** The behaviour is **by design** per Sec.1.3.0 state table + Sec.1.3.4 rule 3 + Sec.1.3.3.2. Brace-delimited bodies **are** Tcl scripts (the spec says so explicitly for `proc` bodies, and there is no syntactic distinction between a proc body and any other brace-delimited script). A `;` at any depth terminates the current command and re-establishes command position; a subsequent `#` at command position starts a comment that scans to the next unescaped newline.
 
-**Rationale.** The spec endorses this behaviour via the worked example in §1.3.3.2 ("`set x { a ; # comment\n }` — the `#` activates a comment inside the brace"). Changing it would have required a spec edit; the spec was correct.
+**Rationale.** The spec endorses this behaviour via the worked example in Sec.1.3.3.2 ("`set x { a ; # comment\n }` -- the `#` activates a comment inside the brace"). Changing it would have required a spec edit; the spec was correct.
 
 **Outcome.** Added 4 hardening tests to [tests/unit/parser/test_tokenizer.py](../tests/unit/parser/test_tokenizer.py) (`test_semicolon_inside_braces_still_emits_token`, `test_comment_after_semicolon_inside_braces_activates`, `test_dangling_backslash_at_eof`, `test_escaped_open_brace_in_word_stays_word`) to document the spec-compliant behaviour and prevent a future "fix" from regressing it.
 
@@ -315,21 +315,21 @@ For each line in the file:
        b. Scan forward from the proc name until an unescaped `{`
           is found at the current brace_depth. Everything between
           the proc name and that `{` is the args specification.
-          Do NOT parse the args word contents — only locate the
+          Do NOT parse the args word contents -- only locate the
           body opening brace.
-       c. The `{` increments brace_depth by 1 — this is the body open
+       c. The `{` increments brace_depth by 1 -- this is the body open
        d. Push (PROC_BODY, brace_depth_before_open) onto context_stack
        e. Track brace_depth line-by-line until it returns to
-          brace_depth_before_open → that `}` is the body close
+          brace_depth_before_open -> that `}` is the body close
        f. Pop PROC_BODY from context_stack
        g. Record: start_line = line with `proc` keyword
                   end_line   = line with closing `}`
                   body_start_line = line immediately after the opening `{`
                   body_end_line   = line immediately before the closing `}`
-       h. Scan ahead from end_line for a DPA block (§1.4.6). If found within
+       h. Scan ahead from end_line for a DPA block (Sec.1.4.6). If found within
           3 blank lines, record dpa_start_line / dpa_end_line and advance
           the line cursor past the DPA block so the main loop skips it.
-       i. Scan backward from start_line for a contiguous comment block (§1.4.7).
+       i. Scan backward from start_line for a contiguous comment block (Sec.1.4.7).
           Record comment_start_line / comment_end_line.
 
   3. If the line matches: ^\s*(namespace)\s+(eval)\s+(\S+)\s*\{
@@ -341,19 +341,19 @@ For each line in the file:
      foreach_in_collection, while, switch, catch, eval) followed by a body `{`:
      Push (CONTROL_FLOW, current_brace_depth) onto context_stack
      When brace_depth returns to entered_at_depth, pop the stack
-     Note: `foreach_in_collection` is a Synopsys EDA iterator — handle
-     identically to `foreach`; see §1.7.14 and Pitfall P-36.
+     Note: `foreach_in_collection` is a Synopsys EDA iterator -- handle
+     identically to `foreach`; see Sec.1.7.14 and Pitfall P-36.
 ```
 
-**Worked example — proc inside `if` inside `namespace eval`:**
+**Worked example -- proc inside `if` inside `namespace eval`:**
 
 ```tcl
-namespace eval ns {          # line 1: brace_depth 0→1, push NAMESPACE_EVAL
-  if { $cond } {             # line 2: brace_depth 1→2→3, push CONTROL_FLOW
-    proc foo {} { return 1 } # line 3: top is CONTROL_FLOW → NOT recognized
-  }                          # line 4: brace_depth 3→2, pop CONTROL_FLOW
-  proc bar {} { return 2 }   # line 5: top is NAMESPACE_EVAL → RECOGNIZED as ns::bar
-}                            # line 6: brace_depth 1→0, pop NAMESPACE_EVAL
+namespace eval ns {          # line 1: brace_depth 0->1, push NAMESPACE_EVAL
+  if { $cond } {             # line 2: brace_depth 1->2->3, push CONTROL_FLOW
+    proc foo {} { return 1 } # line 3: top is CONTROL_FLOW -> NOT recognized
+  }                          # line 4: brace_depth 3->2, pop CONTROL_FLOW
+  proc bar {} { return 2 }   # line 5: top is NAMESPACE_EVAL -> RECOGNIZED as ns::bar
+}                            # line 6: brace_depth 1->0, pop NAMESPACE_EVAL
 ```
 
 Result: only `bar` is indexed (as `ns::bar`). `foo` is skipped with a debug-level log.
@@ -367,11 +367,11 @@ Result: only `bar` is indexed (as `ns::bar`). `foo` is skipped with a debug-leve
 | `proc foo {args} {...}` inside `namespace eval ns { ... }` | `ns::foo` |
 | `proc foo {args} {...}` inside `namespace eval a { namespace eval b { ... } }` | `a::b::foo` |
 | `proc ::abs::foo {args} {...}` inside `namespace eval ns { ... }` | `abs::foo` (absolute overrides namespace context) |
-| `proc ${prefix}_foo {args} {...}` | **SKIP** — log WARNING (computed name, unresolvable) |
+| `proc ${prefix}_foo {args} {...}` | **SKIP** -- log WARNING (computed name, unresolvable) |
 
 ##### 1.4.3.1 Canonical-Name Test Vectors
 
-The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
+The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) Sec.5.4.1 fixes the canonical-name format as `"<domain-relative-posix-path>::<qualified_name>"`. The table below is the authoritative test-vector set every parser implementation must match. Inputs are `(file_path, namespace_stack_at_proc_line, proc_short_name)`; outputs are the resulting `canonical_name` used as the key in `ParseResult.index`.
 
 | `file_path` | `namespace_stack` | `proc_short_name` | `canonical_name` | Notes |
 |---|---|---|---|---|
@@ -386,7 +386,7 @@ The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 fixes the cano
 | `sub/dir/f.tcl` | `["p", "q"]` | `r` | `sub/dir/f.tcl::p::q::r` | Deep path + nested namespace |
 | `utils.tcl` | `[]` | `${prefix}_foo` | **(not indexed)** | Emits `PW-01 computed-proc-name`; proc is skipped entirely |
 
-**Enforcement.** `ParseResult` validates this format at construction. `tests/unit/parser/test_canonical_name.py` must parametrize across every row above. See also architecture doc §5.4.1 (the authoritative registry) and this doc TC-02.
+**Enforcement.** `ParseResult` validates this format at construction. `tests/unit/parser/test_canonical_name.py` must parametrize across every row above. See also architecture doc Sec.5.4.1 (the authoritative registry) and this doc TC-02.
 
 ##### 1.4.3.2 Source / `iproc_source` Edges
 
@@ -397,7 +397,7 @@ The architecture doc [`ARCHITECTURE.md`](ARCHITECTURE.md) §5.4.1 fixes the cano
 - The sourced file's survival requires an explicit `files.include` entry; a sourced proc's survival requires an explicit `procedures.include` entry.
 - A `source` referencing a file that did not survive trim emits `VW-06 source-file-removed` in P6.
 
-See architecture doc §5.4 R3 (source-edge survival effect) and §3.4 (hook semantics) for the authoritative contract.
+See architecture doc Sec.5.4 R3 (source-edge survival effect) and Sec.3.4 (hook semantics) for the authoritative contract.
 
 #### 1.4.4 Where Procs Are Recognized
 
@@ -406,15 +406,15 @@ See architecture doc §5.4 R3 (source-edge survival effect) and §3.4 (hook sema
 | File top level (depth 0) | **YES** | Standard proc definition location |
 | Inside `namespace eval <name> { ... }` | **YES** | Procs inherit namespace context |
 | Inside nested `namespace eval` blocks | **YES** | Multi-level namespace nesting |
-| Inside `if { ... }` block | **NO** | Conditional definition — too dynamic |
-| Inside `for`, `foreach`, `while` block | **NO** | Loop-based definition — too dynamic |
-| Inside another `proc` body | **NO** | Nested proc — not a reliable top-level definition |
-| Inside `catch { ... }` block | **NO** | Error-handling context — too dynamic |
-| Inside `eval { ... }` block | **NO** | Dynamic evaluation — not statically analyzable |
+| Inside `if { ... }` block | **NO** | Conditional definition -- too dynamic |
+| Inside `for`, `foreach`, `while` block | **NO** | Loop-based definition -- too dynamic |
+| Inside another `proc` body | **NO** | Nested proc -- not a reliable top-level definition |
+| Inside `catch { ... }` block | **NO** | Error-handling context -- too dynamic |
+| Inside `eval { ... }` block | **NO** | Dynamic evaluation -- not statically analyzable |
 
 **Rule:** Only procs at file top-level or inside `namespace eval` blocks are indexed. All other contexts are ignored with a debug-level log message.
 
-**Call extraction scope:** Call extraction (§5) applies **only** to procs that are recognized and indexed per this table. Bodies of unrecognized procs (defined inside `if`, `for`, `catch`, etc.) are NOT searched for calls and are NOT included in the traced dependency graph. A debug-level log is emitted for each skipped unrecognized proc definition.
+**Call extraction scope:** Call extraction (Sec.5) applies **only** to procs that are recognized and indexed per this table. Bodies of unrecognized procs (defined inside `if`, `for`, `catch`, etc.) are NOT searched for calls and are NOT included in the traced dependency graph. A debug-level log is emitted for each skipped unrecognized proc definition.
 
 #### 1.4.5 Namespace Eval Detection
 
@@ -428,10 +428,10 @@ namespace eval <name> { <body> }
 3. `<name>` is the namespace name (third word).
 4. `<body>` is brace-delimited.
 5. Nesting is tracked: inside `namespace eval a { namespace eval b { ... } }`, the active namespace path is `a::b`.
-6. Multiple `namespace eval` blocks for the same namespace in one file are supported — each contributes procs to that namespace.
+6. Multiple `namespace eval` blocks for the same namespace in one file are supported -- each contributes procs to that namespace.
 7. `namespace eval` with a computed name (contains `$`) is logged as a WARNING and its body is NOT parsed for procs.
 
-##### 1.4.5.1 Namespace Stack Pop Timing — Worked Example
+##### 1.4.5.1 Namespace Stack Pop Timing -- Worked Example
 
 The namespace stack and context stack interact through brace_depth transitions. Here is a concrete trace for two sequential `namespace eval` blocks:
 
@@ -448,16 +448,16 @@ namespace eval b {            # Line 6
 
 | Line | Token | brace_depth | namespace_stack | context_stack top | Action |
 |------|-------|-------------|-----------------|-------------------|--------|
-| 1 | (start of file) | 0 | `[]` | FILE_ROOT | — |
-| 2 | `namespace eval a {` | 0→1 | `["a"]` | NAMESPACE_EVAL(entered@0) | Push NS + context |
-| 3 | `proc p1 {} { return 1 }` | 1→2→1 | `["a"]` | NAMESPACE_EVAL | **Recognized:** `a::p1` |
-| 4 | `}` | 1→0 | `[]` | FILE_ROOT | **Pop:** depth returned to 0 → pop NAMESPACE_EVAL, pop `"a"` from namespace_stack |
-| 5 | (blank) | 0 | `[]` | FILE_ROOT | — |
-| 6 | `namespace eval b {` | 0→1 | `["b"]` | NAMESPACE_EVAL(entered@0) | Push NS + context |
-| 7 | `proc p2 {} { return 2 }` | 1→2→1 | `["b"]` | NAMESPACE_EVAL | **Recognized:** `b::p2` |
-| 8 | `}` | 1→0 | `[]` | FILE_ROOT | **Pop:** depth returned to 0 → pop NAMESPACE_EVAL, pop `"b"` from namespace_stack |
+| 1 | (start of file) | 0 | `[]` | FILE_ROOT | -- |
+| 2 | `namespace eval a {` | 0->1 | `["a"]` | NAMESPACE_EVAL(entered@0) | Push NS + context |
+| 3 | `proc p1 {} { return 1 }` | 1->2->1 | `["a"]` | NAMESPACE_EVAL | **Recognized:** `a::p1` |
+| 4 | `}` | 1->0 | `[]` | FILE_ROOT | **Pop:** depth returned to 0 -> pop NAMESPACE_EVAL, pop `"a"` from namespace_stack |
+| 5 | (blank) | 0 | `[]` | FILE_ROOT | -- |
+| 6 | `namespace eval b {` | 0->1 | `["b"]` | NAMESPACE_EVAL(entered@0) | Push NS + context |
+| 7 | `proc p2 {} { return 2 }` | 1->2->1 | `["b"]` | NAMESPACE_EVAL | **Recognized:** `b::p2` |
+| 8 | `}` | 1->0 | `[]` | FILE_ROOT | **Pop:** depth returned to 0 -> pop NAMESPACE_EVAL, pop `"b"` from namespace_stack |
 
-**Result:** `p1.qualified_name = "a::p1"`, `p2.qualified_name = "b::p2"`. The namespace context resets completely between blocks — `p2` is NOT in namespace `a`.
+**Result:** `p1.qualified_name = "a::p1"`, `p2.qualified_name = "b::p2"`. The namespace context resets completely between blocks -- `p2` is NOT in namespace `a`.
 
 **Test fixture:** `parser_namespace_reset_after_block.tcl` (Fixture 7 in FIXTURE_CATALOG.md) must verify this behavior.
 
@@ -465,7 +465,7 @@ namespace eval b {            # Line 6
 
 #### 1.4.6 define_proc_attributes (DPA) Detection
 
-In Intel/Synopsys VLSI EDA codebases, virtually every user proc is immediately followed by a `define_proc_attributes` (or `define_proc_arguments`) block — a Synopsys Tcl convention for annotating proc metadata and argument specifications. In production files like `default_fm_procs.tcl`, this pattern appears on **100% of proc definitions**:
+In Intel/Synopsys VLSI EDA codebases, virtually every user proc is immediately followed by a `define_proc_attributes` (or `define_proc_arguments`) block -- a Synopsys Tcl convention for annotating proc metadata and argument specifications. In production files like `default_fm_procs.tcl`, this pattern appears on **100% of proc definitions**:
 
 ```tcl
 proc read_libs {} {
@@ -478,19 +478,19 @@ define_proc_attributes read_libs \
 **Detection rules:**
 
 1. After recording the proc's closing `}` at `end_line`, peek ahead.
-2. Skip blank lines only (up to 3). Do NOT skip comment lines — a comment between `}` and the DPA line breaks the association.
+2. Skip blank lines only (up to 3). Do NOT skip comment lines -- a comment between `}` and the DPA line breaks the association.
 3. If the next non-blank line matches `^\s*define_proc_(attributes|arguments)\s+`:
    a. Extract the proc name using the algorithm below.
-   b. Validate: the extracted DPA name must match `qualified_name` of the proc just closed. Mismatch → emit `PW-11` and do NOT associate.
+   b. Validate: the extracted DPA name must match `qualified_name` of the proc just closed. Mismatch -> emit `PW-11` and do NOT associate.
     c. Collect the full physical DPA block. Continue while either condition holds:
         - the current physical line ends with an unescaped `\`; or
         - the DPA command has an open brace-delimited payload (for example `-define_args { ... }`) whose outer brace has not yet closed.
         In production Synopsys files the command often uses `\` on the keyword and `-info` lines, then relies on brace balance alone for the interior `-define_args` rows. A continuation-only scan truncates `dpa_end_line` and leaves orphaned metadata lines behind after trim.
    d. Record `dpa_start_line` and `dpa_end_line` on the `ProcEntry`.
-   e. **Cursor advance after DPA block.** After recording the DPA block, the main-loop line cursor must be advanced past **all physical source lines** consumed by the block — including every backslash-continuation line. Each `\<newline>` pair is one physical source line and must increment the cursor by 1. Advancing by logical lines instead of physical lines causes an off-by-one error in `start_line` for every subsequent proc in the file. In production EDA files (e.g., `default_fm_procs.tcl`) every proc has a multi-line DPA block with continuation lines, so this error is systematic — all proc spans after the first DPA are wrong if step (e) is omitted.
-4. No DPA found within the lookahead window → `dpa_start_line = dpa_end_line = None`.
+   e. **Cursor advance after DPA block.** After recording the DPA block, the main-loop line cursor must be advanced past **all physical source lines** consumed by the block -- including every backslash-continuation line. Each `\<newline>` pair is one physical source line and must increment the cursor by 1. Advancing by logical lines instead of physical lines causes an off-by-one error in `start_line` for every subsequent proc in the file. In production EDA files (e.g., `default_fm_procs.tcl`) every proc has a multi-line DPA block with continuation lines, so this error is systematic -- all proc spans after the first DPA are wrong if step (e) is omitted.
+4. No DPA found within the lookahead window -> `dpa_start_line = dpa_end_line = None`.
 
-**DPA proc name extraction.** Per the Tcl `define_proc_attributes` calling convention (Synopsys SDC/PT), the proc name is **the first whitespace-delimited token after the keyword** — independent of how many `-flag value` pairs follow, how those values are brace-quoted, or how many physical lines the call spans via `\`-continuation. Earlier revisions of this spec attempted a regex-based "strip known flags" walk; in production that walk could not balance nested `{…}` arg descriptors and concatenated parts of the option list onto the name, producing false `PW-11` plus `PI-04` diagnostics on every DPA block with multi-line `-define_args` (see this doc Pitfall P-40 and bug report `PW-11_PI-04_dpa_line_continuation_misparse.md`). The correct, simple implementation follows:
+**DPA proc name extraction.** Per the Tcl `define_proc_attributes` calling convention (Synopsys SDC/PT), the proc name is **the first whitespace-delimited token after the keyword** -- independent of how many `-flag value` pairs follow, how those values are brace-quoted, or how many physical lines the call spans via `\`-continuation. Earlier revisions of this spec attempted a regex-based "strip known flags" walk; in production that walk could not balance nested `{...}` arg descriptors and concatenated parts of the option list onto the name, producing false `PW-11` plus `PI-04` diagnostics on every DPA block with multi-line `-define_args` (see this doc Pitfall P-40 and bug report `PW-11_PI-04_dpa_line_continuation_misparse.md`). The correct, simple implementation follows:
 
 ```python
 import re
@@ -502,8 +502,8 @@ def extract_dpa_proc_name(joined_line: str) -> str:
 
     Tcl convention: `define_proc_(attributes|arguments) <proc_name> ?<options>...?`
     The name is the first whitespace-delimited token after the keyword. Nothing else
-    in the option list — regardless of nested braces, quotes, or how many physical
-    lines it spans — contributes to the name.
+    in the option list -- regardless of nested braces, quotes, or how many physical
+    lines it spans -- contributes to the name.
     """
     text = joined_line.rstrip("\r\n").rstrip("\\").rstrip()
     text = _DPA_KEYWORD_RE.sub("", text, count=1)
@@ -528,7 +528,7 @@ def extract_dpa_proc_name(joined_line: str) -> str:
 
 #### 1.4.7 Structured Doc-Comment Block Detection
 
-In Intel/Synopsys EDA Tcl files, proc definitions are preceded by a structured banner comment block. This pattern is present on **100% of procs** in `default_fm_procs.tcl`. The banner can have any number of `#field: value` lines — the backward scan is field-agnostic:
+In Intel/Synopsys EDA Tcl files, proc definitions are preceded by a structured banner comment block. This pattern is present on **100% of procs** in `default_fm_procs.tcl`. The banner can have any number of `#field: value` lines -- the backward scan is field-agnostic:
 
 ```tcl
 ########################################################################
@@ -549,7 +549,7 @@ proc del_seq_rpt { design } {
 2. A line qualifies if it matches `^\s*#` (comment line, regardless of content).
 3. Stop scanning backward at a blank line or any non-comment line.
 4. Record `comment_start_line` (earliest comment line found) and `comment_end_line = start_line - 1`.
-5. No preceding comment → `comment_start_line = comment_end_line = None`.
+5. No preceding comment -> `comment_start_line = comment_end_line = None`.
 
 **Constraint:** Braces inside comment lines are completely inert (Pitfall P-07). The backward scan runs on already-parsed line data and does not affect the forward brace-tracking state machine.
 
@@ -559,19 +559,19 @@ proc del_seq_rpt { design } {
 
 #### 1.4.8 NamespaceTracker Implementation Decisions
 
-##### D-1c-01: Sticky control-flow flag — persists until command terminator
+##### D-1c-01: Sticky control-flow flag -- persists until command terminator
 
 **Context.** Control-flow commands routinely take multiple brace-delimited words on a single command: `if {cond} {body}`, `foreach v {list} {body}`, `while {cond} {body}`. The initial implementation classified only the **first** brace after a control-flow keyword as `CONTROL_FLOW` and reverted to default (`OTHER`) for subsequent braces in the same command, which caused the body brace of `if {cond} {body}` to land as `OTHER` and allow spurious proc recognition inside the `if` body.
 
 **Decision.** Introduce a sticky `_in_control_flow_command` boolean on `NamespaceTracker`. Set it on any control-flow-keyword WORD at command position. Clear it on the next `NEWLINE`, `SEMICOLON`, or `COMMENT`. Every `LBRACE` while the flag is true produces a `CONTROL_FLOW` frame, regardless of how many brace words the command contains.
 
-**Rationale.** The spec's §1.4.2 table lists `if`/`foreach`/`while`/`switch`/`catch`/`eval`/`for` as commands whose body braces push `CONTROL_FLOW`. The spec does not prescribe mechanism — only outcome. Sticky flag is the simplest mechanism that produces the right outcome for all variants.
+**Rationale.** The spec's Sec.1.4.2 table lists `if`/`foreach`/`while`/`switch`/`catch`/`eval`/`for` as commands whose body braces push `CONTROL_FLOW`. The spec does not prescribe mechanism -- only outcome. Sticky flag is the simplest mechanism that produces the right outcome for all variants.
 
 **Outcome.** `_in_control_flow_command` field on [src/chopper/parser/namespace_tracker.py](../src/chopper/parser/namespace_tracker.py). Tested parametrically in `TestControlFlow::test_control_flow_keyword_pushes_context` at [tests/unit/parser/test_namespace_tracker.py](../tests/unit/parser/test_namespace_tracker.py).
 
 ##### D-1c-02: Computed-namespace body is `OTHER`, not `NAMESPACE_EVAL`, and does not push onto the namespace stack
 
-**Context.** §1.4.5 rule 7 mandates that `namespace eval $var { ... }` emits `PW-04` and does not parse the body for procs. The body frame's kind was initially set to `NAMESPACE_EVAL` with a synthetic namespace name, which caused nested `namespace eval` statements inside it to be qualified against a computed parent, producing nonsense qualified names.
+**Context.** Sec.1.4.5 rule 7 mandates that `namespace eval $var { ... }` emits `PW-04` and does not parse the body for procs. The body frame's kind was initially set to `NAMESPACE_EVAL` with a synthetic namespace name, which caused nested `namespace eval` statements inside it to be qualified against a computed parent, producing nonsense qualified names.
 
 **Decision.** Push `ContextKind.OTHER` for the body frame (not `NAMESPACE_EVAL`), and do **not** push anything onto the namespace stack. `can_define_proc()` returns `False` for `OTHER`, which is exactly what the spec requires.
 
@@ -587,31 +587,31 @@ proc del_seq_rpt { design } {
 
 ##### D-1d-01: Early PW-01 guard *before* running layout scan
 
-**Context.** For `proc ${prefix}_foo {} { body }`, the initial implementation let `_scan_proc_layout` run — which tried to classify `${prefix}_foo` as the name word, `{}` as the args word, and the next quoted/plain word as a non-brace body. The result was `PW-03 non-brace-body` on a proc that should have produced `PW-01 computed-proc-name`.
+**Context.** For `proc ${prefix}_foo {} { body }`, the initial implementation let `_scan_proc_layout` run -- which tried to classify `${prefix}_foo` as the name word, `{}` as the args word, and the next quoted/plain word as a non-brace body. The result was `PW-03 non-brace-body` on a proc that should have produced `PW-01 computed-proc-name`.
 
 **Decision.** Add `_peek_name_token` helper that returns the name WORD following `proc`. Before calling `_scan_proc_layout`, check the peeked name with `_is_computed_name`. If computed, emit `PW-01` immediately, advance past the `proc` keyword, and skip layout scanning for this definition.
 
-**Rationale.** The spec (§1.4.3) is clear that computed names drop the proc from the index with `PW-01`; the layout-level fallback (`PW-03`) is for a genuinely malformed body shape. Distinguishing at the right level means the diagnostic the user sees reflects the real problem.
+**Rationale.** The spec (Sec.1.4.3) is clear that computed names drop the proc from the index with `PW-01`; the layout-level fallback (`PW-03`) is for a genuinely malformed body shape. Distinguishing at the right level means the diagnostic the user sees reflects the real problem.
 
 **Outcome.** `_peek_name_token` helper + guard in `extract_procs` main loop at [src/chopper/parser/proc_extractor.py](../src/chopper/parser/proc_extractor.py). Tested in `TestDiagnostics::test_computed_proc_name_pw01` and `test_computed_proc_name_with_bracket` at [tests/unit/parser/test_proc_extractor.py](../tests/unit/parser/test_proc_extractor.py).
 
 ##### D-1d-02: Duplicate detection keeps LAST definition; emits one PE-01 at the last line
 
-**Context.** §1.6.3 invariant 4 says "two procs with the same short_name in one file → emit `PE-01`; the last definition wins in the index". Implementation needed to decide (a) how many diagnostics to emit per duplicate group, (b) which line number to attach, and (c) which entry survives.
+**Context.** Sec.1.6.3 invariant 4 says "two procs with the same short_name in one file -> emit `PE-01`; the last definition wins in the index". Implementation needed to decide (a) how many diagnostics to emit per duplicate group, (b) which line number to attach, and (c) which entry survives.
 
-**Decision.** One `PE-01` per duplicate *group* (not per occurrence). The diagnostic's `line_no` is the **last** definition's `start_line` — the one that survives in the index, so the user is pointed at the authoritative entry. The detail string records both the first and last line numbers for disambiguation.
+**Decision.** One `PE-01` per duplicate *group* (not per occurrence). The diagnostic's `line_no` is the **last** definition's `start_line` -- the one that survives in the index, so the user is pointed at the authoritative entry. The detail string records both the first and last line numbers for disambiguation.
 
-**Rationale.** Multi-emission (one per duplicate) would produce `N-1` diagnostics for `N` duplicates — noise. Attaching the first line's number would point at the dead entry. Attaching the last ties the diagnostic to the row that actually made it into the final parse result.
+**Rationale.** Multi-emission (one per duplicate) would produce `N-1` diagnostics for `N` duplicates -- noise. Attaching the first line's number would point at the dead entry. Attaching the last ties the diagnostic to the row that actually made it into the final parse result.
 
 **Outcome.** `_deduplicate_short_names` at [src/chopper/parser/proc_extractor.py](../src/chopper/parser/proc_extractor.py). Tested in `TestDiagnostics::test_duplicate_proc_pe01` and `TestProcEntryInvariants::test_dedupe_diag_unique_per_short` at [tests/unit/parser/test_proc_extractor.py](../tests/unit/parser/test_proc_extractor.py).
 
 ##### D-1d-03: DPA blank-line window is source-relative, not namespace-aware
 
-**Context.** §1.4.6 permits up to 3 blank lines between a `proc` close and its `define_proc_attributes` block. A mid-stage test failed because a DPA placed **after** the closing `}` of the enclosing namespace was not associated with its proc — the `}` line broke the 3-blank-line window.
+**Context.** Sec.1.4.6 permits up to 3 blank lines between a `proc` close and its `define_proc_attributes` block. A mid-stage test failed because a DPA placed **after** the closing `}` of the enclosing namespace was not associated with its proc -- the `}` line broke the 3-blank-line window.
 
 **Decision.** Do **not** make the DPA scan namespace-aware. The 3-blank-line window is measured in source-order lines; any non-blank non-DPA line (including a namespace-closing `}`) breaks the association. Relocate problematic DPA blocks inside the enclosing namespace block.
 
-**Rationale.** The spec (§1.4.6) specifies "up to 3 blank lines" — it does not list "namespace close brace" as a permitted interruption. Making the parser namespace-aware here would let DPAs attach across namespace boundaries, which is not what the spec says. The correct fix is authoring the DPA inside the namespace block, and that is how the test fixture is now structured.
+**Rationale.** The spec (Sec.1.4.6) specifies "up to 3 blank lines" -- it does not list "namespace close brace" as a permitted interruption. Making the parser namespace-aware here would let DPAs attach across namespace boundaries, which is not what the spec says. The correct fix is authoring the DPA inside the namespace block, and that is how the test fixture is now structured.
 
 **Outcome.** Test fixture updated to place DPA inside the namespace block. `_scan_dpa` at [src/chopper/parser/proc_extractor.py](../src/chopper/parser/proc_extractor.py) unchanged (simple line-based scan). Tested in `TestDPA::test_dpa_matches_namespaced_proc` at [tests/unit/parser/test_proc_extractor.py](../tests/unit/parser/test_proc_extractor.py).
 
@@ -641,74 +641,74 @@ From each proc body, Chopper extracts:
 
 | Pattern | Example | Reason |
 |---|---|---|
-| Variable-based call | `$cmd arg1 arg2` | Dynamic dispatch — unresolvable |
-| Eval-based call | `eval "helper_proc arg1"` | Eval content is a string — unresolvable |
-| Uplevel-based call | `uplevel 1 helper_proc` | Caller context — unresolvable |
+| Variable-based call | `$cmd arg1 arg2` | Dynamic dispatch -- unresolvable |
+| Eval-based call | `eval "helper_proc arg1"` | Eval content is a string -- unresolvable |
+| Uplevel-based call | `uplevel 1 helper_proc` | Caller context -- unresolvable |
 | String in quotes | `set x "helper_proc"` | Data, not a call |
-| Interp alias | `interp alias {} foo {} bar` | Dynamic alias — unresolvable |
-| Apply lambda | `apply {args { helper_proc }}` | Lambda body — too dynamic |
-| Name in log string | `iproc_msg -info "read_libs invoked"` | String arg to log proc — proc name is data |
-| Name in print label | `echo "read_libs : done"` | Print label position — data, not a call |
+| Interp alias | `interp alias {} foo {} bar` | Dynamic alias -- unresolvable |
+| Apply lambda | `apply {args { helper_proc }}` | Lambda body -- too dynamic |
+| Name in log string | `iproc_msg -info "read_libs invoked"` | String arg to log proc -- proc name is data |
+| Name in print label | `echo "read_libs : done"` | Print label position -- data, not a call |
 | Proc name as option-flag arg | `set_app_var search_path ""` | Argument to a `-flag` option |
-| EDA vendor command | `report_failing_points`, `read_verilog`, `set_top` | Synopsys/Cadence built-in — not a user proc |
+| EDA vendor command | `report_failing_points`, `read_verilog`, `set_top` | Synopsys/Cadence built-in -- not a user proc |
 
 All unresolvable patterns produce structured diagnostics with reason codes.
 
 #### 1.5.3 Call Extraction Algorithm
 
-**Input contract — hybrid token-stream + regex filter (do NOT regex raw text).**
-Call extraction (`call_extractor_body.py`) consumes the **already-tokenized command-position token stream** produced by `tokenizer.py`, filtered to tokens whose context-stack top is `PROC_BODY`. Comments, quoted strings, and brace-escaped bodies are already suppressed by tokenizer state flags — the call extractor never re-scans the raw file text for calls.
+**Input contract -- hybrid token-stream + regex filter (do NOT regex raw text).**
+Call extraction (`call_extractor_body.py`) consumes the **already-tokenized command-position token stream** produced by `tokenizer.py`, filtered to tokens whose context-stack top is `PROC_BODY`. Comments, quoted strings, and brace-escaped bodies are already suppressed by tokenizer state flags -- the call extractor never re-scans the raw file text for calls.
 
-Within each command-position token, regex is permitted (and encouraged) for the *downstream* classification work: identifying the shape of the first word (bare vs `::`-qualified vs dynamic), applying the SNORT-derived 4-level suppression cascade in §1.5.7, and extracting DPA proc-name arguments. SNORT's `_IsProcFoundInLine()` has been proven on Intel EDA codebases for 15+ years and its regex patterns are reused verbatim inside this layer. The invariant is only this: **regex operates on token values, never on raw file lines.** Using raw-line regex re-introduces the false-positive classes that the tokenizer already eliminated (quoted strings, comments, nested bodies).
+Within each command-position token, regex is permitted (and encouraged) for the *downstream* classification work: identifying the shape of the first word (bare vs `::`-qualified vs dynamic), applying the SNORT-derived 4-level suppression cascade in Sec.1.5.7, and extracting DPA proc-name arguments. SNORT's `_IsProcFoundInLine()` has been proven on Intel EDA codebases for 15+ years and its regex patterns are reused verbatim inside this layer. The invariant is only this: **regex operates on token values, never on raw file lines.** Using raw-line regex re-introduces the false-positive classes that the tokenizer already eliminated (quoted strings, comments, nested bodies).
 
 ```
 For each WORD token t in tokens[body_lbrace_idx + 1 : body_rbrace_idx]:
-  1. If t.at_command_position is True — t is a first-word candidate:
-     a. If t.value in {"source", "iproc_source"} — extract the literal path argument
-        via flag-aware scan (§1.5.5) and append to source_refs. Mark the flag/path
+  1. If t.at_command_position is True -- t is a first-word candidate:
+     a. If t.value in {"source", "iproc_source"} -- extract the literal path argument
+        via flag-aware scan (Sec.1.5.5) and append to source_refs. Mark the flag/path
         token indices as consumed so they are not re-scanned as calls below.
-     b. Else apply the §1.5.7 suppression cascade. If not suppressed, classify t.value
+     b. Else apply the Sec.1.5.7 suppression cascade. If not suppressed, classify t.value
         against the first-word regex (bare / ::-qualified), reject dynamic names
         (contains `$`, starts with `[`), reject TCL_BUILTINS, and add the canonical
         form (leading `::` stripped) to calls.
   2. Whether t was first-word or not, and whether or not it was suppressed, if t is
      a WORD token not marked consumed, regex-scan t.value for `\[<name>` embedded
      bracket calls. Each match's first word is classified via the same path as 1b
-     and added to calls when it passes. This uniformly handles §1.5.3 step 4 for free
-     (non-cmd) arg tokens AND §1.5.7 Level 3's "embedded [real_call] inside a log
+     and added to calls when it passes. This uniformly handles Sec.1.5.3 step 4 for free
+     (non-cmd) arg tokens AND Sec.1.5.7 Level 3's "embedded [real_call] inside a log
      string" exception.
   3. NEVER extract second-or-later tokens of a command as call candidates. The DPA
-     proc name in `define_proc_attributes <name> ...` is the canonical trap — see
+     proc name in `define_proc_attributes <name> ...` is the canonical trap -- see
      pitfall P-35. Suppression at step 1b on `define_proc_attributes`,
      `set_app_var`, `set`, `info`, etc. is achieved by those first words being
      members of TCL_BUILTINS (so step 1b's classifier returns None) or LOG_PROC_NAMES
-     (so §1.5.7 suppresses), plus the walk never reads their argument tokens as
+     (so Sec.1.5.7 suppresses), plus the walk never reads their argument tokens as
      first-word candidates because `Token.at_command_position` is False there.
 
 At the end, return (tuple(sorted(calls)), tuple(source_refs)). `calls` is
-deduplicated and lex-sorted (§1.6.1 invariant 5); `source_refs` preserves source
-order without dedup (§1.6.1 invariant 6).
+deduplicated and lex-sorted (Sec.1.6.1 invariant 5); `source_refs` preserves source
+order without dedup (Sec.1.6.1 invariant 6).
 ```
 
-**Why this ordering — and why there is no explicit "recurse into control-flow body" step.** The tokenizer eliminates ~90% of false positives structurally (quotes, comments, brace bodies); the SNORT suppression cascade eliminates the remaining content-dependent false positives (log-string mentions, option-flag arguments, vendor commands). Running regex first on raw lines inverts this and recreates the exact class of bugs SNORT spent 15 years fixing.
+**Why this ordering -- and why there is no explicit "recurse into control-flow body" step.** The tokenizer eliminates ~90% of false positives structurally (quotes, comments, brace bodies); the SNORT suppression cascade eliminates the remaining content-dependent false positives (log-string mentions, option-flag arguments, vendor commands). Running regex first on raw lines inverts this and recreates the exact class of bugs SNORT spent 15 years fixing.
 
-Control-structure bodies (`if`, `foreach`, `foreach_in_collection`, `while`, `switch`, `catch`, `try`) do **not** need an explicit recursion step. The tokenizer re-establishes `at_command_position == True` at every brace-depth transition — the first WORD after a `NEWLINE` or `{`-transition inside any body is automatically a command-position token, regardless of how deeply nested. The flat body walk above therefore visits every in-body command without recursion, which also eliminates the stack-overflow risk noted in the original phrasing and removes an entire class of "skip-to-command-boundary" bugs where a top-level scan would fast-forward past control-flow body contents. See this doc entry **D-1e-01** for the incident and resolution.
+Control-structure bodies (`if`, `foreach`, `foreach_in_collection`, `while`, `switch`, `catch`, `try`) do **not** need an explicit recursion step. The tokenizer re-establishes `at_command_position == True` at every brace-depth transition -- the first WORD after a `NEWLINE` or `{`-transition inside any body is automatically a command-position token, regardless of how deeply nested. The flat body walk above therefore visits every in-body command without recursion, which also eliminates the stack-overflow risk noted in the original phrasing and removes an entire class of "skip-to-command-boundary" bugs where a top-level scan would fast-forward past control-flow body contents. See this doc entry **D-1e-01** for the incident and resolution.
 
 ##### 1.5.3.1 Skip-Index Pre-Pass (Opaque Commands & `switch` Pattern Labels)
 
 Before the main walk above runs, `call_extractor_structural` performs a structural pre-pass that builds a `skip_indices: set[int]` of tokens to be excluded from BOTH command-position classification AND embedded-bracket regex scanning. This pre-pass enforces three Tcl semantics that the tokenizer cannot determine on its own (because the tokenizer does not know what command name a brace-quoted argument belongs to):
 
-**(a) Opaque-brace commands** — `regexp`, `regsub`, `exec`, `glob`, `string match`. When any of these names appears at command position (either at `at_command_position == True` from the tokenizer OR as the first WORD after an `LBRACE` token at the range's enclosing depth — see §1.5.3.0.2 below), every `LBRACE…RBRACE` token range that constitutes a *value argument* to that command is marked entirely as `skip`. This prevents regex character classes (`{[A-Za-z_]+}`), regex alternations (`{Warning|Error|Fatal}`), `exec grep -P {…}` patterns, and glob patterns from being mis-extracted as proc calls. Reference: this doc Pitfall P-38; fixture `tests/fixtures/bug_reports/regex_literals.tcl`.
+**(a) Opaque-brace commands** -- `regexp`, `regsub`, `exec`, `glob`, `string match`. When any of these names appears at command position (either at `at_command_position == True` from the tokenizer OR as the first WORD after an `LBRACE` token at the range's enclosing depth -- see Sec.1.5.3.0.2 below), every `LBRACE...RBRACE` token range that constitutes a *value argument* to that command is marked entirely as `skip`. This prevents regex character classes (`{[A-Za-z_]+}`), regex alternations (`{Warning|Error|Fatal}`), `exec grep -P {...}` patterns, and glob patterns from being mis-extracted as proc calls. Reference: this doc Pitfall P-38; fixture `tests/fixtures/bug_reports/regex_literals.tcl`.
 
-**(b) `switch` pattern labels** — for `switch ?-options? string {pattern body ?pattern body…?}`, the body's *odd-indexed* WORD tokens are pattern literals (not commands) and must be marked `skip`. A body of `-` is a fall-through marker. Bodies (the `{…}` immediately following each pattern) are NOT marked `skip` — code inside them is real Tcl and is walked normally. Reference: this doc Pitfall P-39; fixture `tests/fixtures/bug_reports/switch_patterns.tcl`.
+**(b) `switch` pattern labels** -- for `switch ?-options? string {pattern body ?pattern body...?}`, the body's *odd-indexed* WORD tokens are pattern literals (not commands) and must be marked `skip`. A body of `-` is a fall-through marker. Bodies (the `{...}` immediately following each pattern) are NOT marked `skip` -- code inside them is real Tcl and is walked normally. Reference: this doc Pitfall P-39; fixture `tests/fixtures/bug_reports/switch_patterns.tcl`.
 
-**(c) Code-block recursion** — for `if`, `elseif`, `else`, `while`, `for`, `foreach`, `foreach_in_collection`, `catch`, `try`, `eval`, `uplevel`, `namespace eval`, `expr`, the pre-pass recurses into each `{…}` body argument and re-runs (a)/(b) at the inner depth. Without this, an opaque command nested inside `if {[catch {exec grep -P {…}}]}` would be reached only by the main walk (which does not apply rule (a)) and produce false positives. The recursion descends with the heuristic that the first WORD inside any code-block LBRACE is at command position, with subsequent command positions reset on NEWLINE / SEMICOLON at that depth.
+**(c) Code-block recursion** -- for `if`, `elseif`, `else`, `while`, `for`, `foreach`, `foreach_in_collection`, `catch`, `try`, `eval`, `uplevel`, `namespace eval`, `expr`, the pre-pass recurses into each `{...}` body argument and re-runs (a)/(b) at the inner depth. Without this, an opaque command nested inside `if {[catch {exec grep -P {...}}]}` would be reached only by the main walk (which does not apply rule (a)) and produce false positives. The recursion descends with the heuristic that the first WORD inside any code-block LBRACE is at command position, with subsequent command positions reset on NEWLINE / SEMICOLON at that depth.
 
-**Implementation:** `call_extractor_structural.compute_skip_indices(tokens)` returns the union skip set; `call_extractor_body.extract_body_refs` consults it before classifying any WORD as a call, and bracket substitutions inside skipped ranges are themselves skipped. Public suppression sets live in `call_extractor_constants.py`. The pre-pass also walks `[…]` bracket substitutions so that, e.g., `[regexp {…} $s]` inside a regular command argument is also opaque.
+**Implementation:** `call_extractor_structural.compute_skip_indices(tokens)` returns the union skip set; `call_extractor_body.extract_body_refs` consults it before classifying any WORD as a call, and bracket substitutions inside skipped ranges are themselves skipped. Public suppression sets live in `call_extractor_constants.py`. The pre-pass also walks `[...]` bracket substitutions so that, e.g., `[regexp {...} $s]` inside a regular command argument is also opaque.
 
 ##### 1.5.3.2 Why First-WORD-After-LBRACE Heuristic Is Needed
 
-The tokenizer flags `at_command_position` only at file/proc-body command boundaries it can detect from the surface stream. It does NOT flag the first WORD inside an arbitrary `{…}` argument as cmd-pos, because at the time of tokenisation the tokenizer cannot know whether that brace is a code body (`if {…}`) or a value (`set x {a b c}`). The pre-pass resolves this ambiguity by command name: only when the enclosing command name is in `_CODE_BRACE_COMMANDS` does it descend into the body and treat its first WORD as cmd-position.
+The tokenizer flags `at_command_position` only at file/proc-body command boundaries it can detect from the surface stream. It does NOT flag the first WORD inside an arbitrary `{...}` argument as cmd-pos, because at the time of tokenisation the tokenizer cannot know whether that brace is a code body (`if {...}`) or a value (`set x {a b c}`). The pre-pass resolves this ambiguity by command name: only when the enclosing command name is in `_CODE_BRACE_COMMANDS` does it descend into the body and treat its first WORD as cmd-position.
 
 
 #### 1.5.4 Deterministic Proc Name Resolution Contract
@@ -717,15 +717,15 @@ Call extraction produces textual proc-call tokens. The tracer resolves those tok
 
 **Resolution order:**
 
-1. **Absolute qualified call** — token starts with `::`
+1. **Absolute qualified call** -- token starts with `::`
     - Example: `::signoff::helper`
     - Candidate list: `signoff::helper` only
 
-2. **Relative qualified call** — token contains `::` but does not start with `::`
+2. **Relative qualified call** -- token contains `::` but does not start with `::`
     - Example from caller namespace `flow::setup`: `signoff::helper`
     - Candidate list: `flow::setup::signoff::helper`, then `signoff::helper`
 
-3. **Bare call** — token contains no `::`
+3. **Bare call** -- token contains no `::`
     - Example from caller namespace `flow::setup`: `helper`
     - Candidate list: `flow::setup::helper`, then `helper`
 
@@ -759,7 +759,7 @@ File dependencies are extracted separately from proc calls:
 | `iproc_source -file <path> -required` | Required file dependency |
 | `iproc_source -file <path> -use_hooks` | File dependency + hook-file discovery only; hook files must be explicitly listed in JSON to be copied |
 | `iproc_source -file <path> -quiet` | File dependency (quiet is flow-level, not Chopper-level) |
-| `source $var` or `iproc_source -file $var` | Unresolvable — log WARNING |
+| `source $var` or `iproc_source -file $var` | Unresolvable -- log WARNING |
 | `source -echo -verbose <path>` | File dependency (strip option flags first, then extract path token) |
 
 ---
@@ -807,11 +807,11 @@ Parser debug logs may still exist for engineering visibility, but machine-readab
 
 #### 1.5.7 Call Detection False-Positive Filter
 
-Real EDA Tcl code (e.g., `default_fm_procs.tcl`) is dense with patterns where a proc name appears on a line but is **not** a call — it is mentioned in a log string, assigned to a variable, or used as a metadata annotation. Chopper's call extractor must suppress these false positives.
+Real EDA Tcl code (e.g., `default_fm_procs.tcl`) is dense with patterns where a proc name appears on a line but is **not** a call -- it is mentioned in a log string, assigned to a variable, or used as a metadata annotation. Chopper's call extractor must suppress these false positives.
 
 Adapted from SNORT's production-proven `_IsProcFoundInLine()` 4-level cascading filter (15+ years on Intel EDA codebases).
 
-**Suppression rules — suppress a candidate token if ANY level matches:**
+**Suppression rules -- suppress a candidate token if ANY level matches:**
 
 | Level | Condition | Example suppressed |
 |-------|-----------|-------------------|
@@ -836,17 +836,17 @@ LOG_PROC_NAMES: frozenset[str] = frozenset({
 })
 ```
 
-**Level 3 exception — embedded bracket calls are real:** If the proc name appears inside `[...]` within a log string, that is a genuine embedded call and must NOT be suppressed:
+**Level 3 exception -- embedded bracket calls are real:** If the proc name appears inside `[...]` within a log string, that is a genuine embedded call and must NOT be suppressed:
 
 ```tcl
-iproc_msg -info "read_rtl_2stage invoked"       # SUPPRESS — name in string only
-iproc_msg -info "[read_rtl_2stage $args]"       # KEEP — embedded bracket call
+iproc_msg -info "read_rtl_2stage invoked"       # SUPPRESS -- name in string only
+iproc_msg -info "[read_rtl_2stage $args]"       # KEEP -- embedded bracket call
 ```
 
 **`foreach_in_collection` structural handling:**
 `foreach_in_collection` is a Synopsys Formality/DC EDA iterator. Treat it exactly like `foreach` for the context stack: push `CONTROL_FLOW` when its body `{` is encountered; parse the body for calls; do NOT emit a traced call for `foreach_in_collection` itself (it is a Synopsys built-in, not a user proc).
 
-**Synopsys/Cadence EDA flow control commands** (appear as first words of commands in proc bodies; they are NOT user procs and will produce `TW-02` at trace time — this is expected and correct behavior, not an error):
+**Synopsys/Cadence EDA flow control commands** (appear as first words of commands in proc bodies; they are NOT user procs and will produce `TW-02` at trace time -- this is expected and correct behavior, not an error):
 
 ```python
 EDA_FLOW_COMMANDS: frozenset[str] = frozenset({
@@ -860,9 +860,9 @@ EDA_FLOW_COMMANDS: frozenset[str] = frozenset({
 })
 ```
 
-These commands can appear at any nesting level (not just top-level). They have no special brace-counting behaviour — they are ordinary Tcl commands for structural purposes. At call-extraction time they produce `TW-02` because they are not in the domain's user proc index. This is expected output; the domain owner is informed but the trim proceeds.
+These commands can appear at any nesting level (not just top-level). They have no special brace-counting behaviour -- they are ordinary Tcl commands for structural purposes. At call-extraction time they produce `TW-02` because they are not in the domain's user proc index. This is expected output; the domain owner is informed but the trim proceeds.
 
-**`redirect -variable varname "command string"`:** The double-quoted string argument is data passed to `redirect`. The string may contain EDA command names (e.g., `"report_unmapped_points -extra"`). Because these names appear inside a string argument — not as the first word of a command — they are NOT extracted as call candidates. Chopper's call extractor only traces the first word of a command, not the contents of string arguments.
+**`redirect -variable varname "command string"`:** The double-quoted string argument is data passed to `redirect`. The string may contain EDA command names (e.g., `"report_unmapped_points -extra"`). Because these names appear inside a string argument -- not as the first word of a command -- they are NOT extracted as call candidates. Chopper's call extractor only traces the first word of a command, not the contents of string arguments.
 
 ---
 
@@ -870,38 +870,38 @@ These commands can appear at any nesting level (not just top-level). They have n
 
 ##### D-1e-01: Flat token walk replaces depth-based "skip to command boundary"
 
-**Context.** The first implementation of `extract_body_refs` consumed tokens per-command: at a command-position WORD, classify the first word, scan remaining tokens in the command for embedded `[call]` patterns, then *skip forward to the next command boundary* (NEWLINE/SEMICOLON at the same brace depth as the command's first word). Control-flow body contents were dropped: `if {cond} {helper_proc}` at depth 1 caused `_skip_to_command_boundary` to fast-forward from the `if` keyword past its `NEWLINE` at depth 1 — sailing over `helper_proc` at depth 2.
+**Context.** The first implementation of `extract_body_refs` consumed tokens per-command: at a command-position WORD, classify the first word, scan remaining tokens in the command for embedded `[call]` patterns, then *skip forward to the next command boundary* (NEWLINE/SEMICOLON at the same brace depth as the command's first word). Control-flow body contents were dropped: `if {cond} {helper_proc}` at depth 1 caused `_skip_to_command_boundary` to fast-forward from the `if` keyword past its `NEWLINE` at depth 1 -- sailing over `helper_proc` at depth 2.
 
 **Decision.** Delete `_skip_to_command_boundary` and `_scan_bracket_calls_in_command`. Walk every WORD token in the body range one at a time. For command-position WORDs, classify the first word. For every WORD (command-position or not, suppressed or not), regex-scan the value for embedded `[<name>` bracket calls. The tokenizer's `at_command_position` flag naturally re-establishes itself at every brace-depth transition, so body-internal command-position tokens are visited without any explicit recursion.
 
-**Rationale.** §1.5.3 step 3d says "recurse into control-structure body"; the spec endorses iterative / stack-based implementations explicitly ("Implementations should use an iterative or stack-based approach to avoid Python stack overflow on deeply nested control structures"). The flat walk *is* the iterative form — and it has the additional benefit of eliminating the depth-matching bug class that led here. The uniform bracket scan on all WORD tokens handles §1.5.3 step 4 (bracket sub-calls) and §1.5.7 Level 3 exception (real `[call]` inside a log-proc string argument) with a single rule.
+**Rationale.** Sec.1.5.3 step 3d says "recurse into control-structure body"; the spec endorses iterative / stack-based implementations explicitly ("Implementations should use an iterative or stack-based approach to avoid Python stack overflow on deeply nested control structures"). The flat walk *is* the iterative form -- and it has the additional benefit of eliminating the depth-matching bug class that led here. The uniform bracket scan on all WORD tokens handles Sec.1.5.3 step 4 (bracket sub-calls) and Sec.1.5.7 Level 3 exception (real `[call]` inside a log-proc string argument) with a single rule.
 
-**Outcome.** Rewritten `extract_body_refs` at [src/chopper/parser/call_extractor_body.py](../src/chopper/parser/call_extractor_body.py). §1.5.3 algorithm block in [technical_docs/this doc (parser section)](this doc (parser section)) rewritten to match (with an explicit note that control-flow recursion is not needed). Tested in `TestControlFlowBodies` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
+**Outcome.** Rewritten `extract_body_refs` at [src/chopper/parser/call_extractor_body.py](../src/chopper/parser/call_extractor_body.py). Sec.1.5.3 algorithm block in [technical_docs/this doc (parser section)](this doc (parser section)) rewritten to match (with an explicit note that control-flow recursion is not needed). Tested in `TestControlFlowBodies` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
 
 ##### D-1e-02: Suppression check is identifier-only; structural suppression leans on `TCL_BUILTINS` and `at_command_position`
 
-**Context.** The `_should_suppress_first_word` helper initially took the token list and its index and implemented a command-structure check for each of §1.5.7 Levels 2b–2g (`set PROC x`, `info exists x`, `define_proc_attributes x`, etc.). This duplicated logic the tokenizer and classifier already provided.
+**Context.** The `_should_suppress_first_word` helper initially took the token list and its index and implemented a command-structure check for each of Sec.1.5.7 Levels 2b-2g (`set PROC x`, `info exists x`, `define_proc_attributes x`, etc.). This duplicated logic the tokenizer and classifier already provided.
 
-**Decision.** Shrink `_should_suppress_first_word(first_word: str) -> bool` to pure identifier tests. It handles only the two classes that are **not** covered by other mechanisms: EDA log-proc names (`LOG_PROC_NAMES`) and EDA app-var commands (`set_app_var` / `get_app_var`, which are not in `TCL_BUILTINS`). Every other §1.5.7 level is satisfied structurally:
+**Decision.** Shrink `_should_suppress_first_word(first_word: str) -> bool` to pure identifier tests. It handles only the two classes that are **not** covered by other mechanisms: EDA log-proc names (`LOG_PROC_NAMES`) and EDA app-var commands (`set_app_var` / `get_app_var`, which are not in `TCL_BUILTINS`). Every other Sec.1.5.7 level is satisfied structurally:
 
-- Level 2a (comment lines) — tokenizer never emits COMMENT at command position in a WORD stream.
-- Levels 2b, 2e — variable refs and arg-list positions are not at command position.
-- Levels 2c, 2f, 2g — `define_proc_attributes`, `set`, `info` are in `TCL_BUILTINS`; `_classify_call_candidate` rejects them. Their arguments are not at command position.
-- Level 2d (`set_app_var` / `get_app_var`) — explicit identifier check.
-- Level 3 (log-proc string args) — explicit identifier check (the log proc itself is suppressed; the uniform bracket scan still picks up embedded real `[call]` inside string args).
-- Level 4 (print labels) — labels are not at command position; structurally handled.
+- Level 2a (comment lines) -- tokenizer never emits COMMENT at command position in a WORD stream.
+- Levels 2b, 2e -- variable refs and arg-list positions are not at command position.
+- Levels 2c, 2f, 2g -- `define_proc_attributes`, `set`, `info` are in `TCL_BUILTINS`; `_classify_call_candidate` rejects them. Their arguments are not at command position.
+- Level 2d (`set_app_var` / `get_app_var`) -- explicit identifier check.
+- Level 3 (log-proc string args) -- explicit identifier check (the log proc itself is suppressed; the uniform bracket scan still picks up embedded real `[call]` inside string args).
+- Level 4 (print labels) -- labels are not at command position; structurally handled.
 
-**Rationale.** Duplicating the structural check adds code that needs unit tests for every §1.5.7 level and creates two sources of truth. Leaning on the tokenizer's `at_command_position` flag plus `TCL_BUILTINS` membership is simpler and satisfies every spec-required suppression.
+**Rationale.** Duplicating the structural check adds code that needs unit tests for every Sec.1.5.7 level and creates two sources of truth. Leaning on the tokenizer's `at_command_position` flag plus `TCL_BUILTINS` membership is simpler and satisfies every spec-required suppression.
 
-**Outcome.** `should_suppress_first_word` at [src/chopper/parser/call_extractor_classify.py](../src/chopper/parser/call_extractor_classify.py) is identifier-only. Suppression matrix is tested in `TestSuppression` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py); every §1.5.7 level has at least one test case.
+**Outcome.** `should_suppress_first_word` at [src/chopper/parser/call_extractor_classify.py](../src/chopper/parser/call_extractor_classify.py) is identifier-only. Suppression matrix is tested in `TestSuppression` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py); every Sec.1.5.7 level has at least one test case.
 
 ##### D-1e-03: `source` / `iproc_source` consume their argument indices to prevent double-count
 
-**Context.** After the flat-walk restructure, `source common/helpers.tcl` correctly produced a `source_refs` entry — but the path token `common/helpers.tcl`, as an ordinary WORD, was also picked up by the free bracket scan pass (no `[` in it, but the token was considered), and in pathological cases (e.g. `iproc_source -file [derive_path]`) the bracket scan would extract `derive_path` as a call candidate.
+**Context.** After the flat-walk restructure, `source common/helpers.tcl` correctly produced a `source_refs` entry -- but the path token `common/helpers.tcl`, as an ordinary WORD, was also picked up by the free bracket scan pass (no `[` in it, but the token was considered), and in pathological cases (e.g. `iproc_source -file [derive_path]`) the bracket scan would extract `derive_path` as a call candidate.
 
 **Decision.** `_extract_source_path_with_indices` returns not just the path string but a `set[int]` of token indices consumed by the source command (the keyword is left alone; the flag tokens and the path token are all marked consumed). The caller unions these into a `consumed` set and skips those tokens in the free bracket-scan pass.
 
-**Rationale.** `source` is explicitly a file dependency, not a proc call (§1.5.5). Its argument tokens must not leak into `calls` under any shape — neither as literal text nor via embedded bracket expansion.
+**Rationale.** `source` is explicitly a file dependency, not a proc call (Sec.1.5.5). Its argument tokens must not leak into `calls` under any shape -- neither as literal text nor via embedded bracket expansion.
 
 **Outcome.** `extract_source_path_with_indices` at [src/chopper/parser/call_extractor_sources.py](../src/chopper/parser/call_extractor_sources.py) plus the `consumed` set in [src/chopper/parser/call_extractor_body.py](../src/chopper/parser/call_extractor_body.py). Tested in `TestSourceRefs::test_source_not_a_call_edge` and `test_source_dynamic_path_dropped` at [tests/unit/parser/test_call_extractor.py](../tests/unit/parser/test_call_extractor.py).
 
@@ -919,15 +919,15 @@ Each detected proc produces one `ProcEntry` record:
 | `source_file` | `PurePosixPath` | Domain-relative Tcl file path |
 | `start_line` | `int` | First line of proc definition (the `proc` keyword line) |
 | `end_line` | `int` | Last line of proc definition (the closing `}` line) |
-| `body_start_line` | `int` | Line immediately after the opening `{` of the proc body (see §1.4.2 step 2g) |
-| `body_end_line` | `int` | Line immediately before the closing `}` of the proc body (see §1.4.2 step 2g) |
+| `body_start_line` | `int` | Line immediately after the opening `{` of the proc body (see Sec.1.4.2 step 2g) |
+| `body_end_line` | `int` | Line immediately before the closing `}` of the proc body (see Sec.1.4.2 step 2g) |
 | `namespace_path` | `str` | Namespace context from enclosing `namespace eval` (empty string if at file root) |
 | `dpa_start_line` | `Optional[int]` | First line of the `define_proc_attributes` block immediately following this proc (`None` if absent) |
 | `dpa_end_line` | `Optional[int]` | Last line of the `define_proc_attributes` block immediately following this proc (`None` if absent) |
 | `comment_start_line` | `Optional[int]` | First line of the structured doc-comment block immediately preceding this proc (`None` if absent) |
 | `comment_end_line` | `Optional[int]` | Last line of the structured doc-comment block immediately preceding this proc (`None` if absent) |
-| `calls` | `tuple[str, ...]` | Raw proc-call tokens extracted from the proc body after false-positive filtering (§1.5.7); empty tuple if none found or body is empty. These are unresolved textual tokens — the tracer resolves them using §1.5.4 and the caller's `namespace_path`. |
-| `source_refs` | `tuple[str, ...]` | Literal file paths extracted from `source` and `iproc_source` calls in the proc body (§1.5.5); empty tuple if none found. Computed paths (`source $var`) are excluded and produce `PW-09`. |
+| `calls` | `tuple[str, ...]` | Raw proc-call tokens extracted from the proc body after false-positive filtering (Sec.1.5.7); empty tuple if none found or body is empty. These are unresolved textual tokens -- the tracer resolves them using Sec.1.5.4 and the caller's `namespace_path`. |
+| `source_refs` | `tuple[str, ...]` | Literal file paths extracted from `source` and `iproc_source` calls in the proc body (Sec.1.5.5); empty tuple if none found. Computed paths (`source $var`) are excluded and produce `PW-09`. |
 
 #### 1.6.1 Invariants
 
@@ -935,7 +935,7 @@ Each detected proc produces one `ProcEntry` record:
 2. `canonical_name` is unique within the proc index for one domain. Duplicate canonical names are an ERROR.
 3. `short_name` is unique within the same source file. Duplicate short names in the same file are an ERROR.
 4. If the same short name is defined twice in the same file, the **last definition wins** for index materialization so downstream tooling has one deterministic span to report, but Chopper emits an ERROR diagnostic and the file is invalid for trim/trace work until fixed.
-5. `calls` contains only syntactically literal call tokens — no `$` variables, no `[...]` wrappers (stripped at extraction per §1.5.3). Tokens are deduplicated and sorted lexicographically within each `ProcEntry`.
+5. `calls` contains only syntactically literal call tokens -- no `$` variables, no `[...]` wrappers (stripped at extraction per Sec.1.5.3). Tokens are deduplicated and sorted lexicographically within each `ProcEntry`.
 6. `source_refs` contains only domain-relative POSIX path strings. Paths computed at runtime are excluded; paths from `-use_hooks` calls are included as plain paths (hook-file discovery is an analysis concern, not a field variant).
 
 #### 1.6.2 Boundary Definitions for `body_start_line` / `body_end_line`
@@ -959,7 +959,7 @@ For the empty multi-line body case, `body_start_line > body_end_line` signals an
 
 `PE-01 duplicate-proc-definition` is checked at the end of parsing **each source file**, not after all files in the domain are parsed. The check compares `short_name` values within a single file's `ProcEntry` list. This keeps the parser's per-file invariant local and side-effect-free.
 
-**Timing:** After the parser finishes processing all lines of one file and has produced its list of `ProcEntry` records, scan for duplicate `short_name` values within that list. Emit `PE-01` for each duplicate group; the **last definition wins** for index materialization (per Invariant 4 in §1.6.1) so downstream tooling has one deterministic span to report, but the file is marked invalid for trim/trace until the duplicates are resolved.
+**Timing:** After the parser finishes processing all lines of one file and has produced its list of `ProcEntry` records, scan for duplicate `short_name` values within that list. Emit `PE-01` for each duplicate group; the **last definition wins** for index materialization (per Invariant 4 in Sec.1.6.1) so downstream tooling has one deterministic span to report, but the file is marked invalid for trim/trace until the duplicates are resolved.
 
 **Error-message format:**
 
@@ -1049,14 +1049,14 @@ namespace eval utils {
 }
 ```
 
-**Handling:** Both procs are in namespace `utils`. This is standard Tcl — namespaces accumulate across multiple `namespace eval` blocks.
+**Handling:** Both procs are in namespace `utils`. This is standard Tcl -- namespaces accumulate across multiple `namespace eval` blocks.
 
 #### 1.7.7 Mixed Encoding
 
 ```tcl
 # -*- coding: latin-1 -*-
 proc legacy_proc {} {
-    # Comment with ü ö ä characters
+    # Comment with u o a characters
     return "done"
 }
 ```
@@ -1083,7 +1083,7 @@ proc ${prefix}_handler {} {
 }
 ```
 
-**Handling:** The proc name contains `$` — it is computed at runtime. Chopper logs a WARNING diagnostic and does NOT index this proc.
+**Handling:** The proc name contains `$` -- it is computed at runtime. Chopper logs a WARNING diagnostic and does NOT index this proc.
 
 #### 1.7.10 Duplicate Proc Definition
 
@@ -1119,9 +1119,9 @@ proc read_rtl_2stage { rtlfile root_module { container "r" } { ctech_type "ADD" 
 | `{` (ctech_type default open) | +1 | 2 |
 | `}` (ctech_type default close) | -1 | 1 |
 | `}` (args close) | -1 | 0 |
-| `{` (body open) | +1 | 1 ← body |
+| `{` (body open) | +1 | 1 <- body |
 
-The §1.4.2 step b algorithm correctly finds the body `{` because it scans for an unescaped `{` at the **original** depth (0), which is only reached after the entire args word closes. The args word is a single complete brace-balanced token.
+The Sec.1.4.2 step b algorithm correctly finds the body `{` because it scans for an unescaped `{` at the **original** depth (0), which is only reached after the entire args word closes. The args word is a single complete brace-balanced token.
 
 **Why it matters:** This is one of the most common proc signatures in VLSI EDA Tcl (`default_fm_procs.tcl` uses it throughout). Prematurely treating a default-value `}` as the proc body close corrupts all subsequent proc boundaries in the file.
 
@@ -1135,7 +1135,7 @@ define_proc_attributes read_libs \
    -info "To read Synopsys .db designs or technology libraries for LP and Non-LP runs"
 ```
 
-**Handling:** The DPA block starts on the line immediately after the proc's closing `}`. The parser captures it per §1.4.6, setting `dpa_start_line` to the `define_proc_attributes` line and `dpa_end_line` to the last continuation line (the one without a trailing `\`). The trimmer must drop this block whenever `read_libs` is excluded, and keep it whenever `read_libs` is kept.
+**Handling:** The DPA block starts on the line immediately after the proc's closing `}`. The parser captures it per Sec.1.4.6, setting `dpa_start_line` to the `define_proc_attributes` line and `dpa_end_line` to the last continuation line (the one without a trailing `\`). The trimmer must drop this block whenever `read_libs` is excluded, and keep it whenever `read_libs` is kept.
 
 #### 1.7.13 Structured Comment Banner Before Proc
 
@@ -1148,7 +1148,7 @@ define_proc_attributes read_libs \
 proc read_libs {} {
 ```
 
-**Handling:** The parser detects the contiguous comment block per §1.4.7 and stores `comment_start_line` to `comment_end_line = start_line - 1` on the `ProcEntry`. The 6 comment lines (including the `####` delimiters) are captured as a single unit. Braces inside comments (e.g., a future `#usage: foo {args}` line) are completely inert and never affect brace depth.
+**Handling:** The parser detects the contiguous comment block per Sec.1.4.7 and stores `comment_start_line` to `comment_end_line = start_line - 1` on the `ProcEntry`. The 6 comment lines (including the `####` delimiters) are captured as a single unit. Braces inside comments (e.g., a future `#usage: foo {args}` line) are completely inert and never affect brace depth.
 
 #### 1.7.14 foreach_in_collection (Synopsys EDA Iterator)
 
@@ -1158,7 +1158,7 @@ foreach_in_collection item [all_clock_gating_latches] {
 }
 ```
 
-**Handling:** `foreach_in_collection` is a Synopsys Formality/DC EDA iterator command. Push `CONTROL_FLOW` context when its body `{` is encountered (same as `foreach`). Parse the body for call candidates. Apply the §1.5.7 false-positive filter — `get_attribute` and similar EDA vendor calls inside will be suppressed. Do NOT emit a traced call for `foreach_in_collection` itself (it is a Synopsys built-in, not a user proc).
+**Handling:** `foreach_in_collection` is a Synopsys Formality/DC EDA iterator command. Push `CONTROL_FLOW` context when its body `{` is encountered (same as `foreach`). Parse the body for call candidates. Apply the Sec.1.5.7 false-positive filter -- `get_attribute` and similar EDA vendor calls inside will be suppressed. Do NOT emit a traced call for `foreach_in_collection` itself (it is a Synopsys built-in, not a user proc).
 
 ---
 
@@ -1193,8 +1193,8 @@ The structure detector tracks:
 | `continuation` | `bool` | Whether previous line ended with `\` |
 | `current_proc` | `Optional[ProcBuilder]` | Partial proc being accumulated |
 | `expecting_body` | `bool` | Whether we've seen `proc name args` and are waiting for `{` |
-| `awaiting_dpa` | `bool` | Whether the main loop just closed a proc body and should peek ahead for DPA (§1.4.6) |
-| `pending_comment_start` | `Optional[int]` | Start line of the accumulated comment block preceding the current candidate proc (§1.4.7) |
+| `awaiting_dpa` | `bool` | Whether the main loop just closed a proc body and should peek ahead for DPA (Sec.1.4.6) |
+| `pending_comment_start` | `Optional[int]` | Start line of the accumulated comment block preceding the current candidate proc (Sec.1.4.7) |
 
 #### 1.8.3 Performance Target
 
@@ -1208,7 +1208,7 @@ The parser is purely CPU-bound string processing. No external dependencies requi
 
 The parser does **not** return diagnostics in its return value. Instead, it emits them via the optional `on_diagnostic` callback (`DiagnosticCollector = Callable[[Diagnostic], None]`), defined in `core/protocols.py`.
 
-All parser diagnostic codes (`PE-*`, `PW-*`, `PI-*`) — including severity, description, recovery hints, and the exact algorithm section where each fires — are defined exclusively in [`technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md) (sections 5–7). Implementation must use constants from `src/chopper/core/diagnostics.py` derived from that registry; do not introduce new codes without first registering them there.
+All parser diagnostic codes (`PE-*`, `PW-*`, `PI-*`) -- including severity, description, recovery hints, and the exact algorithm section where each fires -- are defined exclusively in [`technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md) (sections 5-7). Implementation must use constants from `src/chopper/core/diagnostics.py` derived from that registry; do not introduce new codes without first registering them there.
 
 **Emission pattern:**
 ```python
@@ -1259,28 +1259,28 @@ The trimmer operates per-file: it reconstructs each proc-trimmed file by keeping
 | `comment_start_line` / `comment_end_line` | Atomic drop with proc when excluded (Pitfall P-34) |
 | `body_start_line` / `body_end_line` | Boundary for `RunResult.trim_stats.loc_removed` counting |
 
-**Full atomic unit per proc** — the trimmer handles each `ProcEntry` as one indivisible block:
+**Full atomic unit per proc** -- the trimmer handles each `ProcEntry` as one indivisible block:
 
 - **Keep:** preserve lines `comment_start_line` (or `start_line` if `None`) through `dpa_end_line` (or `end_line` if `None`) inclusive.
 - **Drop:** remove that same contiguous range.
 
 The trimmer sorts all proc decisions for a file by `comment_start_line` (falling back to `start_line`) before processing, then reassembles the file from surviving line ranges in source order.
 
-##### 1.8.5.2 Fields Used by the Compiler / Tracer (Phases 3–4)
+##### 1.8.5.2 Fields Used by the Compiler / Tracer (Phases 3-4)
 
 The compiler builds two in-memory structures from `list[ProcEntry]`:
 
-**Proc index** — maps canonical names to entries for JSON validation and trace-time resolution:
+**Proc index** -- maps canonical names to entries for JSON validation and trace-time resolution:
 
 ```python
 proc_index: dict[str, ProcEntry] = {e.canonical_name: e for e in all_entries}
 ```
 
-**Call graph edges** — directed edges for BFS trace expansion (see [ARCHITECTURE.md](ARCHITECTURE.md) §5.4, P4 trace phase). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
+**Call graph edges** -- directed edges for BFS trace expansion (see [ARCHITECTURE.md](ARCHITECTURE.md) Sec.5.4, P4 trace phase). Because `calls` is pre-populated by the parser, the tracer needs no secondary file read:
 
 ```python
-# Edge: caller canonical_name → unresolved call token
-# Tracer resolves tokens via §1.5.4 using e.namespace_path
+# Edge: caller canonical_name -> unresolved call token
+# Tracer resolves tokens via Sec.1.5.4 using e.namespace_path
 call_edges: list[tuple[str, str]] = [
     (e.canonical_name, token)
     for e in all_entries
@@ -1288,7 +1288,7 @@ call_edges: list[tuple[str, str]] = [
 ]
 ```
 
-**File dependency edges** — for `source` / `iproc_source` file-level dependencies:
+**File dependency edges** -- for `source` / `iproc_source` file-level dependencies:
 
 ```python
 source_edges: list[tuple[str, str]] = [
@@ -1298,7 +1298,7 @@ source_edges: list[tuple[str, str]] = [
 ]
 ```
 
-Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism ([ARCHITECTURE.md](ARCHITECTURE.md) §5.4 and NFR-03), and collects all reachable `ProcEntry` records as additional keeps.
+Trace expansion starts BFS from the seed proc set (explicit `procedures.include` entries), follows `call_edges` breadth-first with the frontier **sorted lexicographically at each step** for determinism ([ARCHITECTURE.md](ARCHITECTURE.md) Sec.5.4 and NFR-03), and collects all reachable `ProcEntry` records as additional keeps.
 
 ##### 1.8.5.3 Fields Used by `chopper trim --dry-run` (`dependency_graph.json`)
 
@@ -1306,9 +1306,9 @@ Trace expansion starts BFS from the seed proc set (explicit `procedures.include`
 
 | `dependency_graph.json` edge type | `ProcEntry` field | Example |
 |---|---|---|
-| Proc-call edge | `calls` | `fev_formality/procs.tcl::read_libs` → `read_db_files` |
-| File-source edge | `source_refs` | `fev_formality/procs.tcl::read_libs` → `shared/db_helper.tcl` |
-| Proc location node | `canonical_name`, `source_file`, `start_line`, `end_line` | node at lines 10–25 |
+| Proc-call edge | `calls` | `fev_formality/procs.tcl::read_libs` -> `read_db_files` |
+| File-source edge | `source_refs` | `fev_formality/procs.tcl::read_libs` -> `shared/db_helper.tcl` |
+| Proc location node | `canonical_name`, `source_file`, `start_line`, `end_line` | node at lines 10-25 |
 
 Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) and every `source_refs` path is a directed edge. Unresolved tokens appear as `TW-02` or `TW-03` diagnostics in `trim_report.json` and the optional JSON-lines log stream.
 
@@ -1351,8 +1351,8 @@ Every `ProcEntry` is a graph node. Every `calls` token (resolved or unresolved) 
 | [Tcl proc manual](https://www.tcl-lang.org/man/tcl8.6/TclCmd/proc.htm) | `proc name args body` syntax |
 | [Tcl namespace manual](https://www.tcl-lang.org/man/tcl8.6/TclCmd/namespace.htm) | `namespace eval` semantics |
 | [BNF for Tcl](https://wiki.tcl-lang.org/page/BNF+for+Tcl) | Why Tcl has no formal BNF (context-sensitive language) |
-| [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 | Proc index contract and trace expansion algorithm |
-| [ARCHITECTURE.md](ARCHITECTURE.md) §9 and this doc (TC-01, TC-02) | Technical challenges for proc boundary detection |
+| [ARCHITECTURE.md](ARCHITECTURE.md) Sec.5.4 | Proc index contract and trace expansion algorithm |
+| [ARCHITECTURE.md](ARCHITECTURE.md) Sec.9 and this doc (TC-01, TC-02) | Technical challenges for proc boundary detection |
 
 ---
 
@@ -1368,7 +1368,7 @@ puts -nonewline "\x1b\[H\x1b\[2J"
 append status_str " \[flow_setup\]"
 ```
 
-`BRACKET_CALL_RE` scans the raw token value for `[<identifier>` patterns. The tokenizer correctly *does not* increment `quoted_bracket_depth` for a `\[` (backslash precedes `[`, so `_is_escaped` returns True), but the token value still contains the raw backslash-bracket bytes. When the regex later scans the token value it finds `\[H` and `\[flow_setup` and emits `H` and `flow_setup` as proc-call candidates — false positives that produce TW-02 warnings.
+`BRACKET_CALL_RE` scans the raw token value for `[<identifier>` patterns. The tokenizer correctly *does not* increment `quoted_bracket_depth` for a `\[` (backslash precedes `[`, so `_is_escaped` returns True), but the token value still contains the raw backslash-bracket bytes. When the regex later scans the token value it finds `\[H` and `\[flow_setup` and emits `H` and `flow_setup` as proc-call candidates -- false positives that produce TW-02 warnings.
 
 **Correct Behavior:** Before accepting a `BRACKET_CALL_RE` match as a proc-call candidate, check whether the `[` at `match.start()` in the token value is preceded by an **odd** number of backslashes. An odd count means the bracket is backslash-escaped (a literal `[` in Tcl), not a command-substitution opener. The match must be silently discarded.
 
@@ -1376,8 +1376,8 @@ An **even** count (including zero) means the backslashes cancel each other out a
 
 | Source text | Preceding `\` count | Escaped? | Action |
 |---|---|---|---|
-| `\[H`    | 1 (odd)  | Yes | Discard — `H` is not a call |
-| `\\[H`   | 2 (even) | No  | Keep — `H` is a real call candidate |
+| `\[H`    | 1 (odd)  | Yes | Discard -- `H` is not a call |
+| `\\[H`   | 2 (even) | No  | Keep -- `H` is a real call candidate |
 | `\\\[H`  | 3 (odd)  | Yes | Discard |
 | `[H`     | 0 (even) | No  | Keep |
 
@@ -1434,7 +1434,7 @@ proc classify {ch} {
 }
 ```
 
-`mark_switch_pattern_words` (P-39) marks only WORD tokens at `inner_depth` as skip. A brace-delimited pattern `{[a-z]}` produces an LBRACE at `inner_depth` — **not** a WORD — and its interior WORD `[a-z]` sits at `inner_depth + 1`. Neither is added to `skip_indices`. When `extract_body_refs` later processes the WORD `[a-z]`, `BRACKET_CALL_RE` matches `[a` and emits `a` as a proc-call candidate — a false positive.
+`mark_switch_pattern_words` (P-39) marks only WORD tokens at `inner_depth` as skip. A brace-delimited pattern `{[a-z]}` produces an LBRACE at `inner_depth` -- **not** a WORD -- and its interior WORD `[a-z]` sits at `inner_depth + 1`. Neither is added to `skip_indices`. When `extract_body_refs` later processes the WORD `[a-z]`, `BRACKET_CALL_RE` matches `[a` and emits `a` as a proc-call candidate -- a false positive.
 
 **Correct Behavior:** The pre-pass must distinguish "pattern" positions from "body" positions in the switch body using an alternating state machine. When the current position is "pattern" and an LBRACE is found at `inner_depth`, the entire brace block (LBRACE, all interior tokens, matching RBRACE) is marked opaque in `skip_indices`.
 
@@ -1484,16 +1484,16 @@ proc parse_line {line} {
 In `src/chopper/parser/call_extractor_constants.py`, add to `TCL_BUILTINS`:
 
 ```python
-"lassign",   # Tcl 8.5 — destructuring list assignment
-"subst",     # Tcl core — variable/command substitution in a string
-"apply",     # Tcl 8.5 — anonymous proc (lambda) application
-"throw",     # Tcl 8.5 — structured error with options dict
-"lmap",      # Tcl 8.6 — list map (transform each element)
-"lrepeat",   # Tcl 8.5 — create a list by repeating an element
-"lreverse",  # Tcl 8.5 — reverse a list
+"lassign",   # Tcl 8.5 -- destructuring list assignment
+"subst",     # Tcl core -- variable/command substitution in a string
+"apply",     # Tcl 8.5 -- anonymous proc (lambda) application
+"throw",     # Tcl 8.5 -- structured error with options dict
+"lmap",      # Tcl 8.6 -- list map (transform each element)
+"lrepeat",   # Tcl 8.5 -- create a list by repeating an element
+"lreverse",  # Tcl 8.5 -- reverse a list
 ```
 
-**Why It Matters:** `lassign` in particular is ubiquitous in modern EDA Tcl for destructuring complex parsed output (`lassign [split $path /] dir base ext`). Every file using it generated a TW-02 false positive. Users who investigated would be confused — `lassign` is not a user proc and does not belong in `procedures.include`.
+**Why It Matters:** `lassign` in particular is ubiquitous in modern EDA Tcl for destructuring complex parsed output (`lassign [split $path /] dir base ext`). Every file using it generated a TW-02 false positive. Users who investigated would be confused -- `lassign` is not a user proc and does not belong in `procedures.include`.
 
 **Tests:**
 - `tests/unit/parser/test_call_extractor.py::TestMissingBuiltins::test_lassign_not_extracted_as_call`
@@ -1510,9 +1510,9 @@ In `src/chopper/parser/call_extractor_constants.py`, add to `TCL_BUILTINS`:
 
 ## 2. Compiler & Tracer Module
 
-**TC-03 — Transitive Proc Tracing:** The center of the product. Requires correct static call extraction, conservative behavior for dynamic Tcl, cross-file proc mapping within the domain boundary based on the per-run proc index, and clear warnings when trace cannot prove correctness. The proc index contract is defined in R3 and must exist before F2 trimming or trace expansion runs.
+**TC-03 -- Transitive Proc Tracing:** The center of the product. Requires correct static call extraction, conservative behavior for dynamic Tcl, cross-file proc mapping within the domain boundary based on the per-run proc index, and clear warnings when trace cannot prove correctness. The proc index contract is defined in R3 and must exist before F2 trimming or trace expansion runs.
 
-**TC-08 — Override and Ordering Semantics:** Multiple selected features may touch the same proc or stage. Selected input order governs last-wins behavior for explicit `replace_step`/`replace_stage` conflicts; R1 governs include/exclude survival. Within one feature, action order is top-to-bottom and later actions see results of earlier ones.
+**TC-08 -- Override and Ordering Semantics:** Multiple selected features may touch the same proc or stage. Selected input order governs last-wins behavior for explicit `replace_step`/`replace_stage` conflicts; R1 governs include/exclude survival. Within one feature, action order is top-to-bottom and later actions see results of earlier ones.
 
 ### Pitfall P-08: Trace Expansion Must Be Deterministic
 
@@ -1556,8 +1556,8 @@ candidates = [proc_a, proc_b]  # Which one do we trace?
 - Literal file paths in `files.include` are authoritative and always survive
 - `files.exclude` applies only to files matched by wildcard `files.include` patterns
 - Explicit `procedures.include` entries are authoritative and always survive
-- `procedures.exclude` prunes procs inside `PROC_TRIM` files contributed by this layer, and — because R1 is now an **ordered overlay** — a later layer's `procedures.exclude` can also drop a proc that an earlier layer (base or a preceding feature) contributed. Such transitions emit `VW-21 layer-shadowed`. The retired `VW-18` / `VW-19` cross-source veto warnings no longer fire.
-- PI+ (transitive trace set) is **reporting-only**: see [ARCHITECTURE.md](ARCHITECTURE.md) §5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
+- `procedures.exclude` prunes procs inside `PROC_TRIM` files contributed by this layer, and -- because R1 is now an **ordered overlay** -- a later layer's `procedures.exclude` can also drop a proc that an earlier layer (base or a preceding feature) contributed. Such transitions emit `VW-21 layer-shadowed`. The retired `VW-18` / `VW-19` cross-source veto warnings no longer fire.
+- PI+ (transitive trace set) is **reporting-only**: see [ARCHITECTURE.md](ARCHITECTURE.md) Sec.5.4. A traced-only proc is never auto-included; if it is needed it must be named explicitly in `procedures.include`
 
 **Why It Matters:** Within a single layer, explicit include must beat its sibling exclude (otherwise authors cannot say "keep this one named proc and exclude the rest"). Across layers, a later layer must be able to remove or replace what an earlier layer contributed (otherwise variant flows would have to split every removable item into its own feature). The two rules together are R1 ordered overlay.
 
@@ -1635,7 +1635,7 @@ patterns = ["**/*.tcl", "sub/../file.tcl"]  # Unnormalized
 
 ## 3. Trimmer Module
 
-**TC-04 — Copy-and-Delete Correctness:** F2 depends on preserving top-level Tcl while deleting only unwanted proc definitions. Chopper deletes only recorded proc spans; text between surviving spans is preserved byte-for-byte. If a proc-trimmed file has no surviving procs and no non-comment top-level Tcl, it survives as a stub with `VW-08`. Malformed deletion breaks Tcl syntax or leaves dangling structure.
+**TC-04 -- Copy-and-Delete Correctness:** F2 depends on preserving top-level Tcl while deleting only unwanted proc definitions. Chopper deletes only recorded proc spans; text between surviving spans is preserved byte-for-byte. If a proc-trimmed file has no surviving procs and no non-comment top-level Tcl, it survives as a stub with `VW-08`. Malformed deletion breaks Tcl syntax or leaves dangling structure.
 
 ### Pitfall P-13: Backup-and-Rebuild Must Fail Cleanly and Recover Deterministically
 
@@ -1734,16 +1734,16 @@ _NORMALIZED_TREATMENTS = frozenset({
 })
 ```
 
-When P5c was first introduced (0.8.4) it normalized indentation for **every** emitted `.tcl` file, including `FULL_COPY` outputs. That violates the F1 `FULL_COPY` contract: a full-copy file is supposed to land on disk byte-for-byte identical to the source. The 1.2.6 regression in `power/onepower/basic.tcl` was a textbook symptom — a base-included `.tcl` file with mixed tab/space indentation and a missing trailing `}` was reformatted **and** had a synthetic closing brace appended by the running brace counter, then the post-trim brace check (`VE-16`) fired against the *rewritten* file even though the proc set was untouched.
+When P5c was first introduced (0.8.4) it normalized indentation for **every** emitted `.tcl` file, including `FULL_COPY` outputs. That violates the F1 `FULL_COPY` contract: a full-copy file is supposed to land on disk byte-for-byte identical to the source. The 1.2.6 regression in `power/onepower/basic.tcl` was a textbook symptom -- a base-included `.tcl` file with mixed tab/space indentation and a missing trailing `}` was reformatted **and** had a synthetic closing brace appended by the running brace counter, then the post-trim brace check (`VE-16`) fired against the *rewritten* file even though the proc set was untouched.
 
-**Correct Behavior:** P5c reads and rewrites only files that Chopper itself produced — `PROC_TRIM` outputs (whose contents Chopper already changed when it deleted dropped procs) and `GENERATED` `.tcl` artifacts (whose contents Chopper authored from scratch). `FULL_COPY` outputs are never touched by P5c regardless of extension. If a `FULL_COPY` source already has a brace imbalance or odd indentation, that is a property of the input domain and surfaces as the same property in the output domain — Chopper does not mutate user-authored bytes silently to make them pretty.
+**Correct Behavior:** P5c reads and rewrites only files that Chopper itself produced -- `PROC_TRIM` outputs (whose contents Chopper already changed when it deleted dropped procs) and `GENERATED` `.tcl` artifacts (whose contents Chopper authored from scratch). `FULL_COPY` outputs are never touched by P5c regardless of extension. If a `FULL_COPY` source already has a brace imbalance or odd indentation, that is a property of the input domain and surfaces as the same property in the output domain -- Chopper does not mutate user-authored bytes silently to make them pretty.
 
 **Implementation Requirement:**
 - `_NORMALIZED_TREATMENTS` in `src/chopper/trimmer/indentation.py` must equal `frozenset({FileTreatment.PROC_TRIM, FileTreatment.GENERATED})`. Adding `FULL_COPY` reopens issue #22.
 - `_with_updated_bytes` in P5c must update `TrimReport.bytes_out` only for `PROC_TRIM` outcomes. `FULL_COPY` byte counts are pinned at the source byte size during P5a and never re-stamped.
 - The `rewritten_paths` tuple returned by `TclIndentationService.run` must contain only `PROC_TRIM` and `GENERATED` `.tcl` paths. P6 `validate_post` re-tokenizes exactly that set; `FULL_COPY` outputs are excluded from re-tokenization because they are byte-identical copies of the source.
 
-**Why It Matters:** Domain owners list legacy Tcl files in `files.include` precisely because they want those files preserved as-is. Reformatting them silently — even cosmetically — destroys diff-ability against the original source, can introduce real bugs (the appended `}` in basic.tcl was syntactically wrong relative to the source), and turns a "kept file" decision into an unannounced rewrite. P5c is a readability pass for files Chopper *had* to produce; it is not a global Tcl beautifier.
+**Why It Matters:** Domain owners list legacy Tcl files in `files.include` precisely because they want those files preserved as-is. Reformatting them silently -- even cosmetically -- destroys diff-ability against the original source, can introduce real bugs (the appended `}` in basic.tcl was syntactically wrong relative to the source), and turns a "kept file" decision into an unannounced rewrite. P5c is a readability pass for files Chopper *had* to produce; it is not a global Tcl beautifier.
 
 **Tests:**
 - `tests/unit/trimmer/test_indentation.py::test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl`
@@ -1756,7 +1756,7 @@ When P5c was first introduced (0.8.4) it normalized indentation for **every** em
 
 ## 4. Validator Module
 
-**TC-07 — Validation Quality:** Validation must catch broken Tcl syntax, missing files, unjustifiable proc references, and F3 output pointing to trimmed-away content. Diagnostics must use stable IDs, severities, and actionable hints so CI, text reports, and future UIs all consume the same signal.
+**TC-07 -- Validation Quality:** Validation must catch broken Tcl syntax, missing files, unjustifiable proc references, and F3 output pointing to trimmed-away content. Diagnostics must use stable IDs, severities, and actionable hints so CI, text reports, and future UIs all consume the same signal.
 
 ### Pitfall P-16: Cross-Validation of Proc References
 
@@ -1904,7 +1904,7 @@ else:
 
 ## 7. Configuration & Paths
 
-**TC-10 — Boundary Discipline:** Chopper must never accidentally reach and trim outside the domain trim scope. Path validation is the primary enforcement mechanism.
+**TC-10 -- Boundary Discipline:** Chopper must never accidentally reach and trim outside the domain trim scope. Path validation is the primary enforcement mechanism.
 
 ### Pitfall P-21: Always Normalize Paths to POSIX Forward Slashes
 
@@ -2004,7 +2004,7 @@ base_path = ctx.config.domain_root / "jsons/base.json"
 # Result: fev_formality/jsons/base.json (correct)
 ```
 
-**Correct Behavior:** `base` and `features` paths inside a project JSON are resolved relative to the operational domain root recorded on `RunConfig.domain_root`, NOT relative to the project JSON file location. The domain root is computed by the CLI per ARCHITECTURE §5.1 priority: `--domain` (highest) → backup-cwd suffix-strip guard → `Path.cwd()`.
+**Correct Behavior:** `base` and `features` paths inside a project JSON are resolved relative to the operational domain root recorded on `RunConfig.domain_root`, NOT relative to the project JSON file location. The domain root is computed by the CLI per ARCHITECTURE Sec.5.1 priority: `--domain` (highest) -> backup-cwd suffix-strip guard -> `Path.cwd()`.
 
 **Implementation Requirement:**
 - CLI layer computes the operational domain root via `_resolve_domain_root` (priority above)
@@ -2016,7 +2016,7 @@ base_path = ctx.config.domain_root / "jsons/base.json"
 - After resolution, passes fully resolved `Path` objects into the `RunConfig` bound by `ChopperContext`
 - Phase 1 validation (`VE-13 project-path-unresolvable`) catches unresolvable paths
 
-**Why It Matters:** This is the #1 probable mistake for project JSON implementers. The path resolution convention is intentional — it keeps project JSONs portable.
+**Why It Matters:** This is the #1 probable mistake for project JSON implementers. The path resolution convention is intentional -- it keeps project JSONs portable.
 
 **Test:** Run from `fev_formality/` with a project JSON in `../configs/` referencing `jsons/base.json`. Verify the path resolves to `fev_formality/jsons/base.json`.
 
@@ -2040,7 +2040,7 @@ chopper trim --project p.json --base jsons/base.json
 
 **Why It Matters:** Ambiguous input modes produce unpredictable behavior and break reproducibility.
 
-**Test:** Scenario: `chopper trim --project p.json --base b.json` → exit code 2.
+**Test:** Scenario: `chopper trim --project p.json --base b.json` -> exit code 2.
 
 ---
 
@@ -2049,7 +2049,7 @@ chopper trim --project p.json --base jsons/base.json
 **THE TRAP:**
 ```python
 # Without --strict: warnings are exit 0
-# With --strict: warnings become errors → exit 1
+# With --strict: warnings become errors -> exit 1
 # If implementer doesn't check strict flag: warnings silently pass in CI
 ```
 
@@ -2085,11 +2085,11 @@ chopper cleanup
 
 **Why It Matters:** Cleanup permanently deletes `domain_backup/`. There is no undo. The `--confirm` flag forces conscious intent.
 
-**Test:** Scenario: `chopper cleanup` without `--confirm` → exit code 2, backup untouched.
+**Test:** Scenario: `chopper cleanup` without `--confirm` -> exit code 2, backup untouched.
 
 ---
 
-### Pitfall P-43: `$ward` Path Contains Symlinks — Always `.resolve()` Before `relative_to()`
+### Pitfall P-43: `$ward` Path Contains Symlinks -- Always `.resolve()` Before `relative_to()`
 
 **THE TRAP:**
 ```python
@@ -2102,7 +2102,7 @@ rel = domain_root.relative_to(ward_root)
 rel = domain_root.resolve().relative_to(ward_root.resolve())
 ```
 
-**Correct Behavior:** `DomainLookupResult.ward_root` and all paths used in `render_p4_commands` `exclude_file_list` computation must call `.resolve()` on both sides before `relative_to()`. This handles workspace symlinks common in EDA environments (`/p/` → NFS mount, workspace soft links).
+**Correct Behavior:** `DomainLookupResult.ward_root` and all paths used in `render_p4_commands` `exclude_file_list` computation must call `.resolve()` on both sides before `relative_to()`. This handles workspace symlinks common in EDA environments (`/p/` -> NFS mount, workspace soft links).
 
 **Why It Matters:** NFS workspaces on EDA servers routinely use symlinks. Without `.resolve()` the `relative_to()` call raises `ValueError` and the audit bundle writes incorrect paths.
 
@@ -2133,11 +2133,11 @@ chopper trim --domain "snps/fev,eco,trim"
 ```python
 # File: "weird.feature.feature.json"
 # stem = "weird.feature.feature"
-# removesuffix(".feature") → "weird.feature"
+# removesuffix(".feature") -> "weird.feature"
 # NOT "weird"
 ```
 
-**Correct Behavior:** `resolve_feature_names` computes the name as `Path(p).stem.removesuffix(".feature")`. A file named `foo.feature.feature.json` maps to the name `foo.feature`, not `foo`. This is intentional — it follows the single `removesuffix` rule and avoids ambiguity.
+**Correct Behavior:** `resolve_feature_names` computes the name as `Path(p).stem.removesuffix(".feature")`. A file named `foo.feature.feature.json` maps to the name `foo.feature`, not `foo`. This is intentional -- it follows the single `removesuffix` rule and avoids ambiguity.
 
 **Why It Matters:** Feature files should follow the `<name>.feature.json` convention. Files with double `.feature.feature.json` suffixes are unusual but the behavior must be predictable.
 
@@ -2145,7 +2145,7 @@ chopper trim --domain "snps/fev,eco,trim"
 
 ---
 
-### Pitfall P-46: Mixed Ward/Path Modes in Multi-Domain Run — Each Domain's RunConfig Is Independent
+### Pitfall P-46: Mixed Ward/Path Modes in Multi-Domain Run -- Each Domain's RunConfig Is Independent
 
 **THE TRAP:**
 ```bash
@@ -2167,14 +2167,14 @@ chopper trim --domain "fev_formality,/p/abs/other_domain"
 ```python
 # If cutoff is too high, obvious typos get no suggestion
 close = difflib.get_close_matches("dft_scam", ["dft_scan"], cutoff=0.8)
-# → []  (no suggestion even though only 1 character differs)
+# -> []  (no suggestion even though only 1 character differs)
 
 # CORRECT: cutoff=0.5 catches most single-character typos
 close = difflib.get_close_matches("dft_scam", ["dft_scan"], n=3, cutoff=0.5)
-# → ["dft_scan"]
+# -> ["dft_scan"]
 ```
 
-**Correct Behavior:** `resolve_feature_names` uses `difflib.get_close_matches(token, names, n=3, cutoff=0.5)` for VE-36 suggestions. Cutoff 0.5 is intentionally permissive — it catches single-character typos in typical feature names.
+**Correct Behavior:** `resolve_feature_names` uses `difflib.get_close_matches(token, names, n=3, cutoff=0.5)` for VE-36 suggestions. Cutoff 0.5 is intentionally permissive -- it catches single-character typos in typical feature names.
 
 **Why It Matters:** The suggestion quality directly affects user recovery speed when `VE-36` fires. Too-tight cutoff produces no hints; too-loose produces noisy hints. 0.5 was empirically chosen for EDA feature-name conventions.
 
@@ -2185,7 +2185,7 @@ close = difflib.get_close_matches("dft_scam", ["dft_scan"], n=3, cutoff=0.5)
 
 ## 9. Hook Files
 
-**TC-05 — File Dependency Detection:** Chopper must correctly capture `source` and `iproc_source` references, including flags and hooks. Required vs optional references and `-use_hooks` behavior must follow R3 exactly and be reflected in diagnostics and manifests.
+**TC-05 -- File Dependency Detection:** Chopper must correctly capture `source` and `iproc_source` references, including flags and hooks. Required vs optional references and `-use_hooks` behavior must follow R3 exactly and be reflected in diagnostics and manifests.
 
 ### Pitfall P-29: Hook Files from `-use_hooks` Are Discovery-Only
 
@@ -2203,7 +2203,7 @@ iproc_source -file setup.tcl -use_hooks
 
 **Implementation Requirement:**
 - During scan/analysis: record hook file candidates in the file dependency graph
-- During trim compilation: hook files are treated like any other file — they survive only if they appear in `files.include`
+- During trim compilation: hook files are treated like any other file -- they survive only if they appear in `files.include`
 - There is no `HOOK_AUTO` keep reason. Hook files use the normal `explicit-file` reason if included.
 - Warn in scan output that discovered hook files require explicit inclusion
 
@@ -2235,14 +2235,14 @@ config = RunConfig(
 # Result: audit artifacts have no record that --project was used
 ```
 
-**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields on `RunConfig` (the engine-behavior record inside `ChopperContext`, per [`technical_docs/ENGINEERING.md`](ENGINEERING.md) §1.6.1):
-- `project_json` — path to the project JSON file
-- `project_name` — from `project` field
-- `project_owner` — from `owner` field
-- `release_branch` — from `release_branch` field
-- `project_notes` — from `notes` array
+**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields on `RunConfig` (the engine-behavior record inside `ChopperContext`, per [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.1.6.1):
+- `project_json` -- path to the project JSON file
+- `project_name` -- from `project` field
+- `project_owner` -- from `owner` field
+- `release_branch` -- from `release_branch` field
+- `project_notes` -- from `notes` array
 
-These fields flow through `ConfigService` → `CompiledManifest` and are written into `chopper_run.json` and `compiled_manifest.json` by `AuditService`.
+These fields flow through `ConfigService` -> `CompiledManifest` and are written into `chopper_run.json` and `compiled_manifest.json` by `AuditService`.
 
 **Implementation Requirement:**
 - CLI layer: parse project JSON, populate all `RunConfig` project fields before constructing `ChopperContext`
@@ -2266,13 +2266,13 @@ These fields flow through `ConfigService` → `CompiledManifest` and are written
 # Which root wins?
 ```
 
-**Correct Behavior:** The operational domain root is computed by the CLI per ARCHITECTURE §5.1 priority list: `--domain` (highest) → backup-cwd suffix-strip guard → `Path.cwd()`. The project JSON `domain` field is a consistency identifier and must match `domain_root.name` (case-insensitive). When `--domain` is provided, it is the source of truth — cwd is **not** consulted, and there is no separate "cwd does not match `--domain`" exit-2 gate. Mismatch between `domain_root.name` and the project's `domain` field is reported as `VE-17` (exit 1).
+**Correct Behavior:** The operational domain root is computed by the CLI per ARCHITECTURE Sec.5.1 priority list: `--domain` (highest) -> backup-cwd suffix-strip guard -> `Path.cwd()`. The project JSON `domain` field is a consistency identifier and must match `domain_root.name` (case-insensitive). When `--domain` is provided, it is the source of truth -- cwd is **not** consulted, and there is no separate "cwd does not match `--domain`" exit-2 gate. Mismatch between `domain_root.name` and the project's `domain` field is reported as `VE-17` (exit 1).
 
 **Implementation Requirement:**
 - Compute the operational domain root via the priority list and store it on `RunConfig.domain_root`
 - Use `RunConfig.domain_root` (not `Path.cwd()`) as the verified domain root for project path resolution
-- Require `project_json["domain"].casefold() == domain_root.name.casefold()` (→ VE-17 on miss)
-- Do **not** validate `--domain` against `Path.cwd()` — `--domain` is authoritative on its own
+- Require `project_json["domain"].casefold() == domain_root.name.casefold()` (-> VE-17 on miss)
+- Do **not** validate `--domain` against `Path.cwd()` -- `--domain` is authoritative on its own
 
 **Why It Matters:** This freezes one path root for the whole run and avoids hidden path-resolution branches.
 
@@ -2299,13 +2299,13 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 ```
 
 **Implementation Requirement:**
-- Implement parser and all fixtures together within Stage 1 — the Parser module is not complete until every fixture passes
+- Implement parser and all fixtures together within Stage 1 -- the Parser module is not complete until every fixture passes
 - All 15+ fixture categories must pass before Stage 2 (Compiler) begins
 - Property-based tests for invariants (span consistency, no overlaps, etc.) are part of Stage 1 acceptance
 
 **Why It Matters:** Parser is the critical path; every later stage consumes its typed output (`list[ProcEntry]`). Failures here cascade into the compiler, trimmer, and validator.
 
-**Test:** All fixtures from this doc §1.9 must pass before Stage 1 is declared complete.
+**Test:** All fixtures from this doc Sec.1.9 must pass before Stage 1 is declared complete.
 
 ---
 
@@ -2317,7 +2317,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | Module | Mistake | Prevention |
 |--------|---------|-----------|
 | **Parser** | Quotes treated as inert inside braced bodies (old, incorrect rule) | Apply Tcl Endekas rule 5: `"` opens a quoted word at any brace depth; track `quoted_bracket_depth` (P-01) |
-| **Parser** | Quote-open detection that ignores boundary context can open phantom quoted words inside brace words and swallow the closing `}` (false `PE-02`) — e.g. `set q {"}`, `regexp {".*"} $line`, `string map {" " ""}` | Enforce rule-5 word-boundary whitelist (SOF/whitespace/`;`/`[`) and treat other prefixes as literal quote bytes; this subsumes the old single-byte `{` guard (P-01a) |
+| **Parser** | Quote-open detection that ignores boundary context can open phantom quoted words inside brace words and swallow the closing `}` (false `PE-02`) -- e.g. `set q {"}`, `regexp {".*"} $line`, `string map {" " ""}` | Enforce rule-5 word-boundary whitelist (SOF/whitespace/`;`/`[`) and treat other prefixes as literal quote bytes; this subsumes the old single-byte `{` guard (P-01a) |
 | **Parser** | Line continuation corrupts line numbers | Don't physically join lines (P-02) |
 | **Parser** | Namespace context resets incorrectly | LIFO stack management (P-03) |
 | **Parser** | Computed proc names not skipped | Log `PW-01`, skip proc (P-04) |
@@ -2327,7 +2327,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Parser** | Comment banner orphaned after proc drop | Record `comment_start_line`/`comment_end_line`; drop atomically with proc (P-34) |
 | **Parser** | DPA proc name extracted as false call dependency | Extract first word only; Level 2c suppression filter (P-35) |
 | **Parser** | `foreach_in_collection` not in control-flow keywords | Add to `CONTROL_FLOW_KEYWORDS`; push `CONTROL_FLOW` context (P-36) |
-| **Parser** | `regexp`/`regsub`/`exec`/`glob` brace args walked as code | Pre-pass marks opaque `{…}` token ranges as skip; recurse into code-block braces (P-38) |
+| **Parser** | `regexp`/`regsub`/`exec`/`glob` brace args walked as code | Pre-pass marks opaque `{...}` token ranges as skip; recurse into code-block braces (P-38) |
 | **Parser** | `switch` pattern labels extracted as proc calls | Pre-pass marks odd-indexed body WORDs as skip (P-39) |
 | **Parser** | DPA name parser concatenates option-list fragments | Take first whitespace-token after keyword; ignore option list entirely (P-40) |
 | **Parser** | `\[` in a quoted string extracted as a proc-call candidate | Count preceding backslashes at match position; skip on odd count (P-46) |
@@ -2348,9 +2348,9 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Config** | Paths break on different OS | Always use forward slashes (P-21) |
 | **CLI** | Dry-run modifies filesystem | Skip all writes when `--dry-run` (P-23) |
 | **CLI** | Project JSON paths resolve wrong | Resolve relative to the current working directory / domain root, not the project file (P-25) |
-| **CLI** | `--project` + `--base` both provided | Mutually exclusive — exit code 2 (P-26) |
+| **CLI** | `--project` + `--base` both provided | Mutually exclusive -- exit code 2 (P-26) |
 | **CLI** | `--strict` not checked | Escalate warnings to errors, change exit code (P-27) |
-| **CLI** | Cleanup runs without `--confirm` | Require `--confirm` — exit code 2 without it (P-28) |
+| **CLI** | Cleanup runs without `--confirm` | Require `--confirm` -- exit code 2 without it (P-28) |
 | **Hooks** | Hook files auto-copied from `-use_hooks` | Discovery-only; must be in `files.include` (P-29) |
 | **Project** | Project metadata lost in audit | Populate all `RunConfig` project fields (P-30) |
 | **Project** | Domain mismatch with project JSON | Require current working directory consistency and reject mismatches (P-31) |
@@ -2370,49 +2370,49 @@ Non-Tcl files are intentionally file-level only. Attempting to over-interpret no
 
 ### TC-09: Template Generation
 
-Template-script generation is **not** a Chopper v1 feature and is not reserved in the schema. Previous drafts kept an `options.template_script` field with diagnostic `VE-18 template-script-path-escapes` as a reserved hook — that field and that diagnostic have been removed in line with the scope-lock policy (no reserved seams). If a future version wants template generation, it will be filed as `FD-12 template-script-generation` and re-introduced through the architecture-doc-first cascade. Domain-specific generation logic stays outside the Chopper core.
+Template-script generation is **not** a Chopper v1 feature and is not reserved in the schema. Previous drafts kept an `options.template_script` field with diagnostic `VE-18 template-script-path-escapes` as a reserved hook -- that field and that diagnostic have been removed in line with the scope-lock policy (no reserved seams). If a future version wants template generation, it will be filed as `FD-12 template-script-generation` and re-introduced through the architecture-doc-first cascade. Domain-specific generation logic stays outside the Chopper core.
 
 ---
 
 ## Future Considerations
 
-Items considered and **deferred** from v1. An entry here is *not* a TODO — many will stay deferred indefinitely. Adding any of these requires re-entering the architecture-doc-first cascade in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) §3.
+Items considered and **deferred** from v1. An entry here is *not* a TODO -- many will stay deferred indefinitely. Adding any of these requires re-entering the architecture-doc-first cascade in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) Sec.3.
 
-Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintained here; the scope-lock list in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) §1 is the single source of truth for what is closed.
+Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintained here; the scope-lock list in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) Sec.1 is the single source of truth for what is closed.
 
 ### Parser
 
-**FD-01 — Advanced namespace resolution.** Out of scope today; calls emit `TW-03 unresolvable-call`. Closed forms: `namespace import`, `namespace path`, `namespace unknown`, `interp alias`, runtime redefinition across sourced files. Source: this doc §6.3; `technical_docs/ARCHITECTURE.md` §4.6.
+**FD-01 -- Advanced namespace resolution.** Out of scope today; calls emit `TW-03 unresolvable-call`. Closed forms: `namespace import`, `namespace path`, `namespace unknown`, `interp alias`, runtime redefinition across sourced files. Source: this doc Sec.6.3; `technical_docs/ARCHITECTURE.md` Sec.4.6.
 
 ### Pipeline
 
-**FD-02 — Cross-domain dependency awareness.** v1 treats domains as fully isolated; cross-domain calls are logged as `TW-02 unresolved-proc-call` but never traced. A future version could accept a multi-domain manifest for read-only cross-domain call validation (not trimming). Source: `technical_docs/ARCHITECTURE.md` §2.2.
+**FD-02 -- Cross-domain dependency awareness.** v1 treats domains as fully isolated; cross-domain calls are logged as `TW-02 unresolved-proc-call` but never traced. A future version could accept a multi-domain manifest for read-only cross-domain call validation (not trimming). Source: `technical_docs/ARCHITECTURE.md` Sec.2.2.
 
 ### CLI / UX
 
-**FD-03 — Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred — CLI-first is correct today; the service-layer + renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` §5.11) enables this with no engine changes.
+**FD-03 -- Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred -- CLI-first is correct today; the service-layer + renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` Sec.5.11) enables this with no engine changes.
 
-**FD-04 — GUI client.** Machine-readable stdio wire protocol documented in `technical_docs/ARCHITECTURE.md` §5.11.3. The wire payload (conventionally "TrimRequest") deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. Progress events as JSON lines on stderr. GUI data surfaces (file/proc selection, dependency graph, trim stats, JSON view, diagnostics) are enumerated in §1.5.11.5. Architecturally enabled by the service-layer + serialization + renderer-adapter contracts; no new data models needed.
+**FD-04 -- GUI client.** Machine-readable stdio wire protocol documented in `technical_docs/ARCHITECTURE.md` Sec.5.11.3. The wire payload (conventionally "TrimRequest") deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. Progress events as JSON lines on stderr. GUI data surfaces (file/proc selection, dependency graph, trim stats, JSON view, diagnostics) are enumerated in Sec.1.5.11.5. Architecturally enabled by the service-layer + serialization + renderer-adapter contracts; no new data models needed.
 
-**FD-10 — Machine-readable CLI output (`--json` / `--jsonl`).** Emit `RunResult` and progress events as structured lines on stdout. Post-v1 this is ~50 lines in `cli/render.py` plus a fixture — `RunResult` already serialises via `core/serialization.py`. Deferred to keep v1's user surface minimal and let the table renderer bed in before freezing a machine-output contract. Source: `DAY0_REVIEW.md` A1.
+**FD-10 -- Machine-readable CLI output (`--json` / `--jsonl`).** Emit `RunResult` and progress events as structured lines on stdout. Post-v1 this is ~50 lines in `cli/render.py` plus a fixture -- `RunResult` already serialises via `core/serialization.py`. Deferred to keep v1's user surface minimal and let the table renderer bed in before freezing a machine-output contract. Source: `DAY0_REVIEW.md` A1.
 
-**FD-13 — Host-integrated GitHub issue attachment upload.** The Chopper Agent already creates issues with packaged evidence in the body; v1 does not standardise binary attachment upload. Future work would define allowed host transports (`gh`, browser, extension), credential sourcing, size/type limits, and partial-failure behavior. Deferred — issue-body packaging already solves the reproducibility problem without committing Chopper to GitHub's unstable attachment surface.
+**FD-13 -- Host-integrated GitHub issue attachment upload.** The Chopper Agent already creates issues with packaged evidence in the body; v1 does not standardise binary attachment upload. Future work would define allowed host transports (`gh`, browser, extension), credential sourcing, size/type limits, and partial-failure behavior. Deferred -- issue-body packaging already solves the reproducibility problem without committing Chopper to GitHub's unstable attachment surface.
 
 ### Generator
 
-**FD-12 — Template-script generation.** Some domains want Chopper to execute a domain-specific post-trim script (lint reports, project-level `run.tcl` wrappers, tool-specific setup). Earlier drafts carried `options.template_script` + `VE-18`. Removed per scope-lock policy (no reserved seams with registered diagnostics). A future version would spec the execution contract (sandbox, arguments, failure mode) before reintroducing the field. Deferred — domain owners can run generation scripts before/after `chopper trim` today; baking in an executor commits Chopper to a security surface no v1 caller demands. Source: `DAY0_REVIEW.md` G2.
+**FD-12 -- Template-script generation.** Some domains want Chopper to execute a domain-specific post-trim script (lint reports, project-level `run.tcl` wrappers, tool-specific setup). Earlier drafts carried `options.template_script` + `VE-18`. Removed per scope-lock policy (no reserved seams with registered diagnostics). A future version would spec the execution contract (sandbox, arguments, failure mode) before reintroducing the field. Deferred -- domain owners can run generation scripts before/after `chopper trim` today; baking in an executor commits Chopper to a security surface no v1 caller demands. Source: `DAY0_REVIEW.md` G2.
 
 ### Performance
 
-**FD-09 — Benchmark harness + phase budgets.** Deferred until core pipeline is verified across more production domains.
+**FD-09 -- Benchmark harness + phase budgets.** Deferred until core pipeline is verified across more production domains.
 
 ### Platform
 
-**FD-11 — Multi-platform domain support (trim on Windows).** Deferred; v1 is Linux-only by deployment policy.
+**FD-11 -- Multi-platform domain support (trim on Windows).** Deferred; v1 is Linux-only by deployment policy.
 
 ### Documentation
 
-**FD-05, FD-06, FD-07** — Quick-start guide, example diagnostic messages per code, and terminology glossary (capability F1/F2/F3 vs feature JSON). Deferred until spec is final. Source: `technical_docs/ARCHITECTURE.md` §13.4 (DF-01 / DF-02 / DF-03).
+**FD-05, FD-06, FD-07** -- Quick-start guide, example diagnostic messages per code, and terminology glossary (capability F1/F2/F3 vs feature JSON). Deferred until spec is final. Source: `technical_docs/ARCHITECTURE.md` Sec.13.4 (DF-01 / DF-02 / DF-03).
 
 ### Summary
 
@@ -2433,5 +2433,5 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 
 **Adopted historical entries** (no longer tracked here):
 
-- **FD-14 — Feature replacement semantics.** ADOPTED 2.0.0-alpha as the R1 ordered-overlay design baseline. See `technical_docs/ARCHITECTURE.md` §4.
-- **FD-15 — Companion-file sync for `default_rules` pattern.** ADOPTED 3.4.1 as P5d in `src/chopper/trimmer/companion_sync.py`; diagnostics `VW-24`, `VI-04`. See `technical_docs/ARCHITECTURE.md` §5.5.
+- **FD-14 -- Feature replacement semantics.** ADOPTED 2.0.0-alpha as the R1 ordered-overlay design baseline. See `technical_docs/ARCHITECTURE.md` Sec.4.
+- **FD-15 -- Companion-file sync for `default_rules` pattern.** ADOPTED 3.4.1 as P5d in `src/chopper/trimmer/companion_sync.py`; diagnostics `VW-24`, `VI-04`. See `technical_docs/ARCHITECTURE.md` Sec.5.5.

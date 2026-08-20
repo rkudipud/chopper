@@ -1,4 +1,4 @@
-# Chopper — Golden File Guide
+# Chopper -- Golden File Guide
 
 > **Applies to:** All stages from Stage 1 (Parser) onward.
 
@@ -33,7 +33,7 @@ Examples:
 - Double underscore `__` separates module name from fixture name.
 - `<module>` is the Python module under test (e.g., `parser`, `compiler`, `trimmer`).
 - `<fixture_name>` matches the test fixture file stem (without `.tcl` or `.json`).
-- Use `snake_case` only — no uppercase, no hyphens.
+- Use `snake_case` only -- no uppercase, no hyphens.
 
 ---
 
@@ -70,7 +70,7 @@ def assert_json_matches_golden(actual: dict, name: str) -> None:
             json.dumps(actual, indent=2, sort_keys=True) + "\n",
             encoding="utf-8"
         )
-        return  # First run — always passes
+        return  # First run -- always passes
     expected = json.loads(golden_path.read_text(encoding="utf-8"))
     assert actual == expected, (
         f"Golden mismatch for {name!r}.\n"
@@ -125,9 +125,9 @@ Golden files capture the **stable output contract** of a function or pipeline:
 | `audit` | `chopper_run.json` structure (with deterministic fields only; timestamps excluded) |
 
 **Exclude from golden files:**
-- Timestamps (`timestamp`, `started_at`, `scan_date`) — use `"<redacted>"` or omit.
-- Run IDs (UUID) — use `"<run_id>"` or `""`.
-- Absolute paths — use domain-relative paths only.
+- Timestamps (`timestamp`, `started_at`, `scan_date`) -- use `"<redacted>"` or omit.
+- Run IDs (UUID) -- use `"<run_id>"` or `""`.
+- Absolute paths -- use domain-relative paths only.
 
 ---
 
@@ -156,5 +156,5 @@ Maintain an index in this file (Section 7) so engineers can find golden files wi
 | `parser__empty_proc_body_forms.json` | parser | Fixture 13 | Stage 1 |
 | `parser__call_extraction.json` | parser | Fixture 14 | Stage 1 |
 | `parser__encoding_latin1_fallback.json` | parser | Fixture 15 | Stage 1 |
-| *(compiler golden files added in Stage 2)* | — | — | Stage 2 |
-| *(trimmer golden files added in Stage 3)* | — | — | Stage 3 |
+| *(compiler golden files added in Stage 2)* | -- | -- | Stage 2 |
+| *(trimmer golden files added in Stage 3)* | -- | -- | Stage 3 |

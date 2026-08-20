@@ -46,7 +46,7 @@ def _body_refs(body_source: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     # lbrace[0]/rbrace[0] = args pair, lbrace[1]/rbrace[-1] = body pair.
     body_lbrace_idx = lbraces[1]
     body_rbrace_idx = rbraces[-1]
-    return extract_body_refs(tokens, body_lbrace_idx, body_rbrace_idx)
+    return extract_body_refs(tokens, body_lbrace_idx, body_rbrace_idx, body_source=body_source)
 
 
 # ---------------------------------------------------------------------------

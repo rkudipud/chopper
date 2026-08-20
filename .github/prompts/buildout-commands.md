@@ -12,7 +12,7 @@ This document provides activation prompts for the Chopper buildout agents.
 | **Chopper Stage Builder** | Implementation agent | Actual code writing, test-first development (same internalized personas) |
 | **Chopper Agent** | User-facing companion | Domain analysis, JSON authoring, audit interpretation, bug/enhancement filing |
 
-> Personas — **Principal Engineer**, **Senior SWE**, **Devil's Advocate**, **Beast Mode** — are internalized inside each agent; there are no separate persona agents to invoke.
+> Personas -- **Principal Engineer**, **Senior SWE**, **Devil's Advocate**, **Beast Mode** -- are internalized inside each agent; there are no separate persona agents to invoke.
 
 ---
 
@@ -26,9 +26,9 @@ This document provides activation prompts for the Chopper buildout agents.
 Begin Chopper Stage 0 implementation.
 
 1. Read `.github/agent_memory/chopper-buildout.md` if present; otherwise create it from `.github/agent_memory/README.md`
-2. Read technical_docs/ARCHITECTURE.md §5.12 and §8.1
+2. Read technical_docs/ARCHITECTURE.md Sec.5.12 and Sec.8.1
 3. Create todo list for Stage 0 (core/ module)
-4. Implement frozen dataclasses per ENGINEERING.md §9.1
+4. Implement frozen dataclasses per ENGINEERING.md Sec.9.1
 5. Run `make check` after each file
 6. Update `.github/agent_memory/chopper-buildout.md`
 
@@ -58,7 +58,7 @@ Resume Chopper buildout.
 
 Implement Stage [N]: [module name]
 
-Architecture Doc reference: technical_docs/ARCHITECTURE.md §[X.X]
+Architecture Doc reference: technical_docs/ARCHITECTURE.md Sec.[X.X]
 
 Pre-implementation:
 1. Ensure `.github/agent_memory/chopper-stage-builder.md` exists; if missing, create it from `.github/agent_memory/README.md`
@@ -80,7 +80,7 @@ Post-implementation:
 
 ### Milestone Quality Review
 
-The milestone review is part of the Chopper Buildout Agent's own duties (devil's-advocate persona) — there is no separate review agent.
+The milestone review is part of the Chopper Buildout Agent's own duties (devil's-advocate persona) -- there is no separate review agent.
 
 ```text
 @workspace /chopper-buildout
@@ -100,13 +100,13 @@ Milestone review for Stage [N].
 ## Stage Implementation Order
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Stage 0: core/     →  Stage 1: parser/   →  Stage 2: compiler/ │
-│  (Foundation)          (Tcl Analysis)         (Merge + Trace)   │
-│                                                                  │
-│  Stage 3: trimmer/  →  Stage 4: validator/ →  Stage 5: cli/     │
-│  (Trim + Audit)        (Pre/Post Checks)      (User Interface)  │
-└─────────────────────────────────────────────────────────────────┘
+???????????????????????????????????????????????????????????????????
+?  Stage 0: core/     ->  Stage 1: parser/   ->  Stage 2: compiler/ ?
+?  (Foundation)          (Tcl Analysis)         (Merge + Trace)   ?
+?                                                                  ?
+?  Stage 3: trimmer/  ->  Stage 4: validator/ ->  Stage 5: cli/     ?
+?  (Trim + Audit)        (Pre/Post Checks)      (User Interface)  ?
+???????????????????????????????????????????????????????????????????
 ```
 
 ### Stage Dependencies
@@ -158,9 +158,9 @@ git diff tests/golden/  # Must show NO changes
 
 | Document | Purpose | Check For |
 | --- | --- | --- |
-| `technical_docs/ARCHITECTURE.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, §x.x |
-| `technical_docs/ENGINEERING.md` | How to build | Module structure, §9.x models |
-| `technical_docs/IMPLEMENTATION.md` (parser section) | Parser rules | State machine, §1.3.0 |
+| `technical_docs/ARCHITECTURE.md` | **THE ARCHITECTURE DOC** | Requirements, FR-xx, Sec.x.x |
+| `technical_docs/ENGINEERING.md` | How to build | Module structure, Sec.9.x models |
+| `technical_docs/IMPLEMENTATION.md` (parser section) | Parser rules | State machine, Sec.1.3.0 |
 | `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
 | `technical_docs/IMPLEMENTATION.md` (pitfalls) | Gotchas | P-xx pitfalls, TC-xx risks |
 | `technical_docs/IMPLEMENTATION_ROADMAP.md` | Build order | M1-M6 milestones |
@@ -182,10 +182,10 @@ Run this after EVERY implementation:
 - [ ] No "helper" classes beyond spec
 
 ### Spec Alignment
-- [ ] Every public function traces to architecture doc §x.x
+- [ ] Every public function traces to architecture doc Sec.x.x
 - [ ] Diagnostic codes exist in DIAGNOSTIC_CODES.md
-- [ ] Exit codes follow architecture doc §5.10
-- [ ] File treatments match architecture doc §4 vocabulary
+- [ ] Exit codes follow architecture doc Sec.5.10
+- [ ] File treatments match architecture doc Sec.4 vocabulary
 
 ### Test Alignment
 - [ ] Tests verify spec behavior, not implementation
@@ -223,7 +223,7 @@ Run this after EVERY implementation:
 1. STOP immediately
 2. Identify what was added beyond spec
 3. DELETE the extra code
-4. Re-verify against architecture doc §x.x
+4. Re-verify against architecture doc Sec.x.x
 5. Continue only after drift resolved
 ```
 
@@ -250,7 +250,7 @@ Run this after EVERY implementation:
 
 **Buildout is COMPLETE when:**
 
-1. All 6 stages implemented (core → parser → compiler → trimmer → validator → cli)
+1. All 6 stages implemented (core -> parser -> compiler -> trimmer -> validator -> cli)
 2. `make ci` passes consistently
 3. All 25 active integration scenarios pass
 4. `fev_formality_real` acceptance trim succeeds

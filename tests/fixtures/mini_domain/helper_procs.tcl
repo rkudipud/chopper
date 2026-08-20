@@ -1,4 +1,4 @@
-# helper_procs.tcl — Mini domain helper procedures
+# helper_procs.tcl -- Mini domain helper procedures
 # 3 procs: read_libs, process_data, debug_dump
 
 proc read_libs {} {

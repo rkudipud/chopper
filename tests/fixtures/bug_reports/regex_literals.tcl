@@ -1,5 +1,5 @@
 # Verbatim regex/grep literal snippets from the sta_pt domain.
-# Bug: TW-02 — proc-call extractor recursed into Tcl `{...}` brace-quoted
+# Bug: TW-02 -- proc-call extractor recursed into Tcl `{...}` brace-quoted
 # regular expressions passed to regexp/regsub/exec grep|egrep, splitting
 # on `|` and on individual letters in `[abc]` character classes, then
 # warning each fragment as an unresolved proc.

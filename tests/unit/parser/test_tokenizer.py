@@ -404,22 +404,30 @@ class TestEdgeCases:
         # Two separate commands; `b` is cmd pos on line 2.
         assert ("b", 2, True) in words
 
-    def test_semicolon_inside_braces_still_emits_token(self) -> None:
-        # IMPLEMENTATION.md (parser section) Sec.1.3.0 + Sec.1.3.4 rule 3: brace-delimited blocks are
-        # treated as scripts. `;` inside braces is a command terminator
-        # and `#` at the resulting cmd-pos activates a comment.
+    def test_semicolon_inside_braces_is_literal(self) -> None:
+        # Tcl Rule 6: inside `{...}` only `{`/`}` are structural; `;` is data.
         r = tokenize("proc f {} { a ; b }")
-        # Semicolon appears at brace_depth == 2 (inside the proc body).
         semis = [t for t in r.tokens if t.kind == TokenKind.SEMICOLON]
-        assert len(semis) == 1
-        assert semis[0].brace_depth == 1
+        assert semis == []
+        assert r.final_brace_depth == 0
 
-    def test_comment_after_semicolon_inside_braces_activates(self) -> None:
-        # Sec.3.4 rule 3: `#` at cmd-pos inside braces is a comment.
+    def test_semicolon_hash_inside_nested_brace_word_balances(self) -> None:
+        # PE-02 repro: regexp pattern with ``;##`` must not start a comment.
+        src = (
+            'if { $svf_file == "" && [regexp {^\\s*;##\\s*set_svf\\s+(\\S+)} $line match svf_path] } {\n'
+            "    set svf_file $svf_path\n"
+            "}\n"
+        )
+        r = tokenize(src)
+        assert r.final_brace_depth == 0, f"errors={r.errors}"
+        assert r.errors == ()
+
+    def test_hash_after_semicolon_inside_braces_no_comment_without_terminator(self) -> None:
+        # With ``;`` literal inside braces, ``#`` after it is word data, not a comment.
         r = tokenize("proc f {} { a ; # c\nb }")
         comments = [t for t in r.tokens if t.kind == TokenKind.COMMENT]
-        assert len(comments) == 1
-        assert comments[0].brace_depth == 1
+        assert len(comments) == 0
+        assert r.final_brace_depth == 0
 
     def test_dangling_backslash_at_eof(self) -> None:
         # A lone `\` at EOF (no following char) must not crash and must

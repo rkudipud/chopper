@@ -5,9 +5,9 @@
 # determinism bug (technical_docs/FINAL_HANDOFF_REVIEW.md S-6).
 export PYTHONHASHSEED := 0
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Code Quality
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 
 lint:
 	ruff check src/ tests/
@@ -24,16 +24,16 @@ type-check:
 imports-check:
 	lint-imports --config pyproject.toml
 
-# Doc ↔ code consistency gates. Catch the "agent invented a new diagnostic
+# Doc <-> code consistency gates. Catch the "agent invented a new diagnostic
 # code" and "agent drifted a service signature" classes of defect at CI time.
 # See technical_docs/FINAL_HANDOFF_REVIEW.md PR-4.
 docs-gate:
 	python schemas/scripts/check_diagnostic_registry.py
 	python schemas/scripts/check_service_signatures.py
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Testing
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 
 test-unit:
 	pytest tests/unit/ -v
@@ -50,7 +50,7 @@ test-property:
 # Aggregate test target: runs every suite in a single pytest invocation so
 # coverage is checked against the union of covered statements, not re-checked
 # per suite. The per-suite `test-*` targets above pass `--no-cov` for exactly
-# this reason — running them individually would otherwise fail a green codebase
+# this reason -- running them individually would otherwise fail a green codebase
 # because each suite exercises only part of src/.
 #
 # This target enforces 100% line+branch coverage across the board (overriding
@@ -62,9 +62,9 @@ test:
 
 test-all: test
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Combined Gates
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 
 # Pre-commit gate (fast)
 check: lint format-check type-check imports-check docs-gate test-unit
@@ -72,9 +72,9 @@ check: lint format-check type-check imports-check docs-gate test-unit
 # Full CI gate
 ci: lint format-check type-check imports-check docs-gate test
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Development Helpers
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 
 install-dev:
 	pip install -e ".[dev]"
@@ -90,11 +90,11 @@ clean:
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Distribution Bundle (for TFM / EC ship)
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Produces a self-contained directory under dist/chopper-bundle/ that runs
-# directly on EC systems using /usr/intel/bin/python3.13.2 — no venv,
+# directly on EC systems using /usr/intel/bin/python3.13.2 -- no venv,
 # no pip install required at the deploy site.
 #
 #   make bundle           # build dist/chopper-bundle/
@@ -160,9 +160,9 @@ bundle: clean-bundle
 	@echo "Bundle ready: $(BUNDLE_DIR)/"
 	@echo "Ship the entire $(BUNDLE_DIR)/ directory; users invoke $(BUNDLE_DIR)/bin/chopper"
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # CTH Ward Release (FB-style: shared py-flow venv, no vendoring)
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # Produces dist/chopper-cth/ mirroring the CTH ward subtree so it can be
 # dropped straight into a ward checkout and submitted (eou_sandbox_pydev).
 # This is the deployment model described for the flow team:
@@ -170,7 +170,7 @@ bundle: clean-bundle
 #   * code  -> $ward/global/common/chopper/        (like global/common/flow_builder)
 #   * exec  -> $ward/global/eouFW/bin/chopper       (on $PATH, like flow_builder.py)
 #   * venv  -> reuse the shared py-flow venv; ADD deps to its requirements.txt
-#             (deps are NOT vendored here — see requirements.chopper.txt)
+#             (deps are NOT vendored here -- see requirements.chopper.txt)
 #
 # Usage:
 #   make release-cth                 # stage dist/chopper-cth/ + review it
@@ -200,7 +200,7 @@ release-cth: clean-cth
 	rm -rf $(FLOW_DIR)/schemas/scripts
 	find $(FLOW_DIR)/src $(FLOW_DIR)/schemas -type d \( -name __pycache__ -o -name "*.egg-info" \) -exec rm -rf {} +
 	@echo "[2/5] Emitting requirements snippet for the py-flow venv..."
-	@( echo "# Chopper runtime dependencies — merge into the py-flow requirements.txt"; \
+	@( echo "# Chopper runtime dependencies -- merge into the py-flow requirements.txt"; \
 	   echo "# (chopper itself is NOT pip-installed; it runs from"; \
 	   echo "#  global/common/chopper/src via PYTHONPATH set by the launcher)"; \
 	   grep -E '^\s*"(jsonschema)' pyproject.toml | sed -E 's/^\s*"([^"]+)".*/\1/'; \
@@ -241,9 +241,9 @@ install-cth:
 	@test -n "$(WARD)" \
 	    || (echo "ERROR: set WARD=/path/to/ward, e.g. make install-cth WARD=\$$ward"; exit 1)
 	@test -d "$(CTH_DIR)/global" \
-	    || (echo "ERROR: $(CTH_DIR)/global not found — run 'make release-cth' first."; exit 1)
+	    || (echo "ERROR: $(CTH_DIR)/global not found -- run 'make release-cth' first."; exit 1)
 	@test -d "$(WARD)/global/eouFW/bin" \
-	    || (echo "ERROR: $(WARD)/global/eouFW/bin not found — is WARD a valid ward?"; exit 1)
+	    || (echo "ERROR: $(WARD)/global/eouFW/bin not found -- is WARD a valid ward?"; exit 1)
 	@echo "Removing previous Chopper installation from ward (if any)..."
 	rm -rf  $(WARD)/global/common/chopper
 	rm -f   $(WARD)/global/eouFW/bin/chopper
@@ -284,9 +284,9 @@ test-cth-ward:
 	echo "[3/3] Cleaned up test artifacts from ward."; \
 	exit $$STATUS
 
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # P4 command list for a CTH ward deploy
-# ────────────────────────────────────────────────────────────
+# ????????????????????????????????????????????????????????????
 # The CTH ward (e.g. r2g_1278_rel) is a Perforce-controlled checkout.
 # install-cth only touches the filesystem (rm -rf + rsync); it never talks
 # to P4. These two targets bridge that gap:
@@ -295,13 +295,13 @@ test-cth-ward:
 #                                          # writes a plain p4 edit/add/delete
 #                                          # command list, opens nothing
 #   make p4-open-cth WARD=/path/to/ward   # actually opens the files in P4
-#                                          # (add/edit/delete) — reversible via
+#                                          # (add/edit/delete) -- reversible via
 #                                          # 'p4 revert'; never submits
 #
 # Run install-cth first so the ward's working files reflect the new release,
 # then run p4-plan-cth to see exactly what will change in Perforce, then
 # p4-open-cth once you're happy with the plan. Submitting is always a manual,
-# explicit step — these targets never call 'p4 submit'.
+# explicit step -- these targets never call 'p4 submit'.
 P4_PLAN := $(CTH_DIR)/p4_plan_cth.txt
 
 p4-plan-cth:
@@ -310,7 +310,7 @@ p4-plan-cth:
 	@test -d "$(WARD)/global/common/chopper/src" \
 	    || (echo "ERROR: Chopper not installed in $(WARD). Run 'make install-cth WARD=$(WARD)' first."; exit 1)
 	@test -f "$(WARD)/.p4config" \
-	    || (echo "ERROR: $(WARD)/.p4config not found — is WARD a P4-controlled ward?"; exit 1)
+	    || (echo "ERROR: $(WARD)/.p4config not found -- is WARD a P4-controlled ward?"; exit 1)
 	@mkdir -p $(CTH_DIR)
 	@echo "[1/2] Previewing P4 changes (p4 reconcile -n; opens nothing) for ward chopper paths..."
 	@( cd $(WARD) && P4CONFIG=.p4config p4 reconcile -n global/common/chopper/... global/eouFW/bin/chopper 2>&1 ) \
@@ -331,7 +331,7 @@ p4-open-cth:
 	@test -n "$(WARD)" \
 	    || (echo "ERROR: set WARD=/path/to/ward, e.g. make p4-open-cth WARD=\$$ward"; exit 1)
 	@test -f "$(WARD)/.p4config" \
-	    || (echo "ERROR: $(WARD)/.p4config not found — is WARD a P4-controlled ward?"; exit 1)
+	    || (echo "ERROR: $(WARD)/.p4config not found -- is WARD a P4-controlled ward?"; exit 1)
 	@echo "Opening files in P4 (add/edit/delete) under ward chopper paths..."
 	@echo "(reversible via 'p4 revert' -- nothing is submitted by this target)"
 	@( cd $(WARD) && P4CONFIG=.p4config p4 reconcile global/common/chopper/... global/eouFW/bin/chopper )

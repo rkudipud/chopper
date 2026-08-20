@@ -4,7 +4,7 @@ Per-template investigation questions for Phase 2 of the acquire-codebase-knowled
 
 ---
 
-## 1. STACK.md — Tech Stack
+## 1. STACK.md -- Tech Stack
 
 - What is the primary language and exact version? (check `.nvmrc`, `go.mod`, `pyproject.toml`, Docker `FROM` line)
 - What package manager is used? (`npm`, `yarn`, `pnpm`, `go mod`, `pip`, `uv`)
@@ -13,7 +13,7 @@ Per-template investigation questions for Phase 2 of the acquire-codebase-knowled
 - Is there a Docker image and what base image does it use?
 - What are the key scripts in `package.json` / `Makefile` / `pyproject.toml`?
 
-## 2. STRUCTURE.md — Directory Layout
+## 2. STRUCTURE.md -- Directory Layout
 
 - Where does source code live? (usually `src/`, `lib/`, or project root for Go)
 - What are the entry points? (check `main` in `package.json`, `scripts.start`, `cmd/main.go`, `app.py`)
@@ -22,17 +22,17 @@ Per-template investigation questions for Phase 2 of the acquire-codebase-knowled
 - Are there hidden config directories (`.github/`, `.vscode/`, `.husky/`)?
 - What naming conventions do directories follow? (camelCase, kebab-case, domain-based vs layer-based)
 
-## 3. ARCHITECTURE.md — Patterns
+## 3. ARCHITECTURE.md -- Patterns
 
-- Is the code organized by layer (controllers → services → repos) or by feature?
+- Is the code organized by layer (controllers -> services -> repos) or by feature?
 - What is the primary data flow? Trace one request or command from entry to data store.
 - Are there singletons, dependency injection patterns, or explicit initialization order requirements?
 - Are there background workers, queues, or event-driven components?
 - What design patterns appear repeatedly? (Factory, Repository, Decorator, Strategy)
 
-## 4. CONVENTIONS.md — Coding Standards
+## 4. CONVENTIONS.md -- Coding Standards
 
-- What is the file naming convention? (check 10+ files — camelCase, kebab-case, PascalCase)
+- What is the file naming convention? (check 10+ files -- camelCase, kebab-case, PascalCase)
 - What is the function and variable naming convention?
 - Are private methods/fields prefixed (e.g., `_methodName`, `#field`)?
 - What linter and formatter are configured? (check `.eslintrc`, `.prettierrc`, `golangci.yml`)
@@ -41,7 +41,7 @@ Per-template investigation questions for Phase 2 of the acquire-codebase-knowled
 - What logging library is used and what is the log message format?
 - How are imports organized? (barrel exports, path aliases, grouping rules)
 
-## 5. INTEGRATIONS.md — External Services
+## 5. INTEGRATIONS.md -- External Services
 
 - What external APIs are called? (search for `axios.`, `fetch(`, `http.Get(`, base URLs in constants)
 - How are credentials stored and accessed? (`.env`, secrets manager, env vars)
@@ -50,7 +50,7 @@ Per-template investigation questions for Phase 2 of the acquire-codebase-knowled
 - What monitoring or observability tools are used? (APM, Prometheus, logging pipeline)
 - Are there message queues or event buses? (Kafka, RabbitMQ, SQS, Pub/Sub)
 
-## 6. TESTING.md — Test Setup
+## 6. TESTING.md -- Test Setup
 
 - What test runner is configured? (check `scripts.test` in `package.json`, `pytest.ini`, `go test`)
 - Where are test files located? (alongside source, in `tests/`, in `__tests__/`)
@@ -59,7 +59,7 @@ Per-template investigation questions for Phase 2 of the acquire-codebase-knowled
 - Are there integration tests that hit real services vs. unit tests with mocks?
 - Is there a coverage threshold enforced? (check `jest.config.js`, `.nycrc`, `pyproject.toml`)
 
-## 7. CONCERNS.md — Known Issues
+## 7. CONCERNS.md -- Known Issues
 
 - How many TODOs/FIXMEs/HACKs are in production code? (see scan output)
 - Which files have the highest git churn in the last 90 days? (see scan output)

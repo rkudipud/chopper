@@ -6,48 +6,48 @@ applyTo: '**'
 
 Authoritative conventions and guardrails for working in this codebase. Read this file at the start of every task. Add new rules here as patterns are discovered; never scatter project-level conventions across ad-hoc comments or other docs.
 
-**Chopper** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes an 8-phase pipeline (`P0`-`P7`): domain state → config + pre-validate → parse Tcl → compile → trace → build output → post-validate → audit. The codebase is **docs-first, spec-driven** — all implementation details are pre-specified.
+**Chopper** is a Python CLI tool that surgically trims VLSI EDA tool domains via JSON feature selection. It executes an 8-phase pipeline (`P0`-`P7`): domain state -> config + pre-validate -> parse Tcl -> compile -> trace -> build output -> post-validate -> audit. The codebase is **docs-first, spec-driven** -- all implementation details are pre-specified.
 
 ---
 
 ## Scope Lock (Read Before Writing Any Code or Doc)
 
-Chopper's scope is intentionally narrow. The list below names decisions that are **closed** — not deferred, not reserved, not "architecturally enabled for later". Each one was debated, rejected, and recorded. Agents and contributors must not reintroduce these concepts by any route: no code, no doc reservation, no stub, no comment, no "TODO for stage 6", no "reserved namespace".
+Chopper's scope is intentionally narrow. The list below names decisions that are **closed** -- not deferred, not reserved, not "architecturally enabled for later". Each one was debated, rejected, and recorded. Agents and contributors must not reintroduce these concepts by any route: no code, no doc reservation, no stub, no comment, no "TODO for stage 6", no "reserved namespace".
 
 ### 1. Closed Decisions (Do Not Reintroduce)
 
 | Forbidden concept | Exact identifiers that must not appear | Authoritative rejection |
 |---|---|---|
-| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q3 |
-| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §16 Q2 |
+| Concurrency / locking | `LockPort`, `.chopper/.lock`, `VE-24`, `VI-05`, `fcntl`/`msvcrt` lock logic, `--no-lock`, stale-lock recovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.16 Q3 |
+| Hand-edit preservation | `--preserve-hand-edits`, `.chopper/hand_edits/`, `VI-04`, hand-edit stash logic | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.16 Q2 |
 | `scan` subcommand | `chopper scan`, `scan_command.py`, "scan mode" | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) (only `validate`, `trim`, `loc`, `cleanup` exist) |
-| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §8.2 rule 4; `--strict` is exit-code policy only |
-| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
-| MCP (all kinds — closed) | `chopper mcp-serve`, `src/chopper/mcp/`, `mcp_server`, the `mcp` runtime dependency, `PE-04 mcp-protocol-error`, exit code `4`, `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client/server code inside Chopper, read-only **or** destructive MCP tools, HTTP/TCP/WebSocket/stdio MCP transports, MCP-driven filesystem mutation | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1; removed in 4.0.0 |
-| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §16 Q1 |
+| Severity-rewriting `--strict` | Any code path that changes `Diagnostic.severity` based on `--strict` | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.8.2 rule 4; `--strict` is exit-code policy only |
+| Plugin host | `PluginHost`, `EntryPointPluginHost`, `plugins/` package, `observer fan-out`, entry-point discovery | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.7, Sec.16 Q1 |
+| MCP (all kinds -- closed) | `chopper mcp-serve`, `src/chopper/mcp/`, `mcp_server`, the `mcp` runtime dependency, `PE-04 mcp-protocol-error`, exit code `4`, `MCPDiagnosticSink`, `MCPProgressBridge`, `adapters/mcp_*.py`, any MCP client/server code inside Chopper, read-only **or** destructive MCP tools, HTTP/TCP/WebSocket/stdio MCP transports, MCP-driven filesystem mutation | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.7, Sec.16 Q1; removed in 4.0.0 |
+| AI advisor | `advisor/`, "authoring advisor", LLM-powered JSON patch proposals, `advisor`-tagged observer | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.7, Sec.16 Q1 |
 | `X*` diagnostic family | `XE-`, `XW-`, `XI-` codes; `X*` range in summary tables; plugin-code section in the registry | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) Notes; no `X*` band exists |
-| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §7, §15 |
-| Networked services | HTTP server, IPC, message bus, daemon mode | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §2 |
-| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) §13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
+| Extension seams / post-v1 stage 6 | "reserved seams", "stage 6", "future extension", `TeeSink`, any inactive-but-declared port | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.7, Sec.15 |
+| Networked services | HTTP server, IPC, message bus, daemon mode | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.2 |
+| Parallelism inside Chopper | Thread pool in parser/trimmer, `--jobs N`, `concurrent.futures` in services | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) Sec.13.5 O3; deferred to FD-09 only as *opt-in, post-correctness* |
 
 If you find a file that violates any row above, the correct action is **remove the violation**, not extend it. If the violation predates this guideline, delete it in the same commit that adds the feature you were originally working on, and note it in the commit message.
 
 #### 1.1 Narrowed from prior closures
 
-**Validator imports parser for post-trim validation (permitted in 0.4.0+):** The validator module is permitted to import `parse_file` from the parser service (`src/chopper/validator/functions` → `src/chopper/parser/service.parse_file`) for the **sole purpose** of post-trim proc-set reconciliation (VW-10 check). This is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` §5.12.9. This is the only permitted cross-phase import in the codebase; all other phase-boundary imports remain forbidden. The rationale: re-parsing is the cleanest and most reliable way to verify that the trimmer correctly preserved exactly the proc set promised in the `CompiledManifest` and `TrimReport`. The parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
+**Validator imports parser for post-trim validation (permitted in 0.4.0+):** The validator module is permitted to import `parse_file` from the parser service (`src/chopper/validator/functions` -> `src/chopper/parser/service.parse_file`) for the **sole purpose** of post-trim proc-set reconciliation (VW-10 check). This is specified in the architecture doc at `technical_docs/ARCHITECTURE.md` Sec.5.12.9. This is the only permitted cross-phase import in the codebase; all other phase-boundary imports remain forbidden. The rationale: re-parsing is the cleanest and most reliable way to verify that the trimmer correctly preserved exactly the proc set promised in the `CompiledManifest` and `TrimReport`. The parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
 ### 2. Single Authority: The Architecture Doc
 
 [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) is the **architecture doc**. It is the only document allowed to add a capability to Chopper. Every other document is subordinate:
 
-- [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) — describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
-- [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) — registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
-- [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/IMPLEMENTATION.md` (pitfalls)](../../technical_docs/IMPLEMENTATION.md), [`technical_docs/IMPLEMENTATION.md` (parser section)](../../technical_docs/IMPLEMENTATION.md) — all subordinate.
-- [`technical_docs/IMPLEMENTATION.md` Future Considerations section](../../technical_docs/IMPLEMENTATION.md) — records what was considered and *not* shipped; never a green light to build.
+- [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) -- describes *how* the architecture doc is built; cannot add behavior the architecture doc does not mandate.
+- [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) -- registers codes for behavior already in the architecture doc; cannot introduce a code for behavior not in the architecture doc.
+- [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md), [`technical_docs/IMPLEMENTATION.md` (pitfalls)](../../technical_docs/IMPLEMENTATION.md), [`technical_docs/IMPLEMENTATION.md` (parser section)](../../technical_docs/IMPLEMENTATION.md) -- all subordinate.
+- [`technical_docs/IMPLEMENTATION.md` Future Considerations section](../../technical_docs/IMPLEMENTATION.md) -- records what was considered and *not* shipped; never a green light to build.
 
 **When docs disagree, the architecture doc wins** and the subordinate doc is edited in place. No addendums. No "clarifications" appended at the bottom. Fix the source.
 
-**Adding a new capability** — any new flag, subcommand, diagnostic family, port, pipeline phase, generated artifact, or runtime behavior — requires, **in this order**:
+**Adding a new capability** -- any new flag, subcommand, diagnostic family, port, pipeline phase, generated artifact, or runtime behavior -- requires, **in this order**:
 
 1. **User approval.** Not inferred, not assumed. Explicit.
 2. **Architecture Doc edit first.** The feature is specified in [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) before any subordinate doc or code moves.
@@ -70,7 +70,7 @@ When you (or a reviewer, or a user comment) identify something Chopper "should m
 
 ### 4. Enforcement Hooks (Agent Self-Check)
 
-Before committing any change, grep the repo for the forbidden-identifier tokens in §1 above:
+Before committing any change, grep the repo for the forbidden-identifier tokens in Sec.1 above:
 
 ```text
 LockPort | preserve-hand-edits | chopper scan | PluginHost | MCPProgressBridge |
@@ -81,16 +81,16 @@ mcp-serve | mcp_server | src/chopper/mcp | mcp-protocol-error |
 
 Every hit outside a negative assertion (a sentence like "there is no `LockPort`") is a regression to fix before the commit lands. Docs are allowed to name a forbidden concept **only** in the context of saying it is forbidden.
 
-> `mcp_server`, `chopper mcp-serve`, and the `src/chopper/mcp/` package are forbidden again: the read-only stdio MCP surface introduced in 0.4.0 was **removed in 4.0.0**. MCP is a closed decision (see §1, MCP row). The `mcp` runtime dependency and `PE-04`/exit-code 4 are likewise gone.
+> `mcp_server`, `chopper mcp-serve`, and the `src/chopper/mcp/` package are forbidden again: the read-only stdio MCP surface introduced in 0.4.0 was **removed in 4.0.0**. MCP is a closed decision (see Sec.1, MCP row). The `mcp` runtime dependency and `PE-04`/exit-code 4 are likewise gone.
 
 ### 5. Decision Tree When Adding Anything
 
 ```text
 Is this in technical_docs/ARCHITECTURE.md?
-├── YES → Implement per the architecture doc. Cascade to subordinate docs if needed.
-└── NO  → Is it in §1 "Closed Decisions" above?
-         ├── YES → Do not implement. Do not reopen. Point the requester at the rejection row.
-         └── NO  → File an FD-xx stub in IMPLEMENTATION.md Future Considerations section. Flag the user. Stop.
+??? YES -> Implement per the architecture doc. Cascade to subordinate docs if needed.
+??? NO  -> Is it in Sec.1 "Closed Decisions" above?
+         ??? YES -> Do not implement. Do not reopen. Point the requester at the rejection row.
+         ??? NO  -> File an FD-xx stub in IMPLEMENTATION.md Future Considerations section. Flag the user. Stop.
 ```
 
 There is no fourth branch.
@@ -135,10 +135,10 @@ Before invoking shell commands or Chopper subcommands, an agent **must** detect 
 **Rules:**
 
 - Never paste a bash heredoc into PowerShell or vice versa.
-- Never assume `&&` works in PowerShell — use `;`.
-- Never run `source` in cmd.exe — use the corresponding `.bat`.
+- Never assume `&&` works in PowerShell -- use `;`.
+- Never run `source` in cmd.exe -- use the corresponding `.bat`.
 - When in doubt, run a one-line probe (`echo $shell` or `$PSVersionTable.PSVersion`) before the real command.
-- All Chopper internals use `pathlib.Path` and POSIX-normalize, so paths in JSON, audit artifacts, and diagnostics are shell-agnostic — only the host invocation differs.
+- All Chopper internals use `pathlib.Path` and POSIX-normalize, so paths in JSON, audit artifacts, and diagnostics are shell-agnostic -- only the host invocation differs.
 
 ---
 
@@ -154,7 +154,7 @@ Before invoking shell commands or Chopper subcommands, an agent **must** detect 
 | `make format` | Auto-format with Ruff |
 | `make type-check` | mypy static type check |
 
-**Coverage Requirement:** Full suite (`make ci`) held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds ≥ 99.8% line. Enforced via pytest.
+**Coverage Requirement:** Full suite (`make ci`) held at 100% line + branch coverage across every module; the fast unit-only gate (`make check`) holds >= 99.8% line. Enforced via pytest.
 
 **Pre-Commit Gate:**
 
@@ -167,16 +167,16 @@ make ci     # Full gate: all code quality + all test suites
 
 ## Architecture Overview
 
-> **Naming note — two uses of "F1/F2/F3" in this codebase:**
-> - **Capability classes** (the architecture doc §2.1): `F1` = file-level trimming, `F2` = proc-level trimming, `F3` = run-file generation. These are the three user-facing feature sets. When the user or the architecture doc says "F1/F2/F3 working", this is what they mean.
-> - **Pipeline phases** (this project): the internal execution sequence uses `P0–P7` labels — **never** `F1–F7`. Using `F-labels` for phases causes confusion with the capability classes above.
+> **Naming note -- two uses of "F1/F2/F3" in this codebase:**
+> - **Capability classes** (the architecture doc Sec.2.1): `F1` = file-level trimming, `F2` = proc-level trimming, `F3` = run-file generation. These are the three user-facing feature sets. When the user or the architecture doc says "F1/F2/F3 working", this is what they mean.
+> - **Pipeline phases** (this project): the internal execution sequence uses `P0-P7` labels -- **never** `F1-F7`. Using `F-labels` for phases causes confusion with the capability classes above.
 
-The codebase executes an **8-phase pipeline (P0–P7)**:
+The codebase executes an **8-phase pipeline (P0-P7)**:
 
 ```
-P0 (Domain State)  →  P1 (Config + Pre-Validate)  →  P2 (Parse Tcl)  →  P3 (Compile)
-   ↓
-P4 (Trace BFS)  →  P5 (Build Output)  →  P6 (Post-Validate)  →  P7 (Audit)
+P0 (Domain State)  ->  P1 (Config + Pre-Validate)  ->  P2 (Parse Tcl)  ->  P3 (Compile)
+   ?
+P4 (Trace BFS)  ->  P5 (Build Output)  ->  P6 (Post-Validate)  ->  P7 (Audit)
 ```
 
 All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run **through** this same pipeline. F1/F2 decisions are computed in P3 (compile); F3 stage generation is emitted in P5.
@@ -186,7 +186,7 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 | Module | Responsibility | Key Files | Phase |
 |--------|-----------------|-----------|-------|
 | `parser/` | Tcl static analysis; tokenize, extract proc defs, track namespaces | `service.py`, `tokenizer.py`, `proc_extractor.py`, `namespace_tracker.py`, `call_extractor_body.py`, `call_extractor_*.py` | P2 |
-| `compiler/` | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions, stack dependency graph | `merge_service.py`, `trace_service.py`, `flow_resolver.py`, `stack_graph.py` | P3–P4 |
+| `compiler/` | Merge JSON (R1 rules), trace proc dependencies (BFS), apply F3 flow-actions, stack dependency graph | `merge_service.py`, `trace_service.py`, `flow_resolver.py`, `stack_graph.py` | P3-P4 |
 | `trimmer/` | State machine to copy/drop files and procs, rewrite Tcl in-place; P5c indentation normalization; P5d companion-file sync; P5a-tail JSON input preservation | `service.py`, `file_writer.py`, `proc_dropper.py`, `indentation.py`, `companion_sync.py`, `input_preserver.py` | P5 |
 | `validator/` | Pre- and post-trim validation (schema, structure, brace balance, dangling refs) | `functions.py` (validate_pre, validate_post) | P1, P6 |
 | `config/` | JSON schema loading, path resolution, feature `depends_on` topo-sort | `service.py`, `loaders.py`, `schema.py` | P1 |
@@ -200,11 +200,11 @@ All three capability classes (F1 file-trim, F2 proc-trim, F3 run-file-gen) run *
 
 **`tests/` layout:**
 
-- `unit/` — Fast, isolated, no side effects
-- `integration/` — End-to-end with `ChopperRunner` + fixtures
-- `property/` — Hypothesis-based property tests
-- `golden/` — Output contract tests (pytest-regressions)
-- `fixtures/mini_domain/`, `namespace_domain/`, `tracing_domain/`, `edge_cases/` — Known test domains
+- `unit/` -- Fast, isolated, no side effects
+- `integration/` -- End-to-end with `ChopperRunner` + fixtures
+- `property/` -- Hypothesis-based property tests
+- `golden/` -- Output contract tests (pytest-regressions)
+- `fixtures/mini_domain/`, `namespace_domain/`, `tracing_domain/`, `edge_cases/` -- Known test domains
 
 ---
 
@@ -266,17 +266,17 @@ This ensures reproducible output across runs.
 
 ### 6. Explicit Include Wins
 
-The merge algorithm's core rule: Explicit include **always** overrides exclude. Later features override earlier ones. See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §4 (Rule R1) for the rationale.
+The merge algorithm's core rule: Explicit include **always** overrides exclude. Later features override earlier ones. See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) Sec.4 (Rule R1) for the rationale.
 
 ### 7. Trace Is Reporting-Only (Never Copies)
 
-P4 BFS trace expansion (PI → PI+) produces `dependency_graph.json`, `TW-*` diagnostics, and the traced-only (PT) set **for visibility only**. Traced callees are **never** copied into the trimmed domain. Only procs named in `procedures.include` (directly or via whole-file `files.include`) survive.
+P4 BFS trace expansion (PI -> PI+) produces `dependency_graph.json`, `TW-*` diagnostics, and the traced-only (PT) set **for visibility only**. Traced callees are **never** copied into the trimmed domain. Only procs named in `procedures.include` (directly or via whole-file `files.include`) survive.
 
 - Example: JSON lists `foo`; `foo` calls `bar`. Trimmed output contains `foo`; `bar` appears in the call tree log and `dependency_graph.json` but is **not** copied.
 - To keep `bar`, add it explicitly to `procedures.include`.
 - Cycles emit `TW-04` and terminate safely via the BFS visited-set.
 
-See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.4 for the authoritative contract and worked example.
+See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) Sec.5.4 for the authoritative contract and worked example.
 
 ---
 
@@ -284,25 +284,25 @@ See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.4
 
 All authoritative documentation lives under [technical_docs/](../../technical_docs/). Before implementing, consult these in order:
 
-1. **[technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md)** — Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
-2. **[technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md)** — Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
-3. **[technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md)** — Technical risks (TC-01–TC-10) and implementation pitfalls (P-01–P-36) mapped to modules and test fixtures.
-4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** — Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
-5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** — Complete CLI subcommand reference: `validate`, `trim`, `loc`, `cleanup`, flags, examples.
+1. **[technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md)** -- Single source of truth for product behavior, the 8-phase pipeline, R1 merge rules, and requirements (FR-xx / NFR-xx).
+2. **[technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md)** -- Parser engineering baseline: Tcl grammar rules, edge cases, tokenizer state machine, namespace resolution.
+3. **[technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md)** -- Technical risks (TC-01-TC-10) and implementation pitfalls (P-01-P-36) mapped to modules and test fixtures.
+4. **[technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md)** -- Authoritative diagnostic code registry (the `<FAMILY><SEV>-<NN>` scheme).
+5. **[technical_docs/CLI_REFERENCE.md](../../technical_docs/CLI_REFERENCE.md)** -- Complete CLI subcommand reference: `validate`, `trim`, `loc`, `cleanup`, flags, examples.
 
 Other key docs:
 
-- [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.11 — GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
-- [technical_docs/IMPLEMENTATION.md Future Considerations section](../../technical_docs/IMPLEMENTATION.md) — Roadmap items explicitly out of v1 scope.
-- [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) — SNORT comparison and absorbed guardrails.
-- [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) — Domain-owner authoring surface for base / feature / project JSONs.
+- [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) Sec.5.11 -- GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
+- [technical_docs/IMPLEMENTATION.md Future Considerations section](../../technical_docs/IMPLEMENTATION.md) -- Roadmap items explicitly out of v1 scope.
+- [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) -- SNORT comparison and absorbed guardrails.
+- [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) -- Domain-owner authoring surface for base / feature / project JSONs.
 
 ---
 
 ## Documentation Conventions
 
 - **No Addendum / Errata / "Clarifications" sections.** When a production review surfaces a clarification, inline the content into the section that owns the topic (the invariants, the algorithm step, the diagnostic table). Readers encounter docs in section order; appending trailing addendums fragments the reading model and lets the main body drift out of date.
-- **Appendix sections are reserved for reference data tables** (file statistics, registries, mapping tables) — not for spec clarifications. If you find yourself writing prose in an appendix, it belongs in the main body.
+- **Appendix sections are reserved for reference data tables** (file statistics, registries, mapping tables) -- not for spec clarifications. If you find yourself writing prose in an appendix, it belongs in the main body.
 - **Revision History is a log of conscious design decisions**, not a changelog of typo fixes or policy edicts. Each row must record the decision made and the alternative rejected so later readers understand the choice, not only the outcome.
 - **No `Status:` / `Author:` / `Last Updated:` banners** at the top of spec files. The revision-history section is the living record of authorship and currency.
 
@@ -310,7 +310,7 @@ Other key docs:
 
 ## Code Style
 
-The authoritative Python coding standards live in [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §5.12. Summary:
+The authoritative Python coding standards live in [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) Sec.5.12. Summary:
 
 - Ruff for lint + format; line length 120; 4-space indent; `snake_case` / `CamelCase` / `UPPER_CASE`.
 - Full type hints on every public function; `@dataclass(frozen=True)` for records; `typing.Protocol` for ports.
@@ -319,14 +319,14 @@ The authoritative Python coding standards live in [technical_docs/ARCHITECTURE.m
 - No `print()` in library code; user outcomes via `ctx.diag.emit(Diagnostic(...))`; internal logs via `structlog`.
 - Programmer errors raise `ChopperError` subclasses and exit with code 3 via the runner's final `except`.
 
-When this summary and the architecture doc disagree, the architecture doc (§5.12) wins — update the summary here to match.
+When this summary and the architecture doc disagree, the architecture doc (Sec.5.12) wins -- update the summary here to match.
 
 ### Lazy Senior Dev Rules (Ponytail)
 
 Before writing any code, stop at the first rung that holds:
 
 1. Does this need to be built at all? (YAGNI)
-2. Does it already exist in this codebase? Reuse the helper, util, or pattern that is already here — do not rewrite it.
+2. Does it already exist in this codebase? Reuse the helper, util, or pattern that is already here -- do not rewrite it.
 3. Does the standard library already do this? Use it.
 4. Does a native platform feature cover it? Use it.
 5. Does an already-installed dependency solve it? Use it.
@@ -335,7 +335,7 @@ Before writing any code, stop at the first rung that holds:
 
 The ladder runs after you understand the problem, not instead of it: read the task and the code it touches, trace the real flow end to end, then climb.
 
-**Bug fix = root cause, not symptom.** A report names a symptom. Find every caller of the function you touch and fix the shared function once — one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
+**Bug fix = root cause, not symptom.** A report names a symptom. Find every caller of the function you touch and fix the shared function once -- one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
 
 **Rules:**
 
@@ -343,14 +343,14 @@ The ladder runs after you understand the problem, not instead of it: read the ta
 - No new dependency if it can be avoided.
 - No boilerplate nobody asked for.
 - Deletion over addition. Boring over clever. Fewest files possible.
-- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place is not lazy — it is a second bug.
+- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place is not lazy -- it is a second bug.
 - Question complex requests: "Do you actually need X, or does Y cover it?"
 - Pick the edge-case-correct option when two stdlib approaches are the same size; lazy means less code, not the flimsier algorithm.
-- Mark intentional simplifications with a `ponytail:` comment. If the shortcut has a known ceiling (global lock, O(n²) scan, naive heuristic), the comment names the ceiling and the upgrade path.
+- Mark intentional simplifications with a `ponytail:` comment. If the shortcut has a known ceiling (global lock, O(n2) scan, naive heuristic), the comment names the ceiling and the upgrade path.
 
-**Not lazy about:** understanding the problem (read it fully and trace the real flow before picking a rung — a small diff you do not understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, anything explicitly requested.
+**Not lazy about:** understanding the problem (read it fully and trace the real flow before picking a rung -- a small diff you do not understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, anything explicitly requested.
 
-**Lazy code without its check is unfinished:** non-trivial logic leaves ONE runnable check behind — the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
+**Lazy code without its check is unfinished:** non-trivial logic leaves ONE runnable check behind -- the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
 
 > Source: [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)
 
@@ -358,27 +358,27 @@ The ladder runs after you understand the problem, not instead of it: read the ta
 
 ## Module-Specific Guidance
 
-### Parser — `src/chopper/parser/`
+### Parser -- `src/chopper/parser/`
 
 High-risk area. See [technical_docs/IMPLEMENTATION.md (parser section)](../../technical_docs/IMPLEMENTATION.md) and pitfalls P-01, P-02, P-03.
 
-- **P-01:** Quote context inside braced Tcl bodies → Only track quotes in non-braced words
-- **P-02:** Backslash line continuation → Count lines separately, don't physically join
-- **P-03:** Namespace stack not persisted → Use LIFO stack per block, pop on `namespace eval` exit
-- **P-04:** Computed proc names silently ignored → Log WARNING, gracefully skip
+- **P-01:** Quote context inside braced Tcl bodies -> Only track quotes in non-braced words
+- **P-02:** Backslash line continuation -> Count lines separately, don't physically join
+- **P-03:** Namespace stack not persisted -> Use LIFO stack per block, pop on `namespace eval` exit
+- **P-04:** Computed proc names silently ignored -> Log WARNING, gracefully skip
 
-Test fixtures: `tests/fixtures/edge_cases/` (17 adversarial Tcl inputs; see [tests/FIXTURE_AUDIT.md](../../tests/FIXTURE_AUDIT.md) §2 for the pitfall coverage map).
+Test fixtures: `tests/fixtures/edge_cases/` (17 adversarial Tcl inputs; see [tests/FIXTURE_AUDIT.md](../../tests/FIXTURE_AUDIT.md) Sec.2 for the pitfall coverage map).
 
-### Compiler — `src/chopper/compiler/`
+### Compiler -- `src/chopper/compiler/`
 
 Merge algorithm + breadth-first dependency tracing.
 
 - Key constraint: Explicit include always wins
 - Key constraint: Traces must be deterministically sorted
-- See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) §4 (R1) for merge semantics
+- See [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) Sec.4 (R1) for merge semantics
 - Test fixtures: `tests/fixtures/tracing_domain/` (cyclic procs, transitive closures)
 
-### Trimmer — `src/chopper/trimmer/`
+### Trimmer -- `src/chopper/trimmer/`
 
 State machine to delete marked files and procs.
 
@@ -386,7 +386,7 @@ State machine to delete marked files and procs.
 - Pitfalls P-08 to P-20 apply
 - Must re-validate post-trim (F6)
 
-### Validator — `src/chopper/validator/`
+### Validator -- `src/chopper/validator/`
 
 Pre-trim (F1) and post-trim (F6) validation.
 
@@ -394,7 +394,7 @@ Pre-trim (F1) and post-trim (F6) validation.
 - Post-trim: brace balance, dangling proc refs, namespace consistency
 - See pitfalls P-21 to P-31
 
-### Config — `src/chopper/config/`
+### Config -- `src/chopper/config/`
 
 JSON/TOML schema loading.
 
@@ -409,7 +409,7 @@ Full details in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md).
 
 **Testing Standards:**
 
-- 100% line + branch coverage on the full suite (`make ci`); ≥ 99.8% line on the fast unit-only gate (`make check`)
+- 100% line + branch coverage on the full suite (`make ci`); >= 99.8% line on the fast unit-only gate (`make check`)
 - Unit tests isolated, use `tmp_path` fixture
 - Integration tests use fixtures from `tests/fixtures/`
 - Property tests with hypothesis (500 examples)
@@ -423,15 +423,15 @@ Full details in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md).
 
 **Fixtures:**
 
-- `tests/fixtures/mini_domain/` — Minimal valid domain (3 procs, 2 files, 1 feature)
-- `tests/fixtures/namespace_domain/` — Namespace resolution test case
-- `tests/fixtures/tracing_domain/` — Breadth-first trace validation
-- `tests/fixtures/edge_cases/` — 14 adversarial Tcl inputs for parser
+- `tests/fixtures/mini_domain/` -- Minimal valid domain (3 procs, 2 files, 1 feature)
+- `tests/fixtures/namespace_domain/` -- Namespace resolution test case
+- `tests/fixtures/tracing_domain/` -- Breadth-first trace validation
+- `tests/fixtures/edge_cases/` -- 14 adversarial Tcl inputs for parser
 
 **Coverage Thresholds:**
 
 - Full suite (`make ci`): 100% line + branch
-- Fast unit-only gate (`make check`): ≥ 99.8% line
+- Fast unit-only gate (`make check`): >= 99.8% line
 
 ---
 
@@ -441,12 +441,12 @@ Chopper is built stage-by-stage along module dependency boundaries. Each stage i
 
 | Stage | Module(s) | Deliverable |
 |---|---|---|
-| Stage 0 — Foundation | `core/` | Shared frozen models, errors, diagnostics, protocols, serialization |
-| Stage 1 — Parser | `parser/` | `parse_file()` returning `list[ProcEntry]`; all fixtures in [tests/FIXTURE_CATALOG.md](../../tests/FIXTURE_CATALOG.md) pass |
-| Stage 2 — Compiler & Trace | `config/`, `compiler/` | JSON loading, P3 provenance-aware merge, P4 BFS trace; `compiled_manifest.json` and `dependency_graph.json` are byte-stable |
-| Stage 3 — Trimmer & Lifecycle | `trimmer/`, `generators/`, `audit/` | Trim state machine, domain backup/restore, crash recovery, F3 run-file generation, `trim_report.json` |
-| Stage 4 — Validator | `validator/` | Pre- and post-trim validation, `--strict` escalation, VE/VW/VI emission |
-| Stage 5 — CLI & Integration | `cli/` | `validate`, `trim`, `cleanup` subcommands; `--project` resolution; end-to-end scenarios in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md) pass |
+| Stage 0 -- Foundation | `core/` | Shared frozen models, errors, diagnostics, protocols, serialization |
+| Stage 1 -- Parser | `parser/` | `parse_file()` returning `list[ProcEntry]`; all fixtures in [tests/FIXTURE_CATALOG.md](../../tests/FIXTURE_CATALOG.md) pass |
+| Stage 2 -- Compiler & Trace | `config/`, `compiler/` | JSON loading, P3 provenance-aware merge, P4 BFS trace; `compiled_manifest.json` and `dependency_graph.json` are byte-stable |
+| Stage 3 -- Trimmer & Lifecycle | `trimmer/`, `generators/`, `audit/` | Trim state machine, domain backup/restore, crash recovery, F3 run-file generation, `trim_report.json` |
+| Stage 4 -- Validator | `validator/` | Pre- and post-trim validation, `--strict` escalation, VE/VW/VI emission |
+| Stage 5 -- CLI & Integration | `cli/` | `validate`, `trim`, `cleanup` subcommands; `--project` resolution; end-to-end scenarios in [tests/TESTING_STRATEGY.md](../../tests/TESTING_STRATEGY.md) pass |
 
 Stage boundaries are hard: earlier stages must not depend on later ones, and a later stage cannot be declared started until the previous stage's test scope is green.
 
@@ -454,13 +454,13 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 
 ## Production Constraints
 
-1. **≤1 GB codebase** — No streaming I/O; simple `file.read_text()`
-2. **3–5 min runtime acceptable** — No performance optimization required
-3. **No scope creep** — Implement spec only; no extra features
-4. **Modularity is core** — Each module independently testable and replaceable
-5. **Tcl parser can have bugs** — Graceful fallback via warnings/diagnostics
-6. **Locking lowest priority** — Simple backup/restore; user handles crashes
-7. **GUI readiness required** — Typed results, JSON-serializable, no bare `print()` in library
+1. **<=1 GB codebase** -- No streaming I/O; simple `file.read_text()`
+2. **3-5 min runtime acceptable** -- No performance optimization required
+3. **No scope creep** -- Implement spec only; no extra features
+4. **Modularity is core** -- Each module independently testable and replaceable
+5. **Tcl parser can have bugs** -- Graceful fallback via warnings/diagnostics
+6. **Locking lowest priority** -- Simple backup/restore; user handles crashes
+7. **GUI readiness required** -- Typed results, JSON-serializable, no bare `print()` in library
 
 ---
 
@@ -478,7 +478,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 **When Stuck:**
 
 - Check [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) for your module
-- Review test fixtures in `tests/fixtures/` — they exemplify expected behavior
+- Review test fixtures in `tests/fixtures/` -- they exemplify expected behavior
 - Consult [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) for the phase contract and R1 rules
 - Search test files for similar patterns
 
@@ -491,7 +491,7 @@ Stage boundaries are hard: earlier stages must not depend on later ones, and a l
 `technical_docs/DIAGNOSTIC_CODES.md` is the **only** file that houses diagnostic codes. It is the single source of truth for every code in the `VE`, `VW`, `VI`, `TW`, `PE`, `PW`, and `PI` families.
 
 - All other documentation and implementation code **must reference codes by their identifier** (e.g., `VE-06`), never by their prose description.
-- If a description changes, the identifier stays stable — all cross-references remain accurate automatically.
+- If a description changes, the identifier stays stable -- all cross-references remain accurate automatically.
 - No other file may define, duplicate, or restate code metadata such as severity, phase, source, exit behavior, slug, description, or recovery hint.
 - Diagnostic code tables outside `technical_docs/DIAGNOSTIC_CODES.md` are not allowed.
 
@@ -513,12 +513,12 @@ Forbidden outside the registry:
 ### Adding a New Code
 
 1. **Pick the lowest available reserved slot** in the correct `<FAMILY><SEV>` band from the Code Space Summary table in `technical_docs/DIAGNOSTIC_CODES.md`.
-2. **Fill in the row** following the exact column structure of the existing table — code, phase, source, exit, description, recovery hint.
+2. **Fill in the row** following the exact column structure of the existing table -- code, phase, source, exit, description, recovery hint.
 3. **Update the Active / Reserved counts** in the Code Space Summary table.
 4. **Implement the constant** in `src/chopper/core/diagnostics.py` before any code references it.
 5. **Reference it by code only** in any documentation or test assertions.
 
-Do not invent ad-hoc codes or reuse retired slots. Reserved rows exist precisely so new codes have a home — use them in sequence.
+Do not invent ad-hoc codes or reuse retired slots. Reserved rows exist precisely so new codes have a home -- use them in sequence.
 
 ### Naming Convention (recap)
 
@@ -569,7 +569,7 @@ Agents in this workspace must use local repository tools for code intelligence:
 
 ### No Addendums
 
-Never append a change as an addendum at the end of a document. Make the edit **in place**, in the section where the content belongs. If a document is out of date, update it directly — do not accumulate footnotes or trailing corrections.
+Never append a change as an addendum at the end of a document. Make the edit **in place**, in the section where the content belongs. If a document is out of date, update it directly -- do not accumulate footnotes or trailing corrections.
 
 ### Cascading Updates
 
@@ -577,10 +577,10 @@ When content changes in one document, scan for all documents that reference or d
 
 This applies to:
 
-- Diagnostic code descriptions (registry → implementation constants → test assertions → docs)
-- Architecture decisions (design doc → technical requirements → risks and pitfalls guide)
-- CLI flag names or schema fields (spec → help text → user reference manual)
-- **Version bumps and release notes** (`pyproject.toml` `[project].version` → `technical_docs/ARCHITECTURE.md` revision-history table → `README.md` `## Changelog` section near the bottom of the file). The `README.md` changelog at the end of the file is the user-facing release log; every version bump must add an entry there with the same date and a short bullet summary that mirrors the architecture-doc revision-history row. Do not bump the version in `pyproject.toml` without updating both the architecture doc revision history and the README changelog in the same commit.
+- Diagnostic code descriptions (registry -> implementation constants -> test assertions -> docs)
+- Architecture decisions (design doc -> technical requirements -> risks and pitfalls guide)
+- CLI flag names or schema fields (spec -> help text -> user reference manual)
+- **Version bumps and release notes** (`pyproject.toml` `[project].version` -> `technical_docs/ARCHITECTURE.md` revision-history table -> `README.md` `## Changelog` section near the bottom of the file). The `README.md` changelog at the end of the file is the user-facing release log; every version bump must add an entry there with the same date and a short bullet summary that mirrors the architecture-doc revision-history row. Do not bump the version in `pyproject.toml` without updating both the architecture doc revision history and the README changelog in the same commit.
 
 ### Targeted, In-Place Edits
 

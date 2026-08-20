@@ -1,4 +1,4 @@
-# cross_file.tcl — Calls procs in other files (chain.tcl, diamond.tcl)
+# cross_file.tcl -- Calls procs in other files (chain.tcl, diamond.tcl)
 
 proc orchestrator {} {
     entry_point

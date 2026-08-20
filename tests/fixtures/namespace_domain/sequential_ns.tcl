@@ -1,4 +1,4 @@
-# sequential_ns.tcl — Sequential namespace eval blocks for the same and different namespaces
+# sequential_ns.tcl -- Sequential namespace eval blocks for the same and different namespaces
 
 namespace eval utils {
     proc helper_a {} {

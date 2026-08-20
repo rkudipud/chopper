@@ -1,6 +1,6 @@
 """Unit tests for domain_lookup.resolve_domain.
 
-Per architecture doc §5.1.0 (Domain-name resolution).
+Per architecture doc Sec.5.1.0 (Domain-name resolution).
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ class TestNameModeBareName:
         assert errors[0].code == "VE-33"
 
     def test_bare_name_multiple_vendors_finds_correct(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Multiple vendor dirs, only one has the domain → single match."""
+        """Multiple vendor dirs, only one has the domain -> single match."""
         ward = self._make_ward(tmp_path, [("snps", "fev_formality"), ("cdns", "different_domain")])
         monkeypatch.setenv("ward", ward.as_posix())
         errors, emit = _collect_errors()

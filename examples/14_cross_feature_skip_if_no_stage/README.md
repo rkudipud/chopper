@@ -1,14 +1,14 @@
-# Example 14 — Cross-Feature `skip_if_no_stage`
+# Example 14 -- Cross-Feature `skip_if_no_stage`
 
 Demonstrates how a **cross-cutting feature** safely injects steps into stages created by other optional features.
 
 ## Domain Structure
 
 ```text
-base.json          → defines "main" stage only
-dft.feature.json   → creates "dft_check" stage (after main)
-power.feature.json → creates "power_check" stage (after main)
-coverage_reporting.feature.json → injects into main, dft_check, AND power_check
+base.json          -> defines "main" stage only
+dft.feature.json   -> creates "dft_check" stage (after main)
+power.feature.json -> creates "power_check" stage (after main)
+coverage_reporting.feature.json -> injects into main, dft_check, AND power_check
 ```
 
 ## The Pattern
@@ -34,17 +34,17 @@ VI-05 flow-action-skipped-no-stage: skipped add_step_after targeting "power_chec
 
 ## Key Rules
 
-1. **Base stages don't need the flag** — `main` is always present.
-2. **Feature-created stages do** — `dft_check` and `power_check` may be absent.
-3. **Step-miss inside a present stage is still VE-05** — `skip_if_no_stage` only softens the *stage-not-found* case.
-4. **Intra-feature chaining doesn't need the flag** — if your own feature creates a stage earlier in its `flow_actions`, it will be present by top-to-bottom application.
+1. **Base stages don't need the flag** -- `main` is always present.
+2. **Feature-created stages do** -- `dft_check` and `power_check` may be absent.
+3. **Step-miss inside a present stage is still VE-05** -- `skip_if_no_stage` only softens the *stage-not-found* case.
+4. **Intra-feature chaining doesn't need the flag** -- if your own feature creates a stage earlier in its `flow_actions`, it will be present by top-to-bottom application.
 
 ## Running
 
 ```bash
-# Partial composition — VI-05 for skipped power_check action
+# Partial composition -- VI-05 for skipped power_check action
 chopper validate --project project_dft_only.json
 
-# Full composition — all actions succeed
+# Full composition -- all actions succeed
 chopper validate --project project_full.json
 ```

@@ -24,7 +24,7 @@ proc del_seq_rpt { design } {
             if { $notes eq "" } {
                 set notes "Other"
             }
-            # Multi-line lappend with backslash continuation: no { or } in the strings — brace depth unaffected
+            # Multi-line lappend with backslash continuation: no { or } in the strings -- brace depth unaffected
             lappend toprint "<fev type=\"seqconstx\" block=\"$design\" \
                 violation=\"$signal\" violation_type=\"$seqtype\" \
                 violation_reason=\"$notes\" \/>"
@@ -40,7 +40,7 @@ proc del_seq_rpt { design } {
     }
     close $fileID
 
-    # foreach_in_collection: Synopsys EDA iterator; treated as CONTROL_FLOW (§7.14)
+    # foreach_in_collection: Synopsys EDA iterator; treated as CONTROL_FLOW (Sec.7.14)
     set instances [find_cfm -instance -hierarchical -collection -golden]
     foreach_in_collection inst_t $instances {
         if { [info exists touniq($inst_t)] } {

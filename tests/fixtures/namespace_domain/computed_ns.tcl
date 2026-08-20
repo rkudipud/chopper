@@ -1,4 +1,4 @@
-# computed_ns.tcl — Computed namespace name should trigger warning
+# computed_ns.tcl -- Computed namespace name should trigger warning
 
 namespace eval ${dynamic_name} {
     proc should_not_be_indexed {} {

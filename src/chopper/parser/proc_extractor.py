@@ -475,12 +475,14 @@ def _build_entry(
     canonical_name = f"{source_file.as_posix()}::{qualified_name}"
 
     # Stage 1e: extract body references (calls + source_refs) now that the
-    # body span is known. Per Sec.5.1, the extractor operates on the already-
-    # tokenized stream scoped to the body.
+    # body span is known. Re-tokenize the body text at depth zero so ``;`` and
+    # ``#`` follow script rules while the outer stream keeps Rule-6 brace words.
+    body_source = "\n".join(lines[body_start_line - 1 : body_end_line])
     calls, source_refs = extract_body_refs(
         tokens=tokens,
         body_lbrace_idx=layout.body_lbrace_idx,
         body_rbrace_idx=layout.body_rbrace_idx,
+        body_source=body_source,
     )
 
     entry = ProcEntry(

@@ -592,7 +592,7 @@ def test_split_domain_csv_strips_whitespace() -> None:
 def test_split_domain_csv_ignores_empty_tokens() -> None:
     from chopper.cli.commands import _split_domain_csv
 
-    # Trailing comma → only one real token.
+    # Trailing comma -> only one real token.
     result = _split_domain_csv("fev_formality,")
     assert result == ["fev_formality"]
 
@@ -619,13 +619,13 @@ def test_make_error_domain_result_none_token() -> None:
 def test_build_run_config_ve35_auto_discovery_fails(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """When --domain is set but --base is absent and jsons/base.json doesn't
     exist, _build_run_config must write VE-35 to stderr and raise SystemExit(2).
-    Per ARCHITECTURE.md §5.1.0 (base auto-discovery).
+    Per ARCHITECTURE.md Sec.5.1.0 (base auto-discovery).
     """
     from chopper.cli.commands import _build_run_config
 
     domain = tmp_path / "my_domain"
     domain.mkdir()
-    # No jsons/ at all → auto-discovery fails.
+    # No jsons/ at all -> auto-discovery fails.
 
     args = argparse.Namespace(
         domain=str(domain),
@@ -648,7 +648,7 @@ def test_build_run_config_ve35_auto_discovery_fails(tmp_path: Path, capsys: pyte
 def test_build_run_config_ve36_unresolved_feature_name(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """When a --features token is a name that cannot be resolved to a
     *.feature.json file, _build_run_config must write VE-36 to stderr and
-    raise SystemExit(2).  Per ARCHITECTURE.md §5.1.0 (feature-name lookup).
+    raise SystemExit(2).  Per ARCHITECTURE.md Sec.5.1.0 (feature-name lookup).
     """
     from chopper.cli.commands import _build_run_config
 
@@ -719,7 +719,7 @@ def test_build_run_config_ve36_unresolved_feature_with_suggestion(
 def test_resolve_domain_root_backup_redirect_from_name_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """_resolve_domain_root must apply _backup redirect even when name-mode
     resolution returns a path that ends in '_backup', stripping to the
-    sibling live domain.  Per ARCHITECTURE.md §5.1 (domain-suffix-strip).
+    sibling live domain.  Per ARCHITECTURE.md Sec.5.1 (domain-suffix-strip).
     """
     from chopper.cli.commands import _resolve_domain_root
 
@@ -747,7 +747,7 @@ def test_cmd_validate_multi_domain_propagates_max_exit_code(
     tmp_path: Path,
 ) -> None:
     """cmd_validate with CSV --domain must run each domain and return max
-    exit code.  Per ARCHITECTURE.md §5.1.2 (multi-domain sequential trim).
+    exit code.  Per ARCHITECTURE.md Sec.5.1.2 (multi-domain sequential trim).
     We mock the runner to return a predictable exit code for each domain.
     """
     import argparse
@@ -794,7 +794,7 @@ def test_cmd_trim_multi_domain_propagates_max_exit_code(
     tmp_path: Path,
 ) -> None:
     """cmd_trim with CSV --domain must loop over each domain in sequence and
-    return the maximum exit code.  Per ARCHITECTURE.md §5.1.2.
+    return the maximum exit code.  Per ARCHITECTURE.md Sec.5.1.2.
     """
     from chopper.cli import commands as cmds
     from chopper.core.models_audit import RunResult
@@ -843,7 +843,7 @@ def test_cmd_loc_multi_domain_propagates_max_exit_code(
     tmp_path: Path,
 ) -> None:
     """cmd_loc with CSV --domain must loop over each domain and return max
-    exit code.  Per ARCHITECTURE.md §5.1.2.
+    exit code.  Per ARCHITECTURE.md Sec.5.1.2.
     """
     from chopper.cli import commands as cmds
     from chopper.core.models_audit import RunResult
@@ -895,13 +895,13 @@ def test_cmd_validate_multi_domain_early_failure_uses_error_result(
     from chopper.cli import commands as cmds
     from chopper.core.models_audit import RunResult
 
-    # domain_a: project.json with missing base → exit 2
+    # domain_a: project.json with missing base -> exit 2
     domain_a = tmp_path / "dom_a"
     domain_a.mkdir()
     project_a = tmp_path / "proj_a.json"
     project_a.write_text(_json.dumps({"base": "missing.json", "features": []}))
 
-    # domain_b: valid domain with real base.json → runner called
+    # domain_b: valid domain with real base.json -> runner called
     domain_b = tmp_path / "dom_b"
     domain_b.mkdir()
     (domain_b / "jsons").mkdir()
@@ -918,7 +918,7 @@ def test_cmd_validate_multi_domain_early_failure_uses_error_result(
         base=None,
         features=None,
         # project applies to BOTH domains in this simple test setup;
-        # domain_a's project is missing base — domain_b has none
+        # domain_a's project is missing base -- domain_b has none
         project=str(project_a),
         strict=False,
         quiet=True,
@@ -931,7 +931,7 @@ def test_cmd_validate_multi_domain_early_failure_uses_error_result(
 
     # domain_a contributed rc=2, domain_b contributed rc=0; max=2
     # but since domain_b also gets project=proj_a which references missing.json
-    # in domain_b's root, it also exits 2 → max(2,2)=2
+    # in domain_b's root, it also exits 2 -> max(2,2)=2
     assert rc == 2
 
 
@@ -966,7 +966,7 @@ def test_build_run_config_ve36_no_suggestion_hint(tmp_path: Path, capsys: pytest
     assert exc_info.value.code == 2
     captured = capsys.readouterr()
     assert "VE-36" in captured.err
-    # No suggestions → falls back to ls hint
+    # No suggestions -> falls back to ls hint
     assert "ls" in captured.err or "features" in captured.err
 
 
@@ -1417,7 +1417,7 @@ def test_build_run_config_auto_discovers_project_features_config(tmp_path: Path)
 
     assert fa in cfg.feature_paths
     assert fb in cfg.feature_paths
-    assert cfg.project_path is None  # config file → features mode, not project JSON mode
+    assert cfg.project_path is None  # config file -> features mode, not project JSON mode
     cfg_file = (ward / "project" / "snps" / "fev_formality" / "fev_formality.project.features.config").resolve()
     assert cfg.project_config_path == cfg_file  # features config path is recorded
 
@@ -1537,7 +1537,7 @@ def test_build_run_config_auto_discovery_empty_config(tmp_path: Path) -> None:
     with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
         cfg, _ = _build_run_config(args, dry_run=True)
 
-    assert cfg.feature_paths == ()  # empty config → no features loaded
+    assert cfg.feature_paths == ()  # empty config -> no features loaded
 
 
 def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
@@ -1577,7 +1577,7 @@ def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
         plain=True,
         verbose=0,
         tool_commands=[],
-        dry_run=False,  # live → render_trim_stats should be called
+        dry_run=False,  # live -> render_trim_stats should be called
     )
     with (
         patch.object(cmds.ChopperRunner, "run", _fake_run),
@@ -1941,7 +1941,7 @@ def test_cmd_trim_single_domain_dry_run_skips_warn_and_stats(tmp_path: Path) -> 
         plain=True,
         verbose=0,
         tool_commands=[],
-        dry_run=True,  # ← False path on both guards
+        dry_run=True,  # <- False path on both guards
     )
     with (
         patch.object(cmds.ChopperRunner, "run", _fake_run),
@@ -2006,7 +2006,7 @@ def test_cmd_loc_single_domain_project_none_expands_features(tmp_path: Path) -> 
         domain=str(domain),
         base=None,
         features=None,
-        project=None,  # ← triggers line 667
+        project=None,  # <- triggers line 667
         strict=False,
         quiet=True,
         plain=True,
@@ -2047,7 +2047,7 @@ def test_cmd_loc_multi_domain_check_project_fails(tmp_path: Path) -> None:
         domain=f"{domain_a.as_posix()},{domain_b.as_posix()}",
         base=None,
         features=None,
-        project=str(project_a),  # domain_a: project with missing base → rc=2
+        project=str(project_a),  # domain_a: project with missing base -> rc=2
         strict=False,
         quiet=True,
         plain=True,
@@ -2102,7 +2102,7 @@ def test_render_loc_table_with_full_manifest(tmp_path: Path) -> None:
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=CollectingSink(), progress=SilentProgress())
 
     fake_result = MagicMock()
-    fake_result.manifest = MagicMock()  # non-None → True branch
+    fake_result.manifest = MagicMock()  # non-None -> True branch
     fake_result.parsed = MagicMock()  # non-None
     fake_result.loaded = MagicMock()  # non-None
     fake_result.generated_artifacts = ()

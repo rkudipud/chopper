@@ -1,5 +1,5 @@
 # Verbatim quoted-string-with-semicolon snippets from the sta_pt domain.
-# Bug: TW-02 — `;` inside `"..."` strings was treated as a Tcl command
+# Bug: TW-02 -- `;` inside `"..."` strings was treated as a Tcl command
 # separator, so the next word in the string became a fake proc call.
 #
 # Tcl rule (Endekas/Dodekalogue): inside `"..."` and `{...}`, `;` is

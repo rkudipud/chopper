@@ -1,8 +1,8 @@
 # Verbatim switch-pattern-label snippet from sta_pt/psgen.tcl:1956.
-# Bug: TW-02 — switch pattern fall-through labels (e.g. `child_int_type -`
+# Bug: TW-02 -- switch pattern fall-through labels (e.g. `child_int_type -`
 # `clock_skew -` ... `tag {body}`) were treated as proc calls.
 #
-# Tcl rule: `switch <expr> { pattern body ?pattern body ...? }` —
+# Tcl rule: `switch <expr> { pattern body ?pattern body ...? }` --
 # pattern words are LITERAL strings to compare against the expr.
 # A body of `-` means "use the next pair's body" (fall-through).
 # Pattern words are NOT command invocations and must not be extracted

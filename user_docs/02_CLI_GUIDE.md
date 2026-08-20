@@ -1,4 +1,4 @@
-# 02 — CLI Guide
+# 02 -- CLI Guide
 
 > **Audience:** anyone about to run Chopper. Assumes you have read [01_OVERVIEW.md](01_OVERVIEW.md) (or are willing to skim back when something is unclear).
 > **Goal:** every subcommand, every flag, with the deep examples you need to operate safely.
@@ -7,20 +7,20 @@
 
 ## Quick start (the 5-step loop)
 
-Chopper is designed around a safe, iterative workflow. You never have to "get it right the first time" — validate and dry-run cost nothing and give you full visibility before anything touches disk.
+Chopper is designed around a safe, iterative workflow. You never have to "get it right the first time" -- validate and dry-run cost nothing and give you full visibility before anything touches disk.
 
 ```text
 1.  chopper validate --domain fev_formality        # named domain (4.1.0+, auto-discovers jsons/base.json)
     chopper validate --base jsons/base.json        # explicit path (classic form)
 2.  chopper trim --dry-run --domain fev_formality  # full analysis, no filesystem rebuild (writes .chopper/ only)
 3.  review .chopper/                               # trim_report.txt, compiled_manifest.json, dependency_graph.json
-4.  chopper trim --domain fev_formality            # live trim; renames domain → backup, rebuilds clean
+4.  chopper trim --domain fev_formality            # live trim; renames domain -> backup, rebuilds clean
 5.  chopper cleanup --confirm                      # remove the backup once the trim window closes
 ```
 
-Steps 1 and 2 are **safe and free** — run them as often as you want. Step 4 is **destructive** in the sense that it overwrites `<domain>/` (the original is preserved as `<domain>_backup/`). Step 5 is **irreversible**.
+Steps 1 and 2 are **safe and free** -- run them as often as you want. Step 4 is **destructive** in the sense that it overwrites `<domain>/` (the original is preserved as `<domain>_backup/`). Step 5 is **irreversible**.
 
-> **Key design principle:** you always have a way back. `<domain>_backup/` is your undo button. The only time data is permanently deleted is `chopper cleanup --confirm` — and that requires explicit opt-in.
+> **Key design principle:** you always have a way back. `<domain>_backup/` is your undo button. The only time data is permanently deleted is `chopper cleanup --confirm` -- and that requires explicit opt-in.
 
 ---
 
@@ -33,7 +33,7 @@ Steps 1 and 2 are **safe and free** — run them as often as you want. Step 4 is
 | Windows | PowerShell 5.1+ | `. .\setup.ps1` |
 | Windows | cmd.exe | `setup.bat` |
 
-Each script creates `.venv`, activates it, and installs dependencies. Python ≥ 3.13 required. Verify:
+Each script creates `.venv`, activates it, and installs dependencies. Python >= 3.13 required. Verify:
 
 ```text
 chopper --help
@@ -89,29 +89,29 @@ chopper validate [--domain PATH]
 | Flag | Effect |
 |---|---|
 | `--domain PATH\|NAME\|CSV` | Domain root, logical name, or vendor-qualified name (4.1.0+). Logical names (`fev_formality`, `snps/power`) are resolved via `$ward/global/<vendor>/<name>`. CSV for multi-domain runs. Default: cwd. |
-| `--base PATH` | Base JSON. **Optional** when `--domain` is a named domain — Chopper auto-discovers `<domain>/jsons/base.json` (VE-35 if missing). Required for plain-path domains. |
+| `--base PATH` | Base JSON. **Optional** when `--domain` is a named domain -- Chopper auto-discovers `<domain>/jsons/base.json` (VE-35 if missing). Required for plain-path domains. |
 | `--features PATHS` | Comma-separated **paths or names** (4.1.0+; e.g. `dft,power`). Names resolved from `<domain>/jsons/features/*.feature.json`. **Order matters for F3 `flow_actions`.** For `validate` only, any entry may also be a directory expanding to sorted `*.json` children. |
 | `--project PATH` | Project JSON. Mutually exclusive with `--base` and `--features`. |
 
 ### Three invocation modes
 
 ```text
-# Mode 0 (4.1.0+) — named domain, base auto-discovered from jsons/base.json
+# Mode 0 (4.1.0+) -- named domain, base auto-discovered from jsons/base.json
 chopper validate --domain fev_formality
 chopper validate --domain snps/fev_formality
 chopper validate --domain fev_formality --features dft,power   # feature names
 
-# Mode 1 — base only (classic form)
+# Mode 1 -- base only (classic form)
 chopper validate --base jsons/base.json
 
-# Mode 2 — base + features directly
+# Mode 2 -- base + features directly
 chopper validate --base jsons/base.json \
     --features jsons/features/dft.feature.json,jsons/features/scan_eco.feature.json
 
-# Mode 2b — validate every feature in a directory at once (validate only)
+# Mode 2b -- validate every feature in a directory at once (validate only)
 chopper validate --base jsons/base.json --features jsons/features/
 
-# Mode 3 — project recipe (committed combination)
+# Mode 3 -- project recipe (committed combination)
 chopper validate --project project.json
 ```
 
@@ -122,13 +122,13 @@ chopper validate --project project.json
 | `VE-17` project-domain-mismatch | JSON `domain` field doesn't match cwd basename | `cd` into the right folder |
 | `VE-21` no-domain-or-backup | Neither `<domain>/` nor `<domain>_backup/` exists | Nothing to trim from |
 | `VE-03` empty-procs-array | A `procEntry` has `"procs": []` | List procs, or use `files.include` |
-| `PW-01` dynamic-proc-name | Tcl uses `proc ${prefix}_foo` | Chopper skips it — see warning location |
+| `PW-01` dynamic-proc-name | Tcl uses `proc ${prefix}_foo` | Chopper skips it -- see warning location |
 
 ---
 
 ## `chopper trim`
 
-Same flags as `validate`, plus `--dry-run` and `--p4`. Live trim renames `<domain>/` → `<domain>_backup/`, rebuilds a clean trimmed `<domain>/`, generates run scripts (if any), runs post-validation, and writes `.chopper/`.
+Same flags as `validate`, plus `--dry-run` and `--p4`. Live trim renames `<domain>/` -> `<domain>_backup/`, rebuilds a clean trimmed `<domain>/`, generates run scripts (if any), runs post-validation, and writes `.chopper/`.
 
 ```text
 chopper trim [--domain PATH|NAME|CSV] [--dry-run] [--p4]
@@ -149,29 +149,29 @@ Both are read-only. The difference is reporting context: `trim --dry-run` writes
 
 ### P4 checkout before edit (`--p4`)
 
-Perforce's default behavior keeps synced files read-only until you `p4 edit` them. Editing a file out-of-band and running `p4 edit` afterward is an unsupported recovery path, not a first-class Perforce workflow — some sites will outright reject it. `--p4` closes that gap by checking files out *before* Chopper rewrites them.
+Perforce's default behavior keeps synced files read-only until you `p4 edit` them. Editing a file out-of-band and running `p4 edit` afterward is an unsupported recovery path, not a first-class Perforce workflow -- some sites will outright reject it. `--p4` closes that gap by checking files out *before* Chopper rewrites them.
 
-- Only attempted on a genuine **first trim** (no `<domain>_backup/` yet). On a re-trim, `--p4` is silently skipped — the domain no longer holds the original p4-synced files.
+- Only attempted on a genuine **first trim** (no `<domain>_backup/` yet). On a re-trim, `--p4` is silently skipped -- the domain no longer holds the original p4-synced files.
 - If `p4` isn't installed or the domain isn't a working p4 client workspace, you'll see a red notice on screen and the trim proceeds normally, with no `p4` interaction at all.
 - If a checkout fails partway through, the whole trim aborts, everything already checked out is reverted (`p4 revert`), and the domain is left completely untouched.
 - If a *later* step fails after checkout already succeeded, Chopper reverts the checkouts **and** immediately restores the domain from its backup (rather than waiting for your next `chopper trim` invocation).
-- Chopper only ever runs `p4 edit` and, on failure, `p4 revert`. It never runs `p4 add`, `p4 delete`, or `p4 submit` — submitting your change is still your job.
+- Chopper only ever runs `p4 edit` and, on failure, `p4 revert`. It never runs `p4 add`, `p4 delete`, or `p4 submit` -- submitting your change is still your job.
 
-See architecture doc §5.5.18 and FR-53.
+See architecture doc Sec.5.5.18 and FR-53.
 
-### Live trim — what actually happens on disk
+### Live trim -- what actually happens on disk
 
 1. `<domain>/` is renamed to `<domain>_backup/` (first trim) or the existing backup is reused (re-trim).
 2. A fresh `<domain>/` is built by walking the backup and applying per-file decisions:
-   - **`FULL_COPY`** — opaque byte-for-byte copy via `shutil.copy2` (mode bits preserved on POSIX).
-   - **`PROC_TRIM`** — Tcl file rewritten in place: kept procs survive, the rest are removed.
-   - **`REMOVE`** — file is not copied across.
-   - **`GENERATED`** — `<stage>.tcl` (and `<stage>.stack` if `options.generate_stack: true`) written into the rebuilt domain.
-3. P5c — if `base.options.indent: true`, every emitted PROC_TRIM/GENERATED Tcl file is normalised by a deterministic indentation pass. Default: skipped (Chopper writes those outputs verbatim).
-4. P5d — companion-file sync: for every `PROC_TRIM` `default_rules.<sfx>.tcl`, the sibling `default_config.<sfx>.csv` and `default_milestone.<sfx>.tcl` are filtered to keep only rows/lines matching surviving procs. Emits `VW-24` if a companion is missing; `VI-04` on success.
-5. JSON input preservation — the entire `<domain_backup>/jsons/` tree is mirrored into the rebuilt `<domain>/jsons/`, and any out-of-tree JSON inputs are copied to `<domain>/jsons/_external/`.
-6. P6 — the rebuilt output is re-parsed; brace-balance, dangling proc references, and stage-step references are checked. Issues become `VW-*` warnings.
-7. P7 — `.chopper/` is written.
+   - **`FULL_COPY`** -- opaque byte-for-byte copy via `shutil.copy2` (mode bits preserved on POSIX).
+   - **`PROC_TRIM`** -- Tcl file rewritten in place: kept procs survive, the rest are removed.
+   - **`REMOVE`** -- file is not copied across.
+   - **`GENERATED`** -- `<stage>.tcl` (and `<stage>.stack` if `options.generate_stack: true`) written into the rebuilt domain.
+3. P5c -- if `base.options.indent: true`, every emitted PROC_TRIM/GENERATED Tcl file is normalised by a deterministic indentation pass. Default: skipped (Chopper writes those outputs verbatim).
+4. P5d -- companion-file sync: for every `PROC_TRIM` `default_rules.<sfx>.tcl`, the sibling `default_config.<sfx>.csv` and `default_milestone.<sfx>.tcl` are filtered to keep only rows/lines matching surviving procs. Emits `VW-24` if a companion is missing; `VI-04` on success.
+5. JSON input preservation -- the entire `<domain_backup>/jsons/` tree is mirrored into the rebuilt `<domain>/jsons/`, and any out-of-tree JSON inputs are copied to `<domain>/jsons/_external/`.
+6. P6 -- the rebuilt output is re-parsed; brace-balance, dangling proc references, and stage-step references are checked. Issues become `VW-*` warnings.
+7. P7 -- `.chopper/` is written.
 
 > **You always have a recoverable state.** If the run fails between phases, `<domain>_backup/` is untouched and the next invocation rebuilds cleanly from it.
 
@@ -181,37 +181,37 @@ After a live `chopper trim` finishes, a console-width-aware table is printed to 
 
 ```
 Trim stats:
-File                       Op            SLOC (in → out)  Procs (kept/dropped)
+File                       Op            SLOC (in -> out)  Procs (kept/dropped)
 -------------------------  -------  --------------------  --------------------
-default_fm_procs.tcl       TRIM     2,210 → 1,730 (-480)                  29/7
-fev_fm_rtl2gate.tcl        GEN           268 → 258 (-10)                   0/0
-vars.tcl                   COPY                498 → 498                   0/0
-…
-TOTAL                      9 files  5,668 → 5,178 (-490)                  53/7
+default_fm_procs.tcl       TRIM     2,210 -> 1,730 (-480)                  29/7
+fev_fm_rtl2gate.tcl        GEN           268 -> 258 (-10)                   0/0
+vars.tcl                   COPY                498 -> 498                   0/0
+...
+TOTAL                      9 files  5,668 -> 5,178 (-490)                  53/7
 ```
 
 - **Op** is `COPY` (FULL_COPY), `TRIM` (PROC_TRIM), `DROP` (REMOVE), or `GEN` (GENERATED).
-- **SLOC** uses the same per-language rules as `chopper loc` (`.tcl`/`.pl`/`.py`/shell skip blank + `#`-comment lines; JSON counts non-blank; CSV skips comma-only rows). Long paths are left-truncated with `…` to fit the terminal width.
-- **GEN rows with a pre-existing source** (e.g. `fev_fm_rtl2gate.tcl` is both a domain source file *and* a stage emitter target) show a real `in → out` delta — the `in` baseline is read from `<domain>_backup/`, not pinned at 0.
+- **SLOC** uses the same per-language rules as `chopper loc` (`.tcl`/`.pl`/`.py`/shell skip blank + `#`-comment lines; JSON counts non-blank; CSV skips comma-only rows). Long paths are left-truncated with `...` to fit the terminal width.
+- **GEN rows with a pre-existing source** (e.g. `fev_fm_rtl2gate.tcl` is both a domain source file *and* a stage emitter target) show a real `in -> out` delta -- the `in` baseline is read from `<domain>_backup/`, not pinned at 0.
 - Dry-run skips the table (there is nothing on disk to count). `chopper loc` is the dry-run equivalent.
 
 ### File permissions
 
-Every file the trimmer writes to the rebuilt `<domain>/` receives executable permissions for user/group/other (`a+x`) — both PROC_TRIM/FULL_COPY outputs from P5a and `<stage>.tcl` / `<stage>.stack` artifacts from P5b. The intent: shell scripts and Tcl entrypoints in the trimmed domain stay runnable regardless of the source mode or your process umask. The trim does **not** fail if the underlying filesystem rejects `chmod` (rare on NFS); the content is correct either way.
+Every file the trimmer writes to the rebuilt `<domain>/` receives executable permissions for user/group/other (`a+x`) -- both PROC_TRIM/FULL_COPY outputs from P5a and `<stage>.tcl` / `<stage>.stack` artifacts from P5b. The intent: shell scripts and Tcl entrypoints in the trimmed domain stay runnable regardless of the source mode or your process umask. The trim does **not** fail if the underlying filesystem rejects `chmod` (rare on NFS); the content is correct either way.
 
 ### Console output filters
 
-`INFO TI-01 known-tool-command` lines are intentionally **not** rendered to the terminal. On a real flow they fire hundreds of times (one per recognised tool-command-pool match — `get_cells`, `set_top`, `memory`, etc.) and drown out the `WARN`/`ERROR` lines you actually need to act on. The diagnostics are still recorded in `.chopper/` (audit bundle) unchanged, and `--strict` accounting is unaffected (TI-* are never escalated).
+`INFO TI-01 known-tool-command` lines are intentionally **not** rendered to the terminal. On a real flow they fire hundreds of times (one per recognised tool-command-pool match -- `get_cells`, `set_top`, `memory`, etc.) and drown out the `WARN`/`ERROR` lines you actually need to act on. The diagnostics are still recorded in `.chopper/` (audit bundle) unchanged, and `--strict` accounting is unaffected (TI-* are never escalated).
 
 ### NFS / stale-cwd guard
 
-If you run `chopper trim` from **inside** the domain directory itself (e.g. `cd snps/ && chopper trim --base jsons/base.json`) and no `<domain>_backup/` exists yet, the case-1 prep renames `<domain>/` → `<domain>_backup/`. On NFS this invalidates your shell's open directory handle and the very next command shows:
+If you run `chopper trim` from **inside** the domain directory itself (e.g. `cd snps/ && chopper trim --base jsons/base.json`) and no `<domain>_backup/` exists yet, the case-1 prep renames `<domain>/` -> `<domain>_backup/`. On NFS this invalidates your shell's open directory handle and the very next command shows:
 
 ```
 pwd: failed to stat '.': Stale file handle
 ```
 
-This is a parent-shell limitation — Python cannot repair the cwd of the calling tcsh/bash. Chopper prints a notice up front so you can plan for it. Recovery is one line:
+This is a parent-shell limitation -- Python cannot repair the cwd of the calling tcsh/bash. Chopper prints a notice up front so you can plan for it. Recovery is one line:
 
 ```tcsh
 cd .. && cd <domain>
@@ -229,7 +229,7 @@ Just run `chopper trim` again. Chopper detects the existing backup, discards the
 
 ## `chopper loc`
 
-Read-only LOC report. Runs the same front half as `validate` (P0–P4 + manifest-only P6), then **replays the real P5 trim phases** (trim → generators → indentation → companion-sync) against an in-memory copy of the source tree and counts the actual rebuilt output. The result is byte-for-byte identical to what `chopper trim` produces. **Writes nothing** — no `.chopper/`, no rename, no rewrites.
+Read-only LOC report. Runs the same front half as `validate` (P0-P4 + manifest-only P6), then **replays the real P5 trim phases** (trim -> generators -> indentation -> companion-sync) against an in-memory copy of the source tree and counts the actual rebuilt output. The result is byte-for-byte identical to what `chopper trim` produces. **Writes nothing** -- no `.chopper/`, no rename, no rewrites.
 
 ```text
 chopper loc [--domain PATH|NAME|CSV]
@@ -240,7 +240,7 @@ Same input flags as `validate`, including named-domain resolution and CSV multi-
 
 ### Output format
 
-One `key: value` pair per line — easy to grep, pipe, or capture in CI:
+One `key: value` pair per line -- easy to grep, pipe, or capture in CI:
 
 ```text
 chopper loc: read-only LOC report
@@ -291,28 +291,28 @@ treatment.GENERATED.sloc_after: 182
 
 ### What file types are counted
 
-`chopper loc` walks `<domain>/` (or `<domain>_backup/` if that exists from a previous trim) and only counts files whose extension is in a fixed allow-list. Everything else is silently skipped — it does **not** show up in `files.before`, in any `treatment.*` bucket, or as a REMOVE candidate.
+`chopper loc` walks `<domain>/` (or `<domain>_backup/` if that exists from a previous trim) and only counts files whose extension is in a fixed allow-list. Everything else is silently skipped -- it does **not** show up in `files.before`, in any `treatment.*` bucket, or as a REMOVE candidate.
 
 | Counted | Extensions | How SLOC is counted |
 |---|---|---|
 | **yes** | `.tcl`, `.py`, `.pl`, `.pm`, `.sh`, `.bash`, `.csh`, `.tcsh`, `.zsh`, `.ksh` | non-blank lines, minus full-line `#` comments. A `#!` shebang on line 1 of a shell-family file *does* count as SLOC. |
 | **yes** | `.json` | every non-blank line (JSON has no comment syntax) |
 | **yes** | `.csv` | every line that has at least one non-comma, non-whitespace character |
-| **no** | everything else: `.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, images, binaries, … | not enumerated; invisible to the report |
+| **no** | everything else: `.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, images, binaries, ... | not enumerated; invisible to the report |
 
 Generated `<stage>.tcl` artifacts are language-detected by their path suffix, so they follow the hash-comment SLOC rule above.
 
-> **If your trim acts on a Verilog or Liberty file, `chopper loc` will not show it.** The full trim still applies normally — `loc` is just a reporting view limited to script-language sources. Use `.chopper/trim_report.json` from a real `chopper trim` run for full-fidelity per-file outcomes.
+> **If your trim acts on a Verilog or Liberty file, `chopper loc` will not show it.** The full trim still applies normally -- `loc` is just a reporting view limited to script-language sources. Use `.chopper/trim_report.json` from a real `chopper trim` run for full-fidelity per-file outcomes.
 
 ### Caveats & corner cases
 
-1. **`_backup` takes precedence as the "before" source.** If you have already run `chopper trim` once, `<domain>_backup/` exists. `chopper loc` will seed its in-memory replay from the **backup** (the original source) for its "before" totals — not the already-trimmed `<domain>/`. This is why running `chopper loc` immediately before and immediately after a `chopper trim` yields the same numbers.
-2. **PROC_TRIM "after" is the real trimmed file.** Because `loc` replays the production `ProcDropper` in memory, the post-trim line count for each `PROC_TRIM` file is the *actual* file a live trim would write — not a span-masking reconstruction. It matches `chopper trim` exactly.
-3. **All procs dropped → file shows up as REMOVE, not PROC_TRIM.** If a feature drops every proc in a file, the compiler downgrades the file to whole-file removal *before* `loc` sees the manifest. Such a file is counted under `treatment.REMOVE.*` with `after = 0`, not under `treatment.PROC_TRIM.*` with `after = 0`.
-4. **Indentation and companion-sync are modeled.** If your `base.json` sets `options.indent: true`, the in-memory replay runs the P5c whitespace-only indentation pass, and it always runs the P5d companion-file sync — exactly as live trim does. So a `FULL_COPY` file whose companion is pruned shows its real after-size.
+1. **`_backup` takes precedence as the "before" source.** If you have already run `chopper trim` once, `<domain>_backup/` exists. `chopper loc` will seed its in-memory replay from the **backup** (the original source) for its "before" totals -- not the already-trimmed `<domain>/`. This is why running `chopper loc` immediately before and immediately after a `chopper trim` yields the same numbers.
+2. **PROC_TRIM "after" is the real trimmed file.** Because `loc` replays the production `ProcDropper` in memory, the post-trim line count for each `PROC_TRIM` file is the *actual* file a live trim would write -- not a span-masking reconstruction. It matches `chopper trim` exactly.
+3. **All procs dropped -> file shows up as REMOVE, not PROC_TRIM.** If a feature drops every proc in a file, the compiler downgrades the file to whole-file removal *before* `loc` sees the manifest. Such a file is counted under `treatment.REMOVE.*` with `after = 0`, not under `treatment.PROC_TRIM.*` with `after = 0`.
+4. **Indentation and companion-sync are modeled.** If your `base.json` sets `options.indent: true`, the in-memory replay runs the P5c whitespace-only indentation pass, and it always runs the P5d companion-file sync -- exactly as live trim does. So a `FULL_COPY` file whose companion is pruned shows its real after-size.
 5. **Default-exclude under R2.** A counted-extension file in `<domain>/` that none of the selected features (or `base.files.include`) names is reported as REMOVE with `after = 0`. This is the same default-exclude rule that the trimmer applies.
 6. **`.chopper/` and decode failures.** The enumerator never descends into `.chopper/`. Files that fail both UTF-8 and latin-1 decode are silently dropped from the report (rare for Tcl/JSON/CSV).
-7. **Byte-identical to a live trim.** `chopper loc` writes nothing to disk, but its numbers come from a real (in-memory) trim using the production P5 services — so they match `chopper trim` and the audit bundle's `trim_stats.json` exactly. If you need an on-disk per-file ledger, run `chopper trim --dry-run` instead (same pipeline; full audit bundle; still no domain rewrite).
+7. **Byte-identical to a live trim.** `chopper loc` writes nothing to disk, but its numbers come from a real (in-memory) trim using the production P5 services -- so they match `chopper trim` and the audit bundle's `trim_stats.json` exactly. If you need an on-disk per-file ledger, run `chopper trim --dry-run` instead (same pipeline; full audit bundle; still no domain rewrite).
 
 ### Worked examples
 
@@ -338,7 +338,7 @@ treatment.REMOVE.lines_after: 0
 
 **A `.v` Verilog file in the domain**
 
-Silently skipped — not in the counted-extensions list:
+Silently skipped -- not in the counted-extensions list:
 
 ```text
 files.before: 411                        # would have been 412 if .v were counted
@@ -380,7 +380,7 @@ chopper cleanup [--domain PATH] --confirm
 | `--domain PATH` | Domain root whose sibling backup directory should be removed. Defaults to cwd. |
 | `--confirm` | **Required.** Cleanup refuses to run without it. Deletion is irreversible. |
 
-Use it when the team agrees the trim window is closed. Once `<domain>_backup/` is gone, `chopper trim` will exit with `VE-21` instead of silently rebuilding from backup — that is the intended safety net.
+Use it when the team agrees the trim window is closed. Once `<domain>_backup/` is gone, `chopper trim` will exit with `VE-21` instead of silently rebuilding from backup -- that is the intended safety net.
 
 ---
 
@@ -393,13 +393,13 @@ Use it when the team agrees the trim window is closed. Once `<domain>_backup/` i
 | `2` | CLI / environment precondition failure (bad flag, unrecoverable domain state) |
 | `3` | Internal programmer error. `.chopper/internal-error.log` has the full traceback. File a bug. |
 
-> **CI tip:** `chopper --strict trim --project project.json` returns `1` on any warning — wire that into your build to surface drift early.
+> **CI tip:** `chopper --strict trim --project project.json` returns `1` on any warning -- wire that into your build to surface drift early.
 
 ---
 
 ## The `.chopper/` audit bundle
 
-Every run writes `.chopper/` inside the current domain — including failed runs and dry-runs. The bundle is replaced on each run; copy it elsewhere if you need history.
+Every run writes `.chopper/` inside the current domain -- including failed runs and dry-runs. The bundle is replaced on each run; copy it elsewhere if you need history.
 
 | File | Purpose |
 |---|---|
@@ -407,13 +407,13 @@ Every run writes `.chopper/` inside the current domain — including failed runs
 | `chopper_run.json` | CLI args, timing, outcome, `artifacts_present` inventory |
 | `compiled_manifest.json` | Per-file/per-proc decisions (`FULL_COPY`, `PROC_TRIM`, `GENERATED`, `REMOVE`) with provenance |
 | `dependency_graph.json` | Full proc call graph from the trace phase |
-| `trim_report.json` | Machine-readable summary — file counts, proc counts, SLOC fields |
+| `trim_report.json` | Machine-readable summary -- file counts, proc counts, SLOC fields |
 | `trim_report.txt` | Human-readable projection of the above |
 | `trim_stats.json` | File and SLOC counts before/after (before reads from backup when present) |
 | `diagnostics.json` | Every diagnostic emitted (code, severity, phase, message, location, hint) |
 | `files_kept.txt` | Sorted paths that survived, with per-line provenance (`<path>\t<contributed_by>`) |
 | `files_removed.txt` | Sorted paths physically removed, with `default-exclude` or `removed-by:<layer>` provenance; Ward-relative when `$ward` is available, otherwise domain-relative |
-| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$ward`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` to produce or act on this file — review and submit manually. (The separate `--p4` flag checks files out live during the trim itself; see "P4 checkout before edit" above.) |
+| `p4_commands.txt` | Perforce audit file: `p4 edit`/`p4 add` sections for modified/created files; `exclude_file_list` section of `$ward`-relative paths for removed files (4.1.0+, replaces former `p4 delete`). Chopper never invokes `p4` to produce or act on this file -- review and submit manually. (The separate `--p4` flag checks files out live during the trim itself; see "P4 checkout before edit" above.) |
 | `files_exclude_p4.txt` | Standalone list of the same `exclude_file_list` paths as `p4_commands.txt`, without the `p4 edit`/`p4 add` sections (4.3.0+). |
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
@@ -425,7 +425,7 @@ All JSON is written with deterministic key order, UTF-8, trailing newline.
 
 ## Deep examples
 
-### Example A — first-time trim of an unknown domain
+### Example A -- first-time trim of an unknown domain
 
 ```text
 cd /work/projects/abc
@@ -433,11 +433,11 @@ ls
 # my_domain/   project.json   jsons/
 
 chopper validate --project project.json
-# read .chopper/diagnostics.json — fix any VE-* errors first
+# read .chopper/diagnostics.json -- fix any VE-* errors first
 
 chopper trim --dry-run --project project.json
-# read .chopper/trim_report.txt — confirm file/proc counts look right
-# read .chopper/dependency_graph.json — scan for TW-* warnings
+# read .chopper/trim_report.txt -- confirm file/proc counts look right
+# read .chopper/dependency_graph.json -- scan for TW-* warnings
 
 chopper trim --project project.json
 # my_domain_backup/ now exists; my_domain/ is the trimmed copy
@@ -447,7 +447,7 @@ chopper trim --project project.json
 chopper cleanup --confirm   # once the team agrees the window is closed
 ```
 
-### Example B — iterating on a feature JSON
+### Example B -- iterating on a feature JSON
 
 ```text
 # Edit jsons/features/dft.feature.json
@@ -460,7 +460,7 @@ chopper trim --dry-run --base jsons/base.json --features jsons/features/dft.feat
 diff /tmp/manifest_before.json .chopper/compiled_manifest.json
 ```
 
-### Example C — bisect a feature that broke trim
+### Example C -- bisect a feature that broke trim
 
 ```text
 # Run with the full feature list, fails:
@@ -474,14 +474,14 @@ chopper trim --dry-run --base jsons/base.json --features jsons/features/a.json,j
 # Or ask the Chopper Agent: prompt "bisect-feature-breakage"
 ```
 
-### Example D — CI gate
+### Example D -- CI gate
 
 ```text
 # Fail the build on any warning, log everything plainly for the CI viewer:
 chopper --plain --strict validate --project project.json 2>&1 | tee chopper.log
 ```
 
-### Example E — quiesce a tool-command-heavy domain
+### Example E -- quiesce a tool-command-heavy domain
 
 ```text
 # Six vendor pools bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure).
@@ -491,7 +491,7 @@ chopper validate --tool-commands /shared/eda/genus.commands \
                  --project project.json
 ```
 
-### Example F — generate stage + stack files
+### Example F -- generate stage + stack files
 
 `base.json`:
 
@@ -515,8 +515,8 @@ chopper validate --tool-commands /shared/eda/genus.commands \
 
 After `chopper trim --base jsons/base.json`:
 
-- `my_domain/main.tcl` — three sourced steps in order
-- `my_domain/main.stack` — `N main`, `J -xt vw ...`, `L 0`, `D` (no dependencies), etc.
+- `my_domain/main.tcl` -- three sourced steps in order
+- `my_domain/main.stack` -- `N main`, `J -xt vw ...`, `L 0`, `D` (no dependencies), etc.
 
 ---
 
@@ -532,8 +532,8 @@ After `chopper trim --base jsons/base.json`:
 | `VE-34 ambiguous-domain-name` | Bare name matches multiple vendors. Use `--domain vendor/name` notation (e.g. `--domain snps/fev_formality`). |
 | `VE-35 base-autodiscovery-failed` | Auto-discovery could not find `jsons/base.json` in the named domain. Pass `--base <path>` or add `jsons/base.json` to the domain. |
 | `VE-36 feature-name-not-found` | Feature name not found in `<domain>/jsons/features/`. Check the hint for close matches; run `ls <domain>/jsons/features/` to see available names. |
-| `VE-03 empty-procs-array` | `procEntry` has `"procs": []` — list procs or use `files.include` |
-| `PW-01 dynamic-proc-name` | Tcl uses `proc ${prefix}_foo`. Chopper cannot index it — list the resolved name(s) explicitly. |
+| `VE-03 empty-procs-array` | `procEntry` has `"procs": []` -- list procs or use `files.include` |
+| `PW-01 dynamic-proc-name` | Tcl uses `proc ${prefix}_foo`. Chopper cannot index it -- list the resolved name(s) explicitly. |
 | `TW-02` flood | Pass `--tool-commands` so vendor commands surface as `TI-01` info instead. |
 | `TW-04 cycle-in-call-graph` | Two procs call each other. Trace terminates safely via visited-set. Review for intent. |
 | Dry-run still created `.chopper/` | Expected. Dry-run skips domain rebuild, not audit/report writing. |
@@ -548,7 +548,7 @@ Full diagnostic registry: [../technical_docs/DIAGNOSTIC_CODES.md](../technical_d
 
 Fastest path: open VS Code Copilot Chat, pick the **Chopper Agent**, and run the `report-chopper-bug` prompt. It packages local evidence, drafts the GitHub issue body, and (when `gh` is installed and authenticated) files the issue automatically. If `gh` is not available it falls back to a local issue body and bundle paths you can paste manually.
 
-Manual path — open a [GitHub bug report](https://github.com/rkudipud/chopper/issues/new?template=bug_report.yml) and include:
+Manual path -- open a [GitHub bug report](https://github.com/rkudipud/chopper/issues/new?template=bug_report.yml) and include:
 
 1. The full command that was run
 2. Your JSON(s) (redact secrets)

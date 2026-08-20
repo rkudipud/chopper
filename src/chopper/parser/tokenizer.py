@@ -34,7 +34,10 @@ space, e.g. ``{" "}`` (real-world ``regsub -all { \\s+} $x {" "} y``).
 The scoping is cleared when the matching ``}`` closes the brace word.
 
 Comment behavior: ``#`` at command position runs to end of line;
-braces inside comments are inert.
+braces inside comments are inert. ``;`` is a command terminator only at
+``brace_depth == 0``; inside ``{...}`` it is literal (Tcl Rule 6) so a
+following ``#`` (e.g. ``;##`` in a regexp pattern) is not treated as a
+comment start.
 """
 
 from __future__ import annotations
@@ -359,8 +362,11 @@ def tokenize(text: str) -> TokenizerResult:
             i += 1
             continue
 
-        # Semicolon -- command terminator.
-        if ch == ";":
+        # Semicolon -- command terminator at top level only. Inside `{...}`
+        # it is literal; treating it as a terminator lets a following `#`
+        # (e.g. ``;##`` inside a regexp pattern) swallow closing ``}`` tokens
+        # and false-positive PE-02 (see default_fm_procs.tcl / designware_source_update).
+        if ch == ";" and brace_depth == 0:
             _flush_word(i)
             tokens.append(
                 Token(

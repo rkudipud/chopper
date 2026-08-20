@@ -109,7 +109,7 @@ body:
         Paste the failing stdout/stderr here, or paste the most relevant excerpt and say where the full log is attached.
         Do not leave this blank.
 
-        Tip — redirect both streams: `chopper trim --project project.json 2>&1 | tee chopper.log`
+        Tip -- redirect both streams: `chopper trim --project project.json 2>&1 | tee chopper.log`
       placeholder: |
         [P0_STATE] started
         [P0_STATE] done

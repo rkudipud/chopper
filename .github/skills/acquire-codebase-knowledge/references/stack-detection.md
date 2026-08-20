@@ -1,10 +1,10 @@
 # Stack Detection Reference
 
-Load this file when the tech stack is ambiguous — e.g., multiple manifest files present, unfamiliar file extensions, or no obvious `package.json` / `go.mod`.
+Load this file when the tech stack is ambiguous -- e.g., multiple manifest files present, unfamiliar file extensions, or no obvious `package.json` / `go.mod`.
 
 ---
 
-## Manifest File → Ecosystem
+## Manifest File -> Ecosystem
 
 | File | Ecosystem | Key fields to read |
 |------|-----------|--------------------|
@@ -24,7 +24,7 @@ Load this file when the tech stack is ambiguous — e.g., multiple manifest file
 | `*.csproj` | .NET / C# | `<PackageReference>`, `<TargetFramework>` |
 | `*.sln` | .NET solution | References multiple `.csproj` projects |
 | `deno.json` / `deno.jsonc` | Deno (TypeScript runtime) | `imports`, `tasks` |
-| `bun.lockb` | Bun (JavaScript runtime) | Binary lockfile — check `package.json` for deps |
+| `bun.lockb` | Bun (JavaScript runtime) | Binary lockfile -- check `package.json` for deps |
 
 ---
 
@@ -48,7 +48,7 @@ Load this file when the tech stack is ambiguous — e.g., multiple manifest file
 |-----------------------------|-----------|
 | `express` | Express.js (minimal HTTP server) |
 | `fastify` | Fastify (high-performance HTTP server) |
-| `next` | Next.js (SSR/SSG React — check for `pages/` or `app/` directory) |
+| `next` | Next.js (SSR/SSG React -- check for `pages/` or `app/` directory) |
 | `nuxt` | Nuxt.js (SSR/SSG Vue) |
 | `@nestjs/core` | NestJS (opinionated Node.js framework with DI) |
 | `koa` | Koa (middleware-focused, no built-in router) |
@@ -85,13 +85,13 @@ Load this file when the tech stack is ambiguous — e.g., multiple manifest file
 
 Check these signals in order:
 
-1. `pnpm-workspace.yaml` — pnpm workspaces
-2. `lerna.json` — Lerna monorepo
-3. `nx.json` — Nx monorepo (also check `workspace.json`)
-4. `turbo.json` — Turborepo
-5. `rush.json` — Rush (Microsoft monorepo manager)
-6. `moon.yml` — Moon
-7. `package.json` with `"workspaces": [...]` — npm/yarn workspaces
+1. `pnpm-workspace.yaml` -- pnpm workspaces
+2. `lerna.json` -- Lerna monorepo
+3. `nx.json` -- Nx monorepo (also check `workspace.json`)
+4. `turbo.json` -- Turborepo
+5. `rush.json` -- Rush (Microsoft monorepo manager)
+6. `moon.yml` -- Moon
+7. `package.json` with `"workspaces": [...]` -- npm/yarn workspaces
 8. Presence of `packages/`, `apps/`, `libs/`, or `services/` directories with their own `package.json`
 
 If monorepo is detected: each workspace may have **independent** dependencies and conventions. Map each sub-package separately in `STACK.md` and note the monorepo structure in `STRUCTURE.md`.
@@ -115,7 +115,7 @@ Imports like `import { foo } from '@/utils/bar'` resolve to `src/utils/bar`. Doc
 
 ---
 
-## Docker Base Image → Runtime
+## Docker Base Image -> Runtime
 
 If no manifest file is present but a `Dockerfile` exists, the `FROM` line reveals the runtime:
 

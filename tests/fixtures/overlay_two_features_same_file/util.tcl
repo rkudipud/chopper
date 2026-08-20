@@ -1,4 +1,4 @@
-# util.tcl — base contributes the whole file; feature_a drops proc foo;
+# util.tcl -- base contributes the whole file; feature_a drops proc foo;
 # feature_b (declared after feature_a) re-includes proc foo. Final keeps both.
 
 proc foo {} {

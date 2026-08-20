@@ -9,7 +9,7 @@ from chopper.parser.call_extractor_classify import (
 )
 from chopper.parser.call_extractor_sources import SOURCE_KEYWORDS, extract_source_path_with_indices
 from chopper.parser.call_extractor_structural import compute_skip_indices
-from chopper.parser.tokenizer import Token, TokenKind
+from chopper.parser.tokenizer import Token, TokenKind, tokenize
 
 __all__ = ["extract_body_refs"]
 
@@ -39,26 +39,54 @@ def extract_body_refs(
     tokens: tuple[Token, ...],
     body_lbrace_idx: int,
     body_rbrace_idx: int,
+    *,
+    body_source: str | None = None,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Extract ``(calls, source_refs)`` for one proc body."""
-    if body_lbrace_idx + 1 >= body_rbrace_idx:
+    """Extract ``(calls, source_refs)`` for one proc body.
+
+    When *body_source* is supplied, the body is re-tokenized at brace depth
+    zero so ``;`` / ``#`` obey script rules inside the proc while the outer
+    file token stream keeps Tcl Rule 6 literal ``;`` inside ``{...}`` words
+    (PE-02 brace balance).
+    """
+    if body_source is not None:
+        inner = tokenize(body_source)
+        if inner.errors:
+            return (), ()
+        walk_tokens = inner.tokens
+        walk_start = 0
+        walk_end = len(walk_tokens)
+        skip_lbrace = -1
+        skip_rbrace = walk_end
+    else:
+        if body_lbrace_idx + 1 >= body_rbrace_idx:
+            return (), ()
+        walk_tokens = tokens
+        walk_start = body_lbrace_idx + 1
+        walk_end = body_rbrace_idx
+        skip_lbrace = body_lbrace_idx
+        skip_rbrace = body_rbrace_idx
+
+    if walk_start >= walk_end:
         return (), ()
 
     calls: set[str] = set()
     source_refs: list[str] = []
     consumed: set[int] = set()
-    skip_indices = compute_skip_indices(tokens, body_lbrace_idx, body_rbrace_idx)
+    skip_indices = compute_skip_indices(walk_tokens, skip_lbrace, skip_rbrace)
 
-    i = body_lbrace_idx + 1
-    while i < body_rbrace_idx:
+    i = walk_start
+    while i < walk_end:
         if i in skip_indices:
             i += 1
             continue
-        token = tokens[i]
+        token = walk_tokens[i]
         if token.kind is TokenKind.WORD and token.at_command_position:
             first_word = token.value
             if first_word in SOURCE_KEYWORDS:
-                path, consumed_indices = extract_source_path_with_indices(tokens, i, body_rbrace_idx, first_word)
+                path, consumed_indices = extract_source_path_with_indices(
+                    walk_tokens, i, walk_end, first_word
+                )
                 if path is not None:
                     source_refs.append(path)
                 consumed.update(consumed_indices)

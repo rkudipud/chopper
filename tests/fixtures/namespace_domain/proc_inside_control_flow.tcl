@@ -1,4 +1,4 @@
-# proc_inside_control_flow.tcl — Procs inside if/for/catch should NOT be indexed
+# proc_inside_control_flow.tcl -- Procs inside if/for/catch should NOT be indexed
 
 if {$feature_enabled} {
     proc conditional_proc {} {

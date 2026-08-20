@@ -12,18 +12,18 @@ description: "Use when the user wants to know what will break if they change som
 - "Show me the blast radius"
 - "Who uses this code?"
 - Before making non-trivial code changes
-- Before committing — to understand what your changes affect
+- Before committing -- to understand what your changes affect
 
 ## Workflow
 
 ```
-1. impact({target: "X", direction: "upstream"})  → What depends on this
-2. READ gitnexus://repo/{name}/processes                   → Check affected execution flows
-3. detect_changes()                               → Map current git changes to affected flows
+1. impact({target: "X", direction: "upstream"})  -> What depends on this
+2. READ gitnexus://repo/{name}/processes                   -> Check affected execution flows
+3. detect_changes()                               -> Map current git changes to affected flows
 4. Assess risk and report to user
 ```
 
-> If "Index is stale" → run `node .gitnexus/run.cjs analyze` in terminal.
+> If "Index is stale" -> run `node .gitnexus/run.cjs analyze` in terminal.
 
 ## Checklist
 
@@ -55,7 +55,7 @@ description: "Use when the user wants to know what will break if they change som
 
 ## Tools
 
-**impact** — the primary tool for symbol blast radius:
+**impact** -- the primary tool for symbol blast radius:
 
 ```
 impact({
@@ -65,33 +65,33 @@ impact({
   maxDepth: 3
 })
 
-→ d=1 (WILL BREAK):
+-> d=1 (WILL BREAK):
   - loginHandler (src/auth/login.ts:42) [CALLS, 100%]
   - apiMiddleware (src/api/middleware.ts:15) [CALLS, 100%]
 
-→ d=2 (LIKELY AFFECTED):
+-> d=2 (LIKELY AFFECTED):
   - authRouter (src/routes/auth.ts:22) [CALLS, 95%]
 ```
 
-**detect_changes** — git-diff based impact analysis:
+**detect_changes** -- git-diff based impact analysis:
 
 ```
 detect_changes({scope: "staged"})
 
-→ Changed: 5 symbols in 3 files
-→ Affected: LoginFlow, TokenRefresh, APIMiddlewarePipeline
-→ Risk: MEDIUM
+-> Changed: 5 symbols in 3 files
+-> Affected: LoginFlow, TokenRefresh, APIMiddlewarePipeline
+-> Risk: MEDIUM
 ```
 
 ## Example: "What breaks if I change validateUser?"
 
 ```
 1. impact({target: "validateUser", direction: "upstream"})
-   → d=1: loginHandler, apiMiddleware (WILL BREAK)
-   → d=2: authRouter, sessionManager (LIKELY AFFECTED)
+   -> d=1: loginHandler, apiMiddleware (WILL BREAK)
+   -> d=2: authRouter, sessionManager (LIKELY AFFECTED)
 
 2. READ gitnexus://repo/my-app/processes
-   → LoginFlow and TokenRefresh touch validateUser
+   -> LoginFlow and TokenRefresh touch validateUser
 
 3. Risk: 2 direct callers, 2 processes = MEDIUM
 ```

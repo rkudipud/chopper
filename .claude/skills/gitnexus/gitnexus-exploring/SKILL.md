@@ -16,14 +16,14 @@ description: "Use when the user asks how code works, wants to understand archite
 ## Workflow
 
 ```
-1. READ gitnexus://repos                          → Discover indexed repos
-2. READ gitnexus://repo/{name}/context             → Codebase overview, check staleness
-3. query({search_query: "<what you want to understand>"})  → Find related execution flows
-4. context({name: "<symbol>"})            → Deep dive on specific symbol
-5. READ gitnexus://repo/{name}/process/{name}      → Trace full execution flow
+1. READ gitnexus://repos                          -> Discover indexed repos
+2. READ gitnexus://repo/{name}/context             -> Codebase overview, check staleness
+3. query({search_query: "<what you want to understand>"})  -> Find related execution flows
+4. context({name: "<symbol>"})            -> Deep dive on specific symbol
+5. READ gitnexus://repo/{name}/process/{name}      -> Trace full execution flow
 ```
 
-> If step 2 says "Index is stale" → run `node .gitnexus/run.cjs analyze` in terminal.
+> If step 2 says "Index is stale" -> run `node .gitnexus/run.cjs analyze` in terminal.
 
 ## Checklist
 
@@ -47,32 +47,32 @@ description: "Use when the user asks how code works, wants to understand archite
 
 ## Tools
 
-**query** — find execution flows related to a concept:
+**query** -- find execution flows related to a concept:
 
 ```
 query({search_query: "payment processing"})
-→ Processes: CheckoutFlow, RefundFlow, WebhookHandler
-→ Symbols grouped by flow with file locations
+-> Processes: CheckoutFlow, RefundFlow, WebhookHandler
+-> Symbols grouped by flow with file locations
 ```
 
-**context** — 360-degree view of a symbol:
+**context** -- 360-degree view of a symbol:
 
 ```
 context({name: "validateUser"})
-→ Incoming calls: loginHandler, apiMiddleware
-→ Outgoing calls: checkToken, getUserById
-→ Processes: LoginFlow (step 2/5), TokenRefresh (step 1/3)
+-> Incoming calls: loginHandler, apiMiddleware
+-> Outgoing calls: checkToken, getUserById
+-> Processes: LoginFlow (step 2/5), TokenRefresh (step 1/3)
 ```
 
 ## Example: "How does payment processing work?"
 
 ```
-1. READ gitnexus://repo/my-app/context       → 918 symbols, 45 processes
+1. READ gitnexus://repo/my-app/context       -> 918 symbols, 45 processes
 2. query({search_query: "payment processing"})
-   → CheckoutFlow: processPayment → validateCard → chargeStripe
-   → RefundFlow: initiateRefund → calculateRefund → processRefund
+   -> CheckoutFlow: processPayment -> validateCard -> chargeStripe
+   -> RefundFlow: initiateRefund -> calculateRefund -> processRefund
 3. context({name: "processPayment"})
-   → Incoming: checkoutHandler, webhookHandler
-   → Outgoing: validateCard, chargeStripe, saveTransaction
+   -> Incoming: checkoutHandler, webhookHandler
+   -> Outgoing: validateCard, chargeStripe, saveTransaction
 4. Read src/payments/processor.ts for implementation details
 ```

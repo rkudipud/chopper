@@ -1,4 +1,4 @@
-# cycle.tcl — Mutual recursion cycle: ping -> pong -> ping
+# cycle.tcl -- Mutual recursion cycle: ping -> pong -> ping
 
 proc ping {} {
     pong

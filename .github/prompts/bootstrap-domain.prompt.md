@@ -9,10 +9,10 @@ Invoke the **Chopper Agent** in `full-loop` mode.
 Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md) for the full protocol, then:
 
 1. Ask me for the domain root path
-2. Run the Q1–Q5 Discovery Protocol against the path
+2. Run the Q1-Q5 Discovery Protocol against the path
 3. Build the file inventory + classification table and pause for my confirmation
 4. If proc-trimming is in scope, build the call-tree trace log and pause again
-5. Propose a minimal starter `base.json` — files-only at first, no proc-trim yet
+5. Propose a minimal starter `base.json` -- files-only at first, no proc-trim yet
 6. Validate it with `python schemas/scripts/validate_jsons.py <domain_root>/`
 7. Iterate until the schema passes cleanly
 
@@ -23,4 +23,4 @@ Deliverables I expect back:
 - Schema validation output showing green
 - A shortlist of candidate features to tackle next
 
-Do not run `chopper trim` — dry-run only, and only if I explicitly ask.
+Do not run `chopper trim` -- dry-run only, and only if I explicitly ask.

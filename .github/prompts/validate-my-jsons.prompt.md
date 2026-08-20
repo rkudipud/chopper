@@ -10,7 +10,7 @@ Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), 
 
 1. Ask me for the domain root (or infer from the workspace)
 2. Run `python schemas/scripts/validate_jsons.py <domain_root>/`
-3. Parse every schema error against the **Schema Error → Fix Mapping** table in the companion card
+3. Parse every schema error against the **Schema Error -> Fix Mapping** table in the companion card
 4. For each finding, show: the offending JSON location, the rule it violates, the exact fix as a JSON patch
 5. Run the companion's semantic checks (depends_on ordering, flow_action references, stage-name uniqueness, domain match)
 
@@ -20,4 +20,4 @@ Deliverables:
 - A prioritized fix list with concrete patches
 - A "ready to run `chopper validate`" go/no-go recommendation
 
-Do not invoke `chopper` itself — schema-only.
+Do not invoke `chopper` itself -- schema-only.

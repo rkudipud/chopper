@@ -1,4 +1,4 @@
-# 03 — How Chopper Works
+# 03 -- How Chopper Works
 
 > **Audience:** anyone who wants to understand the pipeline, decide where Chopper fits, or troubleshoot results at a deeper level than the CLI guide.
 > **Goal:** by the end you can explain the 8-phase pipeline, the determinism contract, where Chopper belongs in your flow, and where it does **not**.
@@ -13,21 +13,21 @@
 | You want a reproducible, machine-checkable record of "what survives" | You need a one-off hand-tweak you will never repeat |
 | You want declarative JSON to replace conditional `if {$project eq ...}` Tcl | Your slice is so small a hand-edit costs less than authoring JSON |
 | Your domain mixes Tcl with Perl/Python/csh/configs that should travel together | You need subroutine-level trimming for non-Tcl languages (only Tcl gets proc-level F2) |
-| You want auto-generated `<stage>.tcl` run scripts from declarative stage JSON | You need a runtime scheduler — Chopper emits artefacts; it does not run them |
+| You want auto-generated `<stage>.tcl` run scripts from declarative stage JSON | You need a runtime scheduler -- Chopper emits artefacts; it does not run them |
 
 Chopper sits **upstream of the runtime flow**. You trim once per project (or per project + methodology combination), commit the JSONs, and run the trimmed domain through your normal scheduler / job manager / EDA tool.
 
 ---
 
-## 2. The 8-phase pipeline (P0–P7)
+## 2. The 8-phase pipeline (P0-P7)
 
-Every live `trim` executes this sequence. `validate` and `trim --dry-run` run the same front half (P0–P4) plus a manifest-only P6, skipping P5 filesystem rebuild.
+Every live `trim` executes this sequence. `validate` and `trim --dry-run` run the same front half (P0-P4) plus a manifest-only P6, skipping P5 filesystem rebuild.
 
 ```text
-P0  Domain state    →  P1  Config + pre-validate  →  P2  Parse Tcl  →  P3  Compile
-                                                                          │
-                                                                          ▼
-P7  Audit  ←  P6  Post-validate  ←  P5  Build output  ←  P4  Trace (BFS, reporting-only)
+P0  Domain state    ->  P1  Config + pre-validate  ->  P2  Parse Tcl  ->  P3  Compile
+                                                                          ?
+                                                                          ?
+P7  Audit  <-  P6  Post-validate  <-  P5  Build output  <-  P4  Trace (BFS, reporting-only)
 ```
 
 | Phase | Owner module | Responsibility | Output |
@@ -36,7 +36,7 @@ P7  Audit  ←  P6  Post-validate  ←  P5  Build output  ←  P4  Trace (BFS, r
 | **P1** | `config/`, `validator/functions.py` | Load base + features, resolve `depends_on`, schema-validate, check file/proc existence | `LoadedConfig` + pre-validation diagnostics |
 | **P2** | `parser/` | Tokenize each `.tcl` file, extract `ProcEntry` records (definitions, calls, namespaces). Phase 2a parses surface files with diagnostics; Phase 2b silently parses every other `.tcl` under `domain_root` so the proc index is **full-domain**. | `ParseResult` |
 | **P3** | `compiler/merge_service.py` | Apply R1 merge rules across base + features; produce per-file treatments | `CompiledManifest` |
-| **P4** | `compiler/trace_service.py` | BFS from explicit proc includes; emit `dependency_graph.json` and `TW-*` warnings. **Reporting only — no auto-copy.** | `DependencyGraph` |
+| **P4** | `compiler/trace_service.py` | BFS from explicit proc includes; emit `dependency_graph.json` and `TW-*` warnings. **Reporting only -- no auto-copy.** | `DependencyGraph` |
 | **P5** | `trimmer/`, `generators/` | Execute file copies, proc-level rewrites, generated stage files, optional P5c indentation pass, P5d companion-file sync, JSON input preservation | `TrimReport` |
 | **P6** | `validator/functions.py` | Re-parse trimmed output; brace balance, dangling refs, namespace consistency, stage-step references | post-validation diagnostics |
 | **P7** | `audit/service.py` | Write `.chopper/` bundle. Always runs in `finally`, even after upstream failure. | `AuditManifest` |
@@ -47,7 +47,7 @@ P7  Audit  ←  P6  Post-validate  ←  P5  Build output  ←  P4  Trace (BFS, r
 
 ## 3. Why three rules govern everything
 
-(Restated from [01_OVERVIEW.md §5](01_OVERVIEW.md#5-the-rules-that-govern-everything) — these are the rules a confused result almost always traces back to.)
+(Restated from [01_OVERVIEW.md Sec.5](01_OVERVIEW.md#5-the-rules-that-govern-everything) -- these are the rules a confused result almost always traces back to.)
 
 1. **Default is exclude.**
 2. **Explicit include always wins.**
@@ -108,11 +108,11 @@ Or:
 
 ## 4. Determinism contract
 
-Same inputs → byte-identical output. Enforced by:
+Same inputs -> byte-identical output. Enforced by:
 
 | Mechanism | Where |
 |---|---|
-| Sorted BFS frontier | `compiler/trace_service.py` — frontier sorted lexicographically each iteration |
+| Sorted BFS frontier | `compiler/trace_service.py` -- frontier sorted lexicographically each iteration |
 | `json.dumps(..., sort_keys=True)` everywhere | `audit/writers.py` |
 | Stable insertion order in the diagnostic sink | `adapters/sink_collecting.py` |
 | POSIX-normalised paths in serialised output | All writers |
@@ -129,9 +129,9 @@ Phase P4 emits `dependency_graph.json` and four warning families:
 | Code | Meaning | What to do |
 |---|---|---|
 | `TW-01` resolved-ambiguous | Call could match multiple procs (same short name in different files) | Pick one or qualify with namespace |
-| `TW-02` external-or-cross-domain | No in-domain proc with this name. Either an external (vendor / system) call or a cross-domain reference. | If needed, include explicitly. Otherwise accept — and consider adding it to a `--tool-commands` pool to surface as `TI-01` info instead. |
-| `TW-03` dynamic-call-form | `$cmd`, `eval "..."`, `uplevel` — not statically resolvable | Add the resolved targets explicitly if needed |
-| `TW-04` cycle-in-call-graph | Two procs call each other | Review for intent — usually safe; trace terminates via visited-set |
+| `TW-02` external-or-cross-domain | No in-domain proc with this name. Either an external (vendor / system) call or a cross-domain reference. | If needed, include explicitly. Otherwise accept -- and consider adding it to a `--tool-commands` pool to surface as `TI-01` info instead. |
+| `TW-03` dynamic-call-form | `$cmd`, `eval "..."`, `uplevel` -- not statically resolvable | Add the resolved targets explicitly if needed |
+| `TW-04` cycle-in-call-graph | Two procs call each other | Review for intent -- usually safe; trace terminates via visited-set |
 
 > **Open `dependency_graph.json` before shipping.** Every `TW-*` is a place Chopper could not prove a dependency. Every one needs a conscious decision.
 
@@ -152,8 +152,8 @@ Already enumerated in [02_CLI_GUIDE.md](02_CLI_GUIDE.md#the-chopper-audit-bundle
 
 | Dimension | Target |
 |---|---|
-| Domain size | ≤ 1 GB |
-| Runtime | 3–5 minutes acceptable |
+| Domain size | <= 1 GB |
+| Runtime | 3-5 minutes acceptable |
 | Memory | Whole-file reads (no streaming) |
 | Parallelism | **Single-threaded by design.** Correctness over speed at this scale. |
 
@@ -165,9 +165,9 @@ Chopper deliberately optimises for determinism and auditability over raw through
 
 Three layers:
 
-1. **User-visible outcomes** — always a `Diagnostic` emitted via `ctx.diag`. Exit codes 0, 1, 2.
-2. **Programmer errors** — `ChopperError` subclasses raised from within services. Caught by the runner's final `except`, surfaced as exit `3`. `.chopper/internal-error.log` is written with run ID, traceback, diagnostic snapshot, and `RunConfig`. `RunResult.internal_error` is also populated so GUIs / CI can inspect the failure without reading the log file.
-3. **Unexpected exceptions** — same path as (2). The CLI's top-level `try/except` is a second safety net for pre-runner failures.
+1. **User-visible outcomes** -- always a `Diagnostic` emitted via `ctx.diag`. Exit codes 0, 1, 2.
+2. **Programmer errors** -- `ChopperError` subclasses raised from within services. Caught by the runner's final `except`, surfaced as exit `3`. `.chopper/internal-error.log` is written with run ID, traceback, diagnostic snapshot, and `RunConfig`. `RunResult.internal_error` is also populated so GUIs / CI can inspect the failure without reading the log file.
+3. **Unexpected exceptions** -- same path as (2). The CLI's top-level `try/except` is a second safety net for pre-runner failures.
 
 No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
@@ -177,28 +177,28 @@ No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
 ```text
 src/chopper/
-├── core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization,
-│              filesystem helpers (fs_walk, file_perms, globs, header, tool_commands)
-├── config/       JSON loading, schema validation, depends_on topo-sort       (P1)
-├── parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
-├── compiler/     R1 merge algorithm, BFS trace, F3 flow-actions, stack graph  (P3, P4)
-├── trimmer/      File copier, proc dropper, indentation normaliser,
-│              companion-file sync, JSON input preservation                  (P5a, P5c, P5d)
-├── generators/   F3 stage + stack file emitter                               (P5b)
-├── validator/    Pre- and post-trim validation                               (P1, P6)
-├── audit/        .chopper/ writers, SLOC counter (cloc + fallback), hashing,
-│              internal-error log                                            (P7)
-├── data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
-├── orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
-├── adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
-└── cli/          argparse, render helpers, four subcommand handlers           (user)
+??? core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization,
+?              filesystem helpers (fs_walk, file_perms, globs, header, tool_commands)
+??? config/       JSON loading, schema validation, depends_on topo-sort       (P1)
+??? parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
+??? compiler/     R1 merge algorithm, BFS trace, F3 flow-actions, stack graph  (P3, P4)
+??? trimmer/      File copier, proc dropper, indentation normaliser,
+?              companion-file sync, JSON input preservation                  (P5a, P5c, P5d)
+??? generators/   F3 stage + stack file emitter                               (P5b)
+??? validator/    Pre- and post-trim validation                               (P1, P6)
+??? audit/        .chopper/ writers, SLOC counter (cloc + fallback), hashing,
+?              internal-error log                                            (P7)
+??? data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
+??? orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
+??? adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
+??? cli/          argparse, render helpers, four subcommand handlers           (user)
 ```
 
-Each service depends only on `core/` and its own submodules. The lone permitted exception is the validator importing the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`) — documented in `technical_docs/ARCHITECTURE.md` §5.12.9.
+Each service depends only on `core/` and its own submodules. The lone permitted exception is the validator importing the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`) -- documented in `technical_docs/ARCHITECTURE.md` Sec.5.12.9.
 
 ---
 
-## 10. Ports — what is and isn't abstracted
+## 10. Ports -- what is and isn't abstracted
 
 Three protocol surfaces in `src/chopper/core/protocols.py`:
 
@@ -224,7 +224,7 @@ Narrow port surface keeps the architecture useful without speculative abstractio
 
 ### Why did my feature's `files.exclude` do nothing?
 
-Your feature is **earlier** than the layer that includes the file (or the file isn't named anywhere). Under R1 ordered overlay, only the *last* layer that mentions the file wins — a base or later-feature `files.include` after your `files.exclude` will re-include it. Reorder `project.features[]` so your feature appears after the layer you intend to override; check `VW-21 layer-shadowed` events in the audit bundle to verify the transition fired.
+Your feature is **earlier** than the layer that includes the file (or the file isn't named anywhere). Under R1 ordered overlay, only the *last* layer that mentions the file wins -- a base or later-feature `files.include` after your `files.exclude` will re-include it. Reorder `project.features[]` so your feature appears after the layer you intend to override; check `VW-21 layer-shadowed` events in the audit bundle to verify the transition fired.
 
 ### Why did my proc survive even though I excluded it?
 
@@ -232,7 +232,7 @@ A later layer re-included it: another feature's `procedures.include`, or a whole
 
 ### Why is my traced callee not in the output?
 
-Tracing is reporting-only. Add it to `procedures.include`, or include the whole file. See §3 (rule 3) and §5.
+Tracing is reporting-only. Add it to `procedures.include`, or include the whole file. See Sec.3 (rule 3) and Sec.5.
 
 ### Can I trim across domains?
 
@@ -252,7 +252,7 @@ No. Re-trim is deliberately destructive. Either move the edit into source files 
 
 ### Does Chopper run in parallel?
 
-No. Single-threaded and deterministic. Runtime of 3–5 minutes per domain is acceptable. Parallelism was deferred (`FD-09`).
+No. Single-threaded and deterministic. Runtime of 3-5 minutes per domain is acceptable. Parallelism was deferred (`FD-09`).
 
 ### What Python version?
 
@@ -272,11 +272,11 @@ Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formali
 
 ### What does `options.cross_validate` do?
 
-When `true` (default), P6 checks every step string in every surviving stage against the files and procs that survived trimming. Missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) — all warnings, never errors. Set to `false` if your stages intentionally reference content outside the trimmed domain (e.g. cross-domain sources). `VW-17 external-reference` is always emitted regardless of this flag.
+When `true` (default), P6 checks every step string in every surviving stage against the files and procs that survived trimming. Missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) -- all warnings, never errors. Set to `false` if your stages intentionally reference content outside the trimmed domain (e.g. cross-domain sources). `VW-17 external-reference` is always emitted regardless of this flag.
 
 ### My feature injects steps into stages created by another feature. How do I avoid VE-05 when that feature is not loaded?
 
-Add `"skip_if_no_stage": true` to each flow_action that targets the feature-created stage. When the stage is absent from the compiled sequence, Chopper emits `VI-05` (info, exit 0) and skips the action silently. When the stage is present, the action runs normally. This is the canonical pattern for cross-cutting features in modular domains. See [JSON_AUTHORING_GUIDE.md §7 "Optional stage targets"](../technical_docs/JSON_AUTHORING_GUIDE.md) and [ARCHITECTURE.md §6.7](../technical_docs/ARCHITECTURE.md).
+Add `"skip_if_no_stage": true` to each flow_action that targets the feature-created stage. When the stage is absent from the compiled sequence, Chopper emits `VI-05` (info, exit 0) and skips the action silently. When the stage is present, the action runs normally. This is the canonical pattern for cross-cutting features in modular domains. See [JSON_AUTHORING_GUIDE.md Sec.7 "Optional stage targets"](../technical_docs/JSON_AUTHORING_GUIDE.md) and [ARCHITECTURE.md Sec.6.7](../technical_docs/ARCHITECTURE.md).
 
 ### What is `p4_commands.txt` in `.chopper/`?
 
@@ -288,7 +288,7 @@ The same `exclude_file_list` path set from `p4_commands.txt`, written as its own
 
 ### What does `chopper trim --p4` do?
 
-Opt-in, live-trim-only (4.4.0+): before rewriting a file, Chopper runs `p4 edit -t text+x` on it, so a later `p4 submit` doesn't fight Perforce's checkout-before-edit protocol (Perforce keeps synced files read-only until checked out; editing them out-of-band and running `p4 edit` afterward is an unsupported recovery path). Only runs on a genuine first trim; skipped with an on-screen notice (not an error) if `p4` isn't available or this is a re-trim. Never active under `--dry-run`. On failure the whole trim aborts and reverts everything already checked out — if the failure happens after checkout succeeded, the domain is also restored from backup immediately. Chopper never runs `p4 add`, `p4 delete`, or `p4 submit` — only `p4 edit` and, on rollback, `p4 revert`. See [ARCHITECTURE.md §5.5.18](../technical_docs/ARCHITECTURE.md).
+Opt-in, live-trim-only (4.4.0+): before rewriting a file, Chopper runs `p4 edit -t text+x` on it, so a later `p4 submit` doesn't fight Perforce's checkout-before-edit protocol (Perforce keeps synced files read-only until checked out; editing them out-of-band and running `p4 edit` afterward is an unsupported recovery path). Only runs on a genuine first trim; skipped with an on-screen notice (not an error) if `p4` isn't available or this is a re-trim. Never active under `--dry-run`. On failure the whole trim aborts and reverts everything already checked out -- if the failure happens after checkout succeeded, the domain is also restored from backup immediately. Chopper never runs `p4 add`, `p4 delete`, or `p4 submit` -- only `p4 edit` and, on rollback, `p4 revert`. See [ARCHITECTURE.md Sec.5.5.18](../technical_docs/ARCHITECTURE.md).
 
 ---
 
@@ -296,7 +296,7 @@ Opt-in, live-trim-only (4.4.0+): before rewriting a file, Chopper runs `p4 edit 
 
 | Resource | Purpose |
 |---|---|
-| [01_OVERVIEW.md](01_OVERVIEW.md) | The thesis — re-read when intent is unclear |
+| [01_OVERVIEW.md](01_OVERVIEW.md) | The thesis -- re-read when intent is unclear |
 | [02_CLI_GUIDE.md](02_CLI_GUIDE.md) | Day-to-day commands and deep examples |
 | [../technical_docs/ARCHITECTURE.md](../technical_docs/ARCHITECTURE.md) | Authoritative specification |
 | [../technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md) | Every diagnostic code |

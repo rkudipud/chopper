@@ -1,7 +1,7 @@
 {
   "$schema": "base-v1",
   "domain": "mini_domain",
-  "description": "Minimal valid domain for testing — F1 + F2 combined",
+  "description": "Minimal valid domain for testing -- F1 + F2 combined",
   "files": {
     "include": [
       "vars.tcl",
