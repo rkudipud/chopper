@@ -42,3 +42,5 @@ This project is indexed by GitNexus as **chopper** (5647 symbols, 11345 relation
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+For **Chopper product semantics** and **user-domain analysis** (discovery, JSON splits, validate/dry-run, `.chopper/` audit), read **[AGENTS.md](AGENTS.md)** — *Chopper — Agent Operating Guide*.
