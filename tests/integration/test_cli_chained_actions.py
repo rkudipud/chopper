@@ -149,6 +149,34 @@ def test_add_step_after_unique_anchor_inserts_in_place(tmp_path: Path) -> None:
     assert main.steps == ("source src/core.tcl", "setup", "run", begin, "verify", end)
 
 
+def test_dry_run_validates_generated_tcl_brace_balance(tmp_path: Path) -> None:
+    domain = tmp_path / "dry_run_generated_brace_balance"
+    domain.mkdir()
+    base = _base_with_main_only(domain)
+    feat = domain / "jsons" / "features" / "invalid.feature.json"
+    _write_json(
+        feat,
+        {
+            "$schema": "feature-v1",
+            "name": "invalid",
+            "flow_actions": [
+                {
+                    "action": "add_step_after",
+                    "stage": "main",
+                    "reference": "run",
+                    "items": ["if {condition} {"],
+                }
+            ],
+        },
+    )
+
+    sink, result = _run_pipeline(domain, base=base, features=(feat,), command="trim")
+
+    assert result.exit_code == 1
+    assert "VE-16" in [diagnostic.code for diagnostic in sink.snapshot()]
+    assert not (domain / "main.tcl").exists()
+
+
 # ===========================================================================
 # Scenario A2 -- ``add_step_before`` against a unique anchor.
 # ===========================================================================

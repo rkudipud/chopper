@@ -787,7 +787,7 @@ Every `PROC_TRIM` file (F2) and every generated `<stage>.tcl` file (F3) carries 
 |---|---|---|
 | `<action>` | `kept` \| `removed` \| `added` \| `replaced` | What happened to this unit |
 | `<kind>` | `proc` \| `step` \| `stage` | F2 emits `proc`; F3 emits `step` or `stage` |
-| `<name>` | proc name / step text / stage name | Quoted verbatim identifier of the unit |
+| `<name>` | proc name / step text / stage name | Quoted identifier of the unit; `\r` and `\n` are escaped so each marker remains one physical comment line |
 | `<source>` | `base` \| `feature:<name>` \| `default` | Winning JSON layer per R1 last-mention-wins; `default` is F2-only, for a proc removed by R2 default-exclude with no explicit `procedures.exclude` entry ever naming it |
 
 Both marker lines are inert to every downstream check: P6 brace-balance validation, P5c indentation normalization, and the post-trim proc-set reconciliation check (VW-10) all treat them as ordinary comment lines.
@@ -1206,7 +1206,7 @@ Chopper always rebuilds from a clean backup rather than editing in place.
 
 ## 5. Pipeline, Compilation, and Workflow
 
-Chopper executes an **eight-phase pipeline**. Every invocation -- live trim or dry-run -- follows the same decision sequence. The difference is operational: live trim rewrites the domain in P5 and emits the audit bundle in P7, while `--dry-run` suppresses domain mutations, runs only manifest-derivable post-validation checks in P6, and still emits report artifacts in `.chopper/`.
+Chopper executes an **eight-phase pipeline**. Every invocation -- live trim or dry-run -- follows the same decision sequence. The difference is operational: live trim rewrites the domain in P5 and emits the audit bundle in P7, while `--dry-run` suppresses domain mutations, validates generated Tcl artifacts in memory plus manifest-derivable P6 checks, and still emits report artifacts in `.chopper/`.
 
 ### 5.1 Input Modes
 
@@ -1452,6 +1452,7 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 
 - Phase 2 validation runs against the rebuilt output (or, under `--dry-run`, against the synthetic trim plan):
   - under a live trim: brace balance across every `.tcl` file rewritten or indentation-normalized during P5,
+  - under `--dry-run`: brace balance across every in-memory generated `.tcl` artifact,
   - dangling proc references (every call target in a surviving file must resolve to a surviving proc or an accepted external such as a vendor/Tcl built-in),
   - missing `source` / `iproc_source` targets (must resolve to a surviving file or an accepted external).
 - Emit `VE-*` / `VW-*`; `--strict` changes the final process exit code if any warning is present, but does **not** rewrite diagnostic severity.

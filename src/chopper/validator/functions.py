@@ -43,7 +43,7 @@ from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph, StageSpec
 from chopper.core.models_config import FeatureJson, FilesSection, LoadedConfig
-from chopper.core.models_trimmer import TrimReport
+from chopper.core.models_trimmer import GeneratedArtifact, TrimReport
 from chopper.parser.service import parse_file
 
 __all__ = ["validate_post", "validate_pre"]
@@ -334,6 +334,7 @@ def validate_post(
     graph: DependencyGraph,
     rewritten: Sequence[Path],
     *,
+    generated_artifacts: Sequence[GeneratedArtifact] = (),
     trim_report: TrimReport | None = None,
     tool_command_pool: frozenset[str] = frozenset(),
     cross_validate: bool = True,
@@ -345,12 +346,13 @@ def validate_post(
     P2). When ``trim_report`` is provided on the live path, P6 also
     checks that every non-removed P5 output still exists under the
     rebuilt domain and matches the trimmer's recorded ``bytes_out``.
-    In dry-run, ``rewritten`` is empty and filesystem-dependent checks
-    (``VE-16``, ``VW-10``) are skipped; manifest-derivable checks still
-    run.
+    In dry-run, ``rewritten`` is empty. P6 brace-checks generated Tcl
+    from ``generated_artifacts`` in memory; other filesystem-dependent
+    checks (``VW-10``) are skipped.
     """
 
     _check_brace_balance(ctx, rewritten)
+    _check_generated_brace_balance(ctx, generated_artifacts)
     _check_manifest_vs_trim(ctx, manifest, trim_report)
     _check_trim_outputs(ctx, trim_report)
     _check_trimmed_proc_sets(ctx, trim_report)
@@ -640,6 +642,22 @@ def _check_brace_balance(ctx: ChopperContext, rewritten: Sequence[Path]) -> None
                     path=path,
                 )
             )
+
+
+def _check_generated_brace_balance(ctx: ChopperContext, artifacts: Sequence[GeneratedArtifact]) -> None:
+    """Emit ``VE-16`` for an unbalanced generated Tcl artifact."""
+
+    for artifact in artifacts:
+        if artifact.kind != "tcl" or _brace_delta(artifact.content) == 0:
+            continue
+        ctx.diag.emit(
+            Diagnostic.build(
+                "VE-16",
+                phase=Phase.P6_POSTVALIDATE,
+                message=f"Post-trim brace imbalance in {artifact.path.as_posix()!s}",
+                path=artifact.path,
+            )
+        )
 
 
 def _brace_delta(text: str) -> int:

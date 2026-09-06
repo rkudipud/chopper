@@ -1,7 +1,13 @@
 # Chopper Buildout Memory
 
 ## Current Focus
-- 2026-06-06: CTH direct-launch validation, live trim validation, packaging validation, and repo cleanup completed; prepare final push if requested.
+- 2026-09-06: GitHub issue #29 fixed and validated; no open implementation work.
+
+## Issue #29
+- Escaped carriage returns and line feeds in provenance marker names and sources so every F2/F3 marker remains one physical Tcl comment line.
+- Dry-run P6 now generates F3 artifacts in memory and checks generated Tcl brace balance before returning success.
+- Added regression tests for multiline marker metadata and malformed generated Tcl during dry-run; affected modules passed (61 tests) and `make check` passed (1623 unit tests).
+- GitNexus index is one commit stale. Neither `gitnexus` CLI nor `.gitnexus/run.cjs` is available in this checkout, so graph impact/diff results were lower-bound only; local usage searches confirmed direct callers.
 
 ## Last Completed Work
 - Patched `scripts/dist/chopper.cth.csh` so CTH installs derive `${workarea}/.venv_cth.ai/bin/python3` from the ward layout before falling back to generic Python.

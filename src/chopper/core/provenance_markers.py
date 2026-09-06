@@ -19,5 +19,7 @@ Kind = Literal["proc", "step", "stage"]
 def marker_pair(*, action: Action, kind: Kind, name: str, source: str) -> tuple[str, str]:
     """Return the ``(begin, end)`` marker line pair for one wrapped unit."""
 
+    name = name.replace("\r", r"\r").replace("\n", r"\n")
+    source = source.replace("\r", r"\r").replace("\n", r"\n")
     body = f'{action} {kind} "{name}" source={source}'
     return f"## CHOPPER: BEGIN {body}", f"## CHOPPER: END {body}"

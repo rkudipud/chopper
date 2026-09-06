@@ -167,22 +167,20 @@ class ChopperRunner:
                     exit_code = 1
                     return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
             else:
-                # Dry-run P6: manifest-derivable checks only.
+                # Dry-run P5b/P6: no domain writes. Validate generated
+                # Tcl from the in-memory artifacts alongside the
+                # manifest-derived checks.
                 #
-                # `chopper loc` runs through this branch (dry_run=True) but
-                # additionally invokes `GeneratorService` in no-write mode
-                # so the LOC reporter can count generated stage `.tcl`
-                # content. The generator already respects `dry_run` and
-                # performs no filesystem writes (see
-                # ARCHITECTURE.md Sec.5.7).
-                if command == "loc":
-                    artifacts = GeneratorService().run(ctx, manifest)
+                # The generator respects ``dry_run`` and performs no
+                # filesystem writes.
+                artifacts = GeneratorService().run(ctx, manifest)
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
                 validate_post(
                     ctx,
                     manifest,
                     graph,
                     rewritten=(),
+                    generated_artifacts=artifacts,
                     trim_report=None,
                     tool_command_pool=loaded.tool_command_pool,
                     cross_validate=loaded.base.options.cross_validate,

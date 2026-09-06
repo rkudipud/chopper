@@ -62,6 +62,16 @@ def test_base_only_returns_stages_unchanged() -> None:
     assert sink.codes() == []
 
 
+def test_marker_pair_escapes_multiline_step_metadata() -> None:
+    name = "if {condition} {\n  do_work\n}"
+    begin, end = marker_pair(action="added", kind="step", name=name, source="feature:verify")
+
+    assert begin == '## CHOPPER: BEGIN added step "if {condition} {\\n  do_work\\n}" source=feature:verify'
+    assert end == '## CHOPPER: END added step "if {condition} {\\n  do_work\\n}" source=feature:verify'
+    assert "\n" not in begin
+    assert "\n" not in end
+
+
 def test_add_step_before_and_after() -> None:
     ctx, _ = make_ctx()
     base = (_sd("setup", "a", "b", "c"),)
