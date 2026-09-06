@@ -3,6 +3,10 @@
     {
       "path": ".",
       "name": "chopper"
+    },
+    {
+      "path": "/nfs/site/disks/ddi_r2g_13/rkudipud/global_dev/2026.09/final",
+      "name": "final"
     }
   ],
   "settings": {
