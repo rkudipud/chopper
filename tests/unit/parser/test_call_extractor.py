@@ -406,6 +406,46 @@ class TestDirectBodyExtractor:
         assert refs == ("common/helpers.tcl",)
         assert calls == ()
 
+    def test_invalid_identifier_first_word_not_a_call(self) -> None:
+        # First word passes the $/[ check but fails BARE_NAME_RE (leading
+        # digit) -- must be rejected as a call candidate.
+        calls, refs = _body_refs("1bad_name arg")
+        assert calls == ()
+        assert refs == ()
+
+    def test_body_source_none_uses_outer_token_window(self) -> None:
+        # Omitting body_source drives the non-re-tokenized fallback window
+        # (walk_start/walk_end derived from body_lbrace_idx/body_rbrace_idx).
+        src = "proc foo {} {\n    helper_proc arg1\n}\n"
+        tokens = tokenize(src).tokens
+        from chopper.parser.tokenizer import TokenKind
+
+        lbraces = [i for i, t in enumerate(tokens) if t.kind is TokenKind.LBRACE]
+        rbraces = [i for i, t in enumerate(tokens) if t.kind is TokenKind.RBRACE]
+        calls, refs = extract_body_refs(tokens, lbraces[1], rbraces[-1])
+        assert calls == ("helper_proc",)
+        assert refs == ()
+
+    def test_body_source_with_tokenize_errors_returns_empty(self) -> None:
+        # A malformed body_source (unclosed brace) surfaces on
+        # TokenizerResult.errors, forcing an early empty-result bail-out.
+        calls, refs = extract_body_refs((), 0, 0, body_source="{unclosed")
+        assert calls == ()
+        assert refs == ()
+
+    def test_body_source_none_empty_body_window(self) -> None:
+        # Adjacent lbrace/rbrace indices (empty body) in the no-body_source
+        # fallback must short-circuit before the walk_tokens = tokens branch.
+        src = "proc foo {} {}\n"
+        tokens = tokenize(src).tokens
+        from chopper.parser.tokenizer import TokenKind
+
+        lbraces = [i for i, t in enumerate(tokens) if t.kind is TokenKind.LBRACE]
+        rbraces = [i for i, t in enumerate(tokens) if t.kind is TokenKind.RBRACE]
+        calls, refs = extract_body_refs(tokens, lbraces[1], rbraces[-1])
+        assert calls == ()
+        assert refs == ()
+
 
 # ---------------------------------------------------------------------------
 # Constant sanity

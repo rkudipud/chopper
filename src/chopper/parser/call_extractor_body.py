@@ -84,9 +84,7 @@ def extract_body_refs(
         if token.kind is TokenKind.WORD and token.at_command_position:
             first_word = token.value
             if first_word in SOURCE_KEYWORDS:
-                path, consumed_indices = extract_source_path_with_indices(
-                    walk_tokens, i, walk_end, first_word
-                )
+                path, consumed_indices = extract_source_path_with_indices(walk_tokens, i, walk_end, first_word)
                 if path is not None:
                     source_refs.append(path)
                 consumed.update(consumed_indices)

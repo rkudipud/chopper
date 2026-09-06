@@ -28,6 +28,7 @@ from chopper.core.models_config import (
     ReplaceStepAction,
     StageDefinition,
 )
+from chopper.core.provenance_markers import marker_pair
 
 from ._helpers import make_ctx, make_feature
 
@@ -70,7 +71,20 @@ def test_add_step_before_and_after() -> None:
         AddStepAction(action="add_step_after", stage="setup", reference="c", items=("post",)),
     )
     out = resolve_stages(ctx, base, (feat,))
-    assert out[0].steps == ("a", "pre1", "pre2", "b", "c", "post")
+    pre_begin, pre_end = marker_pair(action="added", kind="step", name="pre1, pre2", source="feature:feat")
+    post_begin, post_end = marker_pair(action="added", kind="step", name="post", source="feature:feat")
+    assert out[0].steps == (
+        "a",
+        pre_begin,
+        "pre1",
+        "pre2",
+        pre_end,
+        "b",
+        "c",
+        post_begin,
+        "post",
+        post_end,
+    )
 
 
 def test_remove_step() -> None:
@@ -78,7 +92,8 @@ def test_remove_step() -> None:
     base = (_sd("setup", "a", "b", "c"),)
     feat = _make_feature("feat", RemoveStepAction(action="remove_step", stage="setup", reference="b"))
     out = resolve_stages(ctx, base, (feat,))
-    assert out[0].steps == ("a", "c")
+    begin, end = marker_pair(action="removed", kind="step", name="b", source="feature:feat")
+    assert out[0].steps == ("a", begin, end, "c")
 
 
 def test_replace_step() -> None:
@@ -89,7 +104,35 @@ def test_replace_step() -> None:
         ReplaceStepAction(action="replace_step", stage="setup", reference="b", replacement="B!"),
     )
     out = resolve_stages(ctx, base, (feat,))
-    assert out[0].steps == ("a", "B!", "c")
+    begin, end = marker_pair(action="replaced", kind="step", name="B!", source="feature:feat")
+    assert out[0].steps == ("a", begin, "B!", end, "c")
+
+
+def test_remove_step_targeting_previously_added_single_item_removes_whole_block() -> None:
+    """When remove_step's reference is the sole content line of an earlier
+    feature's added-step marker block, the whole block (BEGIN + content +
+    END) must be replaced -- otherwise the earlier BEGIN/END would keep
+    naming content this action just superseded."""
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "a"),)
+    f1 = _make_feature("f1", AddStepAction(action="add_step_after", stage="setup", reference="a", items=("mid",)))
+    f2 = _make_feature("f2", RemoveStepAction(action="remove_step", stage="setup", reference="mid"))
+    out = resolve_stages(ctx, base, (f1, f2))
+    begin, end = marker_pair(action="removed", kind="step", name="mid", source="feature:f2")
+    assert out[0].steps == ("a", begin, end)
+
+
+def test_replace_step_targeting_previously_added_single_item_replaces_whole_block() -> None:
+    """Same solitary-block collapse as remove_step, exercised via replace_step."""
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "a"),)
+    f1 = _make_feature("f1", AddStepAction(action="add_step_after", stage="setup", reference="a", items=("mid",)))
+    f2 = _make_feature(
+        "f2", ReplaceStepAction(action="replace_step", stage="setup", reference="mid", replacement="MID!")
+    )
+    out = resolve_stages(ctx, base, (f1, f2))
+    begin, end = marker_pair(action="replaced", kind="step", name="MID!", source="feature:f2")
+    assert out[0].steps == ("a", begin, "MID!", end)
 
 
 def test_add_stage_before_and_after() -> None:
@@ -145,7 +188,23 @@ def test_features_applied_in_selection_order() -> None:
         "f2", AddStepAction(action="add_step_after", stage="setup", reference="from_f1", items=("from_f2",))
     )
     out = resolve_stages(ctx, base, (f1, f2))
-    assert out[0].steps == ("a", "from_f1", "from_f2")
+    f1_begin, f1_end = marker_pair(action="added", kind="step", name="from_f1", source="feature:f1")
+    f2_begin, f2_end = marker_pair(action="added", kind="step", name="from_f2", source="feature:f2")
+    assert out[0].steps == ("a", f1_begin, "from_f1", f1_end, f2_begin, "from_f2", f2_end)
+
+
+def test_add_step_before_targeting_previously_added_single_item_inserts_before_whole_block() -> None:
+    """When ``add_step_before``'s reference is itself the sole content line
+    of an earlier feature's added-step marker block, insertion must land
+    before that whole block, not between its BEGIN marker and content."""
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "a"),)
+    f1 = _make_feature("f1", AddStepAction(action="add_step_after", stage="setup", reference="a", items=("mid",)))
+    f2 = _make_feature("f2", AddStepAction(action="add_step_before", stage="setup", reference="mid", items=("pre",)))
+    out = resolve_stages(ctx, base, (f1, f2))
+    f1_begin, f1_end = marker_pair(action="added", kind="step", name="mid", source="feature:f1")
+    f2_begin, f2_end = marker_pair(action="added", kind="step", name="pre", source="feature:f2")
+    assert out[0].steps == ("a", f2_begin, "pre", f2_end, f1_begin, "mid", f1_end)
 
 
 def test_actions_within_feature_applied_top_to_bottom() -> None:
@@ -157,7 +216,9 @@ def test_actions_within_feature_applied_top_to_bottom() -> None:
         AddStepAction(action="add_step_after", stage="setup", reference="b", items=("c",)),
     )
     out = resolve_stages(ctx, base, (feat,))
-    assert out[0].steps == ("a", "b", "c")
+    b_begin, b_end = marker_pair(action="added", kind="step", name="b", source="feature:feat")
+    c_begin, c_end = marker_pair(action="added", kind="step", name="c", source="feature:feat")
+    assert out[0].steps == ("a", b_begin, "b", b_end, c_begin, "c", c_end)
 
 
 def test_add_step_after_preserves_project_order_for_shared_anchor() -> None:
@@ -182,7 +243,22 @@ def test_add_step_after_preserves_project_order_for_shared_anchor() -> None:
     )
     f3 = _make_feature("f3", AddStepAction(action="add_step_after", stage="setup", reference="anchor", items=("c1",)))
     out = resolve_stages(ctx, base, (f1, f2, f3))
-    assert out[0].steps == ("anchor", "a1", "b1", "b2", "c1")
+    a1_begin, a1_end = marker_pair(action="added", kind="step", name="a1", source="feature:f1")
+    b_begin, b_end = marker_pair(action="added", kind="step", name="b1, b2", source="feature:f2")
+    c1_begin, c1_end = marker_pair(action="added", kind="step", name="c1", source="feature:f3")
+    assert out[0].steps == (
+        "anchor",
+        a1_begin,
+        "a1",
+        a1_end,
+        b_begin,
+        "b1",
+        "b2",
+        b_end,
+        c1_begin,
+        "c1",
+        c1_end,
+    )
 
 
 def test_add_stage_after_preserves_project_order_for_shared_anchor() -> None:
@@ -210,7 +286,8 @@ def test_at_one_equivalent_to_no_suffix() -> None:
     base = (_sd("setup", "a", "b"),)
     feat = _make_feature("feat", RemoveStepAction(action="remove_step", stage="setup", reference="a@1"))
     out = resolve_stages(ctx, base, (feat,))
-    assert out[0].steps == ("b",)
+    begin, end = marker_pair(action="removed", kind="step", name="a", source="feature:feat")
+    assert out[0].steps == (begin, end, "b")
 
 
 def test_at_n_selects_nth_occurrence() -> None:
@@ -221,7 +298,8 @@ def test_at_n_selects_nth_occurrence() -> None:
         ReplaceStepAction(action="replace_step", stage="setup", reference="dup@2", replacement="DUP!"),
     )
     out = resolve_stages(ctx, base, (feat,))
-    assert out[0].steps == ("a", "dup", "b", "DUP!", "c")
+    begin, end = marker_pair(action="replaced", kind="step", name="DUP!", source="feature:feat")
+    assert out[0].steps == ("a", "dup", "b", begin, "DUP!", end, "c")
 
 
 def test_at_zero_emits_ve19_and_skips() -> None:
@@ -378,7 +456,8 @@ def test_skip_if_no_stage_present_stage_runs_normally() -> None:
     )
     out = resolve_stages(ctx, base, (feat,))
     assert sink.codes() == []
-    assert out[0].steps == ("a", "a2", "b")
+    begin, end = marker_pair(action="added", kind="step", name="a2", source="feature:feat")
+    assert out[0].steps == ("a", begin, "a2", end, "b")
 
 
 @pytest.mark.parametrize(

@@ -469,6 +469,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.5.0 -- 2026-09-03
+
+- **New: Sec.3.11 provenance comment markers for F2 kept/removed procs and F3 added/replaced/removed steps and stages.** Every `PROC_TRIM` file now wraps every proc -- surviving or removed -- with a `## CHOPPER: BEGIN/END <action> proc "<name>" source=<layer>` comment pair naming the winning JSON layer (`base`, `feature:<name>`, or `default` for an R2 default-exclude removal). Every generated `<stage>.tcl` wraps the steps/stages a `flow_action` actually added, replaced, or removed the same way; untouched base content stays bare. Always-on, no opt-out option. `remove_stage` has no in-file marker (no file exists to hold one) and `standalone_stack: true` output stays verbatim per its pre-existing contract. See ARCHITECTURE.md Sec.3.11.
+
 ### 4.4.3 -- 2026-07-09
 
 - **Fixed: `--p4` checkout succeeded but the "P4 Files Opened for Edit" summary never printed for domains with companion-file sync.** Root cause: P5c (Tcl indentation, opt-in) and P5d (companion-file sync, e.g. `default_config.<sfx>.csv` / `default_milestone.<sfx>.tcl`) both rebuild `TrimReport` from scratch when they have byte-count updates to apply, and neither carried forward `TrimReport.p4_checkout` (or `.inputs_preserved`) onto the new object -- silently resetting it to `None` even though `p4 edit` had genuinely opened the files (confirmed via `p4 opened`). Any domain that triggers P5d (any `PROC_TRIM` `default_rules.<sfx>.tcl` with a synced companion CSV/milestone file, e.g. `fev_formality`) lost the checkout data before it reached the CLI layer, so the summary silently rendered nothing. Fixed both rebuild paths to preserve `p4_checkout` and `inputs_preserved`. See ARCHITECTURE.md Sec.5.5.18, FR-53.

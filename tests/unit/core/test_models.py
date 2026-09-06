@@ -17,6 +17,7 @@ from chopper.core.models_compiler import (
     Edge,
     FileProvenance,
     ProcDecision,
+    ProcRemoval,
     StageSpec,
 )
 from chopper.core.models_config import AddStepAction, LoadedConfig, ProcEntryRef, StageDefinition
@@ -163,6 +164,37 @@ class TestProcDecision:
 
 
 # ---------------------------------------------------------------------------
+# ProcRemoval
+# ---------------------------------------------------------------------------
+
+
+class TestProcRemoval:
+    def test_valid(self) -> None:
+        rem = ProcRemoval(
+            canonical_name="utils.tcl::dead",
+            source_file=Path("utils.tcl"),
+            removal_source="default:r2-default-exclude",
+        )
+        assert rem.canonical_name.endswith("dead")
+
+    def test_canonical_name_without_double_colon_rejected(self) -> None:
+        with pytest.raises(ValueError, match="canonical_name"):
+            ProcRemoval(
+                canonical_name="no-double-colon",
+                source_file=Path("utils.tcl"),
+                removal_source="base:procedures.exclude",
+            )
+
+    def test_removal_source_without_colon_rejected(self) -> None:
+        with pytest.raises(ValueError, match="removal_source"):
+            ProcRemoval(
+                canonical_name="utils.tcl::dead",
+                source_file=Path("utils.tcl"),
+                removal_source="no-colon",
+            )
+
+
+# ---------------------------------------------------------------------------
 # FileProvenance
 # ---------------------------------------------------------------------------
 
@@ -295,6 +327,44 @@ class TestCompiledManifest:
         pv = {Path("a.tcl"): _make_provenance(Path("a.tcl"), treatment=FileTreatment.REMOVE)}
         with pytest.raises(ValueError, match="provenance/decision mismatch"):
             CompiledManifest(file_decisions=fd, provenance=pv)
+
+    def test_proc_removals_unsorted_rejected(self) -> None:
+        fd = {Path("a.tcl"): FileTreatment.PROC_TRIM}
+        pv = {Path("a.tcl"): _make_provenance(Path("a.tcl"), treatment=FileTreatment.PROC_TRIM)}
+        pr = {
+            "a.tcl::z_last": ProcRemoval(
+                canonical_name="a.tcl::z_last",
+                source_file=Path("a.tcl"),
+                removal_source="default:r2-default-exclude",
+            ),
+            "a.tcl::a_first": ProcRemoval(
+                canonical_name="a.tcl::a_first",
+                source_file=Path("a.tcl"),
+                removal_source="default:r2-default-exclude",
+            ),
+        }
+        with pytest.raises(ValueError, match="proc_removals keys must be lex-sorted"):
+            CompiledManifest(file_decisions=fd, proc_removals=pr, provenance=pv)
+
+    def test_proc_decisions_and_proc_removals_overlap_rejected(self) -> None:
+        fd = {Path("a.tcl"): FileTreatment.PROC_TRIM}
+        pv = {Path("a.tcl"): _make_provenance(Path("a.tcl"), treatment=FileTreatment.PROC_TRIM)}
+        pd = {
+            "a.tcl::foo": ProcDecision(
+                canonical_name="a.tcl::foo",
+                source_file=Path("a.tcl"),
+                selection_source="base:procedures.include",
+            ),
+        }
+        pr = {
+            "a.tcl::foo": ProcRemoval(
+                canonical_name="a.tcl::foo",
+                source_file=Path("a.tcl"),
+                removal_source="default:r2-default-exclude",
+            ),
+        }
+        with pytest.raises(ValueError, match="proc_decisions and proc_removals must not overlap"):
+            CompiledManifest(file_decisions=fd, proc_decisions=pd, proc_removals=pr, provenance=pv)
 
 
 # ---------------------------------------------------------------------------

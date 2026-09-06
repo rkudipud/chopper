@@ -65,22 +65,18 @@ import pytest
 import shutil
 from pathlib import Path
 
+
 @pytest.fixture
 def virgin_domain(tmp_path: Path) -> Path:
     """Create a minimal virgin domain with a few Tcl files and a base JSON."""
     domain = tmp_path / "test_domain"
     domain.mkdir()
     (domain / "main_procs.tcl").write_text(
-        'proc entry_proc {} {\n    helper_proc\n}\n'
-        'proc helper_proc {} {\n    return 1\n}\n'
+        "proc entry_proc {} {\n    helper_proc\n}\nproc helper_proc {} {\n    return 1\n}\n"
     )
     (domain / "jsons").mkdir()
     (domain / "jsons" / "base.json").write_text(
-        '{\n'
-        '  "$schema": "base-v1",\n'
-        '  "domain": "test_domain",\n'
-        '  "files": {"include": ["main_procs.tcl"]}\n'
-        '}\n'
+        '{\n  "$schema": "base-v1",\n  "domain": "test_domain",\n  "files": {"include": ["main_procs.tcl"]}\n}\n'
     )
     return domain
 ```
@@ -102,6 +98,7 @@ def trimmed_domain(virgin_domain: Path, chopper_runner) -> Path:
 # In tests/conftest.py:
 import pytest
 from tests.fixtures.gen_large_domain import generate_large_domain
+
 
 @pytest.fixture(scope="session")
 def large_domain_60_files(tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -134,17 +131,13 @@ class RunResult:
 
     def assert_success(self) -> "RunResult":
         assert self.exit_code == 0, (
-            f"Chopper exited with code {self.exit_code}\n"
-            f"STDOUT:\n{self.stdout}\n"
-            f"STDERR:\n{self.stderr}"
+            f"Chopper exited with code {self.exit_code}\nSTDOUT:\n{self.stdout}\nSTDERR:\n{self.stderr}"
         )
         return self
 
     def assert_exit_code(self, expected: int) -> "RunResult":
         assert self.exit_code == expected, (
-            f"Expected exit code {expected}, got {self.exit_code}\n"
-            f"STDOUT:\n{self.stdout}\n"
-            f"STDERR:\n{self.stderr}"
+            f"Expected exit code {expected}, got {self.exit_code}\nSTDOUT:\n{self.stdout}\nSTDERR:\n{self.stderr}"
         )
         return self
 
@@ -193,10 +186,10 @@ from chopper.core.models_common import DomainState
 def assert_domain_state(domain_path: Path, expected: DomainState) -> None:
     """Assert the domain is in the expected DomainState."""
     from chopper.trimmer.lifecycle import detect_domain_state  # lazy import
+
     actual = detect_domain_state(domain_path)
     assert actual == expected, (
-        f"Expected domain state {expected.value!r}, got {actual.value!r} "
-        f"for domain {domain_path}"
+        f"Expected domain state {expected.value!r}, got {actual.value!r} for domain {domain_path}"
     )
 ```
 
@@ -276,6 +269,7 @@ The `.hypothesis/examples/` database is listed in `.gitignore`. Commit specific 
 from hypothesis import given, strategies as st
 from chopper.parser.tcl_parser import parse_file  # type: ignore
 
+
 @given(st.builds(...))  # strategy: random proc definitions in valid Tcl
 def test_parser_span_consistency(proc_entries):
     """Span invariant: start_line <= body_start_line <= body_end_line <= end_line."""
@@ -284,12 +278,14 @@ def test_parser_span_consistency(proc_entries):
         assert entry.body_start_line <= entry.body_end_line
         assert entry.body_end_line <= entry.end_line
 
+
 @given(...)
 def test_parser_no_overlapping_spans(proc_entries):
     """No two ProcEntry spans in the same file overlap."""
     sorted_entries = sorted(proc_entries, key=lambda e: e.start_line)
     for i in range(len(sorted_entries) - 1):
         assert sorted_entries[i].end_line < sorted_entries[i + 1].start_line
+
 
 @given(...)
 def test_parser_canonical_name_uniqueness(proc_entries):
@@ -308,6 +304,7 @@ def test_compiler_determinism(base_json, feature_jsons, domain):
     manifest2 = compile(base_json, feature_jsons, domain)
     assert manifest1.files == manifest2.files
     assert manifest1.procs == manifest2.procs
+
 
 @given(...)
 def test_compiler_include_wins(base_json_with_explicit_includes, feature_json_with_excludes, domain):

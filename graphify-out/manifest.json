@@ -1,0 +1,2066 @@
+{
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\scripts\\scan.py": {
+    "mtime": 1787940533.7617693,
+    "seen": 1787942224.6495821,
+    "ast_hash": "7c9af509afc5ca8a518d02714a927eff",
+    "semantic_hash": "7c9af509afc5ca8a518d02714a927eff"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\gh-api-push\\gh_api_push.py": {
+    "mtime": 1783197123.0923336,
+    "seen": 1787942224.6495895,
+    "ast_hash": "680ebae9112c81a4ef58adf451015132",
+    "semantic_hash": "680ebae9112c81a4ef58adf451015132"
+  },
+  "C:\\personal\\projects\\chopper\\.vscode\\extensions.json": {
+    "mtime": 1783197123.1000445,
+    "seen": 1787942224.6495924,
+    "ast_hash": "0287418f6463487aa81478e12238a78d",
+    "semantic_hash": "0287418f6463487aa81478e12238a78d"
+  },
+  "C:\\personal\\projects\\chopper\\.vscode\\run-confluence-mcp.py": {
+    "mtime": 1783197504.5065038,
+    "seen": 1787942224.6495936,
+    "ast_hash": "cedd55ac0280f71acca490a47adcfe30",
+    "semantic_hash": "cedd55ac0280f71acca490a47adcfe30"
+  },
+  "C:\\personal\\projects\\chopper\\.vscode\\settings.json": {
+    "mtime": 1787940533.7712715,
+    "seen": 1787942224.6495943,
+    "ast_hash": "b18cbc4e2d7f8a0bbe40dc2081eca4ce",
+    "semantic_hash": "b18cbc4e2d7f8a0bbe40dc2081eca4ce"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\01_base_files_only\\jsons\\base.json": {
+    "mtime": 1783197123.121099,
+    "seen": 1787942224.6495955,
+    "ast_hash": "298b75ffd9a829cabae2aeb79b9bfa8e",
+    "semantic_hash": "298b75ffd9a829cabae2aeb79b9bfa8e"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\02_base_procs_only\\jsons\\base.json": {
+    "mtime": 1783197123.1230972,
+    "seen": 1787942224.649597,
+    "ast_hash": "2dccb37e61c0c084bcbe1423ca332211",
+    "semantic_hash": "2dccb37e61c0c084bcbe1423ca332211"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\03_base_stages_only\\jsons\\base.json": {
+    "mtime": 1783197123.1250975,
+    "seen": 1787942224.649598,
+    "ast_hash": "c796204fd52cadfc270d664ca96f5748",
+    "semantic_hash": "c796204fd52cadfc270d664ca96f5748"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\04_base_files_and_procs\\jsons\\base.json": {
+    "mtime": 1783197123.128098,
+    "seen": 1787942224.649599,
+    "ast_hash": "fbfde08ad5d64158eba4a3eeaecccfb0",
+    "semantic_hash": "fbfde08ad5d64158eba4a3eeaecccfb0"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\05_base_files_and_stages\\jsons\\base.json": {
+    "mtime": 1787940533.7940876,
+    "seen": 1787942224.6495996,
+    "ast_hash": "96af10eced59e961f6b0d480210e21a2",
+    "semantic_hash": "96af10eced59e961f6b0d480210e21a2"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\06_base_procs_and_stages\\jsons\\base.json": {
+    "mtime": 1783197123.132728,
+    "seen": 1787942224.6496005,
+    "ast_hash": "97098a3b2af14fdf54226d293683cc68",
+    "semantic_hash": "97098a3b2af14fdf54226d293683cc68"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\07_base_full\\jsons\\base.json": {
+    "mtime": 1787940533.7960875,
+    "seen": 1787942224.6496017,
+    "ast_hash": "ddad5e8e7fe6b8cc98ae5dc142aa7a53",
+    "semantic_hash": "ddad5e8e7fe6b8cc98ae5dc142aa7a53"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\08_base_plus_one_feature\\jsons\\base.json": {
+    "mtime": 1783197123.136724,
+    "seen": 1787942224.6496027,
+    "ast_hash": "7bdac5fa033dbe6a15c44de844ab759d",
+    "semantic_hash": "7bdac5fa033dbe6a15c44de844ab759d"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\08_base_plus_one_feature\\jsons\\features\\dft.feature.json": {
+    "mtime": 1783197123.1387255,
+    "seen": 1787942224.6496034,
+    "ast_hash": "1f32626f5d21aca65bd70919f73965d8",
+    "semantic_hash": "1f32626f5d21aca65bd70919f73965d8"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\08_base_plus_one_feature\\project.json": {
+    "mtime": 1783197123.140231,
+    "seen": 1787942224.649604,
+    "ast_hash": "fa17a5ef5ae37b2fcb7f74ca6dcf0ebb",
+    "semantic_hash": "fa17a5ef5ae37b2fcb7f74ca6dcf0ebb"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\09_base_plus_multiple_features\\jsons\\base.json": {
+    "mtime": 1783197123.1412406,
+    "seen": 1787942224.6496048,
+    "ast_hash": "569c19648ddf3d2615690eb3eac25c75",
+    "semantic_hash": "569c19648ddf3d2615690eb3eac25c75"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\09_base_plus_multiple_features\\jsons\\features\\dft.feature.json": {
+    "mtime": 1783197123.1432498,
+    "seen": 1787942224.6496058,
+    "ast_hash": "d48aa05f1efd5ce995688edf61598e03",
+    "semantic_hash": "d48aa05f1efd5ce995688edf61598e03"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\09_base_plus_multiple_features\\jsons\\features\\power.feature.json": {
+    "mtime": 1783197123.1444325,
+    "seen": 1787942224.6496065,
+    "ast_hash": "4c9d528f98d6690e2f369bc0df0eab56",
+    "semantic_hash": "4c9d528f98d6690e2f369bc0df0eab56"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\09_base_plus_multiple_features\\project.json": {
+    "mtime": 1787940533.797086,
+    "seen": 1787942224.6496074,
+    "ast_hash": "d58dae60005f38f266c9ad2f9f4b7271",
+    "semantic_hash": "d58dae60005f38f266c9ad2f9f4b7271"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\10_chained_features_depends_on\\jsons\\base.json": {
+    "mtime": 1783197123.148431,
+    "seen": 1787942224.6496081,
+    "ast_hash": "0894e3c06a490bc4eb32f155dcc46db6",
+    "semantic_hash": "0894e3c06a490bc4eb32f155dcc46db6"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\10_chained_features_depends_on\\jsons\\features\\dft_support.feature.json": {
+    "mtime": 1787940533.7988782,
+    "seen": 1787942224.6496093,
+    "ast_hash": "54fc5713408c71784d36a1901043ed76",
+    "semantic_hash": "54fc5713408c71784d36a1901043ed76"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\10_chained_features_depends_on\\jsons\\features\\pipeline_signoff.feature.json": {
+    "mtime": 1787940533.8009293,
+    "seen": 1787942224.64961,
+    "ast_hash": "4d64a75313c3fc220e9339ced5d260c7",
+    "semantic_hash": "4d64a75313c3fc220e9339ced5d260c7"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\10_chained_features_depends_on\\jsons\\features\\power_analysis.feature.json": {
+    "mtime": 1783197123.1539557,
+    "seen": 1787942224.6496115,
+    "ast_hash": "c8497ec251f9484e1e6e506282849467",
+    "semantic_hash": "c8497ec251f9484e1e6e506282849467"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\10_chained_features_depends_on\\project.json": {
+    "mtime": 1787940533.8034518,
+    "seen": 1787942224.6496122,
+    "ast_hash": "bb8d0970adec731428e08f452be36446",
+    "semantic_hash": "bb8d0970adec731428e08f452be36446"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\11_project_base_only\\jsons\\base.json": {
+    "mtime": 1787940533.8074524,
+    "seen": 1787942224.6496134,
+    "ast_hash": "85d52a31b586385dee289e0ec536c3e2",
+    "semantic_hash": "85d52a31b586385dee289e0ec536c3e2"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\11_project_base_only\\project.json": {
+    "mtime": 1783197123.1594682,
+    "seen": 1787942224.6496139,
+    "ast_hash": "62fb79b1f9e7a0df60d0615190ee59f2",
+    "semantic_hash": "62fb79b1f9e7a0df60d0615190ee59f2"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\12_base_with_aggregate_stack\\jsons\\base.json": {
+    "mtime": 1783197123.1634881,
+    "seen": 1787942224.6496148,
+    "ast_hash": "966475d650c0824f1ab640acf1c3ca90",
+    "semantic_hash": "966475d650c0824f1ab640acf1c3ca90"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\13_base_with_standalone_stack\\jsons\\base.json": {
+    "mtime": 1783197123.1674893,
+    "seen": 1787942224.6496155,
+    "ast_hash": "e3f09685ebc175e6141f54504969f498",
+    "semantic_hash": "e3f09685ebc175e6141f54504969f498"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\jsons\\base.json": {
+    "mtime": 1783197123.171003,
+    "seen": 1787942224.6496167,
+    "ast_hash": "4d2d3cdd73e1ebccd0150927b2fa7b54",
+    "semantic_hash": "4d2d3cdd73e1ebccd0150927b2fa7b54"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\jsons\\features\\coverage_reporting.feature.json": {
+    "mtime": 1783197123.1730103,
+    "seen": 1787942224.6496174,
+    "ast_hash": "5794b827c167a25d7ece8d39a4bf5333",
+    "semantic_hash": "5794b827c167a25d7ece8d39a4bf5333"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\jsons\\features\\dft.feature.json": {
+    "mtime": 1783197123.1750116,
+    "seen": 1787942224.6496181,
+    "ast_hash": "4f3a84b276f3168833c53397b3d6d9a1",
+    "semantic_hash": "4f3a84b276f3168833c53397b3d6d9a1"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\jsons\\features\\power.feature.json": {
+    "mtime": 1783197123.1760087,
+    "seen": 1787942224.649619,
+    "ast_hash": "5f8a1f1e3da8578a05368b76e144d190",
+    "semantic_hash": "5f8a1f1e3da8578a05368b76e144d190"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\project_dft_only.json": {
+    "mtime": 1783197123.1780121,
+    "seen": 1787942224.64962,
+    "ast_hash": "8ac462406b646aef1e8fe7fb40f9357a",
+    "semantic_hash": "8ac462406b646aef1e8fe7fb40f9357a"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\project_full.json": {
+    "mtime": 1787940533.8173926,
+    "seen": 1787942224.6496208,
+    "ast_hash": "1cc6288d56c385fe9755c4a09867a9e0",
+    "semantic_hash": "1cc6288d56c385fe9755c4a09867a9e0"
+  },
+  "C:\\personal\\projects\\chopper\\pyproject.toml": {
+    "mtime": 1787940533.8199277,
+    "seen": 1787942224.6496215,
+    "ast_hash": "2b94e9562d10db02b3cb6d30d2242197",
+    "semantic_hash": "2b94e9562d10db02b3cb6d30d2242197"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\base-v1.schema.json": {
+    "mtime": 1783197123.1880393,
+    "seen": 1787942224.6496222,
+    "ast_hash": "e75b1c78ef5c854846775acdfe8468e8",
+    "semantic_hash": "e75b1c78ef5c854846775acdfe8468e8"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\diagnostic-v1.schema.json": {
+    "mtime": 1783197123.1895497,
+    "seen": 1787942224.6496232,
+    "ast_hash": "12b898d9c4f8a602984c97fe9f569d85",
+    "semantic_hash": "12b898d9c4f8a602984c97fe9f569d85"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\feature-v1.schema.json": {
+    "mtime": 1783197123.191561,
+    "seen": 1787942224.6496239,
+    "ast_hash": "b0984bc69ec97be763d001ea8210d462",
+    "semantic_hash": "b0984bc69ec97be763d001ea8210d462"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\progress-event-v1.schema.json": {
+    "mtime": 1783197123.1948786,
+    "seen": 1787942224.6496246,
+    "ast_hash": "938ad4b6d3f2615af4bf9d287a28fc45",
+    "semantic_hash": "938ad4b6d3f2615af4bf9d287a28fc45"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\project-v1.schema.json": {
+    "mtime": 1783197123.1958764,
+    "seen": 1787942224.6496255,
+    "ast_hash": "b9b2e7f547d5257b78641b95254ccb1f",
+    "semantic_hash": "b9b2e7f547d5257b78641b95254ccb1f"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\run-result-v1.schema.json": {
+    "mtime": 1783197123.1978767,
+    "seen": 1787942224.6496263,
+    "ast_hash": "7301dcad932c72d27d42947b35f3b2fc",
+    "semantic_hash": "7301dcad932c72d27d42947b35f3b2fc"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\scripts\\check_diagnostic_registry.py": {
+    "mtime": 1783197123.200383,
+    "seen": 1787942224.6496272,
+    "ast_hash": "b45ecc1f9bd26441301b7ec7d48ad24c",
+    "semantic_hash": "b45ecc1f9bd26441301b7ec7d48ad24c"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\scripts\\check_service_signatures.py": {
+    "mtime": 1783197123.202394,
+    "seen": 1787942224.649628,
+    "ast_hash": "4ecad30eb118e5764a7c449294425ea6",
+    "semantic_hash": "4ecad30eb118e5764a7c449294425ea6"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\scripts\\file_bug_report.py": {
+    "mtime": 1783197123.2043939,
+    "seen": 1787942224.649629,
+    "ast_hash": "c3b3f4e2beb85a1e8906217c1bb1beb0",
+    "semantic_hash": "c3b3f4e2beb85a1e8906217c1bb1beb0"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\scripts\\package_bug_report.py": {
+    "mtime": 1783197123.206394,
+    "seen": 1787942224.6496303,
+    "ast_hash": "c70ad50f98aa6005abb0196a377f3bdf",
+    "semantic_hash": "c70ad50f98aa6005abb0196a377f3bdf"
+  },
+  "C:\\personal\\projects\\chopper\\schemas\\scripts\\validate_jsons.py": {
+    "mtime": 1783197123.209905,
+    "seen": 1787942224.649631,
+    "ast_hash": "83a9b3d131f3f4ff3ce2443d70e09e14",
+    "semantic_hash": "83a9b3d131f3f4ff3ce2443d70e09e14"
+  },
+  "C:\\personal\\projects\\chopper\\setup.ps1": {
+    "mtime": 1783197123.216922,
+    "seen": 1787942224.6496317,
+    "ast_hash": "13b6d3ca55c17767c8ab7daba9acfc1d",
+    "semantic_hash": "13b6d3ca55c17767c8ab7daba9acfc1d"
+  },
+  "C:\\personal\\projects\\chopper\\setup.sh": {
+    "mtime": 1783197123.219233,
+    "seen": 1787942224.6496325,
+    "ast_hash": "53f0dbb13bff10ff2c012c3c0b07ed5e",
+    "semantic_hash": "53f0dbb13bff10ff2c012c3c0b07ed5e"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\__init__.py": {
+    "mtime": 1783197123.221884,
+    "seen": 1787942224.6496332,
+    "ast_hash": "c242339e18ba076982875d9a3c111be6",
+    "semantic_hash": "c242339e18ba076982875d9a3c111be6"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\__main__.py": {
+    "mtime": 1783197123.2248852,
+    "seen": 1787942224.6496341,
+    "ast_hash": "a2053a46391919a444d7abe69c4419b2",
+    "semantic_hash": "a2053a46391919a444d7abe69c4419b2"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\adapters\\__init__.py": {
+    "mtime": 1783197123.2268848,
+    "seen": 1787942224.6496348,
+    "ast_hash": "41f03ba6f951b620924952fb2a3cd3e6",
+    "semantic_hash": "41f03ba6f951b620924952fb2a3cd3e6"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\adapters\\fs_local.py": {
+    "mtime": 1783639496.8682737,
+    "seen": 1787942224.6496356,
+    "ast_hash": "0cecb1abeb786f42fb9c18989d17017e",
+    "semantic_hash": "0cecb1abeb786f42fb9c18989d17017e"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\adapters\\fs_memory.py": {
+    "mtime": 1783197123.2319653,
+    "seen": 1787942224.649636,
+    "ast_hash": "fc9df44e31a36151623d55198989a045",
+    "semantic_hash": "fc9df44e31a36151623d55198989a045"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\adapters\\progress_rich.py": {
+    "mtime": 1783197123.2339654,
+    "seen": 1787942224.6496372,
+    "ast_hash": "9b6f67cc66fdd968c6df7d781254a84b",
+    "semantic_hash": "9b6f67cc66fdd968c6df7d781254a84b"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\adapters\\progress_silent.py": {
+    "mtime": 1783197123.2359657,
+    "seen": 1787942224.649638,
+    "ast_hash": "2f9013498084839ef8721becfedd7165",
+    "semantic_hash": "2f9013498084839ef8721becfedd7165"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\adapters\\sink_collecting.py": {
+    "mtime": 1783197123.2379653,
+    "seen": 1787942224.6496387,
+    "ast_hash": "e8fbdd2b396590f26202c6807abb2c78",
+    "semantic_hash": "e8fbdd2b396590f26202c6807abb2c78"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\__init__.py": {
+    "mtime": 1783197123.2404754,
+    "seen": 1787942224.6496394,
+    "ast_hash": "7ae5b5696caca9dd0efe7ca747012f39",
+    "semantic_hash": "7ae5b5696caca9dd0efe7ca747012f39"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\cloc_backend.py": {
+    "mtime": 1783197123.2424755,
+    "seen": 1787942224.64964,
+    "ast_hash": "62971e6cf727bffa5d96b22071c24c9f",
+    "semantic_hash": "62971e6cf727bffa5d96b22071c24c9f"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\hashing.py": {
+    "mtime": 1783197123.244475,
+    "seen": 1787942224.649641,
+    "ast_hash": "8867171f5b703e058fe08a8645ab98e7",
+    "semantic_hash": "8867171f5b703e058fe08a8645ab98e7"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\internal_error.py": {
+    "mtime": 1783197123.2464774,
+    "seen": 1787942224.649642,
+    "ast_hash": "ee63b2f25552984f8b7cf306ac9c524c",
+    "semantic_hash": "ee63b2f25552984f8b7cf306ac9c524c"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\service.py": {
+    "mtime": 1783636967.8322341,
+    "seen": 1787942224.6496427,
+    "ast_hash": "f7ce243d65f634008eac0118f0a0f60e",
+    "semantic_hash": "f7ce243d65f634008eac0118f0a0f60e"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\sloc.py": {
+    "mtime": 1783197123.2516098,
+    "seen": 1787942224.6496434,
+    "ast_hash": "bda7e13cd2711700972079a91bf95c5b",
+    "semantic_hash": "bda7e13cd2711700972079a91bf95c5b"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\vendor\\__init__.py": {
+    "mtime": 1783197123.2586184,
+    "seen": 1787942224.6496444,
+    "ast_hash": "279836a979bfb6741e97d9daa80195eb",
+    "semantic_hash": "279836a979bfb6741e97d9daa80195eb"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\writers.py": {
+    "mtime": 1783636967.8352044,
+    "seen": 1787942224.649645,
+    "ast_hash": "596d179726ba42de125cf5f43016d215",
+    "semantic_hash": "596d179726ba42de125cf5f43016d215"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\__init__.py": {
+    "mtime": 1783197123.271667,
+    "seen": 1787942224.6496458,
+    "ast_hash": "d5074d08c21a449990e143e4ce0517b6",
+    "semantic_hash": "d5074d08c21a449990e143e4ce0517b6"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\commands.py": {
+    "mtime": 1787940533.823939,
+    "seen": 1787942224.6496465,
+    "ast_hash": "da28efa93807e235e0c2260c31cc77bb",
+    "semantic_hash": "da28efa93807e235e0c2260c31cc77bb"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\domain_lookup.py": {
+    "mtime": 1783197123.2766647,
+    "seen": 1787942224.6496475,
+    "ast_hash": "4684d536a9b1b40cd805c69a85aaa926",
+    "semantic_hash": "4684d536a9b1b40cd805c69a85aaa926"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\feature_lookup.py": {
+    "mtime": 1783197123.2786646,
+    "seen": 1787942224.6496482,
+    "ast_hash": "c75e2d28916c6081b534f6c8d93f7df5",
+    "semantic_hash": "c75e2d28916c6081b534f6c8d93f7df5"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\loc_report.py": {
+    "mtime": 1783197123.2818782,
+    "seen": 1787942224.6496491,
+    "ast_hash": "e386047e79700a2269f1ad7e6e56e4cd",
+    "semantic_hash": "e386047e79700a2269f1ad7e6e56e4cd"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\main.py": {
+    "mtime": 1783636967.8421993,
+    "seen": 1787942224.6496499,
+    "ast_hash": "9b0c0533cfd442bcabaf9c104fa8438c",
+    "semantic_hash": "9b0c0533cfd442bcabaf9c104fa8438c"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\cli\\render.py": {
+    "mtime": 1787940533.826939,
+    "seen": 1787942224.6496506,
+    "ast_hash": "674f65fa61d352916629347fd1d119fc",
+    "semantic_hash": "674f65fa61d352916629347fd1d119fc"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\compiler\\__init__.py": {
+    "mtime": 1783197123.2898998,
+    "seen": 1787942224.6496518,
+    "ast_hash": "49d3f954893251c0450142b28a1a6ebb",
+    "semantic_hash": "49d3f954893251c0450142b28a1a6ebb"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\compiler\\flow_resolver.py": {
+    "mtime": 1783197123.2949212,
+    "seen": 1787942224.6496563,
+    "ast_hash": "a9ee35bd78b2c6e7f132babbfeffcec4",
+    "semantic_hash": "a9ee35bd78b2c6e7f132babbfeffcec4"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\compiler\\merge_service.py": {
+    "mtime": 1783197123.2979195,
+    "seen": 1787942224.6496575,
+    "ast_hash": "fc5e1478e9f40be7d7b75d2bc0b22910",
+    "semantic_hash": "fc5e1478e9f40be7d7b75d2bc0b22910"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\compiler\\stack_graph.py": {
+    "mtime": 1783197123.3016546,
+    "seen": 1787942224.6496587,
+    "ast_hash": "acf4a6f17bdadc1fc274e5bed8acfa88",
+    "semantic_hash": "acf4a6f17bdadc1fc274e5bed8acfa88"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\compiler\\trace_service.py": {
+    "mtime": 1783197123.304654,
+    "seen": 1787942224.6496594,
+    "ast_hash": "311c26e5f12f71b6f98e03ac2449b605",
+    "semantic_hash": "311c26e5f12f71b6f98e03ac2449b605"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\config\\__init__.py": {
+    "mtime": 1783197123.308653,
+    "seen": 1787942224.64966,
+    "ast_hash": "ec2a6e957bb9baf1851f7a969e04bd13",
+    "semantic_hash": "ec2a6e957bb9baf1851f7a969e04bd13"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\config\\loaders.py": {
+    "mtime": 1783197123.3111732,
+    "seen": 1787942224.6496608,
+    "ast_hash": "db2b094fcb182198a43b8a97cd63e7c8",
+    "semantic_hash": "db2b094fcb182198a43b8a97cd63e7c8"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\config\\schema.py": {
+    "mtime": 1783197123.314183,
+    "seen": 1787942224.6496618,
+    "ast_hash": "ad04f39d45a33be4eda2542a0aaa2f0e",
+    "semantic_hash": "ad04f39d45a33be4eda2542a0aaa2f0e"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\config\\service.py": {
+    "mtime": 1783197123.3171842,
+    "seen": 1787942224.6496627,
+    "ast_hash": "72b0edb9ff02abd38cb47836e384f0a6",
+    "semantic_hash": "72b0edb9ff02abd38cb47836e384f0a6"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\__init__.py": {
+    "mtime": 1783197123.3197014,
+    "seen": 1787942224.6496634,
+    "ast_hash": "0995c5dcc1b2cbbbf4257836790bcaaa",
+    "semantic_hash": "0995c5dcc1b2cbbbf4257836790bcaaa"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\_diagnostic_registry.py": {
+    "mtime": 1783636967.8472035,
+    "seen": 1787942224.6496642,
+    "ast_hash": "76de98f34b2ea342fa74ffd0b24712a7",
+    "semantic_hash": "76de98f34b2ea342fa74ffd0b24712a7"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\context.py": {
+    "mtime": 1783636967.8504221,
+    "seen": 1787942224.649665,
+    "ast_hash": "d575215f2186df4afafa43356534461d",
+    "semantic_hash": "d575215f2186df4afafa43356534461d"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\diagnostics.py": {
+    "mtime": 1783197123.3330686,
+    "seen": 1787942224.6496658,
+    "ast_hash": "d7689401361e1555c08fb378476469dc",
+    "semantic_hash": "d7689401361e1555c08fb378476469dc"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\errors.py": {
+    "mtime": 1783197123.3395782,
+    "seen": 1787942224.6496668,
+    "ast_hash": "d0f0d4365aa6b7edc5533c32ff40d18b",
+    "semantic_hash": "d0f0d4365aa6b7edc5533c32ff40d18b"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\file_perms.py": {
+    "mtime": 1783197123.3425894,
+    "seen": 1787942224.6496675,
+    "ast_hash": "8670dc516dbac0ff34a977cbc0a0f35a",
+    "semantic_hash": "8670dc516dbac0ff34a977cbc0a0f35a"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\fs_walk.py": {
+    "mtime": 1783197123.3457632,
+    "seen": 1787942224.6496694,
+    "ast_hash": "ce514e6d601b26cb138de5999a98de9d",
+    "semantic_hash": "ce514e6d601b26cb138de5999a98de9d"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\globs.py": {
+    "mtime": 1783197123.347767,
+    "seen": 1787942224.6496704,
+    "ast_hash": "ecf2ac906da90718abc4a9f194342115",
+    "semantic_hash": "ecf2ac906da90718abc4a9f194342115"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\header.py": {
+    "mtime": 1783197123.3512862,
+    "seen": 1787942224.649671,
+    "ast_hash": "a08727f78de943f958b7782a5bfb6023",
+    "semantic_hash": "a08727f78de943f958b7782a5bfb6023"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\models_audit.py": {
+    "mtime": 1783197123.3532953,
+    "seen": 1787942224.649672,
+    "ast_hash": "e4bcea41186c01439befa7d5b5e20308",
+    "semantic_hash": "e4bcea41186c01439befa7d5b5e20308"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\models_common.py": {
+    "mtime": 1783197123.355297,
+    "seen": 1787942224.6496727,
+    "ast_hash": "083f8e33345b0ddba1590e6fb724fe29",
+    "semantic_hash": "083f8e33345b0ddba1590e6fb724fe29"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\models_compiler.py": {
+    "mtime": 1783197123.3582964,
+    "seen": 1787942224.6496737,
+    "ast_hash": "46913daaa41f7ba631e13710d4c565c1",
+    "semantic_hash": "46913daaa41f7ba631e13710d4c565c1"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\models_config.py": {
+    "mtime": 1783197123.3618233,
+    "seen": 1787942224.6496742,
+    "ast_hash": "d47976a157f1760115326db716ddd3ca",
+    "semantic_hash": "d47976a157f1760115326db716ddd3ca"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\models_parser.py": {
+    "mtime": 1783197123.3638341,
+    "seen": 1787942224.649675,
+    "ast_hash": "9faffb776e2c964b8ece0d47e88acfa4",
+    "semantic_hash": "9faffb776e2c964b8ece0d47e88acfa4"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\models_trimmer.py": {
+    "mtime": 1783636967.8534212,
+    "seen": 1787942224.6496758,
+    "ast_hash": "bf75db66e0ca54d76b497b847e15d210",
+    "semantic_hash": "bf75db66e0ca54d76b497b847e15d210"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\protocols.py": {
+    "mtime": 1783197123.3698246,
+    "seen": 1787942224.6496768,
+    "ast_hash": "5abf2d1135f66c0f8db467d98d03a2a6",
+    "semantic_hash": "5abf2d1135f66c0f8db467d98d03a2a6"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\serialization.py": {
+    "mtime": 1783197123.3719995,
+    "seen": 1787942224.6496773,
+    "ast_hash": "58b24ccc34368a26d1e7a7ec4481ae77",
+    "semantic_hash": "58b24ccc34368a26d1e7a7ec4481ae77"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\core\\tool_commands.py": {
+    "mtime": 1783197123.374999,
+    "seen": 1787942224.649678,
+    "ast_hash": "86116d92713c52f2db10fa35f376669a",
+    "semantic_hash": "86116d92713c52f2db10fa35f376669a"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\data\\__init__.py": {
+    "mtime": 1783197123.3779953,
+    "seen": 1787942224.6496792,
+    "ast_hash": "1b312867d98a57f2f25c036c1beb6045",
+    "semantic_hash": "1b312867d98a57f2f25c036c1beb6045"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\data\\tool_commands\\__init__.py": {
+    "mtime": 1783197123.3815062,
+    "seen": 1787942224.6496797,
+    "ast_hash": "76e045c3daf28118e91a7e7c6ede8bfc",
+    "semantic_hash": "76e045c3daf28118e91a7e7c6ede8bfc"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\generators\\__init__.py": {
+    "mtime": 1783197123.4019296,
+    "seen": 1787942224.6496804,
+    "ast_hash": "188b8fad8a04710deab29f0665aa3568",
+    "semantic_hash": "188b8fad8a04710deab29f0665aa3568"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\generators\\service.py": {
+    "mtime": 1783197123.4039323,
+    "seen": 1787942224.6496813,
+    "ast_hash": "5aea1b8581e91a725fb12fe86346cded",
+    "semantic_hash": "5aea1b8581e91a725fb12fe86346cded"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\generators\\stack_emitter.py": {
+    "mtime": 1783197123.406933,
+    "seen": 1787942224.6496823,
+    "ast_hash": "28813c31fb4dcfbf4007cb5dcd815255",
+    "semantic_hash": "28813c31fb4dcfbf4007cb5dcd815255"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\generators\\stage_emitter.py": {
+    "mtime": 1783197123.4094443,
+    "seen": 1787942224.6496828,
+    "ast_hash": "4fe95162d78a60fd4c5902991413df80",
+    "semantic_hash": "4fe95162d78a60fd4c5902991413df80"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\orchestrator\\__init__.py": {
+    "mtime": 1783197123.412466,
+    "seen": 1787942224.6496837,
+    "ast_hash": "7dc49fce2e6afdcbda3b8719b9c0e948",
+    "semantic_hash": "7dc49fce2e6afdcbda3b8719b9c0e948"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\orchestrator\\domain_state.py": {
+    "mtime": 1783197123.4154675,
+    "seen": 1787942224.6496844,
+    "ast_hash": "cafa1a414f16c83d4a6b7ffa14b6b245",
+    "semantic_hash": "cafa1a414f16c83d4a6b7ffa14b6b245"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\orchestrator\\gates.py": {
+    "mtime": 1783197123.4174693,
+    "seen": 1787942224.6496851,
+    "ast_hash": "6e39a474ab7b3b926371627b84c25de5",
+    "semantic_hash": "6e39a474ab7b3b926371627b84c25de5"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\orchestrator\\runner.py": {
+    "mtime": 1783197123.4202788,
+    "seen": 1787942224.649686,
+    "ast_hash": "c9a56fa82f4f9beefd72bd2c1c8ff75a",
+    "semantic_hash": "c9a56fa82f4f9beefd72bd2c1c8ff75a"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\orchestrator\\simulate.py": {
+    "mtime": 1783197123.4242864,
+    "seen": 1787942224.6496868,
+    "ast_hash": "d898d305b03207f102bf391e91cfa4dd",
+    "semantic_hash": "d898d305b03207f102bf391e91cfa4dd"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\__init__.py": {
+    "mtime": 1783197123.4242864,
+    "seen": 1787942224.6496875,
+    "ast_hash": "346cc1c18dc24480606d95eb91620646",
+    "semantic_hash": "346cc1c18dc24480606d95eb91620646"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\call_extractor_body.py": {
+    "mtime": 1787940533.8310623,
+    "seen": 1787942224.6496882,
+    "ast_hash": "42410796f690a687352c708877121e75",
+    "semantic_hash": "42410796f690a687352c708877121e75"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\call_extractor_classify.py": {
+    "mtime": 1783197123.4319768,
+    "seen": 1787942224.6496892,
+    "ast_hash": "9897a30e0df00db29eb98aa30e991d27",
+    "semantic_hash": "9897a30e0df00db29eb98aa30e991d27"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\call_extractor_constants.py": {
+    "mtime": 1783197123.4349754,
+    "seen": 1787942224.64969,
+    "ast_hash": "7d1f274f9ed574e402ed5469d526ca9d",
+    "semantic_hash": "7d1f274f9ed574e402ed5469d526ca9d"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\call_extractor_sources.py": {
+    "mtime": 1783197123.4369779,
+    "seen": 1787942224.6496906,
+    "ast_hash": "e38d3a8e1b8fb9400c5294e781875587",
+    "semantic_hash": "e38d3a8e1b8fb9400c5294e781875587"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\call_extractor_structural.py": {
+    "mtime": 1783197123.4405026,
+    "seen": 1787942224.6496913,
+    "ast_hash": "a3eecffbe6c50d88dce919cfc45be973",
+    "semantic_hash": "a3eecffbe6c50d88dce919cfc45be973"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\namespace_tracker.py": {
+    "mtime": 1783197123.4435022,
+    "seen": 1787942224.6496923,
+    "ast_hash": "643679b5517f3967dba2f761e6c06795",
+    "semantic_hash": "643679b5517f3967dba2f761e6c06795"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\proc_extractor.py": {
+    "mtime": 1787940533.8340743,
+    "seen": 1787942224.6496933,
+    "ast_hash": "3a73263dba1adeafc7b745bd708e5f51",
+    "semantic_hash": "3a73263dba1adeafc7b745bd708e5f51"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\service.py": {
+    "mtime": 1783197123.4485004,
+    "seen": 1787942224.649694,
+    "ast_hash": "41a04dd8cfdb490508020c247a7a5e6b",
+    "semantic_hash": "41a04dd8cfdb490508020c247a7a5e6b"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\parser\\tokenizer.py": {
+    "mtime": 1787940533.837615,
+    "seen": 1787942224.6496947,
+    "ast_hash": "e0232bb476ab2c75a53f8af5089dd33f",
+    "semantic_hash": "e0232bb476ab2c75a53f8af5089dd33f"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\__init__.py": {
+    "mtime": 1783197123.453792,
+    "seen": 1787942224.6496954,
+    "ast_hash": "eceeac32a15434ad5a279c90eea00866",
+    "semantic_hash": "eceeac32a15434ad5a279c90eea00866"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\companion_sync.py": {
+    "mtime": 1787940533.8417723,
+    "seen": 1787942224.6496964,
+    "ast_hash": "e22427d72e8c016f12157d67c59680f8",
+    "semantic_hash": "e22427d72e8c016f12157d67c59680f8"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\file_writer.py": {
+    "mtime": 1783197123.4587944,
+    "seen": 1787942224.649697,
+    "ast_hash": "984a3a1972e025d559769acebe5fab51",
+    "semantic_hash": "984a3a1972e025d559769acebe5fab51"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\indentation.py": {
+    "mtime": 1787940533.8457723,
+    "seen": 1787942224.6496978,
+    "ast_hash": "c8fc5d803344df17d2091507114549b7",
+    "semantic_hash": "c8fc5d803344df17d2091507114549b7"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\input_preserver.py": {
+    "mtime": 1783197123.4663284,
+    "seen": 1787942224.6496987,
+    "ast_hash": "988c6c101f2e62509a1cb05f1e35b8fb",
+    "semantic_hash": "988c6c101f2e62509a1cb05f1e35b8fb"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\p4_checkout.py": {
+    "mtime": 1787940533.8482895,
+    "seen": 1787942224.6496997,
+    "ast_hash": "a41b1dc4dd4a94c2ab2ade7d0ee80b40",
+    "semantic_hash": "a41b1dc4dd4a94c2ab2ade7d0ee80b40"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\proc_dropper.py": {
+    "mtime": 1783197123.4683287,
+    "seen": 1787942224.6497004,
+    "ast_hash": "977c69e4ac85b32cceed6167cb92b1e7",
+    "semantic_hash": "977c69e4ac85b32cceed6167cb92b1e7"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\trimmer\\service.py": {
+    "mtime": 1787940533.8525603,
+    "seen": 1787942224.649701,
+    "ast_hash": "f932d8f65a61f439684b71cd7a6dfc24",
+    "semantic_hash": "f932d8f65a61f439684b71cd7a6dfc24"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\validator\\__init__.py": {
+    "mtime": 1783197123.4748483,
+    "seen": 1787942224.6497018,
+    "ast_hash": "851016b46e2428ade64c8d4b0e0f3108",
+    "semantic_hash": "851016b46e2428ade64c8d4b0e0f3108"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\validator\\functions.py": {
+    "mtime": 1783197123.4788446,
+    "seen": 1787942224.6497025,
+    "ast_hash": "9ab3549973289276fb59a6917f9ed9fb",
+    "semantic_hash": "9ab3549973289276fb59a6917f9ed9fb"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\__init__.py": {
+    "mtime": 1783197123.5146532,
+    "seen": 1787942224.6497035,
+    "ast_hash": "ec079b22dd9b00473de76c2676cce665",
+    "semantic_hash": "ec079b22dd9b00473de76c2676cce665"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\bug_reports\\_repro_check.py": {
+    "mtime": 1783197123.5196543,
+    "seen": 1787942224.6497042,
+    "ast_hash": "796258d815feac84c9857347a10a1fc9",
+    "semantic_hash": "796258d815feac84c9857347a10a1fc9"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\bug_reports\\python_braces.py": {
+    "mtime": 1783197123.5241435,
+    "seen": 1787942224.649705,
+    "ast_hash": "4bac439a9c694a044368867378ff92ff",
+    "semantic_hash": "4bac439a9c694a044368867378ff92ff"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\create_latin1_fixture.py": {
+    "mtime": 1783197123.5316656,
+    "seen": 1787942224.6497056,
+    "ast_hash": "40184a75e9abacacc3eb0061bf56b756",
+    "semantic_hash": "40184a75e9abacacc3eb0061bf56b756"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\edge_cases\\non_tcl_python_stray_braces.py": {
+    "mtime": 1783197123.5427432,
+    "seen": 1787942224.6497066,
+    "ast_hash": "b25ce1f1fcc90897909b300fc193f73f",
+    "semantic_hash": "b25ce1f1fcc90897909b300fc193f73f"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\gen_large_domain.py": {
+    "mtime": 1783197123.5762544,
+    "seen": 1787942224.6497073,
+    "ast_hash": "c48279d2eeae50e048a20bda91b72aec",
+    "semantic_hash": "c48279d2eeae50e048a20bda91b72aec"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\mini_domain\\jsons\\base.json": {
+    "mtime": 1787940533.9469645,
+    "seen": 1787942224.649708,
+    "ast_hash": "1d8b91bd9a4e187db3e5ff836b5baf36",
+    "semantic_hash": "1d8b91bd9a4e187db3e5ff836b5baf36"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\mini_domain\\jsons\\features\\feature_a.json": {
+    "mtime": 1783197123.5863106,
+    "seen": 1787942224.6497087,
+    "ast_hash": "293ec7e749aeb473bf16874ce8df01a6",
+    "semantic_hash": "293ec7e749aeb473bf16874ce8df01a6"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_no_op_exclude\\jsons\\base.json": {
+    "mtime": 1783197123.6046994,
+    "seen": 1787942224.64971,
+    "ast_hash": "4f8635313caaeb48a8a22554b1cf5c1b",
+    "semantic_hash": "4f8635313caaeb48a8a22554b1cf5c1b"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_no_op_exclude\\jsons\\features\\feature_typo.json": {
+    "mtime": 1787940533.9746337,
+    "seen": 1787942224.6497107,
+    "ast_hash": "f6a81b6b66f6a3eef3d118239cdd4250",
+    "semantic_hash": "f6a81b6b66f6a3eef3d118239cdd4250"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_no_op_exclude\\project.json": {
+    "mtime": 1783197123.6077006,
+    "seen": 1787942224.6497114,
+    "ast_hash": "3700cec94c0ea09b1b1369b750358a61",
+    "semantic_hash": "3700cec94c0ea09b1b1369b750358a61"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_remove_only\\jsons\\base.json": {
+    "mtime": 1783197123.6152174,
+    "seen": 1787942224.649712,
+    "ast_hash": "ab826035c88ae36c0a6a1d6b7a562a87",
+    "semantic_hash": "ab826035c88ae36c0a6a1d6b7a562a87"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_remove_only\\jsons\\features\\feature_drop.json": {
+    "mtime": 1783197123.6172402,
+    "seen": 1787942224.6497128,
+    "ast_hash": "22a31d82bafb6ca4d60ee39378ece62e",
+    "semantic_hash": "22a31d82bafb6ca4d60ee39378ece62e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_remove_only\\project.json": {
+    "mtime": 1783197123.618406,
+    "seen": 1787942224.6497138,
+    "ast_hash": "6b5b5acbcd0ec8b1fbcde5252bcce5ff",
+    "semantic_hash": "6b5b5acbcd0ec8b1fbcde5252bcce5ff"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_replace\\jsons\\base.json": {
+    "mtime": 1783197123.620919,
+    "seen": 1787942224.6497145,
+    "ast_hash": "ab660dd105734d9b31d1826895a7db75",
+    "semantic_hash": "ab660dd105734d9b31d1826895a7db75"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_replace\\jsons\\features\\feature_a.json": {
+    "mtime": 1783197123.6219263,
+    "seen": 1787942224.6497152,
+    "ast_hash": "563c7cf6fe4837802507246fe918df68",
+    "semantic_hash": "563c7cf6fe4837802507246fe918df68"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_replace\\project.json": {
+    "mtime": 1783197123.6261902,
+    "seen": 1787942224.6497161,
+    "ast_hash": "219b955bd009f52f38fef92c26139407",
+    "semantic_hash": "219b955bd009f52f38fef92c26139407"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_two_features_same_file\\jsons\\base.json": {
+    "mtime": 1783197123.6271505,
+    "seen": 1787942224.649717,
+    "ast_hash": "9e429605ae8de2bfb63a6ec339ee5576",
+    "semantic_hash": "9e429605ae8de2bfb63a6ec339ee5576"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_two_features_same_file\\jsons\\features\\feature_a.json": {
+    "mtime": 1783197123.62815,
+    "seen": 1787942224.6497178,
+    "ast_hash": "6f13dc3318bc0ce125d3532cd12b1b4d",
+    "semantic_hash": "6f13dc3318bc0ce125d3532cd12b1b4d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_two_features_same_file\\jsons\\features\\feature_b.json": {
+    "mtime": 1783197123.6296546,
+    "seen": 1787942224.6497185,
+    "ast_hash": "ff76229bca1d14b98b97167fd5c41833",
+    "semantic_hash": "ff76229bca1d14b98b97167fd5c41833"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\overlay_two_features_same_file\\project.json": {
+    "mtime": 1783197123.6316688,
+    "seen": 1787942224.6497192,
+    "ast_hash": "59b7b2c0dcc967cbf9cfd79531254ee6",
+    "semantic_hash": "59b7b2c0dcc967cbf9cfd79531254ee6"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\stages_domain\\jsons\\base.json": {
+    "mtime": 1783197123.6346643,
+    "seen": 1787942224.64972,
+    "ast_hash": "c267f83f1915990c5ff202dcb9dd4cab",
+    "semantic_hash": "c267f83f1915990c5ff202dcb9dd4cab"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\__init__.py": {
+    "mtime": 1783197123.6451864,
+    "seen": 1787942224.649721,
+    "ast_hash": "4797fddf5ed8180e5ebbba1309f06974",
+    "semantic_hash": "4797fddf5ed8180e5ebbba1309f06974"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\test_audit_artifacts_golden.py": {
+    "mtime": 1783197123.6471863,
+    "seen": 1787942224.6497216,
+    "ast_hash": "ce5bd27c02fb82ae5282e21086bc9b69",
+    "semantic_hash": "ce5bd27c02fb82ae5282e21086bc9b69"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\test_smoke.py": {
+    "mtime": 1783197123.6550815,
+    "seen": 1787942224.6497223,
+    "ast_hash": "7e5fa3d108880cf8f26317dfb20f98a9",
+    "semantic_hash": "7e5fa3d108880cf8f26317dfb20f98a9"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\__init__.py": {
+    "mtime": 1783197123.6580849,
+    "seen": 1787942224.649723,
+    "ast_hash": "d24ee1c5607367f24cc635d1f6ec99c2",
+    "semantic_hash": "d24ee1c5607367f24cc635d1f6ec99c2"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\crash_harness.py": {
+    "mtime": 1783197123.6605978,
+    "seen": 1787942224.6497242,
+    "ast_hash": "6f9bd7095eb3cae80b0d792cca5fb1a6",
+    "semantic_hash": "6f9bd7095eb3cae80b0d792cca5fb1a6"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\test_cli_chained_actions.py": {
+    "mtime": 1783197123.662598,
+    "seen": 1787942224.649725,
+    "ast_hash": "0134a0f97965d904fff753af8d5c0b4b",
+    "semantic_hash": "0134a0f97965d904fff753af8d5c0b4b"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\test_cli_chained_overlay.py": {
+    "mtime": 1783197123.665599,
+    "seen": 1787942224.6497257,
+    "ast_hash": "cff659a0e635a7f30a01e68d5f02541c",
+    "semantic_hash": "cff659a0e635a7f30a01e68d5f02541c"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\test_cli_e2e.py": {
+    "mtime": 1783197123.667598,
+    "seen": 1787942224.6497266,
+    "ast_hash": "aea4f6aff0f11098c469a1db9fa6fe65",
+    "semantic_hash": "aea4f6aff0f11098c469a1db9fa6fe65"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\test_cli_loc.py": {
+    "mtime": 1783197123.6695964,
+    "seen": 1787942224.6497276,
+    "ast_hash": "f8435234218eac4cf0b8aed829137949",
+    "semantic_hash": "f8435234218eac4cf0b8aed829137949"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\test_runner_localfs_e2e.py": {
+    "mtime": 1783197123.6730206,
+    "seen": 1787942224.6497283,
+    "ast_hash": "f811014ebb1c21da3785621da11be28d",
+    "semantic_hash": "f811014ebb1c21da3785621da11be28d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\integration\\test_smoke.py": {
+    "mtime": 1783197123.6760223,
+    "seen": 1787942224.649729,
+    "ast_hash": "a321ae8fff90776b8735071f791fbbd2",
+    "semantic_hash": "a321ae8fff90776b8735071f791fbbd2"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\property\\__init__.py": {
+    "mtime": 1783197123.6780224,
+    "seen": 1787942224.6497297,
+    "ast_hash": "602e71f3ba243105e42378bbd8a41058",
+    "semantic_hash": "602e71f3ba243105e42378bbd8a41058"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\property\\test_determinism.py": {
+    "mtime": 1783197123.6818683,
+    "seen": 1787942224.6497304,
+    "ast_hash": "933ec5390a638e6bb9e0a9e0d1650e15",
+    "semantic_hash": "933ec5390a638e6bb9e0a9e0d1650e15"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\property\\test_smoke.py": {
+    "mtime": 1783197123.6843858,
+    "seen": 1787942224.6497314,
+    "ast_hash": "919a82755fcb850ea5a66661d6887cfe",
+    "semantic_hash": "919a82755fcb850ea5a66661d6887cfe"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\__init__.py": {
+    "mtime": 1783197123.6863854,
+    "seen": 1787942224.649732,
+    "ast_hash": "72463e583f524edcb318b7cd2fc05d24",
+    "semantic_hash": "72463e583f524edcb318b7cd2fc05d24"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\_coverage_helpers.py": {
+    "mtime": 1783197123.6883874,
+    "seen": 1787942224.6497328,
+    "ast_hash": "cca4811448b02e0b4c14231a55c377a8",
+    "semantic_hash": "cca4811448b02e0b4c14231a55c377a8"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\_patch_coverage_imports.py": {
+    "mtime": 1783197123.6909065,
+    "seen": 1787942224.6497335,
+    "ast_hash": "11d09a6dee37662e8aae69c1ec93528e",
+    "semantic_hash": "11d09a6dee37662e8aae69c1ec93528e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\_redistribute_coverage_tests.py": {
+    "mtime": 1783197123.6929014,
+    "seen": 1787942224.6497345,
+    "ast_hash": "6563ab989d76264323b9027cc1e4d3f1",
+    "semantic_hash": "6563ab989d76264323b9027cc1e4d3f1"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\adapters\\__init__.py": {
+    "mtime": 1783197123.6949022,
+    "seen": 1787942224.6497355,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\adapters\\test_fs_local.py": {
+    "mtime": 1783197123.6969018,
+    "seen": 1787942224.6497362,
+    "ast_hash": "ac0487767c0dcb5c06c1f98645175c05",
+    "semantic_hash": "ac0487767c0dcb5c06c1f98645175c05"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\adapters\\test_fs_memory.py": {
+    "mtime": 1783197123.6994147,
+    "seen": 1787942224.6497393,
+    "ast_hash": "9dc02385f9f66f3f6fd718e008751769",
+    "semantic_hash": "9dc02385f9f66f3f6fd718e008751769"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\adapters\\test_fs_memory_coverage.py": {
+    "mtime": 1783197123.7026258,
+    "seen": 1787942224.64974,
+    "ast_hash": "9a3d0b01ed52cf5871776f44289bb701",
+    "semantic_hash": "9a3d0b01ed52cf5871776f44289bb701"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\adapters\\test_progress_rich.py": {
+    "mtime": 1783197123.704623,
+    "seen": 1787942224.6497407,
+    "ast_hash": "899605490f3d77ab0f8f0f873570ce81",
+    "semantic_hash": "899605490f3d77ab0f8f0f873570ce81"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\adapters\\test_sink_collecting.py": {
+    "mtime": 1783197123.7066226,
+    "seen": 1787942224.6497416,
+    "ast_hash": "2bad02c7e1cf9b5718c4366591941766",
+    "semantic_hash": "2bad02c7e1cf9b5718c4366591941766"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\__init__.py": {
+    "mtime": 1783197123.7096262,
+    "seen": 1787942224.6497424,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_audit.py": {
+    "mtime": 1787940534.0126781,
+    "seen": 1787942224.649743,
+    "ast_hash": "e1d9e11e245d0aab46cbd236b725238f",
+    "semantic_hash": "e1d9e11e245d0aab46cbd236b725238f"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_cloc_backend_coverage.py": {
+    "mtime": 1783639496.860265,
+    "seen": 1787942224.6497438,
+    "ast_hash": "8ff8cb0a3f634c7789a4c22b2f91f01a",
+    "semantic_hash": "8ff8cb0a3f634c7789a4c22b2f91f01a"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_files_exclude_p4.py": {
+    "mtime": 1783636968.075652,
+    "seen": 1787942224.649745,
+    "ast_hash": "c06dede53d422ac8761ddf701ce72589",
+    "semantic_hash": "c06dede53d422ac8761ddf701ce72589"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_internal_error.py": {
+    "mtime": 1783197123.7181501,
+    "seen": 1787942224.6497457,
+    "ast_hash": "70329baad594c7b41be3f427bcbf0f7f",
+    "semantic_hash": "70329baad594c7b41be3f427bcbf0f7f"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_internal_error_coverage.py": {
+    "mtime": 1783197123.7206674,
+    "seen": 1787942224.6497464,
+    "ast_hash": "d4baa278fa1b7244c474f9ecc8f1f960",
+    "semantic_hash": "d4baa278fa1b7244c474f9ecc8f1f960"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_p4_commands.py": {
+    "mtime": 1783197123.722675,
+    "seen": 1787942224.6497471,
+    "ast_hash": "72068b88dfb9a500ec8088027db6c50d",
+    "semantic_hash": "72068b88dfb9a500ec8088027db6c50d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_service_coverage.py": {
+    "mtime": 1783197123.7246742,
+    "seen": 1787942224.649748,
+    "ast_hash": "af9b5ff6a12de7dbbd1e012118fc9886",
+    "semantic_hash": "af9b5ff6a12de7dbbd1e012118fc9886"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_sloc_coverage.py": {
+    "mtime": 1783197123.7266755,
+    "seen": 1787942224.6497488,
+    "ast_hash": "1657aa3261072ef0beb33e998d0f9002",
+    "semantic_hash": "1657aa3261072ef0beb33e998d0f9002"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\audit\\test_writers_coverage.py": {
+    "mtime": 1787940534.0156856,
+    "seen": 1787942224.6497495,
+    "ast_hash": "16c787d18f329853b6ffd5eb2676b011",
+    "semantic_hash": "16c787d18f329853b6ffd5eb2676b011"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\__init__.py": {
+    "mtime": 1783197123.7311873,
+    "seen": 1787942224.6497502,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_audit_bundle_locations.py": {
+    "mtime": 1787940534.019721,
+    "seen": 1787942224.649751,
+    "ast_hash": "3932c59ef01fb16211b01e7861090ef3",
+    "semantic_hash": "3932c59ef01fb16211b01e7861090ef3"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_commands.py": {
+    "mtime": 1783636967.8767655,
+    "seen": 1787942224.649752,
+    "ast_hash": "f8bdf623652d27d78c3e3fccaf1e1e65",
+    "semantic_hash": "f8bdf623652d27d78c3e3fccaf1e1e65"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_commands_coverage.py": {
+    "mtime": 1787940534.0239947,
+    "seen": 1787942224.6497526,
+    "ast_hash": "a41832aad45e3bb410166e5b35f32f22",
+    "semantic_hash": "a41832aad45e3bb410166e5b35f32f22"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_domain_lookup.py": {
+    "mtime": 1787940534.028512,
+    "seen": 1787942224.6497536,
+    "ast_hash": "e6a7ba916957bc136f503302653c5611",
+    "semantic_hash": "e6a7ba916957bc136f503302653c5611"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_feature_lookup.py": {
+    "mtime": 1787940534.032054,
+    "seen": 1787942224.6497543,
+    "ast_hash": "59e850b1a32dc4b748b8325118963b87",
+    "semantic_hash": "59e850b1a32dc4b748b8325118963b87"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_loc_report.py": {
+    "mtime": 1783197123.7429252,
+    "seen": 1787942224.6497552,
+    "ast_hash": "2d4c3ca8cdcf67625cb18583f1b1e654",
+    "semantic_hash": "2d4c3ca8cdcf67625cb18583f1b1e654"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_loc_report_coverage.py": {
+    "mtime": 1783197123.7449253,
+    "seen": 1787942224.649756,
+    "ast_hash": "17b59ec292691aa912a262c26d744194",
+    "semantic_hash": "17b59ec292691aa912a262c26d744194"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_main.py": {
+    "mtime": 1783636967.8837626,
+    "seen": 1787942224.6497567,
+    "ast_hash": "4d394413021854e176f5de0197353166",
+    "semantic_hash": "4d394413021854e176f5de0197353166"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_main_coverage.py": {
+    "mtime": 1783197123.751478,
+    "seen": 1787942224.6497574,
+    "ast_hash": "ef0856d70897bcf6268e29aeba313823",
+    "semantic_hash": "ef0856d70897bcf6268e29aeba313823"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_p4_branch_analysis.py": {
+    "mtime": 1783197123.7544854,
+    "seen": 1787942224.649758,
+    "ast_hash": "20c7b0e4c18a076893a66f963f413019",
+    "semantic_hash": "20c7b0e4c18a076893a66f963f413019"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_p4_checkout_enabled_notice.py": {
+    "mtime": 1787940534.034791,
+    "seen": 1787942224.649759,
+    "ast_hash": "cf8bc3919868913e3bdf684b10124725",
+    "semantic_hash": "cf8bc3919868913e3bdf684b10124725"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_p4_checkout_notice.py": {
+    "mtime": 1783636968.0806513,
+    "seen": 1787942224.6497598,
+    "ast_hash": "af96f8de6fd31b8fe48bb80fc83be1fe",
+    "semantic_hash": "af96f8de6fd31b8fe48bb80fc83be1fe"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_p4_checkout_opened.py": {
+    "mtime": 1787940534.0368135,
+    "seen": 1787942224.6497605,
+    "ast_hash": "93489540f634d5405dfb28df21473d3a",
+    "semantic_hash": "93489540f634d5405dfb28df21473d3a"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\cli\\test_render_coverage.py": {
+    "mtime": 1783197123.756485,
+    "seen": 1787942224.6497612,
+    "ast_hash": "7de95557d9014dc6c5f10b6581993a00",
+    "semantic_hash": "7de95557d9014dc6c5f10b6581993a00"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\__init__.py": {
+    "mtime": 1783197123.7594855,
+    "seen": 1787942224.6497638,
+    "ast_hash": "61c890f17f036fb5d6197c7a9ff384de",
+    "semantic_hash": "61c890f17f036fb5d6197c7a9ff384de"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\_helpers.py": {
+    "mtime": 1783197123.760998,
+    "seen": 1787942224.6497645,
+    "ast_hash": "84cefa050bee6bb02670649e46cc1c98",
+    "semantic_hash": "84cefa050bee6bb02670649e46cc1c98"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_flow_resolver.py": {
+    "mtime": 1783197123.7630038,
+    "seen": 1787942224.6497655,
+    "ast_hash": "07f17c7ed0a643fa1a77d0aa63563b2e",
+    "semantic_hash": "07f17c7ed0a643fa1a77d0aa63563b2e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_flow_resolver_coverage.py": {
+    "mtime": 1783197123.7660067,
+    "seen": 1787942224.6497662,
+    "ast_hash": "bed6c037a8f77aef0b766aea67f9c8db",
+    "semantic_hash": "bed6c037a8f77aef0b766aea67f9c8db"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_merge_service.py": {
+    "mtime": 1783197123.7680056,
+    "seen": 1787942224.649767,
+    "ast_hash": "46f3376cf45fdb4498052b469e369e38",
+    "semantic_hash": "46f3376cf45fdb4498052b469e369e38"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_merge_service_coverage.py": {
+    "mtime": 1787940534.0409036,
+    "seen": 1787942224.6497676,
+    "ast_hash": "f8bdb0419da71ff5130e253f1ddd4ce6",
+    "semantic_hash": "f8bdb0419da71ff5130e253f1ddd4ce6"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_service.py": {
+    "mtime": 1783197123.773525,
+    "seen": 1787942224.6497684,
+    "ast_hash": "028d45a3ce3d1948f172e015a4c04d81",
+    "semantic_hash": "028d45a3ce3d1948f172e015a4c04d81"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_stack_graph.py": {
+    "mtime": 1783197123.7755268,
+    "seen": 1787942224.6497693,
+    "ast_hash": "ab0d9add2d259f73a59a60ad8b37a3c8",
+    "semantic_hash": "ab0d9add2d259f73a59a60ad8b37a3c8"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_stack_registration.py": {
+    "mtime": 1783197123.7775273,
+    "seen": 1787942224.64977,
+    "ast_hash": "aa15a1ade71bad5741e7c9d865f14a96",
+    "semantic_hash": "aa15a1ade71bad5741e7c9d865f14a96"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_trace_service_coverage.py": {
+    "mtime": 1783197123.7800303,
+    "seen": 1787942224.6497707,
+    "ast_hash": "0182f04651e445c87ae7fa7d6e5b2e83",
+    "semantic_hash": "0182f04651e445c87ae7fa7d6e5b2e83"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\compiler\\test_tracer.py": {
+    "mtime": 1783197123.783549,
+    "seen": 1787942224.6497715,
+    "ast_hash": "86d68b1b8d672d727514ff8f212be224",
+    "semantic_hash": "86d68b1b8d672d727514ff8f212be224"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\__init__.py": {
+    "mtime": 1783197123.7855594,
+    "seen": 1787942224.6497724,
+    "ast_hash": "5d33bb47a7bc0306df965c3c5a6f515f",
+    "semantic_hash": "5d33bb47a7bc0306df965c3c5a6f515f"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\test_loaders.py": {
+    "mtime": 1783197123.787558,
+    "seen": 1787942224.6497734,
+    "ast_hash": "7f5c47f5380c808215a6eaa373d7a654",
+    "semantic_hash": "7f5c47f5380c808215a6eaa373d7a654"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\test_loaders_coverage.py": {
+    "mtime": 1783197123.7900615,
+    "seen": 1787942224.6497738,
+    "ast_hash": "32202cbf16bb318721d031ce8ba7b75b",
+    "semantic_hash": "32202cbf16bb318721d031ce8ba7b75b"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\test_schema.py": {
+    "mtime": 1783197123.7920687,
+    "seen": 1787942224.6497746,
+    "ast_hash": "c244e523ba282adfb864dc8f96dfccb3",
+    "semantic_hash": "c244e523ba282adfb864dc8f96dfccb3"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\test_schema_coverage.py": {
+    "mtime": 1783197123.794322,
+    "seen": 1787942224.6497755,
+    "ast_hash": "1ebe580296c88be68888fb10b908cfb8",
+    "semantic_hash": "1ebe580296c88be68888fb10b908cfb8"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\test_service.py": {
+    "mtime": 1783197123.8028395,
+    "seen": 1787942224.6497762,
+    "ast_hash": "bbb1eab5566199b96583cd44ed19436c",
+    "semantic_hash": "bbb1eab5566199b96583cd44ed19436c"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\config\\test_service_coverage.py": {
+    "mtime": 1783197123.8048408,
+    "seen": 1787942224.649777,
+    "ast_hash": "58acb27e785cd86eda11b74d35ba3249",
+    "semantic_hash": "58acb27e785cd86eda11b74d35ba3249"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\__init__.py": {
+    "mtime": 1783197123.8078418,
+    "seen": 1787942224.649778,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_context.py": {
+    "mtime": 1783197123.8098412,
+    "seen": 1787942224.6497786,
+    "ast_hash": "05d3a9fbd0ec9268cede7fb1a04b663c",
+    "semantic_hash": "05d3a9fbd0ec9268cede7fb1a04b663c"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_diagnostics.py": {
+    "mtime": 1783636967.8870375,
+    "seen": 1787942224.6497796,
+    "ast_hash": "1682ac83a74dcf38268db554c0cad9d1",
+    "semantic_hash": "1682ac83a74dcf38268db554c0cad9d1"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_errors.py": {
+    "mtime": 1783197123.8221157,
+    "seen": 1787942224.6497803,
+    "ast_hash": "22f5d9b3a9a3716ddfe03d339f80dfa4",
+    "semantic_hash": "22f5d9b3a9a3716ddfe03d339f80dfa4"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_file_perms_coverage.py": {
+    "mtime": 1783197123.824116,
+    "seen": 1787942224.649781,
+    "ast_hash": "6ccdc6e1c9fbf92b89b21fc768ddea3b",
+    "semantic_hash": "6ccdc6e1c9fbf92b89b21fc768ddea3b"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_fs_walk_coverage.py": {
+    "mtime": 1783197123.827342,
+    "seen": 1787942224.6497817,
+    "ast_hash": "aea344190daa31ac268e8d10d4147146",
+    "semantic_hash": "aea344190daa31ac268e8d10d4147146"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_globs.py": {
+    "mtime": 1783197123.83086,
+    "seen": 1787942224.6497824,
+    "ast_hash": "a651a531f165e331a22f2f1a40763d12",
+    "semantic_hash": "a651a531f165e331a22f2f1a40763d12"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_header_coverage.py": {
+    "mtime": 1783197123.8338668,
+    "seen": 1787942224.6497834,
+    "ast_hash": "0956cb91a1265d256d8977af79a6fbb2",
+    "semantic_hash": "0956cb91a1265d256d8977af79a6fbb2"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_models.py": {
+    "mtime": 1783636967.890036,
+    "seen": 1787942224.6497843,
+    "ast_hash": "1e204d5cde1a4686109b2e0998b554fe",
+    "semantic_hash": "1e204d5cde1a4686109b2e0998b554fe"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_models_audit_coverage.py": {
+    "mtime": 1783197123.8378677,
+    "seen": 1787942224.6497848,
+    "ast_hash": "07251deec55c97c87fdc8d39e43fed8d",
+    "semantic_hash": "07251deec55c97c87fdc8d39e43fed8d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_models_compiler_coverage.py": {
+    "mtime": 1783197123.8413868,
+    "seen": 1787942224.6497858,
+    "ast_hash": "ad3b1a55f6cbf22325735f867d1e9472",
+    "semantic_hash": "ad3b1a55f6cbf22325735f867d1e9472"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_protocols.py": {
+    "mtime": 1783197123.8443942,
+    "seen": 1787942224.6497867,
+    "ast_hash": "087c926e749f9a3f179a976e70c3c415",
+    "semantic_hash": "087c926e749f9a3f179a976e70c3c415"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_serialization.py": {
+    "mtime": 1783197123.847397,
+    "seen": 1787942224.6497874,
+    "ast_hash": "0e0fb64cc54d59dc8b6128e1756f072a",
+    "semantic_hash": "0e0fb64cc54d59dc8b6128e1756f072a"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\core\\test_tool_commands.py": {
+    "mtime": 1783197123.8505702,
+    "seen": 1787942224.649788,
+    "ast_hash": "01a23f515e42346a5c1f7ea6f39b7f8e",
+    "semantic_hash": "01a23f515e42346a5c1f7ea6f39b7f8e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\generators\\__init__.py": {
+    "mtime": 1783197123.8515759,
+    "seen": 1787942224.6497889,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\generators\\test_service.py": {
+    "mtime": 1783197123.8545754,
+    "seen": 1787942224.6497898,
+    "ast_hash": "e03abe9ba3ef94956429e5ea999f518c",
+    "semantic_hash": "e03abe9ba3ef94956429e5ea999f518c"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\generators\\test_service_coverage.py": {
+    "mtime": 1783197123.8565736,
+    "seen": 1787942224.6497903,
+    "ast_hash": "a029db1860e48f9fa77ebe430ead7dff",
+    "semantic_hash": "a029db1860e48f9fa77ebe430ead7dff"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\generators\\test_stack_emitter.py": {
+    "mtime": 1783197123.8610883,
+    "seen": 1787942224.649791,
+    "ast_hash": "f7cb443f9a4dc0d5b8e3553c65d0a2fe",
+    "semantic_hash": "f7cb443f9a4dc0d5b8e3553c65d0a2fe"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\orchestrator\\__init__.py": {
+    "mtime": 1783197123.863095,
+    "seen": 1787942224.649792,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\orchestrator\\test_domain_state.py": {
+    "mtime": 1783197123.865095,
+    "seen": 1787942224.6497927,
+    "ast_hash": "d1e77bd0273ad9fcd6fe59c9eff9f6c0",
+    "semantic_hash": "d1e77bd0273ad9fcd6fe59c9eff9f6c0"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\orchestrator\\test_runner.py": {
+    "mtime": 1783197123.8670955,
+    "seen": 1787942224.6497936,
+    "ast_hash": "0cf0db623386a7c1412f2c883ae850e0",
+    "semantic_hash": "0cf0db623386a7c1412f2c883ae850e0"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\orchestrator\\test_runner_coverage.py": {
+    "mtime": 1783197123.8696032,
+    "seen": 1787942224.6497943,
+    "ast_hash": "0ed26811e79b9df4dbdc4954dff58ddc",
+    "semantic_hash": "0ed26811e79b9df4dbdc4954dff58ddc"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\orchestrator\\test_simulate.py": {
+    "mtime": 1783197123.8716114,
+    "seen": 1787942224.649795,
+    "ast_hash": "5031cb7ff47b84e7c75dee4985d8a9b7",
+    "semantic_hash": "5031cb7ff47b84e7c75dee4985d8a9b7"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\__init__.py": {
+    "mtime": 1783197123.87361,
+    "seen": 1787942224.649796,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_bug_report_regressions.py": {
+    "mtime": 1783197123.8756113,
+    "seen": 1787942224.6497972,
+    "ast_hash": "a268c43f12a2a8bd87f0341fc9fbdd86",
+    "semantic_hash": "a268c43f12a2a8bd87f0341fc9fbdd86"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_call_extractor.py": {
+    "mtime": 1787940534.0439036,
+    "seen": 1787942224.649798,
+    "ast_hash": "596c3ca1c07e57f47cda7deebdca16fe",
+    "semantic_hash": "596c3ca1c07e57f47cda7deebdca16fe"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_call_extractor_sources.py": {
+    "mtime": 1783197123.8811314,
+    "seen": 1787942224.6497986,
+    "ast_hash": "f478a36752f4b4705f1abbf9f388c52f",
+    "semantic_hash": "f478a36752f4b4705f1abbf9f388c52f"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_call_extractor_sources_coverage.py": {
+    "mtime": 1783197123.8836384,
+    "seen": 1787942224.6497993,
+    "ast_hash": "468091e9c67ac9018c7acada791e0535",
+    "semantic_hash": "468091e9c67ac9018c7acada791e0535"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_call_extractor_structural.py": {
+    "mtime": 1783197123.885649,
+    "seen": 1787942224.6498005,
+    "ast_hash": "95bfb698dae851abb5065e11eea5f74e",
+    "semantic_hash": "95bfb698dae851abb5065e11eea5f74e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_edge_case_fixtures.py": {
+    "mtime": 1783197123.8866515,
+    "seen": 1787942224.6498013,
+    "ast_hash": "5fd45521c0fd4c670e663cb2c80d2d8d",
+    "semantic_hash": "5fd45521c0fd4c670e663cb2c80d2d8d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_namespace_tracker.py": {
+    "mtime": 1783197123.8901536,
+    "seen": 1787942224.649802,
+    "ast_hash": "d808fe8991bd7195dfd44aded4fc7430",
+    "semantic_hash": "d808fe8991bd7195dfd44aded4fc7430"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_namespace_tracker_coverage.py": {
+    "mtime": 1783197123.894167,
+    "seen": 1787942224.649803,
+    "ast_hash": "45cf8424442339b893487ad7f07036e7",
+    "semantic_hash": "45cf8424442339b893487ad7f07036e7"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_proc_extractor.py": {
+    "mtime": 1783197123.897166,
+    "seen": 1787942224.6498039,
+    "ast_hash": "f4248da13a82f67c27201556e084c448",
+    "semantic_hash": "f4248da13a82f67c27201556e084c448"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_proc_extractor_coverage.py": {
+    "mtime": 1783197123.9006822,
+    "seen": 1787942224.6498046,
+    "ast_hash": "a55c5cd5c90c552990df1f27747b3b89",
+    "semantic_hash": "a55c5cd5c90c552990df1f27747b3b89"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_service.py": {
+    "mtime": 1783197123.9026873,
+    "seen": 1787942224.6498053,
+    "ast_hash": "1e010729d22ebd4b4d59efe68755d928",
+    "semantic_hash": "1e010729d22ebd4b4d59efe68755d928"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_service_coverage.py": {
+    "mtime": 1783197123.9056814,
+    "seen": 1787942224.649806,
+    "ast_hash": "1475ea219496c9aa6df01dd01c57e7dc",
+    "semantic_hash": "1475ea219496c9aa6df01dd01c57e7dc"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_tokenizer.py": {
+    "mtime": 1787940534.0469084,
+    "seen": 1787942224.6498067,
+    "ast_hash": "0d8fba01c3c46cf0caadd15bc8fb72b0",
+    "semantic_hash": "0d8fba01c3c46cf0caadd15bc8fb72b0"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\parser\\test_tokenizer_coverage.py": {
+    "mtime": 1783197123.9112077,
+    "seen": 1787942224.6498077,
+    "ast_hash": "cb779336568a5b72a10b854cdb88b224",
+    "semantic_hash": "cb779336568a5b72a10b854cdb88b224"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\scripts\\test_file_bug_report.py": {
+    "mtime": 1783197123.914205,
+    "seen": 1787942224.6498084,
+    "ast_hash": "75696492dbc7fd4bd8c3a1a9dca966ea",
+    "semantic_hash": "75696492dbc7fd4bd8c3a1a9dca966ea"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\scripts\\test_package_bug_report.py": {
+    "mtime": 1783197123.91721,
+    "seen": 1787942224.6498094,
+    "ast_hash": "11f72073ba0404a149ccde7bed85a6f0",
+    "semantic_hash": "11f72073ba0404a149ccde7bed85a6f0"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\test_main_module_coverage.py": {
+    "mtime": 1783197123.9197114,
+    "seen": 1787942224.64981,
+    "ast_hash": "97e5e7899771b4e6a6b2af242cba402d",
+    "semantic_hash": "97e5e7899771b4e6a6b2af242cba402d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\test_package_smoke.py": {
+    "mtime": 1783197123.9227228,
+    "seen": 1787942224.649811,
+    "ast_hash": "41a213f0ed90df5621291c93df0a50d0",
+    "semantic_hash": "41a213f0ed90df5621291c93df0a50d0"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\test_testing_strategy_scenario_count.py": {
+    "mtime": 1783197123.9257224,
+    "seen": 1787942224.6498117,
+    "ast_hash": "16c2d39ac5b3c240ca80316e20ea3379",
+    "semantic_hash": "16c2d39ac5b3c240ca80316e20ea3379"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\__init__.py": {
+    "mtime": 1783197123.9277203,
+    "seen": 1787942224.6498125,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\_helpers.py": {
+    "mtime": 1783636967.8940494,
+    "seen": 1787942224.6498132,
+    "ast_hash": "256a207a6249f515491ce74f7cf7f2c8",
+    "semantic_hash": "256a207a6249f515491ce74f7cf7f2c8"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_companion_sync.py": {
+    "mtime": 1787940534.0514376,
+    "seen": 1787942224.6498141,
+    "ast_hash": "1fc6c40df25f55a60274705cdd8574e4",
+    "semantic_hash": "1fc6c40df25f55a60274705cdd8574e4"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_file_writer.py": {
+    "mtime": 1783197123.9340134,
+    "seen": 1787942224.6498148,
+    "ast_hash": "824232346447983970d157a4c1cd72ba",
+    "semantic_hash": "824232346447983970d157a4c1cd72ba"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_file_writer_modes.py": {
+    "mtime": 1783197123.938011,
+    "seen": 1787942224.6498156,
+    "ast_hash": "cbeb76650e19112ed1d1f7d6b0506257",
+    "semantic_hash": "cbeb76650e19112ed1d1f7d6b0506257"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_indentation.py": {
+    "mtime": 1787940534.0546103,
+    "seen": 1787942224.6498163,
+    "ast_hash": "4bcfc4ddba6cf761e8143bcf9f4e6755",
+    "semantic_hash": "4bcfc4ddba6cf761e8143bcf9f4e6755"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_indentation_coverage.py": {
+    "mtime": 1783197123.9425278,
+    "seen": 1787942224.6498172,
+    "ast_hash": "98317c5ebabd481e1be0f8edee5684b1",
+    "semantic_hash": "98317c5ebabd481e1be0f8edee5684b1"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_input_preserver_coverage.py": {
+    "mtime": 1783639496.8682737,
+    "seen": 1787942224.6498182,
+    "ast_hash": "90511d63cf125caabeb4aed0f876b28d",
+    "semantic_hash": "90511d63cf125caabeb4aed0f876b28d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_p4_checkout.py": {
+    "mtime": 1787940534.0576086,
+    "seen": 1787942224.649819,
+    "ast_hash": "b04e5b391ac7a25d6d72b9f18ede3897",
+    "semantic_hash": "b04e5b391ac7a25d6d72b9f18ede3897"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_p4_checkout_integration.py": {
+    "mtime": 1787940534.0613823,
+    "seen": 1787942224.6498199,
+    "ast_hash": "7595ae0ff1e4050042ddf92acc33c944",
+    "semantic_hash": "7595ae0ff1e4050042ddf92acc33c944"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_proc_dropper.py": {
+    "mtime": 1783197123.9465275,
+    "seen": 1787942224.6498206,
+    "ast_hash": "50ff97493087cde7ffd373889a289f7f",
+    "semantic_hash": "50ff97493087cde7ffd373889a289f7f"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_proc_dropper_coverage.py": {
+    "mtime": 1783197123.949528,
+    "seen": 1787942224.6498215,
+    "ast_hash": "806f2dcbee6a2e72cd0ec0407f014ed2",
+    "semantic_hash": "806f2dcbee6a2e72cd0ec0407f014ed2"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\trimmer\\test_service.py": {
+    "mtime": 1783197123.9520512,
+    "seen": 1787942224.6498222,
+    "ast_hash": "9d4d230727ee366a79bf36e400488a40",
+    "semantic_hash": "9d4d230727ee366a79bf36e400488a40"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\validator\\__init__.py": {
+    "mtime": 1783197123.9540522,
+    "seen": 1787942224.6498241,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\validator\\test_functions_coverage.py": {
+    "mtime": 1783197123.9560554,
+    "seen": 1787942224.649825,
+    "ast_hash": "0e46fb4d887852a5e1b12df92d873e2d",
+    "semantic_hash": "0e46fb4d887852a5e1b12df92d873e2d"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\unit\\validator\\test_validator.py": {
+    "mtime": 1783197123.9580548,
+    "seen": 1787942224.649826,
+    "ast_hash": "80bafad43a74c396ca023ba6d339bac6",
+    "semantic_hash": "80bafad43a74c396ca023ba6d339bac6"
+  },
+  "C:\\personal\\projects\\chopper\\.claude\\skills\\gitnexus\\gitnexus-cli\\SKILL.md": {
+    "mtime": 1787940533.7052884,
+    "seen": 1787942224.6498268,
+    "ast_hash": "45ccc2a19b28f60f51fd7b1e99dc4211",
+    "semantic_hash": "45ccc2a19b28f60f51fd7b1e99dc4211"
+  },
+  "C:\\personal\\projects\\chopper\\.claude\\skills\\gitnexus\\gitnexus-debugging\\SKILL.md": {
+    "mtime": 1787940533.7098103,
+    "seen": 1787942224.6498275,
+    "ast_hash": "8673cdebdfc2bb3c25ded765466dc20f",
+    "semantic_hash": "8673cdebdfc2bb3c25ded765466dc20f"
+  },
+  "C:\\personal\\projects\\chopper\\.claude\\skills\\gitnexus\\gitnexus-exploring\\SKILL.md": {
+    "mtime": 1787940533.7148256,
+    "seen": 1787942224.6498287,
+    "ast_hash": "90e90162b17c738df357b1353d8d5474",
+    "semantic_hash": "90e90162b17c738df357b1353d8d5474"
+  },
+  "C:\\personal\\projects\\chopper\\.claude\\skills\\gitnexus\\gitnexus-guide\\SKILL.md": {
+    "mtime": 1787940533.7173488,
+    "seen": 1787942224.6498296,
+    "ast_hash": "fefa247a6de742c05999f140e378a6e0",
+    "semantic_hash": "fefa247a6de742c05999f140e378a6e0"
+  },
+  "C:\\personal\\projects\\chopper\\.claude\\skills\\gitnexus\\gitnexus-impact-analysis\\SKILL.md": {
+    "mtime": 1787940533.7198648,
+    "seen": 1787942224.6498303,
+    "ast_hash": "9f8bd8035abe635dfbdd9b9b73d29591",
+    "semantic_hash": "9f8bd8035abe635dfbdd9b9b73d29591"
+  },
+  "C:\\personal\\projects\\chopper\\.claude\\skills\\gitnexus\\gitnexus-refactoring\\SKILL.md": {
+    "mtime": 1787940533.7218666,
+    "seen": 1787942224.6498315,
+    "ast_hash": "710763f0654e834617cdd19a7847144b",
+    "semantic_hash": "710763f0654e834617cdd19a7847144b"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\ISSUE_TEMPLATE\\bug_report.yml": {
+    "mtime": 1787940533.7238684,
+    "seen": 1787942224.6498322,
+    "ast_hash": "1df14ca256bafe9a5a542503238e91a4",
+    "semantic_hash": "1df14ca256bafe9a5a542503238e91a4"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\ISSUE_TEMPLATE\\config.yml": {
+    "mtime": 1783197123.038419,
+    "seen": 1787942224.649833,
+    "ast_hash": "d360797f65dd2528eb0dffa1ee6ea95e",
+    "semantic_hash": "d360797f65dd2528eb0dffa1ee6ea95e"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\agent_memory\\README.md": {
+    "mtime": 1783197123.0394192,
+    "seen": 1787942224.6498337,
+    "ast_hash": "9a7e2f70b00d1b31b86364bb73727852",
+    "semantic_hash": "9a7e2f70b00d1b31b86364bb73727852"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\agent_memory\\chopper-buildout.md": {
+    "mtime": 1783197123.0409324,
+    "seen": 1787942224.6498344,
+    "ast_hash": "fb6cf8b3e6e1cfc3145503881dad89b6",
+    "semantic_hash": "fb6cf8b3e6e1cfc3145503881dad89b6"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\agents\\chopper-agent.agent.md": {
+    "mtime": 1787940533.726868,
+    "seen": 1787942224.6498356,
+    "ast_hash": "a6a3c86e7ba05358a195381ef0c288fe",
+    "semantic_hash": "a6a3c86e7ba05358a195381ef0c288fe"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\agents\\chopper-buildout.agent.md": {
+    "mtime": 1787940533.7310224,
+    "seen": 1787942224.6498363,
+    "ast_hash": "a0ee407f44fe6c3927b691a6d2b0e223",
+    "semantic_hash": "a0ee407f44fe6c3927b691a6d2b0e223"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\agents\\stubborn.agent.md": {
+    "mtime": 1783197123.0494483,
+    "seen": 1787942224.6498373,
+    "ast_hash": "18dd0abc29f974195c7e2a5e34f81f3f",
+    "semantic_hash": "18dd0abc29f974195c7e2a5e34f81f3f"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\instructions\\project.instructions.md": {
+    "mtime": 1787940533.7340326,
+    "seen": 1787942224.649838,
+    "ast_hash": "82f15b2897db244bb349071574eec1bb",
+    "semantic_hash": "82f15b2897db244bb349071574eec1bb"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\bisect-feature-breakage.prompt.md": {
+    "mtime": 1787940533.737116,
+    "seen": 1787942224.649839,
+    "ast_hash": "a7b48c7953811ff7190369d0752b38cd",
+    "semantic_hash": "a7b48c7953811ff7190369d0752b38cd"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\bootstrap-domain.prompt.md": {
+    "mtime": 1787940533.73964,
+    "seen": 1787942224.6498396,
+    "ast_hash": "091aa33a6e67b829b8ff85a999aa49f8",
+    "semantic_hash": "091aa33a6e67b829b8ff85a999aa49f8"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\buildout-commands.md": {
+    "mtime": 1787940533.742642,
+    "seen": 1787942224.6498404,
+    "ast_hash": "fc3da63b96f21c0525cd6f002096fb8f",
+    "semantic_hash": "fc3da63b96f21c0525cd6f002096fb8f"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\explain-last-run.prompt.md": {
+    "mtime": 1787940533.7446434,
+    "seen": 1787942224.6498413,
+    "ast_hash": "69e6c4d0c338801007e5e8c7f5526963",
+    "semantic_hash": "69e6c4d0c338801007e5e8c7f5526963"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\package-bug-artifacts.prompt.md": {
+    "mtime": 1783197123.0602522,
+    "seen": 1787942224.6498423,
+    "ast_hash": "f7a103f411ff5b196ecb984d6051fd06",
+    "semantic_hash": "f7a103f411ff5b196ecb984d6051fd06"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\report-chopper-bug.prompt.md": {
+    "mtime": 1787940533.7466402,
+    "seen": 1787942224.649843,
+    "ast_hash": "8ec40885938836477695850b577b7308",
+    "semantic_hash": "8ec40885938836477695850b577b7308"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\validate-my-jsons.prompt.md": {
+    "mtime": 1787940533.748646,
+    "seen": 1787942224.6498437,
+    "ast_hash": "f5b23e5a837c49b52d09a896a3fce5d1",
+    "semantic_hash": "f5b23e5a837c49b52d09a896a3fce5d1"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\prompts\\why-was-dropped.prompt.md": {
+    "mtime": 1787940533.7523603,
+    "seen": 1787942224.6498444,
+    "ast_hash": "611e1a7a0b73562b9b9372702e55d817",
+    "semantic_hash": "611e1a7a0b73562b9b9372702e55d817"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\SKILL.md": {
+    "mtime": 1787940533.7543778,
+    "seen": 1787942224.6498456,
+    "ast_hash": "47e4533bb3449630ed88f6ae2134099b",
+    "semantic_hash": "47e4533bb3449630ed88f6ae2134099b"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\ARCHITECTURE.md": {
+    "mtime": 1783197123.0682654,
+    "seen": 1787942224.6498463,
+    "ast_hash": "0e5ac8f00ca59661cc3e065904523366",
+    "semantic_hash": "0e5ac8f00ca59661cc3e065904523366"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\CONCERNS.md": {
+    "mtime": 1783197123.0682654,
+    "seen": 1787942224.649847,
+    "ast_hash": "c34ad35a76a55d14a3f9f8d9ca4639f2",
+    "semantic_hash": "c34ad35a76a55d14a3f9f8d9ca4639f2"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\CONVENTIONS.md": {
+    "mtime": 1783197123.070778,
+    "seen": 1787942224.6498477,
+    "ast_hash": "1d537a3ab9a8ba93a0212955f155ca6a",
+    "semantic_hash": "1d537a3ab9a8ba93a0212955f155ca6a"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\INTEGRATIONS.md": {
+    "mtime": 1783197123.0737824,
+    "seen": 1787942224.6498485,
+    "ast_hash": "a73a5160c5904ade9d8c2d5091017bd4",
+    "semantic_hash": "a73a5160c5904ade9d8c2d5091017bd4"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\STACK.md": {
+    "mtime": 1783197123.075786,
+    "seen": 1787942224.6498497,
+    "ast_hash": "95093c87a3a6df86ca7f10811f6e6f29",
+    "semantic_hash": "95093c87a3a6df86ca7f10811f6e6f29"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\STRUCTURE.md": {
+    "mtime": 1783197123.0767846,
+    "seen": 1787942224.6498504,
+    "ast_hash": "a446d121f2449ef95e8b523be019c4d9",
+    "semantic_hash": "a446d121f2449ef95e8b523be019c4d9"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\assets\\templates\\TESTING.md": {
+    "mtime": 1783197123.077785,
+    "seen": 1787942224.6498525,
+    "ast_hash": "3bf706488be280bb94c9889abc058de6",
+    "semantic_hash": "3bf706488be280bb94c9889abc058de6"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\references\\inquiry-checkpoints.md": {
+    "mtime": 1787940533.756376,
+    "seen": 1787942224.6498532,
+    "ast_hash": "6d37382d21f3f0db5d15c01252ad3c27",
+    "semantic_hash": "6d37382d21f3f0db5d15c01252ad3c27"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\acquire-codebase-knowledge\\references\\stack-detection.md": {
+    "mtime": 1787940533.7586355,
+    "seen": 1787942224.649854,
+    "ast_hash": "3a4b84d3fdd76998898390cbe51fd6eb",
+    "semantic_hash": "3a4b84d3fdd76998898390cbe51fd6eb"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\context-map\\SKILL.md": {
+    "mtime": 1783197123.0858154,
+    "seen": 1787942224.6498547,
+    "ast_hash": "def82742ad66476ba6807d9b37881cd7",
+    "semantic_hash": "def82742ad66476ba6807d9b37881cd7"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\fallback-venv\\SKILL.md": {
+    "mtime": 1787940533.764755,
+    "seen": 1787942224.6498554,
+    "ast_hash": "904e734d8fcd6c4ea2a73946f0e04326",
+    "semantic_hash": "904e734d8fcd6c4ea2a73946f0e04326"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\skills\\gh-api-push\\SKILL.md": {
+    "mtime": 1787940533.7667546,
+    "seen": 1787942224.6498566,
+    "ast_hash": "e96dafe18dd6f962aa8d3406c9a24506",
+    "semantic_hash": "e96dafe18dd6f962aa8d3406c9a24506"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\workflows\\assign-bug-issues.yml": {
+    "mtime": 1783197123.095335,
+    "seen": 1787942224.6498573,
+    "ast_hash": "bee2dc935d4c44b705a71ced18914981",
+    "semantic_hash": "bee2dc935d4c44b705a71ced18914981"
+  },
+  "C:\\personal\\projects\\chopper\\.github\\workflows\\static.yml": {
+    "mtime": 1783197123.096336,
+    "seen": 1787942224.649858,
+    "ast_hash": "c70655d0148f46c537df06c52a2b9ac1",
+    "semantic_hash": "c70655d0148f46c537df06c52a2b9ac1"
+  },
+  "C:\\personal\\projects\\chopper\\AGENTS.md": {
+    "mtime": 1787940533.775285,
+    "seen": 1787942224.6498587,
+    "ast_hash": "e405bd56545d2485e3d2cf0bb0924ec9",
+    "semantic_hash": "e405bd56545d2485e3d2cf0bb0924ec9"
+  },
+  "C:\\personal\\projects\\chopper\\CLAUDE.md": {
+    "mtime": 1787940533.7783563,
+    "seen": 1787942224.6498597,
+    "ast_hash": "ee81d99869db19b36ea5d5e7d3dda298",
+    "semantic_hash": "ee81d99869db19b36ea5d5e7d3dda298"
+  },
+  "C:\\personal\\projects\\chopper\\CONTRIBUTING.md": {
+    "mtime": 1787940533.7808928,
+    "seen": 1787942224.6498604,
+    "ast_hash": "4b9afb9c2b8f5e0069a041ffb806fb21",
+    "semantic_hash": "4b9afb9c2b8f5e0069a041ffb806fb21"
+  },
+  "C:\\personal\\projects\\chopper\\README.md": {
+    "mtime": 1787940533.7874582,
+    "seen": 1787942224.6498613,
+    "ast_hash": "60ad1e0b0294a23d2eb7880ab81be95e",
+    "semantic_hash": "60ad1e0b0294a23d2eb7880ab81be95e"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\12_base_with_aggregate_stack\\README.md": {
+    "mtime": 1787940533.8098853,
+    "seen": 1787942224.649862,
+    "ast_hash": "ac07040233a60de192c93b28517b2ec4",
+    "semantic_hash": "ac07040233a60de192c93b28517b2ec4"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\13_base_with_standalone_stack\\README.md": {
+    "mtime": 1787940533.812882,
+    "seen": 1787942224.649863,
+    "ast_hash": "0611c5cc389bf7be05061e32b18706cf",
+    "semantic_hash": "0611c5cc389bf7be05061e32b18706cf"
+  },
+  "C:\\personal\\projects\\chopper\\examples\\14_cross_feature_skip_if_no_stage\\README.md": {
+    "mtime": 1787940533.814883,
+    "seen": 1787942224.6498637,
+    "ast_hash": "ce8187e8a5c808e8fea3cf0710eaf1ba",
+    "semantic_hash": "ce8187e8a5c808e8fea3cf0710eaf1ba"
+  },
+  "C:\\personal\\projects\\chopper\\presentation\\chopper_onboarding.html": {
+    "mtime": 1783197123.183526,
+    "seen": 1787942224.6498647,
+    "ast_hash": "eee9643389d1748db7abd22ac2999666",
+    "semantic_hash": "eee9643389d1748db7abd22ac2999666"
+  },
+  "C:\\personal\\projects\\chopper\\src\\chopper\\audit\\vendor\\README.md": {
+    "mtime": 1783197123.2566168,
+    "seen": 1787942224.6498654,
+    "ast_hash": "6fa1cb7e01ef8a60e0dc0d0293ff50d8",
+    "semantic_hash": "6fa1cb7e01ef8a60e0dc0d0293ff50d8"
+  },
+  "C:\\personal\\projects\\chopper\\technical_docs\\ARCHITECTURE.md": {
+    "mtime": 1787940533.8586247,
+    "seen": 1787942224.6498663,
+    "ast_hash": "e72fc61bf039639d95396a202b12109f",
+    "semantic_hash": "e72fc61bf039639d95396a202b12109f"
+  },
+  "C:\\personal\\projects\\chopper\\technical_docs\\CLI_REFERENCE.md": {
+    "mtime": 1787940533.8642023,
+    "seen": 1787942224.649867,
+    "ast_hash": "8a6627dc5fbe1f8cba89f6d848f18ef0",
+    "semantic_hash": "8a6627dc5fbe1f8cba89f6d848f18ef0"
+  },
+  "C:\\personal\\projects\\chopper\\technical_docs\\DIAGNOSTIC_CODES.md": {
+    "mtime": 1787940533.8692942,
+    "seen": 1787942224.6498678,
+    "ast_hash": "0a8b49e9dfe6bf80a7940affe786e37f",
+    "semantic_hash": "0a8b49e9dfe6bf80a7940affe786e37f"
+  },
+  "C:\\personal\\projects\\chopper\\technical_docs\\ENGINEERING.md": {
+    "mtime": 1787940533.875835,
+    "seen": 1787942224.6498687,
+    "ast_hash": "c2d36591aa66be8bc451435b4f91098b",
+    "semantic_hash": "c2d36591aa66be8bc451435b4f91098b"
+  },
+  "C:\\personal\\projects\\chopper\\technical_docs\\IMPLEMENTATION.md": {
+    "mtime": 1787940533.881918,
+    "seen": 1787942224.6498697,
+    "ast_hash": "984f37ea42a02299f9b51feea4046c01",
+    "semantic_hash": "984f37ea42a02299f9b51feea4046c01"
+  },
+  "C:\\personal\\projects\\chopper\\technical_docs\\JSON_AUTHORING_GUIDE.md": {
+    "mtime": 1787940533.8869572,
+    "seen": 1787942224.6498704,
+    "ast_hash": "82e2e34c7273c27a7d29b8c16c7e5a53",
+    "semantic_hash": "82e2e34c7273c27a7d29b8c16c7e5a53"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\FIXTURE_AUDIT.md": {
+    "mtime": 1787940533.8940208,
+    "seen": 1787942224.6498713,
+    "ast_hash": "a35157311c3905a42c97897cfd5fc2d7",
+    "semantic_hash": "a35157311c3905a42c97897cfd5fc2d7"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\FIXTURE_CATALOG.md": {
+    "mtime": 1787940533.8974059,
+    "seen": 1787942224.649872,
+    "ast_hash": "c8046337669696d3522b323b560745af",
+    "semantic_hash": "c8046337669696d3522b323b560745af"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\GOLDEN_FILE_GUIDE.md": {
+    "mtime": 1787940533.9029343,
+    "seen": 1787942224.6498728,
+    "ast_hash": "0c8d74bab9c85502dcb8480b396161de",
+    "semantic_hash": "0c8d74bab9c85502dcb8480b396161de"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\SPEC_COVERAGE_AUDIT.md": {
+    "mtime": 1787940533.9069343,
+    "seen": 1787942224.649874,
+    "ast_hash": "cb34ba84a7e70f7bc596efbf41e04306",
+    "semantic_hash": "cb34ba84a7e70f7bc596efbf41e04306"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\TESTING_STRATEGY.md": {
+    "mtime": 1787940533.913156,
+    "seen": 1787942224.6498747,
+    "ast_hash": "b8c9bf9195ebadec1090a4cc4e0a1f21",
+    "semantic_hash": "b8c9bf9195ebadec1090a4cc4e0a1f21"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\bug_reports\\README.md": {
+    "mtime": 1783197123.5176532,
+    "seen": 1787942224.6498754,
+    "ast_hash": "9c22b0d2603297ed98f9d2a2b9e00c59",
+    "semantic_hash": "9c22b0d2603297ed98f9d2a2b9e00c59"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\fixtures\\edge_cases\\domain_empty\\README.md": {
+    "mtime": 1787940533.929438,
+    "seen": 1787942224.649876,
+    "ast_hash": "c1e60a0641489b6b011162bae8695dbb",
+    "semantic_hash": "c1e60a0641489b6b011162bae8695dbb"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\test_audit_artifacts_golden\\test_chopper_run_json_shape.yml": {
+    "mtime": 1783636967.873766,
+    "seen": 1787942224.6498773,
+    "ast_hash": "009778f40521d3b52c923ff7f1e65211",
+    "semantic_hash": "009778f40521d3b52c923ff7f1e65211"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\test_audit_artifacts_golden\\test_compiled_manifest_json_shape.yml": {
+    "mtime": 1783197123.6510754,
+    "seen": 1787942224.649878,
+    "ast_hash": "a9ede1bc128f34ac02a3d8119b4a1990",
+    "semantic_hash": "a9ede1bc128f34ac02a3d8119b4a1990"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\test_audit_artifacts_golden\\test_dependency_graph_json_shape.yml": {
+    "mtime": 1783197123.6530833,
+    "seen": 1787942224.6498802,
+    "ast_hash": "eb1c098e1088c2d966ce082a4555c243",
+    "semantic_hash": "eb1c098e1088c2d966ce082a4555c243"
+  },
+  "C:\\personal\\projects\\chopper\\tests\\golden\\test_audit_artifacts_golden\\test_trim_report_json_shape.yml": {
+    "mtime": 1783197123.6540823,
+    "seen": 1787942224.649881,
+    "ast_hash": "e5e3e789372066e9de351b936973bf09",
+    "semantic_hash": "e5e3e789372066e9de351b936973bf09"
+  },
+  "C:\\personal\\projects\\chopper\\user_docs\\01_OVERVIEW.md": {
+    "mtime": 1787940534.0643938,
+    "seen": 1787942224.6498816,
+    "ast_hash": "fd9aa8662fa911d1fff52f5fa9592adc",
+    "semantic_hash": "fd9aa8662fa911d1fff52f5fa9592adc"
+  },
+  "C:\\personal\\projects\\chopper\\user_docs\\02_CLI_GUIDE.md": {
+    "mtime": 1787940534.0683775,
+    "seen": 1787942224.6498826,
+    "ast_hash": "181d767676876b87cb6ffe10104ac45c",
+    "semantic_hash": "181d767676876b87cb6ffe10104ac45c"
+  },
+  "C:\\personal\\projects\\chopper\\user_docs\\03_HOW_CHOPPER_WORKS.md": {
+    "mtime": 1787940534.0728984,
+    "seen": 1787942224.6498897,
+    "ast_hash": "957d9d547b2aa5c1e708795757f829db",
+    "semantic_hash": "957d9d547b2aa5c1e708795757f829db"
+  },
+  "C:\\personal\\projects\\chopper\\user_docs\\README.md": {
+    "mtime": 1787940534.077244,
+    "seen": 1787942224.649891,
+    "ast_hash": "15b091a988e71400b185f6f619accf24",
+    "semantic_hash": "15b091a988e71400b185f6f619accf24"
+  }
+}

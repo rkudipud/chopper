@@ -15,6 +15,7 @@ from chopper.adapters import InMemoryFS
 from chopper.core.models_common import DomainState, FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
+from chopper.core.provenance_markers import marker_pair
 from chopper.trimmer import TrimmerService
 from tests.unit.trimmer._helpers import BACKUP, DOMAIN, make_ctx
 
@@ -251,13 +252,49 @@ def test_proc_trim_drops_non_surviving_procs() -> None:
 
     report = TrimmerService().run(ctx, manifest, parsed, state)
 
-    assert fs.read_text(DOMAIN / "m.tcl") == "proc a {} {}\nproc c {} {}\n"
+    a_begin, a_end = marker_pair(action="kept", kind="proc", name="a", source="base")
+    b_begin, b_end = marker_pair(action="removed", kind="proc", name="b", source="default")
+    c_begin, c_end = marker_pair(action="kept", kind="proc", name="c", source="base")
+    assert fs.read_text(DOMAIN / "m.tcl") == (
+        f"{a_begin}\nproc a {{}} {{}}\n{a_end}\n{b_begin}\n{b_end}\n{c_begin}\nproc c {{}} {{}}\n{c_end}\n"
+    )
     assert report.files_trimmed == 1
     assert report.procs_kept_total == 2
     assert report.procs_removed_total == 1
     outcome = report.outcomes[0]
     assert outcome.procs_kept == ("m.tcl::a", "m.tcl::c")
     assert outcome.procs_removed == ("m.tcl::b",)
+
+
+def test_source_by_file_indexes_proc_removals() -> None:
+    """``_source_by_file`` must also index ``manifest.proc_removals`` (not
+    just ``proc_decisions``) so ``annotate_procs`` can attribute a removed
+    proc's marker to the layer that excluded it, rather than "default"."""
+    from chopper.core.models_compiler import ProcRemoval
+    from chopper.trimmer.service import _source_by_file
+
+    manifest = CompiledManifest(
+        file_decisions={Path("m.tcl"): FileTreatment.PROC_TRIM},
+        proc_decisions={},
+        proc_removals={
+            "m.tcl::dropped": ProcRemoval(
+                canonical_name="m.tcl::dropped",
+                source_file=Path("m.tcl"),
+                removal_source="feature:dft:procedures.exclude",
+            )
+        },
+        provenance={
+            Path("m.tcl"): FileProvenance(
+                path=Path("m.tcl"),
+                treatment=FileTreatment.PROC_TRIM,
+                reason="pi-overlay",
+                input_sources=("base:files.include",),
+                proc_model="overlay",
+            )
+        },
+    )
+
+    assert _source_by_file(manifest)[Path("m.tcl")]["m.tcl::dropped"] == "feature:dft"
 
 
 def test_proc_trim_out_of_range_emits_ve26_and_halts() -> None:
@@ -528,6 +565,7 @@ def test_dispatch_receives_generated_raises_valueerror() -> None:
             FileTreatment.GENERATED,
             ParseResult(files={}, index={}),
             {},
+            {},
         )
 
 
@@ -549,6 +587,7 @@ def test_dispatch_unknown_treatment_raises_valueerror() -> None:
             Path("s.tcl"),
             _FakeTreatment(),  # type: ignore[arg-type]
             ParseResult(files={}, index={}),
+            {},
             {},
         )
 

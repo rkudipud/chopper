@@ -87,8 +87,16 @@ from chopper.core.models_config import (
     ReplaceStepAction,
     StageDefinition,
 )
+from chopper.core.provenance_markers import marker_pair
 
 __all__ = ["resolve_stages"]
+
+# Sec.3.11 marker line prefixes -- used only to detect when an add_step_*
+# anchor is itself the boundary content line of an earlier feature's
+# added/replaced block, so "before"/"after" resolves to the whole block
+# rather than splitting it.
+_MARKER_BEGIN_PREFIX = "## CHOPPER: BEGIN"
+_MARKER_END_PREFIX = "## CHOPPER: END"
 
 
 # ``step@n`` -- ``@n`` applies to the trailing integer only; step strings
@@ -370,13 +378,27 @@ def _apply_add_step(
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind=action.action)
     if idx is None:
         return
+    begin, end = marker_pair(
+        action="added", kind="step", name=", ".join(action.items), source=f"feature:{feature_name}"
+    )
+    wrapped_items = [begin, *action.items, end]
     if action.action == "add_step_before":
+        # If the anchor is itself the first content line of an earlier
+        # feature's added/replaced marker block, "before" means before
+        # that whole block, not between its BEGIN marker and content.
+        if idx > 0 and stage.steps[idx - 1].startswith(_MARKER_BEGIN_PREFIX):
+            idx -= 1
         # Anchor index is re-resolved each call; previous insertions
         # before the anchor have already shifted the anchor down, so
         # this insertion lands immediately before the (shifted) anchor
         # and naturally preserves selected feature order.
         insertion = idx
     else:
+        # If the anchor is itself the last content line of an earlier
+        # feature's added/replaced marker block, "after" means after
+        # that whole block, not between its content and END marker.
+        if idx + 1 < len(stage.steps) and stage.steps[idx + 1].startswith(_MARKER_END_PREFIX):
+            idx += 1
         # add_step_after: preserve selected feature order by walking
         # past prior same-anchor insertions from earlier features. The
         # reference string plus its ``@n`` suffix (if any) uniquely
@@ -389,8 +411,32 @@ def _apply_add_step(
         offset_key = (stage.name, _step_value, suffix)
         prior = step_after_offsets.get(offset_key, 0)
         insertion = idx + 1 + prior
-        step_after_offsets[offset_key] = prior + len(action.items)
-    stage.steps[insertion:insertion] = list(action.items)
+        step_after_offsets[offset_key] = prior + len(wrapped_items)
+    stage.steps[insertion:insertion] = wrapped_items
+
+
+def _enclosing_span(stage: _MutableStage, idx: int) -> tuple[int, int]:
+    """Return the ``[start, end]`` (inclusive) span to rewrite for step index ``idx``.
+
+    When ``idx`` is a *solitary* single-item marker block (immediately
+    preceded by a BEGIN line and immediately followed by an END line), a
+    later ``replace_step``/``remove_step`` targeting it must replace the
+    whole block -- otherwise the earlier action's now-stale BEGIN/END
+    would keep naming content that this action just superseded (R1
+    last-mention-wins applies to the whole marked unit, not just its
+    inner text). Multi-item blocks are left alone: only the exact
+    matched line is rewritten, since expanding would also consume
+    unrelated sibling items from the same action.
+    """
+
+    if (
+        idx > 0
+        and stage.steps[idx - 1].startswith(_MARKER_BEGIN_PREFIX)
+        and idx + 1 < len(stage.steps)
+        and stage.steps[idx + 1].startswith(_MARKER_END_PREFIX)
+    ):
+        return idx - 1, idx + 1
+    return idx, idx
 
 
 def _apply_remove_step(
@@ -416,7 +462,9 @@ def _apply_remove_step(
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind="remove_step")
     if idx is None:
         return
-    del stage.steps[idx]
+    begin, end = marker_pair(action="removed", kind="step", name=stage.steps[idx], source=f"feature:{feature_name}")
+    start, stop = _enclosing_span(stage, idx)
+    stage.steps[start : stop + 1] = [begin, end]
 
 
 def _apply_replace_step(
@@ -442,7 +490,9 @@ def _apply_replace_step(
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind="replace_step")
     if idx is None:
         return
-    stage.steps[idx] = action.replacement
+    begin, end = marker_pair(action="replaced", kind="step", name=action.replacement, source=f"feature:{feature_name}")
+    start, stop = _enclosing_span(stage, idx)
+    stage.steps[start : stop + 1] = [begin, action.replacement, end]
 
 
 # ---- stage-level actions ---------------------------------------------------
@@ -479,6 +529,8 @@ def _apply_add_stage(
             stage_name=new_stage.name,
         )
         return
+    begin, end = marker_pair(action="added", kind="stage", name=new_stage.name, source=f"feature:{feature_name}")
+    new_stage.steps = [begin, *new_stage.steps, end]
     if action.action == "add_stage_before":
         # Mirrors ``add_step_before``: each insertion shifts the
         # reference stage down, so subsequent same-anchor inserts land
@@ -547,6 +599,8 @@ def _apply_replace_stage(
             stage_name=replacement.name,
         )
         return
+    begin, end = marker_pair(action="replaced", kind="stage", name=replacement.name, source=f"feature:{feature_name}")
+    replacement.steps = [begin, *replacement.steps, end]
     working[idx] = replacement
     # Rewrite existing load_from references from the old stage name to
     # the replacement's name so later actions see the new graph

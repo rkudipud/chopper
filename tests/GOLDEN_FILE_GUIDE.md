@@ -61,15 +61,13 @@ def test_parser_basic_single_proc(data_regression):
 import json
 from pathlib import Path
 
+
 def assert_json_matches_golden(actual: dict, name: str) -> None:
     """Assert actual matches golden file; create golden if absent."""
     golden_path = Path("tests/golden") / f"{name}.json"
     if not golden_path.exists():
         golden_path.parent.mkdir(parents=True, exist_ok=True)
-        golden_path.write_text(
-            json.dumps(actual, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8"
-        )
+        golden_path.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return  # First run -- always passes
     expected = json.loads(golden_path.read_text(encoding="utf-8"))
     assert actual == expected, (

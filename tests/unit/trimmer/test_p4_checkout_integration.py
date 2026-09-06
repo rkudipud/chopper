@@ -294,6 +294,22 @@ def test_p4_precopy_copies_generated_regenerate_in_place() -> None:
     assert fs.read_text(DOMAIN / "stage.tcl") == "# original\n"
 
 
+def test_p4_precopy_skips_generated_new_file_not_in_backup() -> None:
+    """_p4_precopy_from_backup: new-file GENERATED (not yet in backup) is
+    p4-add territory, not p4-edit -- pre-copy must skip it, not crash."""
+    from chopper.adapters import InMemoryFS
+    from chopper.trimmer.service import TrimmerService
+
+    # GENERATED file exists only in domain (first-time generation); no backup entry.
+    fs = InMemoryFS({DOMAIN / "stage.tcl": "# regenerated\n"})
+    ctx, _sink = make_ctx(fs=fs)
+    manifest = _manifest({"stage.tcl": FileTreatment.GENERATED})
+
+    TrimmerService()._p4_precopy_from_backup(ctx, manifest)
+
+    assert fs.read_text(DOMAIN / "stage.tcl") == "# regenerated\n"
+
+
 def test_p4_case3_skipped_with_notice() -> None:
     """Case 3 (backup only, no domain): p4 checkout is skipped with a
     domain-absent reason; trim still proceeds from backup."""

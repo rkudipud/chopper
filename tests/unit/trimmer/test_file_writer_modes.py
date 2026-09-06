@@ -162,7 +162,13 @@ def test_proc_trim_file_preserves_executable_bit(tmp_path: Path) -> None:
     )
     parsed = ParsedFile(path=rel, procs=(keep, drop), encoding="utf-8")
 
-    proc_trim_file(ctx, rel, parsed=parsed, keep_canonical=frozenset({keep.canonical_name}))
+    proc_trim_file(
+        ctx,
+        rel,
+        parsed=parsed,
+        keep_canonical=frozenset({keep.canonical_name}),
+        source_of=lambda cn: "base",
+    )
 
     dst = ctx.config.domain_root / rel
     assert dst.is_file()

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Chopper Runtime Architecture — P0–P7 Pipeline",
+    "output": "presentation/chopper_runtime_architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/rkudipud/chopper",
+      "revision": "e689db9b3c640c1c7b536d874e3e9bcaf09d2fe4"
+    },
+    "views": [
+      {
+        "id": "rebuild-flow",
+        "label": "Rebuild + validate P5–P6",
+        "focus": ["compiler", "trimmer", "domain", "postvalidate"],
+        "note": "P5 rewrites the domain in place; P6 re-checks the exact bytes P5 produced."
+      },
+      {
+        "id": "always-audit",
+        "label": "Audit runs unconditionally",
+        "focus": ["runner", "postvalidate", "audit", "bundle"],
+        "note": "AuditService runs from a finally block for every command except loc, regardless of which gate aborted."
+      }
+    ]
+  },
+  "components": [
+    { "id": "cli", "type": "frontend", "label": "CLI Entry Point", "sublabel": "validate · trim · loc · cleanup", "pos": [40, 122], "size": [170, 62], "sources": [{ "path": "src/chopper/cli/main.py", "line": 30, "end_line": 111, "label": "build_parser()" }] },
+    { "id": "ports", "type": "backend", "label": "Ports & Adapters", "sublabel": "fs · diag · progress ports", "pos": [290, 30], "size": [170, 62], "tag": "infrastructure", "sources": [{ "path": "src/chopper/core/protocols.py", "line": 33, "end_line": 126, "label": "Protocol definitions" }] },
+    { "id": "runner", "type": "backend", "label": "ChopperRunner", "sublabel": "P0–P7 phase sequencer", "pos": [290, 122], "size": [170, 62], "tag": "orchestrator", "sources": [{ "path": "src/chopper/orchestrator/runner.py", "line": 41, "end_line": 65, "label": "ChopperRunner.run()" }] },
+    { "id": "jsons", "type": "external", "label": "JSON Configs", "sublabel": "base · features · project", "pos": [540, 30], "size": [170, 62], "sources": [{ "path": "schemas/base-v1.schema.json", "label": "base/feature/project schemas" }] },
+    { "id": "config", "type": "backend", "label": "Config + Pre-Validate", "sublabel": "P1 · merge & VE checks", "pos": [540, 122], "size": [170, 62], "sources": [{ "path": "src/chopper/config/service.py", "line": 79, "label": "ConfigService.run()" }, { "path": "src/chopper/validator/functions.py", "line": 57, "label": "validate_pre()" }] },
+    { "id": "parser", "type": "backend", "label": "Tcl Parser", "sublabel": "P2 · tokenize, extract procs", "pos": [790, 122], "size": [170, 62], "sources": [{ "path": "src/chopper/parser/service.py", "line": 214, "label": "ParserService.run()" }] },
+    { "id": "domain", "type": "external", "label": "Domain Tcl/EDA Tree", "sublabel": "user's flow files on disk", "pos": [665, 214], "size": [170, 62] },
+    { "id": "compiler", "type": "backend", "label": "Compiler + Tracer", "sublabel": "P3/P4 · R1 merge, BFS trace", "pos": [790, 306], "size": [170, 62], "sources": [{ "path": "src/chopper/compiler/merge_service.py", "line": 108, "label": "CompilerService.run()" }, { "path": "src/chopper/compiler/trace_service.py", "line": 60, "label": "TracerService.run()" }] },
+    { "id": "trimmer", "type": "backend", "label": "Trimmer + Generators", "sublabel": "P5 · rewrite, stage-gen, sync", "pos": [540, 306], "size": [170, 62], "sources": [{ "path": "src/chopper/trimmer/service.py", "line": 96, "label": "TrimmerService.run()" }, { "path": "src/chopper/generators/service.py", "line": 55, "label": "GeneratorService.run()" }] },
+    { "id": "postvalidate", "type": "backend", "label": "Post-Validate", "sublabel": "P6 · brace/dangling-ref checks", "pos": [290, 306], "size": [170, 62], "sources": [{ "path": "src/chopper/validator/functions.py", "line": 331, "label": "validate_post()" }] },
+    { "id": "audit", "type": "backend", "label": "Audit Service", "sublabel": "P7 · always runs (finally)", "pos": [40, 306], "size": [170, 62], "sources": [{ "path": "src/chopper/audit/service.py", "line": 43, "label": "AuditService.run()" }] },
+    { "id": "bundle", "type": "database", "label": ".chopper/ Bundle", "sublabel": "manifests · diagnostics · reports", "pos": [40, 398], "size": [170, 62] }
+  ],
+  "connections": [
+    { "id": "user-invoke", "from": "cli", "to": "runner", "label": "dispatch", "variant": "emphasis" },
+    { "id": "ports-runner", "from": "ports", "to": "runner", "label": "inject", "fromSide": "bottom", "toSide": "top", "labelAt": [375, 106] },
+    { "id": "jsons-config", "from": "jsons", "to": "config", "label": "load", "fromSide": "bottom", "toSide": "top", "labelAt": [625, 106] },
+    { "id": "runner-config", "from": "runner", "to": "config", "label": "P1" },
+    { "id": "config-parser", "from": "config", "to": "parser", "label": "P2" },
+    { "id": "domain-parser", "from": "domain", "to": "parser", "label": "read", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "labelAt": [800, 199] },
+    { "id": "parser-compiler", "from": "parser", "to": "compiler", "label": "P3/P4", "fromSide": "bottom", "toSide": "top", "labelAt": [875, 276] },
+    { "id": "compiler-trimmer", "from": "compiler", "to": "trimmer", "label": "P5" },
+    { "id": "trimmer-domain", "from": "trimmer", "to": "domain", "label": "rewrite", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "labelAt": [700, 291] },
+    { "id": "trimmer-postvalidate", "from": "trimmer", "to": "postvalidate", "label": "P6" },
+    { "id": "postvalidate-audit", "from": "postvalidate", "to": "audit", "label": "P7" },
+    { "id": "audit-bundle", "from": "audit", "to": "bundle", "label": "write", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "labelAt": [125, 383] },
+    { "id": "runner-audit", "from": "runner", "to": "audit", "label": "always", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "via": [[375, 240], [125, 240]] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Pipeline (P0–P7)", "items": ["P0 domain state → P1 config+pre-validate → P2 parse → P3 compile", "P4 trace is reporting-only: traced callees are never copied", "P5 rebuild → P6 post-validate → P7 audit"] },
+    { "dot": "amber", "title": "Gates, Dry-Run & Unconditional Audit", "items": ["Every phase gate routes through has_errors(ctx, phase); errors abort the run", "--dry-run skips P5 writes but still runs manifest-derivable P6 checks", "AuditService always runs from ChopperRunner's finally block (except `loc`)"] }
+  ]
+}
+

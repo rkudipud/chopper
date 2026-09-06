@@ -14,6 +14,7 @@ __all__ = [
     "Edge",
     "FileProvenance",
     "ProcDecision",
+    "ProcRemoval",
     "ShadowEvent",
     "StageSpec",
 ]
@@ -35,6 +36,31 @@ class ProcDecision:
         if ":" not in self.selection_source:
             raise ValueError(
                 f"ProcDecision.selection_source must be '<source_key>:<json_field>', got {self.selection_source!r}"
+            )
+
+
+@dataclass(frozen=True)
+class ProcRemoval:
+    """One excluded proc in a ``PROC_TRIM`` file, recorded for Sec.3.11 provenance markers.
+
+    Mirrors :class:`ProcDecision` for the excluded side of F2. ``removal_source``
+    is either ``"<layer>:procedures.exclude"`` (an explicit exclude entry won the
+    proc, R1 last-mention-wins) or ``"default:r2-default-exclude"`` (the file is
+    in include-mode and no layer ever named the proc in ``procedures.include``).
+    """
+
+    canonical_name: str
+    source_file: Path
+    removal_source: str
+
+    def __post_init__(self) -> None:
+        if "::" not in self.canonical_name:
+            raise ValueError(
+                f"ProcRemoval.canonical_name must be '<file>::<qualified_name>', got {self.canonical_name!r}"
+            )
+        if ":" not in self.removal_source:
+            raise ValueError(
+                f"ProcRemoval.removal_source must be '<source_key>:<json_field>', got {self.removal_source!r}"
             )
 
 
@@ -107,6 +133,7 @@ class CompiledManifest:
 
     file_decisions: dict[Path, FileTreatment] = field(default_factory=dict)
     proc_decisions: dict[str, ProcDecision] = field(default_factory=dict)
+    proc_removals: dict[str, ProcRemoval] = field(default_factory=dict)
     provenance: dict[Path, FileProvenance] = field(default_factory=dict)
     stages: tuple[StageSpec, ...] = ()
     generate_stack: bool = False
@@ -118,6 +145,10 @@ class CompiledManifest:
             raise ValueError("CompiledManifest.file_decisions must be lex-sorted by POSIX form")
         if list(self.proc_decisions.keys()) != sorted(self.proc_decisions.keys()):
             raise ValueError("CompiledManifest.proc_decisions keys must be lex-sorted")
+        if list(self.proc_removals.keys()) != sorted(self.proc_removals.keys()):
+            raise ValueError("CompiledManifest.proc_removals keys must be lex-sorted")
+        if set(self.proc_decisions.keys()) & set(self.proc_removals.keys()):
+            raise ValueError("CompiledManifest.proc_decisions and proc_removals must not overlap")
         pv_keys = [p.as_posix() for p in self.provenance]
         if pv_keys != sorted(pv_keys):
             raise ValueError("CompiledManifest.provenance must be lex-sorted by POSIX form")

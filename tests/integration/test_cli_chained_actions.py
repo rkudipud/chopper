@@ -35,6 +35,7 @@ from pathlib import Path
 from chopper.adapters import CollectingSink, LocalFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.models_common import FileTreatment
+from chopper.core.provenance_markers import marker_pair
 from chopper.orchestrator import ChopperRunner
 
 # ---------------------------------------------------------------------------
@@ -144,7 +145,8 @@ def test_add_step_after_unique_anchor_inserts_in_place(tmp_path: Path) -> None:
     assert result.exit_code == 0, f"unexpected non-zero exit; codes={codes}"
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("source src/core.tcl", "setup", "run", "verify")
+    begin, end = marker_pair(action="added", kind="step", name="verify", source="feature:verify")
+    assert main.steps == ("source src/core.tcl", "setup", "run", begin, "verify", end)
 
 
 # ===========================================================================
@@ -179,7 +181,8 @@ def test_add_step_before_unique_anchor_inserts_in_place(tmp_path: Path) -> None:
     assert result.exit_code == 0, f"unexpected non-zero exit; codes={codes}"
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("source src/core.tcl", "setup", "precheck", "run")
+    begin, end = marker_pair(action="added", kind="step", name="precheck", source="feature:pre")
+    assert main.steps == ("source src/core.tcl", "setup", begin, "precheck", end, "run")
 
 
 # ===========================================================================
@@ -221,13 +224,22 @@ def test_add_step_after_same_anchor_three_features_preserve_order(tmp_path: Path
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
     # f1, f2, f3 must appear in that exact selected order.
+    f1_begin, f1_end = marker_pair(action="added", kind="step", name="step_from_f1", source="feature:f1")
+    f2_begin, f2_end = marker_pair(action="added", kind="step", name="step_from_f2", source="feature:f2")
+    f3_begin, f3_end = marker_pair(action="added", kind="step", name="step_from_f3", source="feature:f3")
     assert main.steps == (
         "source src/core.tcl",
         "setup",
         "run",
+        f1_begin,
         "step_from_f1",
+        f1_end,
+        f2_begin,
         "step_from_f2",
+        f2_end,
+        f3_begin,
         "step_from_f3",
+        f3_end,
     )
 
 
@@ -268,12 +280,21 @@ def test_add_step_before_same_anchor_three_features_preserve_order(tmp_path: Pat
     assert result.exit_code == 0
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
+    f1_begin, f1_end = marker_pair(action="added", kind="step", name="step_from_f1", source="feature:f1")
+    f2_begin, f2_end = marker_pair(action="added", kind="step", name="step_from_f2", source="feature:f2")
+    f3_begin, f3_end = marker_pair(action="added", kind="step", name="step_from_f3", source="feature:f3")
     assert main.steps == (
         "source src/core.tcl",
         "setup",
+        f1_begin,
         "step_from_f1",
+        f1_end,
+        f2_begin,
         "step_from_f2",
+        f2_end,
+        f3_begin,
         "step_from_f3",
+        f3_end,
         "run",
     )
 
@@ -381,7 +402,8 @@ def test_remove_step_drops_named_step(tmp_path: Path) -> None:
     assert result.exit_code == 0
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("source src/core.tcl", "run")
+    begin, end = marker_pair(action="removed", kind="step", name="setup", source="feature:trim")
+    assert main.steps == ("source src/core.tcl", begin, end, "run")
 
 
 # ===========================================================================
@@ -461,7 +483,8 @@ def test_replace_step_swaps_exact_token(tmp_path: Path) -> None:
     assert result.exit_code == 0
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("source src/core.tcl", "setup", "run_fast")
+    begin, end = marker_pair(action="replaced", kind="step", name="run_fast", source="feature:swap")
+    assert main.steps == ("source src/core.tcl", "setup", begin, "run_fast", end)
 
 
 # ===========================================================================
@@ -619,7 +642,8 @@ def test_add_step_after_with_at_n_instance_targeting(tmp_path: Path) -> None:
     assert result.exit_code == 0, f"unexpected non-zero exit; codes={codes}"
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("x", "y", "x", "after_second_x")
+    begin, end = marker_pair(action="added", kind="step", name="after_second_x", source="feature:tag")
+    assert main.steps == ("x", "y", "x", begin, "after_second_x", end)
     # Must NOT emit VE-20 (suffix disambiguates).
     assert "VE-20" not in codes
 
@@ -951,7 +975,8 @@ def test_action_step_references_pe_dropped_proc_stages_unchanged(tmp_path: Path)
     # Stage steps are byte-stable: F3 keeps "helper_b" + "echo done" in order.
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("source src/lib.tcl", "helper_a", "helper_b", "echo done")
+    begin, end = marker_pair(action="added", kind="step", name="echo done", source="feature:drop_b")
+    assert main.steps == ("source src/lib.tcl", "helper_a", "helper_b", begin, "echo done", end)
     # F2: lib.tcl was demoted from FULL_COPY to PROC_TRIM by the PE.
     assert result.manifest.file_decisions.get(Path("src/lib.tcl")) is FileTreatment.PROC_TRIM
     survivors = {
@@ -996,4 +1021,5 @@ def test_chained_replace_step_last_layer_wins(tmp_path: Path) -> None:
     assert result.exit_code == 0
     main = _stage_by_name(result.manifest.stages, "main")
     assert main is not None
-    assert main.steps == ("source src/core.tcl", "setup", "run2")
+    begin, end = marker_pair(action="replaced", kind="step", name="run2", source="feature:b")
+    assert main.steps == ("source src/core.tcl", "setup", begin, "run2", end)

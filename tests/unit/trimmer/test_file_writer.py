@@ -66,9 +66,10 @@ def test_proc_trim_file_sorts_kept_and_removed_proc_names() -> None:
         rel,
         parsed=parsed,
         keep_canonical=frozenset({z_keep.canonical_name, b_keep.canonical_name}),
+        source_of=lambda cn: "base",
     )
 
-    assert "a_drop" not in fs.read_text(DOMAIN / rel)
+    assert "proc a_drop {} {}" not in fs.read_text(DOMAIN / rel)
     assert outcome.procs_kept == ("trimmed.tcl::b_keep", "trimmed.tcl::z_keep")
     assert outcome.procs_removed == ("trimmed.tcl::a_drop",)
 
@@ -82,7 +83,9 @@ def test_proc_trim_file_dry_run_reports_without_writing() -> None:
     drop = _proc("trimmed.tcl", "drop", start=2, end=2)
     parsed = ParsedFile(path=rel, procs=(keep, drop), encoding="utf-8")
 
-    outcome = proc_trim_file(ctx, rel, parsed=parsed, keep_canonical=frozenset({keep.canonical_name}))
+    outcome = proc_trim_file(
+        ctx, rel, parsed=parsed, keep_canonical=frozenset({keep.canonical_name}), source_of=lambda cn: "base"
+    )
 
     assert not fs.exists(DOMAIN / rel)
     assert outcome.treatment is FileTreatment.PROC_TRIM

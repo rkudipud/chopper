@@ -404,7 +404,10 @@ def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
     assert bucket_by_name["PROC_TRIM"].files == 1
     assert bucket_by_name["REMOVE"].files == 1
     assert bucket_by_name["GENERATED"].files == 1
-    assert bucket_by_name["PROC_TRIM"].lines_after < bucket_by_name["PROC_TRIM"].lines_before
+    # Raw line count can grow (Sec.3.11 provenance markers add two lines per
+    # proc), but SLOC (comments excluded) still shrinks -- the dropped proc's
+    # body is gone.
+    assert bucket_by_name["PROC_TRIM"].sloc_after < bucket_by_name["PROC_TRIM"].sloc_before
     assert bucket_by_name["GENERATED"].sloc_before > 0
 
 

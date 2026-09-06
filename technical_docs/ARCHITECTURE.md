@@ -572,6 +572,7 @@ F2 performs Tcl proc-level trimming via `procedures.include` and `procedures.exc
 - Only `.tcl` files participate in F2. If a file must survive unchanged, even when it contains Tcl-adjacent text, the correct surface is F1 `files.include`, not F2.
 - In P5a, `PROC_TRIM` is the only path that reads file contents for proc-body deletion, and it does so only for Tcl files selected for proc trimming. P5c later reads every emitted `PROC_TRIM` and `GENERATED` `.tcl` output for indentation normalization; `FULL_COPY` outputs are not read by P5c.
 - Tracing is default-on: explicitly included procs are expanded transitively for diagnostics and call-tree reporting (PI+), but only explicitly listed procs survive in the trimmed output. See R3.
+- Every proc in a `PROC_TRIM` file -- surviving or removed -- is wrapped with a `## CHOPPER: BEGIN/END` provenance comment pair attributing the winning JSON layer (`base`, `feature:<name>`, or `default` for an R2 default-exclude removal). See Sec.3.11.
 
 ### 3.6 F3 -- Run-File Generation
 
@@ -662,6 +663,8 @@ The aggregate stack inclusion is independent of `<stage>.tcl` / `<stage>.stack` 
 Steps are stored and processed as **plain strings** -- a step may be a Tcl filename, a raw `source` command, an ivar-based reference, or a conditional directive such as `#if` / `#else` / `#endif`. See R4 for the rationale.
 
 Feature JSONs modify the base stage sequence via `flow_actions`. The full action vocabulary (`add_step_before`, `add_step_after`, `replace_step`, `remove_step`, `add_stage_before`, `add_stage_after`, `replace_stage`, `remove_stage`, `load_from`) is defined in Sec.6.7.
+
+Every step or stage actually touched by a `flow_action` is wrapped in the emitted `<stage>.tcl` with a `## CHOPPER: BEGIN/END` provenance comment pair naming the authoring feature; untouched base steps/stages remain bare. `remove_stage` has no in-file marker (no file is generated for a removed stage); the aggregate `<domain>.stack` and any `standalone_stack: true` file are never marked. See Sec.3.11.
 
 
 Chopper ships F1/F2/F3 as first-class capabilities; domain owners choose which capabilities to use per domain/project. Users without stages still get F1 and F2 (file and proc trimming). Users with stages get generated `<stage>.tcl` run scripts for fine-grained step control.
@@ -767,6 +770,47 @@ This covers the two shapes EDA tool commands appear in (bare and namespace-quali
 **Pool is never user-authored per-domain.** Tool-command lists describe tools (PrimeTime, Formality, etc.), not domains. They belong to infrastructure, not to the domain being trimmed. There is no base-JSON field, no feature-JSON field, and no project-JSON field for tool commands. The CLI flag is the sole user-side extension point, and authors typically point it at a single shared `/nfs/.../known_tool_commands/<tool>.commands` file their site maintains.
 
 **Scope cap.** Tool-command pool entries do **not** influence file-level decisions (F1), proc-level decisions (F2), or run-file generation (F3). They are a P4 diagnostic-routing mechanism and nothing else. A tool-command match never causes a file or proc to survive, be copied, or be dropped.
+
+### 3.11 Provenance Comment Markers (F2 + F3) -- 4.5.0+
+
+Every `PROC_TRIM` file (F2) and every generated `<stage>.tcl` file (F3) carries a uniform, single-line comment-marker pair around every unit of content whose presence, absence, or content is the direct result of a JSON authoring decision. The intent is in-line auditability: a domain owner reading the rebuilt tree sees, without cross-referencing `compiled_manifest.json`, *why* a proc or step is (or is not) there, and *which* JSON layer is responsible.
+
+**Marker grammar** (uniform across F2 and F3; always exactly two lines per marked unit, both plain `#`-prefixed Tcl comments so `##` parses like any other comment):
+
+```
+## CHOPPER: BEGIN <action> <kind> "<name>" source=<source>
+...content (zero or more lines; empty for action=removed)...
+## CHOPPER: END <action> <kind> "<name>" source=<source>
+```
+
+| Token | Values | Meaning |
+|---|---|---|
+| `<action>` | `kept` \| `removed` \| `added` \| `replaced` | What happened to this unit |
+| `<kind>` | `proc` \| `step` \| `stage` | F2 emits `proc`; F3 emits `step` or `stage` |
+| `<name>` | proc name / step text / stage name | Quoted verbatim identifier of the unit |
+| `<source>` | `base` \| `feature:<name>` \| `default` | Winning JSON layer per R1 last-mention-wins; `default` is F2-only, for a proc removed by R2 default-exclude with no explicit `procedures.exclude` entry ever naming it |
+
+Both marker lines are inert to every downstream check: P6 brace-balance validation, P5c indentation normalization, and the post-trim proc-set reconciliation check (VW-10) all treat them as ordinary comment lines.
+
+**F2 rule (every `PROC_TRIM` file, always-on):**
+
+- Every proc the parser knows about in the file -- surviving or removed -- is wrapped, not only the ones a flow action touched. A `kept` proc's existing body is wrapped in place, untouched otherwise. A `removed` proc's body is still fully deleted (F2's existing delete semantics are unchanged); only the two-line marker pair remains at its former location.
+- `source` is the winning layer for that proc's final fate: for `kept`, the layer credited on `ProcDecision.selection_source`; for `removed`, the layer whose `procedures.exclude` entry last named it, or `default` when the file is in include-mode (`procedures.include`) and the proc was simply never named by any layer (R2 default-exclude, no explicit excluder).
+- This is always-on default behavior, identical for base-only and feature-overlaid `PROC_TRIM` files -- there is no opt-out flag.
+
+**F3 rule (generated `<stage>.tcl` only):**
+
+- Only content actually introduced, replaced, or removed by a `flow_action` is wrapped; base-authored steps/stages that no feature touches are emitted bare, exactly as before 4.5.0.
+- `add_step_before` / `add_step_after`: the item(s) from one action are wrapped as a single `added step` block.
+- `replace_step`: the replacement text is wrapped as a single `replaced step` block.
+- `remove_step`: an adjacent, empty `removed step` marker pair is spliced in at the step's former position.
+- `add_stage_before` / `add_stage_after`: the entire new stage's step content is wrapped as one `added stage` block (BEGIN before the first step, END after the last).
+- `replace_stage`: the entire replacement stage's step content is wrapped as one `replaced stage` block.
+- `remove_stage`: **no in-file marker is possible.** The stage's `StageSpec` is deleted outright, so no `<stage>.tcl` is ever generated to hold one. The removal remains fully auditable via `compiled_manifest.json` / `trim_report.json` (the stage is simply absent from `CompiledManifest.stages`); this is a deliberate, documented exception, not an oversight.
+- `source` is always `feature:<name>` for F3 markers -- only features carry `flow_actions`.
+- The aggregate `<domain>.stack` (Sec.3.6 N/J/L/D/I/O/R metadata records) is never marked -- it has no step content. A `standalone_stack: true` per-stage `.stack` file is never marked either -- its documented contract is that authored `steps` are written verbatim with "no further interpretation" (Sec.3.6); adding markers there would violate that explicit invariant.
+
+This capability is always-on, with no JSON option to disable it -- consistent with the scope-lock's "no reserved seams" posture. A future opt-out, if ever needed, goes through the standard FD-xx proposal procedure like any other new capability.
 
 ---
 
@@ -1517,6 +1561,8 @@ Golden tests in `tests/unit/compiler/` snapshot this ordering; any change to the
 When `--project` is used, Chopper resolves the base and selected feature paths from the project JSON before entering P3. Equivalent resolved selections produce identical results regardless of input mode.
 
 **Frozen output:** the compiled manifest is immutable after P3 completes. P4 (trace) reads it but does not modify the surviving sets.
+
+**Removal attribution (4.5.0+).** Alongside `proc_decisions` (one `ProcDecision` per surviving proc), the fold also tracks `proc_removals`: one `ProcRemoval` per proc that ends up excluded from a `PROC_TRIM` file, recording the same kind of `<layer>:<json_field>` provenance string. A proc excluded by an explicit `procedures.exclude` entry is attributed to the layer that last named it (R1 last-mention-wins, mirroring `proc_decisions`); a proc excluded only because an include-mode file's `procedures.include` never named it is attributed to the sentinel layer `default` (R2 default-exclude, no explicit excluder). This is the data Sec.3.11's F2 provenance markers are rendered from; it does not change `file_decisions` or `proc_decisions` semantics.
 
 ### 5.3.1 Internal Compilation Contract
 
@@ -3594,6 +3640,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 
 | 2026-07-09 | **4.4.2 -- `--p4` enabled stdout notice (FR-53 revised).** `chopper trim --p4` previously gave no indication at the start of a run that checkout-before-edit was active -- the only feedback came after the fact (the skip notice on failure, or the "P4 Files Opened for Edit" summary on success), leaving a user watching a live run with no way to confirm `--p4` had actually registered. Added a one-line `--p4 enabled: files will be checked out via 'p4 edit' before rewriting.` notice, printed immediately after each domain's run header (Sec.5.5.16) and before the pipeline starts, whenever `--p4` was passed and the run is not a `--dry-run`. Repeats once per domain in multi-domain CSV `--domain` runs. New `render_p4_checkout_enabled_notice()` in `src/chopper/cli/render.py`; purely informational, no diagnostic code, no exit-code effect -- matches the existing advisory-notice precedent for this feature. Sec.5.5.18 and FR-53 updated in place. |
 | 2026-07-09 | **4.4.3 -- P5c/P5d silently dropped `TrimReport.p4_checkout` (FR-53 revised).** Real CTH-ward testing found `--p4` genuinely opened files for edit (confirmed via `p4 opened`) but the "P4 Files Opened for Edit" stdout summary never printed for `fev_formality`. Root cause: `TclIndentationService` (P5c, opt-in) and `CompanionSyncService` (P5d, e.g. filtering `default_config.<sfx>.csv` / `default_milestone.<sfx>.tcl` companions of a `PROC_TRIM` `default_rules.<sfx>.tcl`) both reconstruct `TrimReport` from scratch whenever they have byte-count updates to apply (`_build_report` in `indentation.py`, `_with_updated_companion_bytes` in `companion_sync.py`), and neither explicitly carried forward the `p4_checkout` field (or `inputs_preserved`) onto the rebuilt object -- both silently defaulted to `None`/`0`. Any domain whose manifest triggers P5d (a synced companion file exists for a `PROC_TRIM` rules file) lost the real `P4CheckoutResult` before it reached the CLI layer, even though the underlying `p4 edit` calls succeeded. Fixed both rebuild paths to explicitly thread through `p4_checkout=report.p4_checkout` and `inputs_preserved=report.inputs_preserved`. No behavior change for domains that never exercise P5c/P5d's byte-rewrite path. |
+| 2026-09-03 | **4.5.0 -- Provenance comment markers for F2 kept/removed procs and F3 added/replaced/removed steps and stages (Sec.3.11).** Every `PROC_TRIM` file now wraps every proc -- surviving or removed -- with a `## CHOPPER: BEGIN/END <action> proc "<name>" source=<layer>` pair; every generated `<stage>.tcl` wraps only the steps/stages a `flow_action` actually touched the same way. New `CompiledManifest.proc_removals: dict[str, ProcRemoval]` mirrors `proc_decisions` for the excluded side of F2 (`merge_service.py` fold gains a `proc_loser` companion to the existing `proc_winner` tracker); `flow_resolver.py`'s `_apply_add_step` / `_apply_remove_step` / `_apply_replace_step` / `_apply_add_stage` / `_apply_replace_stage` splice marker strings directly into `StageSpec.steps` (still `tuple[str, ...]`, preserving R4 -- no new field, no model change on the F3 side). Always-on, no opt-out JSON option (matches the no-reserved-seams posture). Deliberate exceptions, both documented rather than worked around: `remove_stage` has no in-file marker (no file exists to hold one) and `standalone_stack: true` output stays verbatim per its pre-existing "no further interpretation" contract. |
 
 ---
 

@@ -320,8 +320,9 @@ No parse error diagnostics. `vpx`, `vpxmode`, `tclmode` produce `TW-02 unresolve
 
 ```python
 inner_procs = [e for e in result if "inner" in e.canonical_name or e.source_file == fixture_path]
-assert len([e for e in result if e.canonical_name != "...::get_hier_summary"]) == 0, \
+assert len([e for e in result if e.canonical_name != "...::get_hier_summary"]) == 0, (
     "proc keyword inside foreach_in_collection body must NOT be indexed as a ProcEntry"
+)
 ```
 
 No proc defined inside a `foreach_in_collection` body (or any CONTROL_FLOW context) may appear in `ParseResult.index`.

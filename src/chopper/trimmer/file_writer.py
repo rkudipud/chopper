@@ -31,6 +31,7 @@ reject ``chmod``) never break a trim.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from chopper.core.context import ChopperContext
@@ -38,7 +39,7 @@ from chopper.core.file_perms import ensure_executable, mirror_perms_plus_exec
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_parser import ParsedFile, ProcEntry
 from chopper.core.models_trimmer import FileOutcome
-from chopper.trimmer.proc_dropper import drop_procs
+from chopper.trimmer.proc_dropper import annotate_procs
 
 __all__ = ["ensure_executable", "full_copy_file", "proc_trim_file", "remove_file"]
 
@@ -76,12 +77,13 @@ def proc_trim_file(
     *,
     parsed: ParsedFile,
     keep_canonical: frozenset[str],
+    source_of: Callable[[str], str],
 ) -> FileOutcome:
     """Rewrite ``rel`` with non-surviving procs deleted.
 
-    Drop ranges are computed from the :class:`ProcEntry` records on
-    ``parsed.procs``; the rewrite is performed by
-    :func:`chopper.trimmer.proc_dropper.drop_procs`.
+    Every proc -- surviving or removed -- is wrapped in a Sec.3.11
+    provenance marker by :func:`chopper.trimmer.proc_dropper.annotate_procs`;
+    ``source_of`` resolves each proc's ``source=`` attribution.
     """
 
     src = _backup_path(ctx, rel)
@@ -92,7 +94,7 @@ def proc_trim_file(
     to_drop: list[ProcEntry] = [p for p in parsed.procs if p.canonical_name not in keep_canonical]
     kept: list[ProcEntry] = [p for p in parsed.procs if p.canonical_name in keep_canonical]
 
-    new_content = drop_procs(content, to_drop)
+    new_content = annotate_procs(content, kept, to_drop, source_of)
     bytes_out = len(new_content.encode("utf-8"))
     if not ctx.config.dry_run:
         ctx.fs.write_text(dst, new_content)

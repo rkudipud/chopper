@@ -7,6 +7,7 @@ for shared fixtures.
 
 from __future__ import annotations
 
+from chopper.core.provenance_markers import marker_pair
 from tests.unit._coverage_helpers import (  # noqa: F401
     AUDIT,
     BACKUP,
@@ -59,7 +60,8 @@ def test_replace_stage_with_identical_name_skips_load_from_rewrite() -> None:
 
     # Replacement installed at the same index, same name.
     assert working[0].name == "alpha"
-    assert list(working[0].steps) == ["new_step"]
+    begin, end = marker_pair(action="replaced", kind="stage", name="alpha", source="feature:feat")
+    assert list(working[0].steps) == [begin, "new_step", end]
     # ``beta`` still references "alpha" (the load_from-rewrite loop did
     # NOT run because replacement.name == old_name).
     assert working[1].load_from == "alpha"

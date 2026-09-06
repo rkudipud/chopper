@@ -42,7 +42,7 @@ from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.errors import ChopperError
 from chopper.core.models_common import FileTreatment
-from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision, ShadowEvent
+from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision, ProcRemoval, ShadowEvent
 from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
 from chopper.core.models_parser import ParseResult
 
@@ -126,6 +126,7 @@ class CompilerService:
         shadow_events: dict[Path, list[ShadowEvent]] = {}
         input_sources_by_file: dict[Path, set[str]] = {}
         proc_winner: dict[tuple[Path, str], tuple[str, str]] = {}
+        proc_loser: dict[tuple[Path, str], tuple[str, str]] = {}
         last_reason_by_file: dict[Path, str] = {}
 
         for src in sources:
@@ -139,20 +140,23 @@ class CompilerService:
                 shadow_events,
                 input_sources_by_file,
                 proc_winner,
+                proc_loser,
                 last_reason_by_file,
                 all_procs_by_file,
                 short_to_canonical_by_file,
             )
 
         # ---- Derive manifest from final running state --------------------
-        file_decisions, proc_decisions, provenance = _derive_manifest(
+        file_decisions, proc_decisions, proc_removals, provenance = _derive_manifest(
             universe,
             running,
             contributed_by,
             shadow_events,
             input_sources_by_file,
             proc_winner,
+            proc_loser,
             last_reason_by_file,
+            all_procs_by_file,
             parsed,
         )
 
@@ -164,6 +168,7 @@ class CompilerService:
         return CompiledManifest(
             file_decisions=file_decisions,
             proc_decisions=proc_decisions,
+            proc_removals=proc_removals,
             provenance=provenance,
             stages=stages,
             generate_stack=loaded.base.options.generate_stack,
@@ -435,6 +440,7 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
     shadow_events: dict[Path, list[ShadowEvent]],
     input_sources_by_file: dict[Path, set[str]],
     proc_winner: dict[tuple[Path, str], tuple[str, str]],
+    proc_loser: dict[tuple[Path, str], tuple[str, str]],
     last_reason_by_file: dict[Path, str],
     all_procs_by_file: dict[Path, frozenset[str]],
     short_to_canonical_by_file: dict[Path, dict[str, str]],
@@ -511,6 +517,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
             last_reason_by_file.pop(file_path, None)
             for key in [k for k in proc_winner if k[0] == file_path]:
                 del proc_winner[key]
+            for key in [k for k in proc_loser if k[0] == file_path]:
+                del proc_loser[key]
             continue
 
         if intent[0] == "whole":
@@ -530,6 +538,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
             input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
             for cn in all_procs:
                 proc_winner[(file_path, cn)] = (layer_key, json_field)
+            for key in [k for k in proc_loser if k[0] == file_path]:
+                del proc_loser[key]
             continue
 
         if intent[0] == "trim-replace":
@@ -552,6 +562,10 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                 proc_winner[(file_path, cn)] = (layer_key, json_field)
             for key in [k for k in proc_winner if k[0] == file_path and k[1] not in new_keep]:
                 del proc_winner[key]
+            for key in [k for k in proc_loser if k[0] == file_path]:
+                del proc_loser[key]
+            for cn in _layer_pe:
+                proc_loser[(file_path, cn)] = (layer_key, json_field)
             continue
 
         if intent[0] == "trim-pi":
@@ -560,6 +574,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                 running[file_path] = _Trim(keep=set(layer_pi))
                 contributed_by[file_path] = layer_key
                 last_reason_by_file[file_path] = reason
+                for cn in all_procs - set(layer_pi):
+                    proc_loser[(file_path, cn)] = ("default", "r2-default-exclude")
             elif isinstance(prev, _Whole):
                 new_keep = set(all_procs) | set(layer_pi)
                 shadow_events.setdefault(file_path, []).append(
@@ -580,6 +596,9 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                 running[file_path] = _Trim(keep=new_keep)
                 contributed_by[file_path] = layer_key
                 last_reason_by_file[file_path] = reason
+                # No proc_loser cleanup needed: the "whole" branch that put
+                # ``prev`` into ``_Whole`` already cleared it for this file,
+                # and nothing repopulates proc_loser while a file is _Whole.
             else:  # _Trim
                 added = set(layer_pi) - prev.keep
                 new_keep = prev.keep | set(layer_pi)
@@ -601,6 +620,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                 if added:
                     contributed_by[file_path] = layer_key
                     last_reason_by_file[file_path] = reason
+                for cn in added:
+                    proc_loser.pop((file_path, cn), None)
             input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
             for cn in layer_pi:
                 proc_winner[(file_path, cn)] = (layer_key, json_field)
@@ -615,6 +636,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                 last_reason_by_file[file_path] = reason
                 for cn in new_keep:
                     proc_winner[(file_path, cn)] = (layer_key, json_field)
+                for cn in layer_pe:
+                    proc_loser[(file_path, cn)] = (layer_key, json_field)
             elif isinstance(prev, _Whole):
                 new_keep = set(all_procs) - set(layer_pe)
                 shadow_events.setdefault(file_path, []).append(
@@ -638,6 +661,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                 last_reason_by_file[file_path] = reason
                 for cn in new_keep:
                     proc_winner[(file_path, cn)] = (layer_key, json_field)
+                for cn in layer_pe:
+                    proc_loser[(file_path, cn)] = (layer_key, json_field)
             else:  # _Trim
                 removed = set(layer_pe) & prev.keep
                 new_keep = prev.keep - set(layer_pe)
@@ -665,6 +690,8 @@ def _apply_layer(  # noqa: PLR0915, PLR0912 -- algorithm body kept inline
                     last_reason_by_file[file_path] = reason
                 for cn in removed:
                     proc_winner.pop((file_path, cn), None)
+                for cn in layer_pe:
+                    proc_loser[(file_path, cn)] = (layer_key, json_field)
             input_sources_by_file.setdefault(file_path, set()).add(f"{layer_key}:{json_field}")
             continue
 
@@ -787,11 +814,14 @@ def _derive_manifest(
     shadow_events: dict[Path, list[ShadowEvent]],
     input_sources_by_file: dict[Path, set[str]],
     proc_winner: dict[tuple[Path, str], tuple[str, str]],
+    proc_loser: dict[tuple[Path, str], tuple[str, str]],
     last_reason_by_file: dict[Path, str],
+    all_procs_by_file: dict[Path, frozenset[str]],
     parsed: ParseResult,
-) -> tuple[dict[Path, FileTreatment], dict[str, ProcDecision], dict[Path, FileProvenance]]:
+) -> tuple[dict[Path, FileTreatment], dict[str, ProcDecision], dict[str, ProcRemoval], dict[Path, FileProvenance]]:
     file_decisions: dict[Path, FileTreatment] = {}
     proc_decisions: dict[str, ProcDecision] = {}
+    proc_removals: dict[str, ProcRemoval] = {}
     provenance: dict[Path, FileProvenance] = {}
 
     for file_path in universe:
@@ -871,9 +901,21 @@ def _derive_manifest(
                     selection_source=f"{layer_field[0]}:{layer_field[1]}",
                 ),
             )
+        excluded = sorted(all_procs_by_file.get(file_path, frozenset()) - signal.keep)
+        for cn in excluded:
+            layer_field = proc_loser.get((file_path, cn), ("default", "r2-default-exclude"))
+            proc_removals.setdefault(
+                cn,
+                ProcRemoval(
+                    canonical_name=cn,
+                    source_file=file_path,
+                    removal_source=f"{layer_field[0]}:{layer_field[1]}",
+                ),
+            )
 
     sorted_proc_decisions = {k: proc_decisions[k] for k in sorted(proc_decisions)}
-    return file_decisions, sorted_proc_decisions, provenance
+    sorted_proc_removals = {k: proc_removals[k] for k in sorted(proc_removals)}
+    return file_decisions, sorted_proc_decisions, sorted_proc_removals, provenance
 
 
 # ---------------------------------------------------------------------------

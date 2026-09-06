@@ -204,6 +204,7 @@ class TrimmerService:
         # Per-file dispatch
         # ------------------------------------------------------------------
         keep_by_file = _keep_by_file(manifest)
+        source_by_file = _source_by_file(manifest)
         outcomes: list[FileOutcome] = []
         interrupted = False
 
@@ -215,7 +216,7 @@ class TrimmerService:
                 # here is correct.
                 continue
             try:
-                outcome = self._dispatch(ctx, rel_path, treatment, parsed, keep_by_file)
+                outcome = self._dispatch(ctx, rel_path, treatment, parsed, keep_by_file, source_by_file)
             except ProcDropError as exc:
                 _emit_ve26(ctx, rel_path, str(exc))
                 interrupted = True
@@ -371,6 +372,7 @@ class TrimmerService:
         treatment: FileTreatment,
         parsed: ParseResult,
         keep_by_file: dict[Path, frozenset[str]],
+        source_by_file: dict[Path, dict[str, str]],
     ) -> FileOutcome:
         if treatment is FileTreatment.FULL_COPY:
             procs_here = tuple(sorted(cn for cn in keep_by_file.get(rel_path, frozenset())))
@@ -382,7 +384,18 @@ class TrimmerService:
                     f"PROC_TRIM requested for {rel_path.as_posix()!r} but file is absent from ParseResult"
                 )
             keep_canonical = keep_by_file.get(rel_path, frozenset())
-            outcome = proc_trim_file(ctx, rel_path, parsed=parsed_file, keep_canonical=keep_canonical)
+            file_sources = source_by_file.get(rel_path, {})
+
+            def _source_of(cn: str, _sources: dict[str, str] = file_sources) -> str:
+                return _sources.get(cn, "default")
+
+            outcome = proc_trim_file(
+                ctx,
+                rel_path,
+                parsed=parsed_file,
+                keep_canonical=keep_canonical,
+                source_of=_source_of,
+            )
             if not outcome.procs_removed:
                 _emit_vw22(ctx, rel_path)
             return outcome
@@ -410,6 +423,23 @@ def _keep_by_file(manifest: CompiledManifest) -> dict[Path, frozenset[str]]:
     for cn, decision in manifest.proc_decisions.items():
         out.setdefault(decision.source_file, set()).add(cn)
     return {p: frozenset(v) for p, v in out.items()}
+
+
+def _source_by_file(manifest: CompiledManifest) -> dict[Path, dict[str, str]]:
+    """Index each proc's Sec.3.11 marker ``source=`` attribution by source file path.
+
+    Merges ``proc_decisions`` (kept procs) and ``proc_removals`` (removed
+    procs); both store a compound ``"<layer>:<json_field>"`` string, of
+    which only the ``<layer>`` portion (``base``, ``feature:<name>``, or
+    ``default``) is the marker's ``source=`` value.
+    """
+
+    out: dict[Path, dict[str, str]] = {}
+    for cn, decision in manifest.proc_decisions.items():
+        out.setdefault(decision.source_file, {})[cn] = decision.selection_source.rsplit(":", 1)[0]
+    for cn, removal in manifest.proc_removals.items():
+        out.setdefault(removal.source_file, {})[cn] = removal.removal_source.rsplit(":", 1)[0]
+    return out
 
 
 def _empty_report(*, interrupted: bool, p4_checkout: P4CheckoutResult | None = None) -> TrimReport:

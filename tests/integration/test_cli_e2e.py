@@ -755,9 +755,14 @@ class TestGlobFilesIncludeRegression:
         assert "VE-16" not in captured.err
 
         trimmed_text = (domain / "eco_procs.tcl").read_text(encoding="utf-8")
-        assert "pc_eco_set_dont_touch_annotated_delay" not in trimmed_text
-        assert "pc_eco_set_size_cell_restrictions" not in trimmed_text
-        assert "pc_eco_remove_attr_name_size_cell_restrictions" not in trimmed_text
+        # The proc names now legitimately appear inside Sec.3.11 "removed"
+        # provenance markers; assert the actual definitions/bodies are gone.
+        assert "proc pc_eco_set_dont_touch_annotated_delay" not in trimmed_text
+        assert "proc pc_eco_set_size_cell_restrictions" not in trimmed_text
+        assert "proc pc_eco_remove_attr_name_size_cell_restrictions" not in trimmed_text
+        assert "define_proc_attributes pc_eco_set_dont_touch_annotated_delay" not in trimmed_text
+        assert "define_proc_attributes pc_eco_set_size_cell_restrictions" not in trimmed_text
+        assert "define_proc_attributes pc_eco_remove_attr_name_size_cell_restrictions" not in trimmed_text
         assert "proc pc_eco_report_timing" in trimmed_text
         assert "define_proc_attributes pc_eco_report_timing" in trimmed_text
 

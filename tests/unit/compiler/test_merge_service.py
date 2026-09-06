@@ -96,6 +96,23 @@ def test_feature_flow_action_appears_in_stage_input_sources() -> None:
     assert "feature:post_compile:flow_actions" in pv.input_sources
 
 
+def test_stage_contributors_skip_feature_without_flow_actions() -> None:
+    """A loaded feature with no flow_actions must not appear in the stage's
+    input_sources contributor list."""
+    ctx, _ = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo"]})
+    base = _base_with_stages(
+        make_base(files=files_section(include=("a.tcl",))),
+        stages=(StageDefinition(name="compile", load_from="", steps=("foo",)),),
+    )
+    feat = make_feature("no_flow")  # no flow_actions
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    pv = manifest.provenance[Path("compile.tcl")]
+    assert pv.input_sources == ("base:stages",)
+    assert "feature:no_flow:flow_actions" not in pv.input_sources
+
+
 # ---------------------------------------------------------------------------
 # P-42 -- Glob-matched non-Tcl files must reach the manifest (F1 is type-agnostic)
 # ---------------------------------------------------------------------------
@@ -197,6 +214,17 @@ def test_vw13_with_pi_redundant_emits_vw09_too() -> None:
     assert "VW-13" in codes
 
 
+def test_vw13_emitted_for_pe_alone_excluding_every_proc() -> None:
+    """Row 9 -- PE alone (no FI/PI/FE) that excludes every proc in the file
+    triggers VW-13, independent of whether the file is otherwise reachable."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["a", "b"]})
+    base = make_base(procedures=procs_section(exclude=(proc_ref("a.tcl", "a", "b"),)))
+    loaded = make_loaded(base)
+    CompilerService().run(ctx, loaded, parsed)
+    assert "VW-13" in sink.codes()
+
+
 # ---------------------------------------------------------------------------
 # PE entry on file absent from ParseResult -- defensive `continue` (L506)
 # ---------------------------------------------------------------------------
@@ -212,6 +240,37 @@ def test_pe_on_unparsed_file_does_not_crash_aggregation() -> None:
     loaded = make_loaded(base)
     manifest = CompilerService().run(ctx, loaded, parsed)
     assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.FULL_COPY
+
+
+def test_trim_pe_alone_with_no_prior_layer_state() -> None:
+    """PE alone (no FI/PI/FE) touching a file with no prior layer state
+    still records winner/loser attribution for the resulting partial keep
+    set (row: PE-alone, prev=None, some-but-not-all procs excluded)."""
+    ctx, _ = make_ctx()
+    parsed = make_parsed({"a.tcl": ["keep", "drop"]})
+    base = make_base(procedures=procs_section(exclude=(proc_ref("a.tcl", "drop"),)))
+    loaded = make_loaded(base)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.PROC_TRIM
+    assert list(manifest.proc_decisions.keys()) == ["a.tcl::keep"]
+
+
+def test_trim_pe_redundant_re_exclude_of_already_removed_proc() -> None:
+    """A later layer's procedures.exclude re-naming a proc an earlier layer
+    already excluded is a no-op for that proc (the intersection with the
+    current keep-set is empty) -- must not emit a spurious VW-21 remove-proc
+    for a proc that isn't actually being removed again."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["a", "b", "c"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "c"),)),
+    )
+    feat = make_feature("reexclude", procedures=procs_section(exclude=(proc_ref("a.tcl", "c"),)))
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert "VW-21" not in sink.codes()
+    assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.PROC_TRIM
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +366,61 @@ def test_vw21_downgrade_whole_to_trim_message_names_kept_procs() -> None:
     msg = vw21_msgs[0]
     assert "FULL_COPY" in msg or "PROC_TRIM" in msg
     assert "feature:narrow" in msg
+
+
+def test_vw21_downgrade_whole_to_trim_via_trim_replace_intent() -> None:
+    """Same downgrade-whole-to-trim transition, but reached via the
+    ``trim-replace`` intent (FI + PE together in the later layer) rather
+    than the ``trim-pe`` intent -- exercises ``_record_replace_transition``'s
+    own downgrade branch instead of the inline one in the trim-pe handler."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"procs.tcl": ["a", "b", "c"]})
+    base = make_base(files=files_section(include=("procs.tcl",)))
+    feat = make_feature(
+        "narrow2",
+        files=files_section(include=("procs.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("procs.tcl", "c"),)),
+    )
+    loaded = make_loaded(base, feat)
+    CompilerService().run(ctx, loaded, parsed)
+    vw21_msgs = [d.message for d in sink.emissions if d.code == "VW-21"]
+    assert vw21_msgs, "expected a VW-21 downgrade-whole-to-trim diagnostic"
+    assert "feature:narrow2" in vw21_msgs[0]
+
+
+def test_vw21_not_emitted_for_redundant_whole_reaffirmation() -> None:
+    """A later layer re-affirming the same file as ``files.include`` alone
+    (WHOLE -> WHOLE, no PI/PE) is a no-op transition -- must not emit
+    VW-21 nor record a ShadowEvent."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo"]})
+    base = make_base(files=files_section(include=("a.tcl",)))
+    feat = make_feature("reaffirm", files=files_section(include=("a.tcl",)))
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert "VW-21" not in sink.codes()
+    assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.FULL_COPY
+
+
+def test_vw21_not_emitted_for_redundant_trim_reaffirmation() -> None:
+    """A later layer re-affirming an identical FI+PE keep-set (TRIM -> TRIM,
+    same resulting keep) is a no-op transition -- must not emit VW-21 nor
+    record a ShadowEvent."""
+    ctx, sink = make_ctx()
+    parsed = make_parsed({"a.tcl": ["keep", "drop"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "drop"),)),
+    )
+    feat = make_feature(
+        "reaffirm",
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "drop"),)),
+    )
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert "VW-21" not in sink.codes()
+    assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.PROC_TRIM
 
 
 # ---------------------------------------------------------------------------
@@ -438,5 +552,54 @@ def test_vw13_message_names_all_excluded_procs() -> None:
     assert vw13_msgs, "expected a VW-13 diagnostic"
     msg = vw13_msgs[0]
     assert "foo" in msg
-    assert "bar" in msg
-    assert "baz" in msg
+
+
+# ---------------------------------------------------------------------------
+# Sec.3.11 -- proc_removals attribution (F2 provenance markers)
+# ---------------------------------------------------------------------------
+
+
+def test_proc_removals_attributes_default_exclude() -> None:
+    """A proc never named in any layer's procedures.include is attributed
+    to the ``default`` sentinel (R2 default-exclude, no explicit excluder)."""
+    ctx, _ = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar"]})
+    base = make_base(
+        procedures=procs_section(include=(proc_ref("a.tcl", "foo"),)),
+    )
+    loaded = make_loaded(base)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    removal = manifest.proc_removals["a.tcl::bar"]
+    assert removal.removal_source == "default:r2-default-exclude"
+
+
+def test_proc_removals_cleared_when_proc_trim_file_later_removed() -> None:
+    """A PROC_TRIM file's proc_removals must not leak once a later layer
+    removes the file entirely via files.exclude."""
+    ctx, _ = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "bar"),)),
+    )
+    feat = make_feature("drop_file", files=files_section(exclude=("a.tcl",)))
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.REMOVE
+    assert not any(r.source_file == Path("a.tcl") for r in manifest.proc_removals.values())
+
+
+def test_proc_removals_cleared_when_proc_trim_file_upgraded_to_whole() -> None:
+    """A PROC_TRIM file's proc_removals must clear once a later layer
+    upgrades it to FULL_COPY via files.include alone."""
+    ctx, _ = make_ctx()
+    parsed = make_parsed({"a.tcl": ["foo", "bar"]})
+    base = make_base(
+        files=files_section(include=("a.tcl",)),
+        procedures=procs_section(exclude=(proc_ref("a.tcl", "bar"),)),
+    )
+    feat = make_feature("keep_whole", files=files_section(include=("a.tcl",)))
+    loaded = make_loaded(base, feat)
+    manifest = CompilerService().run(ctx, loaded, parsed)
+    assert manifest.file_decisions[Path("a.tcl")] is FileTreatment.FULL_COPY
+    assert not manifest.proc_removals

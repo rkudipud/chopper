@@ -290,6 +290,10 @@ The same `exclude_file_list` path set from `p4_commands.txt`, written as its own
 
 Opt-in, live-trim-only (4.4.0+): before rewriting a file, Chopper runs `p4 edit -t text+x` on it, so a later `p4 submit` doesn't fight Perforce's checkout-before-edit protocol (Perforce keeps synced files read-only until checked out; editing them out-of-band and running `p4 edit` afterward is an unsupported recovery path). Only runs on a genuine first trim; skipped with an on-screen notice (not an error) if `p4` isn't available or this is a re-trim. Never active under `--dry-run`. On failure the whole trim aborts and reverts everything already checked out -- if the failure happens after checkout succeeded, the domain is also restored from backup immediately. Chopper never runs `p4 add`, `p4 delete`, or `p4 submit` -- only `p4 edit` and, on rollback, `p4 revert`. See [ARCHITECTURE.md Sec.5.5.18](../technical_docs/ARCHITECTURE.md).
 
+### Why does my trimmed `.tcl` file have `## CHOPPER: BEGIN/END ...` comments I didn't write?
+
+Since 4.5.0, every `PROC_TRIM` file wraps every proc -- kept or removed -- with a provenance marker naming the JSON layer responsible (`base`, `feature:<name>`, or `default` for an R2 default-exclude removal). Every generated `<stage>.tcl` wraps steps/stages a `flow_action` actually added, replaced, or removed the same way; base content no feature touched stays bare. This is always-on and cannot be disabled. See [ARCHITECTURE.md Sec.3.11](../technical_docs/ARCHITECTURE.md).
+
 ---
 
 ## 12. Where to go next
