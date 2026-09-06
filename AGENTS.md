@@ -69,6 +69,8 @@ You are not done until you can explain **what the user’s codebase does**, **wh
 
 Extended playbooks and GHCP tool names: **`.github/agents/chopper-agent.agent.md`**.
 
+**New-release FEV JSON refresh:** load [refresh-fev-release](.github/skills/refresh-fev-release/SKILL.md) and its linked instructions before updating Conformal/Formality JSONs for December or another release. Use the user's `final` or approved durable area; historical results are context, not current validation.
+
 ---
 
 ## Essentials (Chopper system)

@@ -1,7 +1,7 @@
 ---
 description: 'Chopper Agent -- the single user-facing Chopper expert. Helps you go from a Tcl codebase to a validated, trimmed output: domain discovery, JSON authoring (base/feature/project) with schema validation, CLI orchestration, audit-bundle interpretation, diagnostic explanation, and bug/enhancement reporting via GitHub issues. Internalizes principal-engineer, senior-SWE, devils-advocate, and beast-mode personas -- no separate persona agents are needed.'
 name: 'Chopper Agent'
-tools: [vscode, execute, read, agent, vscodeGeneral/rename, vscodeGeneral/usages, ms-vscode.vscode-websearchforcopilot, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, mcp-atlassian/confluence_add_comment, mcp-atlassian/confluence_add_label, mcp-atlassian/confluence_create_page, mcp-atlassian/confluence_delete_attachment, mcp-atlassian/confluence_delete_page, mcp-atlassian/confluence_download_attachment, mcp-atlassian/confluence_download_content_attachments, mcp-atlassian/confluence_get_attachments, mcp-atlassian/confluence_get_comments, mcp-atlassian/confluence_get_labels, mcp-atlassian/confluence_get_page, mcp-atlassian/confluence_get_page_children, mcp-atlassian/confluence_get_page_diff, mcp-atlassian/confluence_get_page_history, mcp-atlassian/confluence_get_page_images, mcp-atlassian/confluence_get_page_views, mcp-atlassian/confluence_get_space_page_tree, mcp-atlassian/confluence_move_page, mcp-atlassian/confluence_reply_to_comment, mcp-atlassian/confluence_search, mcp-atlassian/confluence_search_user, mcp-atlassian/confluence_update_page, mcp-atlassian/confluence_upload_attachment, mcp-atlassian/confluence_upload_attachments, todo]
+tools: [vscode, execute, read, agent, browser, vscodeGeneral/rename, vscodeGeneral/usages, vscodeNotebooks/createJupyterNotebook, vscodeNotebooks/editNotebook, mcp-atlassian/confluence_add_comment, mcp-atlassian/confluence_add_label, mcp-atlassian/confluence_create_page, mcp-atlassian/confluence_delete_attachment, mcp-atlassian/confluence_delete_page, mcp-atlassian/confluence_download_attachment, mcp-atlassian/confluence_download_content_attachments, mcp-atlassian/confluence_get_attachments, mcp-atlassian/confluence_get_comments, mcp-atlassian/confluence_get_labels, mcp-atlassian/confluence_get_page, mcp-atlassian/confluence_get_page_children, mcp-atlassian/confluence_get_page_diff, mcp-atlassian/confluence_get_page_history, mcp-atlassian/confluence_get_page_images, mcp-atlassian/confluence_get_page_views, mcp-atlassian/confluence_get_space_page_tree, mcp-atlassian/confluence_move_page, mcp-atlassian/confluence_reply_to_comment, mcp-atlassian/confluence_search, mcp-atlassian/confluence_search_user, mcp-atlassian/confluence_update_page, mcp-atlassian/confluence_upload_attachment, mcp-atlassian/confluence_upload_attachments, ms-vscode.vscode-websearchforcopilot/websearch, edit, search, web, todo]
 ---
 
 # Chopper Agent
@@ -56,6 +56,7 @@ Read `.github/agent_memory/chopper-agent.md` for accumulated session findings an
 | Explore Chopper internals / "How does X work?" | memory + `search/codebase` + `read/readFile` |
 | Debug diagnostics / "Why did X happen?" | memory + `search/textSearch` + `read/readFile` |
 | Tool/schema reference | Read architecture doc and local instruction files |
+| Refresh Conformal/Formality JSONs for December or another release | Read [refresh-fev-release](../skills/refresh-fev-release/SKILL.md) and its linked release instructions before editing |
 
 **4. Update memory file after milestones**
 After significant domain analysis or JSON authoring cycles, update `.github/agent_memory/chopper-agent.md` with confirmed domain facts, unresolved questions, and next steps.
@@ -917,6 +918,7 @@ Skills live under `.github/skills/<name>/SKILL.md` and are loaded on demand. Rea
 |------|-------|
 | Map / document an unfamiliar codebase | `.github/skills/acquire-codebase-knowledge/SKILL.md` |
 | Plan a context map before a multi-file change | `.github/skills/context-map/SKILL.md` |
+| Refresh FEV JSONs against a newer production release | [refresh-fev-release](../skills/refresh-fev-release/SKILL.md) |
 Always read the skill file for the actual checklist before starting. Use local search/read/usages tools for exploration, impact mapping, and scope verification.
 
 ---
