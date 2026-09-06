@@ -7,6 +7,7 @@
 - Escaped carriage returns and line feeds in provenance marker names and sources so every F2/F3 marker remains one physical Tcl comment line.
 - Dry-run P6 now generates F3 artifacts in memory and checks generated Tcl brace balance before returning success.
 - Added regression tests for multiline marker metadata and malformed generated Tcl during dry-run; affected modules passed (61 tests) and `make check` passed (1623 unit tests).
+- Committed and pushed via the Git Data API as `82bb2ab7d483c73f9eede734e83a6412212840a9` (`fix: validate generated Tcl during dry runs`); local `main` is synchronized with `origin/main`.
 - GitNexus index is one commit stale. Neither `gitnexus` CLI nor `.gitnexus/run.cjs` is available in this checkout, so graph impact/diff results were lower-bound only; local usage searches confirmed direct callers.
 
 ## Last Completed Work
@@ -21,8 +22,7 @@
 - Removed GitNexus repo customization files and obsolete workspace helper config; remaining protocol references are explicit closure/removal records only.
 
 ## Next Actions
-- Run `make check` or `make ci` before push.
-- Push with the repository's GitHub API push workflow if the user asks to sync remote.
+- None.
 
 ## Open Questions
 - None.
