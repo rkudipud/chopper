@@ -886,6 +886,18 @@ def _check_stage_steps(
     surviving_proc_short = _surviving_proc_shorts(manifest)
 
     for stage in manifest.stages:
+        if cross_validate and stage.reference_file is not None and Path(stage.reference_file) not in surviving_files:
+            ctx.diag.emit(
+                Diagnostic.build(
+                    "VW-26",
+                    phase=Phase.P6_POSTVALIDATE,
+                    message=(
+                        f"Stage {stage.name!r} reference_file {stage.reference_file!r} "
+                        "is not preserved in the trimmed output"
+                    ),
+                    hint="Add the reference_file path to files.include to also keep the source file",
+                )
+            )
         for step in stage.steps:
             _classify_and_emit(
                 ctx,

@@ -71,6 +71,9 @@ class StageDefinition:
     run_mode: Literal["serial", "parallel"] = "serial"
     language: Literal["tcl", "python"] = "tcl"
     standalone_stack: bool = False
+    reference_file: str | None = None
+    """Domain-relative path ``steps`` was materialized from at P1, or ``None``
+    when authored inline. Provenance only -- never re-read downstream."""
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -88,6 +91,10 @@ class AddStepAction:
     reference: str
     items: tuple[str, ...]
     skip_if_no_stage: bool = False
+    reference_file: str | None = None
+    """Domain-relative path ``items`` was materialized from at P1, or
+    ``None`` when authored inline. Provenance only -- never re-read
+    downstream."""
 
     def __post_init__(self) -> None:
         if not self.items:

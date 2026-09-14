@@ -2406,6 +2406,8 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 
 **FD-12 -- Template-script generation.** Some domains want Chopper to execute a domain-specific post-trim script (lint reports, project-level `run.tcl` wrappers, tool-specific setup). Earlier drafts carried `options.template_script` + `VE-18`. Removed per scope-lock policy (no reserved seams with registered diagnostics). A future version would spec the execution contract (sandbox, arguments, failure mode) before reintroducing the field. Deferred -- domain owners can run generation scripts before/after `chopper trim` today; baking in an executor commits Chopper to a security surface no v1 caller demands. Source: `DAY0_REVIEW.md` G2.
 
+**FD-16 -- Stage steps sourced from a reference file (`reference_file`) -- ADOPTED in 4.7.0.** Requested in GitHub issue #28: let a stage definition (base `stages[]`, or a feature `add_stage_before` / `add_stage_after` / `replace_stage`) specify `reference_file` (a domain-relative path) instead of authoring `steps` inline, so domains that already maintain a stage as a hand-written script file are not forced to duplicate its lines into JSON. Filed as a Future Consideration per the Sec.3 Proposal Procedure, then promoted the same session once the user explicitly approved implementation. See `technical_docs/ARCHITECTURE.md` Sec.3.6, FR-55, and the 4.7.0 revision-history entry for the adopted design (`VE-39 stage-reference-file-invalid`, `VW-26 stage-reference-file-not-preserved`). Kept here only as the origin record of the proposal, per registry policy of never deleting an `FD-xx` slot once assigned.
+
 ### Performance
 
 **FD-09 -- Benchmark harness + phase budgets.** Deferred until core pipeline is verified across more production domains.
@@ -2435,6 +2437,7 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 | FD-11 | Platform | Multi-platform domain support |
 | FD-12 | Generator | Template-script generation |
 | FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload |
+| FD-16 | Generator | Stage steps sourced from `reference_file` -- ADOPTED in 4.7.0 |
 
 **Adopted historical entries** (no longer tracked here):
 

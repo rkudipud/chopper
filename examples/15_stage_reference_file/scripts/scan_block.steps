@@ -1,0 +1,4 @@
+run_scan
+
+# post-scan verification
+verify_scan

@@ -768,8 +768,8 @@ def test_validate_post_accepts_resolved_call_to_surviving_proc() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _stage(*, steps: tuple[str, ...]) -> StageSpec:
-    return StageSpec(name="synth", load_from="base", steps=steps)
+def _stage(*, steps: tuple[str, ...], reference_file: str | None = None) -> StageSpec:
+    return StageSpec(name="synth", load_from="base", steps=steps, reference_file=reference_file)
 
 
 def test_validate_post_emits_vw14_for_missing_step_file() -> None:
@@ -874,6 +874,46 @@ def test_validate_post_cross_validate_false_suppresses_vw14_15_16() -> None:
     assert "VW-16" not in codes
     # VW-17 still fires (external path advisory)
     assert "VW-17" in codes
+
+
+def test_validate_post_emits_vw26_when_reference_file_not_preserved() -> None:
+    manifest = _make_manifest(stages=(_stage(steps=("a",), reference_file="scripts/setup.steps"),))
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert "VW-26" in _codes(ctx)
+
+
+def test_validate_post_skips_vw26_when_reference_file_preserved() -> None:
+    ref = Path("scripts/setup.steps")
+    manifest = _make_manifest(
+        files={ref: FileTreatment.FULL_COPY},
+        stages=(_stage(steps=("a",), reference_file="scripts/setup.steps"),),
+    )
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert "VW-26" not in _codes(ctx)
+
+
+def test_validate_post_skips_vw26_when_reference_file_is_none() -> None:
+    manifest = _make_manifest(stages=(_stage(steps=("a",)),))
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert "VW-26" not in _codes(ctx)
+
+
+def test_validate_post_cross_validate_false_suppresses_vw26() -> None:
+    manifest = _make_manifest(stages=(_stage(steps=("a",), reference_file="scripts/setup.steps"),))
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=(), cross_validate=False)
+
+    assert "VW-26" not in _codes(ctx)
 
 
 # ---------------------------------------------------------------------------

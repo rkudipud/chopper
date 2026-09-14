@@ -41,6 +41,15 @@ def _sd(name: str, *steps: str, load_from: str = "") -> StageDefinition:
     return StageDefinition(name=name, load_from=load_from, steps=tuple(steps))
 
 
+def test_reference_file_provenance_survives_resolution() -> None:
+    """``StageDefinition.reference_file`` must survive untouched through
+    ``_MutableStage`` into the resolved ``StageSpec`` -- it is provenance
+    metadata only, never re-read or mutated by the resolver."""
+    base_stage = StageDefinition(name="setup", load_from="", steps=("a",), reference_file="scripts/setup.steps")
+    resolved = resolve_stages(make_ctx(), (base_stage,), ())
+    assert resolved[0].reference_file == "scripts/setup.steps"
+
+
 def _make_feature(name: str, *actions) -> FeatureJson:
     """Build a ``FeatureJson`` with the given ``flow_actions``."""
 

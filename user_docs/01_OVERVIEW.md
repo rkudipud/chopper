@@ -133,7 +133,8 @@ A stage object (in `base.stages[]`, in an `add_stage_*` action, or inside a `rep
 | Field | Required? | Stack line | Purpose |
 |---|---|---|---|
 | `name` | Yes | `N` | Stage name; becomes the generated `<name>.tcl` filename |
-| `steps` | Yes | -- | Ordered list of step strings written verbatim into `<name>.tcl` |
+| `steps` | One of `steps` / `reference_file` | -- | Ordered list of step strings written verbatim into `<name>.tcl` |
+| `reference_file` | One of `steps` / `reference_file` | -- | Domain-relative path read at P1 and split into one step per physical line, used instead of `steps` -- see Sec.2.3 of the JSON authoring guide |
 | `load_from` | Yes (in actions) | -- | Predecessor stage the generated script loads data from (typically via `ivar(src_task)`) |
 | `command` | No | `J` | Execution command for the scheduler record |
 | `exit_codes` | No | `L` | Legal exit codes |
@@ -422,6 +423,7 @@ Copy the nearest example into your domain root, replace placeholders, validate, 
 | Aggregate scheduler stack (`generate_stack`) | [../examples/12_base_with_aggregate_stack/](../examples/12_base_with_aggregate_stack/) |
 | Aggregate + per-stage standalone stack | [../examples/13_base_with_standalone_stack/](../examples/13_base_with_standalone_stack/) |
 | Cross-feature `skip_if_no_stage` injection | [../examples/14_cross_feature_skip_if_no_stage/](../examples/14_cross_feature_skip_if_no_stage/) |
+| Stage steps sourced from a file (`reference_file`) | [../examples/15_stage_reference_file/](../examples/15_stage_reference_file/) |
 
 ---
 

@@ -14,16 +14,21 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 89 active +
-        # 3 retired (VW-18, VW-19, PE-04) = 92 registered entries.
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 91 active +
+        # 3 retired (VW-18, VW-19, PE-04) = 94 registered entries.
         # 4.1.0 added VE-32..VE-36 (ward-env-not-set, domain-not-found,
         # ambiguous-domain-name, base-autodiscovery-failed, feature-name-not-found).
         # VW-25 (exclude-target-absent) added to downgrade missing files.exclude
         # literals from VE-06 to a warning. VE-37 (p4-checkout-failed) added for
         # the opt-in --p4 checkout-before-edit feature. VE-38
         # (incompatible-features-selected) added for the `incompatible_with`
-        # feature-level mutual-exclusion constraint (issue #27).
-        assert len(all_codes()) == 92
+        # feature-level mutual-exclusion constraint (issue #27). VE-39
+        # (reference-file-invalid, originally stage-reference-file-invalid)
+        # and VW-26 (stage-reference-file-not-preserved) added for stage
+        # `reference_file` (issue #28); VE-39's slug broadened in 4.8.0 when
+        # `reference_file` was extended to `add_step_before`/`add_step_after`
+        # `items` -- same code, no new slot consumed.
+        assert len(all_codes()) == 94
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")

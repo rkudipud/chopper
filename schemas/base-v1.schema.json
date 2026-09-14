@@ -143,8 +143,12 @@
     },
     "stageDefinition": {
       "type": "object",
-      "required": ["name", "load_from", "steps"],
+      "required": ["name", "load_from"],
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["steps"], "not": { "required": ["reference_file"] } },
+        { "required": ["reference_file"], "not": { "required": ["steps"] } }
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -206,6 +210,12 @@
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
           "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` script. These are not stack-file lines themselves; they define the body executed by the stage command."
+        },
+        "reference_file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative path read at P1 and split into one step per physical line, used in place of `steps`. Mutually exclusive with `steps`. See ARCHITECTURE.md Sec.3.6 'Sourcing steps from a file'."
         }
       }
     }

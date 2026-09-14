@@ -164,8 +164,12 @@
     },
     "addStepAction": {
       "type": "object",
-      "required": ["action", "stage", "reference", "items"],
+      "required": ["action", "stage", "reference"],
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["items"], "not": { "required": ["reference_file"] } },
+        { "required": ["reference_file"], "not": { "required": ["items"] } }
+      ],
       "properties": {
         "action": {
           "type": "string",
@@ -188,6 +192,12 @@
           "minItems": 1,
           "description": "Step strings to insert"
         },
+        "reference_file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative path read at P1 and split into one step per physical line, used in place of `items`. Mutually exclusive with `items`. See ARCHITECTURE.md Sec.3.6 / Sec.6.7."
+        },
         "skip_if_no_stage": {
           "type": "boolean",
           "default": false,
@@ -197,8 +207,12 @@
     },
     "addStageAction": {
       "type": "object",
-      "required": ["action", "name", "reference", "load_from", "steps"],
+      "required": ["action", "name", "reference", "load_from"],
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["steps"], "not": { "required": ["reference_file"] } },
+        { "required": ["reference_file"], "not": { "required": ["steps"] } }
+      ],
       "properties": {
         "action": {
           "type": "string",
@@ -264,6 +278,12 @@
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
           "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
+        },
+        "reference_file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative path read at P1 and split into one step per physical line, used in place of `steps`. Mutually exclusive with `steps`. See ARCHITECTURE.md Sec.3.6 'Sourcing steps from a file'."
         },
         "skip_if_no_stage": {
           "type": "boolean",
@@ -405,8 +425,12 @@
     },
     "stageDefinition": {
       "type": "object",
-      "required": ["name", "load_from", "steps"],
+      "required": ["name", "load_from"],
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["steps"], "not": { "required": ["reference_file"] } },
+        { "required": ["reference_file"], "not": { "required": ["steps"] } }
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -463,6 +487,12 @@
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
           "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` run script."
+        },
+        "reference_file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative path read at P1 and split into one step per physical line, used in place of `steps`. Mutually exclusive with `steps`. See ARCHITECTURE.md Sec.3.6 'Sourcing steps from a file'."
         }
       }
     }

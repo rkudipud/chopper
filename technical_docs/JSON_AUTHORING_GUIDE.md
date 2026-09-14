@@ -56,6 +56,7 @@ Use the example folders as templates, not as production-ready inputs. Pick the c
 | Aggregate scheduler stack (`generate_stack`) | `examples/12_base_with_aggregate_stack/` |
 | Aggregate + per-stage standalone stack | `examples/13_base_with_standalone_stack/` |
 | Cross-feature `skip_if_no_stage` injection | `examples/14_cross_feature_skip_if_no_stage/` |
+| Stage steps sourced from a file (`reference_file`) | `examples/15_stage_reference_file/` |
 
 Recommended sequence:
 
@@ -206,6 +207,47 @@ Produces a `eco_apply_patch.stack` containing the Intel header followed by exact
 
 A standalone `<stage>.stack` collision with `files.*` entries or with the aggregate `<domain>.stack` path is reported as `VE-29 standalone-stack-collision`. Aggregate `<domain>.stack` collisions with `files.*` are reported as `VE-28 aggregate-stack-collision`.
 
+### 2.3 Sourcing steps from a file (`reference_file`)
+
+Instead of authoring `steps` inline, a stage may set `reference_file` to a domain-relative path. Chopper reads that file at P1 and uses its lines as `steps` -- useful when a domain already maintains a stage as a hand-written script file and you do not want to duplicate its content into JSON. This works everywhere a stage is defined: base `stages[]`, feature `add_stage_before` / `add_stage_after`, and feature `replace_stage`'s `with` clause.
+
+```json
+{
+  "name": "setup",
+  "load_from": "",
+  "reference_file": "scripts/setup_stage.steps"
+}
+```
+
+If `scripts/setup_stage.steps` contains:
+
+```text
+source setup.tcl
+
+# load default config
+source default_config.tcl
+```
+
+Chopper resolves this stage exactly as if you had authored:
+
+```json
+{
+  "name": "setup",
+  "load_from": "",
+  "steps": ["source setup.tcl", "", "# load default config", "source default_config.tcl"]
+}
+```
+
+**Rules:**
+
+- **`steps` and `reference_file` are mutually exclusive** on every stage. Specifying both, or neither, fails schema validation (`VE-02` for base/feature JSON, `VE-12` for project JSON) -- the same generic code every other schema violation uses, so no new code exists just for this check.
+- **One step per physical line, verbatim.** Blank lines and comment lines are preserved as their own step strings -- neither is stripped or skipped. Leading/trailing whitespace within a line is preserved too; if a `flow_actions` entry targets that exact step string via `reference`, it must match byte-for-byte (the same "whitespace mismatch" failure mode that already applies to inline-authored `steps` and `VE-05`).
+- **Line endings are normalized.** Any of `\r\n` (Windows), bare `\r` (legacy Mac), or `\n` (Unix) is treated as a line boundary, so the same file produces identical `steps` regardless of which platform authored or last edited it. A trailing newline does not add a spurious empty final step.
+- **Encoding is UTF-8**, tolerating a leading byte-order mark (BOM) from a Windows-editor-saved file -- the BOM is stripped, not treated as content.
+- **Failures are one code: `VE-39 reference-file-invalid`.** Covers a missing path, an unreadable file, invalid UTF-8, and a file that splits into zero lines (empty). Fix the path, permissions, encoding, or add content, respectively. The same code covers `add_step_before` / `add_step_after`'s `reference_file` too (Sec.6, Action Vocabulary).
+- **The referenced file is not automatically kept in the trimmed output.** Reading it for its content does not add it to `files.include` -- default-exclude still applies. If you want the source `.steps` file itself to survive trimming (not just its content baked into the generated `<stage>.tcl`), add it to `files.include` explicitly. If you forget, Chopper emits advisory `VW-26 stage-reference-file-not-preserved` (gated by `options.cross_validate`, same as VW-14/15/16) so the gap does not go unnoticed.
+- **Provenance only, not a new data path.** The resolved `steps` are indistinguishable downstream from inline authoring -- same generated `<stage>.tcl`, same `flow_actions` targeting, same cross-validation. `reference_file` is retained on the compiled stage purely so `compiled_manifest.json` can explain where a stage's steps came from.
+
 ---
 
 ## 3. Base JSON
@@ -247,6 +289,8 @@ A standalone `<stage>.stack` collision with `files.*` entries or with the aggreg
 | `stages` | stageDefinition[] | No* | Ordered stage definitions |
 
 *At least one of `files`, `procedures`, or `stages` required.
+
+Each `stageDefinition` requires **exactly one** of `steps` (array of step strings) or `reference_file` (domain-relative path read at P1 and split into steps) -- see Sec.2.3.
 
 ### `procEntry` structure
 
@@ -500,15 +544,17 @@ Flow actions modify the base flow during feature application. All actions go in 
 
 | Action | Required fields | Description |
 |--------|----------------|-------------|
-| `add_step_before` | `stage`, `reference`, `items` | Insert steps before a reference step |
-| `add_step_after` | `stage`, `reference`, `items` | Insert steps after a reference step |
+| `add_step_before` | `stage`, `reference`, one of `items` / `reference_file` | Insert steps before a reference step |
+| `add_step_after` | `stage`, `reference`, one of `items` / `reference_file` | Insert steps after a reference step |
 | `remove_step` | `stage`, `reference` | Remove a step from a stage |
 | `replace_step` | `stage`, `reference`, `with` | Replace one step with another |
-| `add_stage_before` | `name`, `reference`, `load_from`, `steps` | Insert a new stage before a reference stage |
-| `add_stage_after` | `name`, `reference`, `load_from`, `steps` | Insert a new stage after a reference stage |
+| `add_stage_before` | `name`, `reference`, `load_from`, one of `steps` / `reference_file` | Insert a new stage before a reference stage |
+| `add_stage_after` | `name`, `reference`, `load_from`, one of `steps` / `reference_file` | Insert a new stage after a reference stage |
 | `remove_stage` | `reference` | Remove a stage entirely |
 | `replace_stage` | `reference`, `with` | Replace a stage with a new definition |
 | `load_from` | `stage`, `reference` | Change the data predecessor of a stage |
+
+> `add_step_before` / `add_step_after` may set `reference_file` (domain-relative path) instead of `items` -- same rules as Sec.2.3, applied to the injected block rather than a whole stage. `replace_step` does not accept `reference_file`: `with` is exactly one replacement string, not a block, so a multi-line file has no sensible mapping there.
 
 ### `add_stage_after` example
 

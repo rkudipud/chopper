@@ -122,14 +122,15 @@ class ConfigService:
             feature_paths = cfg.feature_paths
 
         # --- Load base ---
-        base_json = self._load_and_hydrate_base(ctx, base_path)
+        source_root = _config_source_root(ctx, state)
+        base_json = self._load_and_hydrate_base(ctx, base_path, source_root)
         if base_json is None:
             return _empty_config()
 
         # --- Load features ---
         features: list[FeatureJson] = []
         for fp in feature_paths:
-            feat = self._load_and_hydrate_feature(ctx, fp)
+            feat = self._load_and_hydrate_feature(ctx, fp, source_root)
             if feat is not None:
                 features.append(feat)
 
@@ -197,19 +198,25 @@ class ConfigService:
             )
             return None
 
-    def _load_and_hydrate_base(self, ctx: ChopperContext, path: Path) -> BaseJson | None:
+    def _load_and_hydrate_base(self, ctx: ChopperContext, path: Path, source_root: Path) -> BaseJson | None:
         raw = self._load_raw(ctx, path)
         if raw is None:
             return None
         if not validate_json(raw, path, ctx.diag.emit):
+            return None
+        raw = _materialize_base_stage_steps(ctx, source_root, raw, source_path=path)
+        if raw is None:
             return None
         return load_base(raw, path, ctx.diag.emit)
 
-    def _load_and_hydrate_feature(self, ctx: ChopperContext, path: Path) -> FeatureJson | None:
+    def _load_and_hydrate_feature(self, ctx: ChopperContext, path: Path, source_root: Path) -> FeatureJson | None:
         raw = self._load_raw(ctx, path)
         if raw is None:
             return None
         if not validate_json(raw, path, ctx.diag.emit):
+            return None
+        raw = _materialize_feature_stage_steps(ctx, source_root, raw, source_path=path)
+        if raw is None:
             return None
         return load_feature(raw, path, ctx.diag.emit)
 
@@ -236,6 +243,192 @@ def _empty_config() -> LoadedConfig:
 def _is_glob_pattern(s: str) -> bool:
     """Return True if ``s`` contains glob metacharacters."""
     return any(ch in s for ch in ("*", "?", "["))
+
+
+# Tolerates a leading UTF-8 BOM (common in Windows-editor-saved files) by
+# stripping it instead of leaving a stray U+FEFF on the first step string.
+_STAGE_REF_ENCODING = "utf-8-sig"
+
+
+def _read_and_split_reference_file(
+    ctx: ChopperContext,
+    source_root: Path,
+    reference_file: str,
+    *,
+    context_label: str,
+    source_path: Path,
+) -> list[str] | None:
+    """Read ``reference_file`` and split it into one entry per physical line.
+
+    Shared core of every ``reference_file`` resolution site (whole-stage
+    ``steps`` and step-injection ``items`` alike): reads the domain-relative
+    file under ``source_root`` (``domain_root``, or ``backup_root`` on a
+    Case 2 re-trim -- see :func:`_config_source_root`), decodes UTF-8
+    tolerating a leading BOM, and splits on ``\\r\\n`` / ``\\r`` / ``\\n`` via
+    ``str.splitlines()`` -- adapter-agnostic, so the result does not depend
+    on whether the underlying ``FileSystemPort`` already normalized
+    newlines. Blank and comment lines are preserved verbatim; no per-line
+    trimming beyond the line ending itself.
+
+    Emits ``VE-39`` and returns ``None`` on any read/decode/empty failure;
+    the caller must treat ``None`` exactly like a schema-validation
+    failure (abort loading this JSON source).
+    """
+    ref_path = source_root / reference_file
+    try:
+        content = ctx.fs.read_text(ref_path, encoding=_STAGE_REF_ENCODING)
+    except (OSError, UnicodeDecodeError) as exc:
+        ctx.diag.emit(
+            Diagnostic.build(
+                "VE-39",
+                phase=Phase.P1_CONFIG,
+                message=(f"{context_label} reference_file {reference_file!r} could not be read: {exc}"),
+                path=source_path,
+                hint="Verify the path is domain-relative, exists, is readable, and is UTF-8 encoded",
+            )
+        )
+        return None
+
+    # ponytail: splitlines() also treats a handful of rare Unicode line
+    # separators (vertical tab, form feed, U+2028/U+2029, etc.) as line
+    # breaks in addition to \r\n / \r / \n. Accepted ceiling: Tcl-adjacent
+    # step text practically never contains those bytes as data.
+    lines = content.splitlines()
+    if not lines:
+        ctx.diag.emit(
+            Diagnostic.build(
+                "VE-39",
+                phase=Phase.P1_CONFIG,
+                message=(f"{context_label} reference_file {reference_file!r} is empty (0 lines)"),
+                path=source_path,
+                hint="Add at least one line to the file, or remove reference_file and author inline",
+            )
+        )
+        return None
+
+    return lines
+
+
+def _materialize_stage_steps(
+    ctx: ChopperContext,
+    source_root: Path,
+    stage_raw: dict[str, Any],
+    *,
+    source_path: Path,
+) -> dict[str, Any] | None:
+    """Return ``stage_raw`` with ``steps`` populated from ``reference_file``.
+
+    Identity pass-through when ``reference_file`` is absent (the common,
+    zero-cost case -- schema ``oneOf`` already guarantees at most one of
+    ``steps`` / ``reference_file`` is present by this point).
+    """
+    reference_file = stage_raw.get("reference_file")
+    if reference_file is None:
+        return stage_raw
+
+    stage_name = stage_raw.get("name", "<unnamed>")
+    lines = _read_and_split_reference_file(
+        ctx, source_root, reference_file, context_label=f"Stage {stage_name!r}", source_path=source_path
+    )
+    if lines is None:
+        return None
+    return {**stage_raw, "steps": lines}
+
+
+def _materialize_step_items(
+    ctx: ChopperContext,
+    source_root: Path,
+    action_raw: dict[str, Any],
+    *,
+    source_path: Path,
+) -> dict[str, Any] | None:
+    """Return ``action_raw`` with ``items`` populated from ``reference_file``.
+
+    Identity pass-through when ``reference_file`` is absent. Applies to
+    ``add_step_before`` / ``add_step_after`` flow_actions only -- the block
+    of steps injected at the ``reference`` anchor.
+    """
+    reference_file = action_raw.get("reference_file")
+    if reference_file is None:
+        return action_raw
+
+    anchor = action_raw.get("reference", "<unknown>")
+    stage = action_raw.get("stage", "<unknown>")
+    lines = _read_and_split_reference_file(
+        ctx,
+        source_root,
+        reference_file,
+        context_label=f"{action_raw.get('action')} on stage {stage!r} at anchor {anchor!r}",
+        source_path=source_path,
+    )
+    if lines is None:
+        return None
+    return {**action_raw, "items": lines}
+
+
+def _materialize_base_stage_steps(
+    ctx: ChopperContext,
+    source_root: Path,
+    raw: dict[str, Any],
+    *,
+    source_path: Path,
+) -> dict[str, Any] | None:
+    """Resolve ``reference_file`` for every entry in ``raw["stages"]``."""
+    stages_raw = raw.get("stages")
+    if not stages_raw:
+        return raw
+
+    resolved: list[dict[str, Any]] = []
+    for stage_raw in stages_raw:
+        materialized = _materialize_stage_steps(ctx, source_root, stage_raw, source_path=source_path)
+        if materialized is None:
+            return None
+        resolved.append(materialized)
+    return {**raw, "stages": resolved}
+
+
+def _materialize_feature_stage_steps(
+    ctx: ChopperContext,
+    source_root: Path,
+    raw: dict[str, Any],
+    *,
+    source_path: Path,
+) -> dict[str, Any] | None:
+    """Resolve ``reference_file`` inside ``raw["flow_actions"]``.
+
+    ``add_step_before`` / ``add_step_after`` carry ``items`` inline on the
+    action object. ``add_stage_before`` / ``add_stage_after`` carry stage
+    fields inline on the action object; ``replace_stage`` nests them under
+    ``with``. Every other action kind is passed through untouched.
+    """
+    actions_raw = raw.get("flow_actions")
+    if not actions_raw:
+        return raw
+
+    resolved: list[dict[str, Any]] = []
+    for action_raw in actions_raw:
+        action = action_raw.get("action")
+        if action in ("add_stage_before", "add_stage_after"):
+            materialized = _materialize_stage_steps(ctx, source_root, action_raw, source_path=source_path)
+            if materialized is None:
+                return None
+            resolved.append(materialized)
+        elif action in ("add_step_before", "add_step_after"):
+            materialized_items = _materialize_step_items(ctx, source_root, action_raw, source_path=source_path)
+            if materialized_items is None:
+                return None
+            resolved.append(materialized_items)
+        elif action == "replace_stage":
+            # Schema guarantees "with" is present and object-shaped once
+            # validate_json has passed (mirrors loaders._load_flow_action's
+            # equally unconditional access to raw["with"]).
+            materialized_with = _materialize_stage_steps(ctx, source_root, action_raw["with"], source_path=source_path)
+            if materialized_with is None:
+                return None
+            resolved.append({**action_raw, "with": materialized_with})
+        else:
+            resolved.append(action_raw)
+    return {**raw, "flow_actions": resolved}
 
 
 def _glob_to_regex_local(pattern: str) -> re.Pattern[str] | None:

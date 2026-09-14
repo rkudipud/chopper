@@ -171,6 +171,7 @@ class _MutableStage:
         "run_mode",
         "language",
         "standalone_stack",
+        "reference_file",
     )
 
     def __init__(
@@ -186,6 +187,7 @@ class _MutableStage:
         run_mode: str,
         language: str,
         standalone_stack: bool,
+        reference_file: str | None = None,
     ) -> None:
         self.name = name
         self.load_from = load_from
@@ -198,6 +200,7 @@ class _MutableStage:
         self.run_mode = run_mode
         self.language = language
         self.standalone_stack = standalone_stack
+        self.reference_file = reference_file
 
     @classmethod
     def from_definition(cls, sd: StageDefinition) -> _MutableStage:
@@ -213,6 +216,7 @@ class _MutableStage:
             run_mode=sd.run_mode,
             language=sd.language,
             standalone_stack=sd.standalone_stack,
+            reference_file=sd.reference_file,
         )
 
     def freeze(self) -> StageSpec:
@@ -228,6 +232,7 @@ class _MutableStage:
             run_mode=self.run_mode,  # type: ignore[arg-type]
             language=self.language,  # type: ignore[arg-type]
             standalone_stack=self.standalone_stack,
+            reference_file=self.reference_file,
         )
 
 

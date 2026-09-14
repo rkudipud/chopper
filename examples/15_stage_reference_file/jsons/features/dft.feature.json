@@ -1,0 +1,17 @@
+{
+  "$schema": "feature-v1",
+  "name": "dft",
+  "domain": "my_domain",
+  "description": "Injects a DFT scan block after 'run_verification' in run_verify, sourced from an existing script file instead of duplicated inline items.",
+  "files": {
+    "include": ["scripts/scan_block.steps"]
+  },
+  "flow_actions": [
+    {
+      "action": "add_step_after",
+      "stage": "run_verify",
+      "reference": "run_verification",
+      "reference_file": "scripts/scan_block.steps"
+    }
+  ]
+}

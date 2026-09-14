@@ -190,7 +190,7 @@ The runtime writes these into `.chopper/` on every run (success or failure). Exa
 - `internal-error.log` -- **only present on exit 3** (programmer error). Plain-text crash log: run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. Mirrors `RunResult.internal_error = {kind, message, log_path}` so a GUI / CI can surface the failure without parsing the log.
 - Event log in JSON-Lines format
 
-The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) (**71 active codes** as of 0.8.0). Never invent codes; look them up there.
+The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) (**91 active / 94 registered codes** as of 4.7.0 -- treat this number as illustrative, not a cache; the registry file is the live source of truth). Never invent codes; look them up there.
 
 ### Exit codes (CLI surface)
 
@@ -269,7 +269,7 @@ You have read access to the entire Chopper specification surface. Always cite th
 | **User docs -- overview / thesis** | [`user_docs/01_OVERVIEW.md`](../../user_docs/01_OVERVIEW.md) | Problem, solution, F1/F2/F3, JSON structure, BKMs, ownership |
 | **User docs -- CLI guide** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | Every subcommand, every flag, deep examples, troubleshooting |
 | **User docs -- how it works** | [`user_docs/03_HOW_CHOPPER_WORKS.md`](../../user_docs/03_HOW_CHOPPER_WORKS.md) | Pipeline (P0-P7), design rules, where to use, FAQ |
-| **Worked examples** | [`examples/`](../../examples/) | 14 progressive scenarios from `01_base_files_only` through `14_cross_feature_skip_if_no_stage` |
+| **Worked examples** | [`examples/`](../../examples/) | 15 progressive scenarios from `01_base_files_only` through `15_stage_reference_file` |
 | **Test fixtures (mini domains)** | [`tests/fixtures/`](../../tests/fixtures/) | `mini_domain/`, `namespace_domain/`, `tracing_domain/`, `stages_domain/`, `edge_cases/` |
 | **Project conventions** | [`.github/instructions/project.instructions.md`](../instructions/project.instructions.md) | Scope lock Sec.1, system check, code style, diagnostic rules |
 | **Risk, decision and roadmap log** | `IMPLEMENTATION.md` Future Considerations section + ARCHITECTURE.md revision history | Why something was rejected, what is deferred (`FD-xx`), what shipped when |
@@ -420,7 +420,25 @@ If the domain uses different labels, map by role (stage name, execution command,
 - **Base** if it runs in every standard project, is the entry point, or removing it breaks the minimal flow
 - **Feature** if it's only used for a specific scenario, is an optional lightweight alternative, or is triggered by a project-level choice
 
-**Auto-generating stack files (`options.generate_stack`)** -- when the user wants Chopper to emit `<stage>.stack` alongside `<stage>.tcl`, set `"generate_stack": true` in the base JSON `options` block. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. This feature is newly shipped (0.3.0) and has not yet been exercised against real customer domains -- treat any domain using it as a pilot user and actively solicit feedback (see the "Known Untested Features" callout in the memory file).
+**Auto-generating stack files (`options.generate_stack`)** -- when the user wants Chopper to emit `<stage>.stack` alongside `<stage>.tcl`, set `"generate_stack": true` in the base JSON `options` block. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Stable since 3.4.0 (topological aggregate ordering); see [examples/12_base_with_aggregate_stack/](../../examples/12_base_with_aggregate_stack/) and [examples/13_base_with_standalone_stack/](../../examples/13_base_with_standalone_stack/) for worked scenarios, including the orthogonal per-stage `standalone_stack: true` flag (emits `<stage>.stack` verbatim from `steps` and suppresses that stage's `<stage>.tcl`).
+
+**Sourcing `steps` from an existing script file (`reference_file`, since 4.7.0; extended to `add_step_before`/`add_step_after` `items` in 4.8.0)** -- a stage may set `reference_file` (domain-relative path) instead of authoring `steps` inline. Chopper reads the file at P1 and uses one step per physical line -- blank and comment lines preserved verbatim, any of `\r\n` / `\r` / `\n` line endings normalized, UTF-8 with BOM tolerance. This works in base `stages[]`, in feature `add_stage_before` / `add_stage_after` / `replace_stage`'s `with` clause, **and** on `add_step_before` / `add_step_after` (sourcing the injected block instead of a whole stage) -- the one exception is `replace_step`, whose `with` is exactly one replacement string, not a block. See [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) Sec.2.3 and [examples/15_stage_reference_file/](../../examples/15_stage_reference_file/).
+
+**Choosing `steps` vs `reference_file` -- this is an architecture decision, ask it explicitly:**
+
+| Signal | Recommend |
+|---|---|
+| Domain has no pre-existing stage script files; steps are short and stable | Inline `steps` -- one less file to track, diff-friendly in the JSON itself |
+| Domain already maintains a hand-written stage script (`.tcl`, `.steps`, or similar) that other tooling also reads directly | `reference_file` -- avoids hand-duplicating the same lines into JSON and re-syncing on every edit |
+| Steps change frequently and are reviewed by people who are not comfortable editing JSON | `reference_file` -- let them keep editing the plain-text script; Chopper just reads it |
+| You need per-step `flow_actions` targeting (`add_step_after`, `replace_step`) on content authored elsewhere | Either works -- resolution happens before `flow_actions` apply, so file-sourced steps are just as targetable as inline ones. Warn that `reference` must match a target step **byte-for-byte**, including any trailing whitespace physically present in the source file. |
+| Migrating a domain from hand-maintained stack files toward full JSON authoring | Start with `reference_file` (fastest onboarding, zero content rewrite), then inline the content into `steps` once the domain is comfortable authoring in JSON directly |
+
+**Rules to enforce when authoring `reference_file`:**
+
+- Mutually exclusive with `steps` (or `items`, on `add_step_before`/`add_step_after`) on the same object -- specifying both, or neither, fails schema validation (generic `VE-02` / `VE-12`, the same code any other schema violation uses).
+- A missing, unreadable, non-UTF-8, or empty (0-line) reference file fails with runtime `VE-39 reference-file-invalid` -- this is **not** a schema error, so `validate_jsons.py` alone will not catch it; only `chopper validate` / `chopper trim --dry-run` will, because it requires reading the actual file off disk.
+- The referenced file is **not** automatically preserved in the trimmed output -- R1 default-exclude still applies to it. If the user wants the source `.steps` file itself to survive trimming (not just its content baked into the generated `<stage>.tcl`), it must also be declared in `files.include`, or Chopper emits advisory `VW-26 stage-reference-file-not-preserved` (stage-level only -- there is no step-level equivalent, since an injected block's provenance does not survive past flow resolution). Always ask the user whether they want the source file kept, and add it to `files.include` proactively rather than waiting for the warning.
 
 ### Phase 4: Extract proc definitions and build the call tree
 
@@ -498,6 +516,8 @@ Common feature patterns:
 | Replace a default proc | `procedures.include` override in feature |
 | Remove legacy files for newer project types | `files.exclude` in feature |
 | Feature B requires Feature A | `depends_on: ["feature_a_name"]` in Feature B |
+| Feature A and Feature B must never be selected together | `incompatible_with: ["feature_b_name"]` on either feature (symmetric, order-independent; fails `VE-38` if both are selected in the same run) |
+| Cross-cutting feature injects into a stage another feature may or may not have loaded | `"skip_if_no_stage": true` on the `flow_actions` entry (absent stage emits info `VI-05` and is skipped, instead of hard-failing `VE-05`) |
 | Pre/post step on an existing stage | `add_step_before` / `add_step_after` in `flow_actions` |
 
 **One feature = one responsibility.** If a candidate feature does two unrelated jobs, split it.
@@ -557,6 +577,8 @@ Use these as starting points and adapt by example.
 }
 ```
 
+> A stage may set `"reference_file": "<path/to/script.steps>"` **instead of** `"steps"` -- see the decision table in Phase 3 above. Never author both on the same stage.
+
 Checklist for base JSON:
 
 - [ ] `domain` matches the directory name
@@ -565,7 +587,8 @@ Checklist for base JSON:
 - [ ] Procs that must survive trim are in `procedures.include`
 - [ ] All stage `N/J/L/D/I/O/R` fields extracted from stack files
 - [ ] `load_from` is set (can be `""` for entry stages)
-- [ ] `steps` array is non-empty for each stage
+- [ ] Each stage has **exactly one** of: non-empty `steps` array, or `reference_file` set (never both, never neither)
+- [ ] If `reference_file` is used and the source script should also survive trimming, its path is also in `files.include`
 - [ ] No `..` traversal, no backslashes, no absolute paths
 - [ ] JSON passes schema validation
 
@@ -601,9 +624,11 @@ Checklist for base JSON:
 Checklist for each feature JSON:
 
 - [ ] `name` is unique across all features in any project that selects it
-- [ ] `depends_on` lists feature `name` values (not file paths)
+- [ ] `depends_on` lists feature `name` values (not file paths); `incompatible_with` likewise names features, not files
 - [ ] All new stage names are unique (no collision with base)
 - [ ] `reference` values in `flow_actions` match existing stage names
+- [ ] `add_stage_*` / `replace_stage` stages have **exactly one** of `steps` or `reference_file`, same rule as base stages
+- [ ] `add_step_before` / `add_step_after` have **exactly one** of `items` or `reference_file`
 - [ ] `exit_codes`, `dependencies`, `inputs`, `outputs` are non-empty when present
 - [ ] JSON passes schema validation
 
@@ -653,7 +678,7 @@ When `schemas/scripts/validate_jsons.py` or `chopper validate` surfaces a schema
 | `does not match '^(?!\\.\\.)...'` | Remove `..`, `//`, backslashes, or absolute path prefix |
 | `is not of type 'array'` | Change bare string `"setup"` -> array `["setup"]` |
 | `'$schema' is a required property` | Add `"$schema": "base-v1"` (or `feature-v1` / `project-v1`) |
-| `is not valid under any of the given schemas` | Check `action` field spelling against allowed values |
+| `is not valid under any of the given schemas` | For `flow_actions`: check `action` field spelling against allowed values. For a stage object, or an `add_step_before`/`add_step_after` action: it has both `steps`/`items` and `reference_file`, or neither -- pick exactly one. |
 | `'name' is a required property` | Add missing `name` field to feature or stage |
 
 Runtime semantic checks (Chopper enforces at runtime, schema does not catch):
@@ -661,9 +686,12 @@ Runtime semantic checks (Chopper enforces at runtime, schema does not catch):
 | Check | How to verify |
 |-------|-------------|
 | `depends_on` prerequisites appear earlier in project | Trace each feature's `depends_on` list against the project `features` order |
+| Two selected features are mutually `incompatible_with` | Cross-check every selected feature's `incompatible_with` list against the rest of the selection; fails `VE-38` if any pair matches |
 | `flow_action` reference stage exists | Confirm `reference` matches a `name` in base or a previously applied feature |
 | Stage names unique across compiled flow | Collect all `name` values from base + every feature's `add_stage_*`; check for duplicates |
 | Feature `domain` matches base `domain` | If a feature has `domain` set, it must equal the base `domain` |
+| `reference_file` resolves cleanly | Chopper must actually read the file (missing/unreadable/non-UTF-8/empty fails `VE-39`); `validate_jsons.py` alone cannot catch this, only `chopper validate` / `trim --dry-run` |
+| `reference_file`'s source is preserved if the user wants it kept | Check whether the same path also appears in `files.include`; if not, expect advisory `VW-26` |
 
 ---
 
@@ -679,7 +707,7 @@ Named workflow. When the user asks *"help me get started"* or *"bootstrap my dom
 6. **Offer `chopper trim --dry-run`** as the validation gate (only in `full-loop` mode).
 7. **Iterate** based on what the audit bundle shows.
 
-Anchor every step in the concrete examples under [examples/](../../examples/) -- 14 worked scenarios from `01_base_files_only` through `14_cross_feature_skip_if_no_stage`. Copy-and-adapt beats authoring from a blank template.
+Anchor every step in the concrete examples under [examples/](../../examples/) -- 15 worked scenarios from `01_base_files_only` through `15_stage_reference_file`. Copy-and-adapt beats authoring from a blank template.
 
 ---
 

@@ -52,6 +52,50 @@ class TestBaseSchema:
         }
         assert _valid(doc)
 
+    def test_minimal_valid_stage_reference_file(self) -> None:
+        doc = {
+            "$schema": "base-v1",
+            "domain": "my_domain",
+            "stages": [{"name": "setup", "load_from": "", "reference_file": "scripts/setup.steps"}],
+        }
+        assert _valid(doc)
+
+    def test_stage_with_both_steps_and_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "base-v1",
+            "domain": "my_domain",
+            "stages": [
+                {
+                    "name": "setup",
+                    "load_from": "",
+                    "steps": ["source setup.tcl"],
+                    "reference_file": "scripts/setup.steps",
+                }
+            ],
+        }
+        diags = _collect(doc)
+        assert len(diags) == 1
+        assert diags[0].code == "VE-02"
+
+    def test_stage_with_neither_steps_nor_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "base-v1",
+            "domain": "my_domain",
+            "stages": [{"name": "setup", "load_from": ""}],
+        }
+        diags = _collect(doc)
+        assert len(diags) == 1
+        assert diags[0].code == "VE-02"
+
+    def test_stage_reference_file_path_traversal_rejected(self) -> None:
+        doc = {
+            "$schema": "base-v1",
+            "domain": "my_domain",
+            "stages": [{"name": "setup", "load_from": "", "reference_file": "../etc/passwd"}],
+        }
+        diags = _collect(doc)
+        assert diags[0].code == "VE-02"
+
     def test_missing_domain(self) -> None:
         doc = {
             "$schema": "base-v1",
@@ -196,6 +240,146 @@ class TestFeatureSchema:
         }
         diags = _collect(doc)
         assert diags[0].code == "VE-02"
+
+    def test_add_stage_after_reference_file_valid(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_stage_after",
+                    "name": "dft_check",
+                    "reference": "main",
+                    "load_from": "main",
+                    "reference_file": "scripts/dft_check.steps",
+                }
+            ],
+        }
+        assert _valid(doc)
+
+    def test_add_stage_after_both_steps_and_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_stage_after",
+                    "name": "dft_check",
+                    "reference": "main",
+                    "load_from": "main",
+                    "steps": ["a"],
+                    "reference_file": "scripts/dft_check.steps",
+                }
+            ],
+        }
+        diags = _collect(doc)
+        assert diags[0].code == "VE-02"
+
+    def test_add_stage_after_neither_steps_nor_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_stage_after",
+                    "name": "dft_check",
+                    "reference": "main",
+                    "load_from": "main",
+                }
+            ],
+        }
+        diags = _collect(doc)
+        assert diags[0].code == "VE-02"
+
+    def test_replace_stage_with_both_steps_and_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "replace_stage",
+                    "reference": "old_stage",
+                    "with": {
+                        "name": "new_stage",
+                        "load_from": "",
+                        "steps": ["a"],
+                        "reference_file": "scripts/new_stage.steps",
+                    },
+                }
+            ],
+        }
+        diags = _collect(doc)
+        assert diags[0].code == "VE-02"
+
+    def test_replace_stage_with_reference_file_valid(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "replace_stage",
+                    "reference": "old_stage",
+                    "with": {"name": "new_stage", "load_from": "", "reference_file": "scripts/new_stage.steps"},
+                }
+            ],
+        }
+        assert _valid(doc)
+
+    def test_add_step_after_items_reference_file_valid(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_step_after",
+                    "stage": "main",
+                    "reference": "run",
+                    "reference_file": "scripts/scan_block.steps",
+                }
+            ],
+        }
+        assert _valid(doc)
+
+    def test_add_step_after_both_items_and_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_step_after",
+                    "stage": "main",
+                    "reference": "run",
+                    "items": ["a"],
+                    "reference_file": "scripts/scan_block.steps",
+                }
+            ],
+        }
+        diags = _collect(doc)
+        assert diags[0].code == "VE-02"
+
+    def test_add_step_after_neither_items_nor_reference_file_rejected(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [{"action": "add_step_after", "stage": "main", "reference": "run"}],
+        }
+        diags = _collect(doc)
+        assert diags[0].code == "VE-02"
+
+    def test_add_step_before_items_reference_file_valid(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_step_before",
+                    "stage": "main",
+                    "reference": "run",
+                    "reference_file": "scripts/pre_block.steps",
+                }
+            ],
+        }
+        assert _valid(doc)
 
 
 # ---------------------------------------------------------------------------

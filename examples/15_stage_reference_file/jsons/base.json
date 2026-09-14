@@ -1,0 +1,31 @@
+{
+  "$schema": "base-v1",
+  "domain": "my_domain",
+  "owner": "platform-team",
+  "tool": "my_tool",
+  "description": "Base with a stage sourced from an existing script file via reference_file, instead of duplicating its lines into steps.",
+  "files": {
+    "include": ["scripts/setup_stage.steps"]
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "load_from": "",
+      "command": "-xt vw Imy_shell -B BLOCK -T setup",
+      "exit_codes": [0],
+      "reference_file": "scripts/setup_stage.steps"
+    },
+    {
+      "name": "run_verify",
+      "load_from": "setup",
+      "command": "-xt vw Imy_shell -B BLOCK -T run_verify",
+      "exit_codes": [0, 3, 5],
+      "dependencies": ["setup"],
+      "steps": [
+        "source verify.tcl",
+        "run_verification",
+        "report_results"
+      ]
+    }
+  ]
+}

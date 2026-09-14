@@ -24,15 +24,15 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01-VE-40 | 38 | 2 | 40 | Schema, path, action, ordering, filesystem failures -- block output |
-| `VW` Validation Warnings | VW-01-VW-30 | 23 | 5 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing, already-absent exclude-literal target (2 retired slots: VW-18, VW-19) |
+| `VE` Validation Errors | VE-01-VE-40 | 39 | 1 | 40 | Schema, path, action, ordering, filesystem failures -- block output |
+| `VW` Validation Warnings | VW-01-VW-30 | 24 | 4 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing, already-absent exclude-literal target, stage-reference-file provenance (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01-VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01-TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
 | `TI` Trace Info | TI-01-TI-05 | 1 | 4 | 5 | Recognised-but-external call-token observations (Phase 4) |
 | `PE` Parse Errors | PE-01-PE-10 | 3 | 6 | 10 | Fatal parse failures; file skipped or partial (1 retired slot: PE-04) |
 | `PW` Parse Warnings | PW-01-PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01-PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **89** | **38** | **130** | |
+| **Total** | | **91** | **36** | **130** | |
 
 ---
 
@@ -80,7 +80,8 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | VE-36 | `feature-name-not-found` | 1 | cli | **2** | A feature name passed in `--features` does not match any `*.feature.json` file under `<domain>/jsons/features/`. The message includes the closest available feature name when one can be inferred. | Check the feature name spelling. Run `ls <domain>/jsons/features/` to see available features. Use the exact stem before `.feature.json` (e.g. `dft` for `dft.feature.json`). |
 | VE-37 | `p4-checkout-failed` | 5 | trimmer | 1 | `p4 edit -t text+x <path>` failed for a file Chopper needed to check out before rewriting it (opt-in `--p4` flag). Emitted only when `--p4` was passed, the domain was confirmed p4-tracked, and at least one checkout call failed partway through the batch. All files successfully checked out before the failure are reverted via `p4 revert`; if the domain rename/rebuild had already started, it is also immediately restored from `<domain>_backup/`. Never emitted under `--dry-run` (p4 integration is fully disabled there). | Check the reported file/reason (locked by another user, wrong client workspace, `p4` not logged in, network/server issue), fix it, and re-run `chopper trim --p4`. The domain is left exactly as it was before this run -- no partial state. |
 | VE-38 | `incompatible-features-selected` | 1 | compiler | 1 | Two selected features declare each other (or one declares the other) via `incompatible_with` and both are present in the same run (project mode or `--base`/`--features` mode). The check is symmetric and order-independent -- either feature naming the other is sufficient. Message lists both feature names in sorted order. | Remove one of the two conflicting features from the selection, or split them into separate project recipes. |
-| -- | -- | -- | -- | -- | **VE-39 through VE-40 reserved** | -- |
+| VE-39 | `reference-file-invalid` | 1 | validator | 1 | A `reference_file` field -- a stage's (base `stages[]`, or a feature `add_stage_before`/`add_stage_after`/`replace_stage`), or an `add_step_before`/`add_step_after` flow_action's -- could not be resolved into `steps`/`items`: the domain-relative path does not exist, is not readable, is not valid UTF-8, or splits into zero physical lines (an empty file). One code covers every authoring surface and all four causes; the message states which. | Verify the path is domain-relative and correct, that the file exists and is readable, that it is UTF-8 encoded, and that it has at least one line |
+| -- | -- | -- | -- | -- | **VE-40 reserved** | -- |
 
 ---
 
@@ -115,7 +116,8 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | VW-23 | `stack-stage-empty-command` | 3 | compiler | 0 | A stage included as a record in the aggregate F3 stack (emitted because `options.generate_stack: true`) has an empty `command` field, so the record's `J` line is omitted entirely. Most schedulers reject records with no job command. | Author a `command` on the stage, or accept the warning if the downstream scheduler tolerates `J`-less records. |
 | VW-24 | `companion-file-missing` | 5 | trimmer | 0 | P5d companion-file sync expected `default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl` alongside a `PROC_TRIM` `default_rules.<sfx>.tcl` file but the companion was not found in the rebuilt domain. Sync is skipped for the missing file. | Declare the companion file in `files.include` so it receives `FULL_COPY` treatment and is present in the rebuilt domain before P5d runs. |
 | VW-25 | `exclude-target-absent` | 1 | validator | 0 | A literal path in `files.exclude` is not present under the domain (or `_backup`). The exclusion is a no-op -- the file the author wanted dropped is already absent -- so Chopper warns and the trim proceeds instead of hard-failing with `VE-06`. The absent literal is harmlessly filtered at P3 (`merge_service._distill_facts` keeps only `files.exclude` literals present on the surface), so no `VE-27` follows. A missing `files.include` literal, by contrast, remains `VE-06`. | Remove the stale `files.exclude` entry (its target is already gone), or fix the path if the file was expected to exist |
-| -- | -- | -- | -- | -- | **VW-26 through VW-30 reserved** | -- |
+| VW-26 | `stage-reference-file-not-preserved` | 6 | validator | 0 | A stage's `reference_file` was read successfully at P1, but the compiled manifest does not otherwise preserve that path (no `files.include` keeps it) -- R1 default-exclude still applies to it, so the source file itself will not appear in the trimmed output even though its content lives on inside the generated `<stage>.tcl`. Gated by `options.cross_validate` alongside VW-14/15/16. | Add the `reference_file` path to `files.include` if the source file itself should also survive trimming |
+| -- | -- | -- | -- | -- | **VW-27 through VW-30 reserved** | -- |
 
 ---
 

@@ -274,6 +274,10 @@ Six vendor pools are bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formali
 
 When `true` (default), P6 checks every step string in every surviving stage against the files and procs that survived trimming. Missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) -- all warnings, never errors. Set to `false` if your stages intentionally reference content outside the trimmed domain (e.g. cross-domain sources). `VW-17 external-reference` is always emitted regardless of this flag.
 
+### Can a stage's `steps` come from an existing script file instead of being typed into JSON?
+
+Yes -- set `reference_file` (domain-relative path) on the stage instead of `steps`. Chopper reads the file at P1 and uses one step per physical line, blank/comment lines preserved, any line-ending convention normalized. See [JSON_AUTHORING_GUIDE.md Sec.2.3](../technical_docs/JSON_AUTHORING_GUIDE.md). The two fields are mutually exclusive per stage; an unreadable, undecodable, or empty file fails with `VE-39`. The source file itself is not automatically kept in the trimmed output -- add it to `files.include` too if you want it to survive, otherwise Chopper warns with `VW-26`.
+
 ### My feature injects steps into stages created by another feature. How do I avoid VE-05 when that feature is not loaded?
 
 Add `"skip_if_no_stage": true` to each flow_action that targets the feature-created stage. When the stage is absent from the compiled sequence, Chopper emits `VI-05` (info, exit 0) and skips the action silently. When the stage is present, the action runs normally. This is the canonical pattern for cross-cutting features in modular domains. See [JSON_AUTHORING_GUIDE.md Sec.7 "Optional stage targets"](../technical_docs/JSON_AUTHORING_GUIDE.md) and [ARCHITECTURE.md Sec.6.7](../technical_docs/ARCHITECTURE.md).

@@ -146,6 +146,38 @@ class TestLoadBase:
         assert s.run_mode == "parallel"
         assert s.language == "python"
 
+    def test_stage_def_reference_file_passthrough(self) -> None:
+        """``reference_file`` is carried through as provenance metadata.
+
+        ``_load_stage_def`` itself does no I/O and does not enforce mutual
+        exclusivity with ``steps`` -- that is the schema's job, enforced by
+        ``validate_json`` before ``load_base`` is ever called in production
+        (:class:`~chopper.config.service.ConfigService`).
+        """
+        raw = {
+            "$schema": "base-v1",
+            "domain": "d",
+            "stages": [
+                {
+                    "name": "setup",
+                    "load_from": "",
+                    "steps": ["source a.tcl"],
+                    "reference_file": "scripts/setup.steps",
+                }
+            ],
+        }
+        base, _ = _collect_base(raw)
+        assert base.stages[0].reference_file == "scripts/setup.steps"
+
+    def test_stage_def_reference_file_defaults_to_none(self) -> None:
+        raw = {
+            "$schema": "base-v1",
+            "domain": "d",
+            "stages": [{"name": "setup", "load_from": "", "steps": ["a"]}],
+        }
+        base, _ = _collect_base(raw)
+        assert base.stages[0].reference_file is None
+
     def test_source_path_recorded(self) -> None:
         raw = {
             "$schema": "base-v1",
@@ -232,6 +264,35 @@ class TestLoadFeature:
         assert isinstance(action, AddStepAction)
         assert action.action == "add_step_after"
 
+    def test_add_step_after_reference_file_passthrough(self) -> None:
+        """``reference_file`` is carried through as provenance metadata.
+
+        ``_load_flow_action`` itself does no I/O and does not enforce mutual
+        exclusivity with ``items`` -- that is the schema's job, enforced by
+        ``validate_json`` before ``load_feature`` is ever called in
+        production (:class:`~chopper.config.service.ConfigService`). A
+        non-empty ``items`` is included here purely to satisfy
+        ``AddStepAction.__post_init__``'s invariant when calling
+        ``load_feature`` directly, bypassing production's materialization.
+        """
+        raw = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_step_after",
+                    "stage": "setup",
+                    "reference": "step1.tcl",
+                    "items": ["placeholder"],
+                    "reference_file": "scripts/scan_block.steps",
+                }
+            ],
+        }
+        feat, _ = _collect_feat(raw)
+        action = feat.flow_actions[0]
+        assert isinstance(action, AddStepAction)
+        assert action.reference_file == "scripts/scan_block.steps"
+
     def test_skip_if_no_stage_round_trips_true(self) -> None:
         """Architecture doc Sec.6.7: ``skip_if_no_stage: true`` on a
         flow_action hydrates onto the dataclass."""
@@ -290,6 +351,26 @@ class TestLoadFeature:
         assert isinstance(action, AddStageAction)
         assert action.stage.name == "dft_check"
         assert action.reference == "main"
+
+    def test_add_stage_after_action_reference_file_passthrough(self) -> None:
+        raw = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "add_stage_after",
+                    "name": "dft_check",
+                    "reference": "main",
+                    "load_from": "main",
+                    "steps": ["setup_scan"],
+                    "reference_file": "scripts/dft_check.steps",
+                }
+            ],
+        }
+        feat, _ = _collect_feat(raw)
+        action = feat.flow_actions[0]
+        assert isinstance(action, AddStageAction)
+        assert action.stage.reference_file == "scripts/dft_check.steps"
 
     def test_remove_step_action(self) -> None:
         raw = {
@@ -350,6 +431,28 @@ class TestLoadFeature:
         action = feat.flow_actions[0]
         assert isinstance(action, ReplaceStageAction)
         assert action.replacement.name == "new_stage"
+
+    def test_replace_stage_action_reference_file_passthrough(self) -> None:
+        raw = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {
+                    "action": "replace_stage",
+                    "reference": "old_stage",
+                    "with": {
+                        "name": "new_stage",
+                        "load_from": "",
+                        "reference_file": "scripts/new_stage.steps",
+                        "steps": ["s1"],
+                    },
+                }
+            ],
+        }
+        feat, _ = _collect_feat(raw)
+        action = feat.flow_actions[0]
+        assert isinstance(action, ReplaceStageAction)
+        assert action.replacement.reference_file == "scripts/new_stage.steps"
 
 
 # ---------------------------------------------------------------------------

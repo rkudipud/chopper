@@ -120,6 +120,14 @@ class TestStageDefinition:
         with pytest.raises(ValueError, match="steps must be non-empty"):
             StageDefinition(name="syn", load_from="base.tcl", steps=())
 
+    def test_reference_file_defaults_to_none(self) -> None:
+        sd = StageDefinition(name="syn", load_from="base.tcl", steps=("a",))
+        assert sd.reference_file is None
+
+    def test_reference_file_round_trips(self) -> None:
+        sd = StageDefinition(name="syn", load_from="base.tcl", steps=("a", "b"), reference_file="scripts/syn.steps")
+        assert sd.reference_file == "scripts/syn.steps"
+
 
 # ---------------------------------------------------------------------------
 # AddStepAction
@@ -130,6 +138,16 @@ class TestAddStepAction:
     def test_empty_items_rejected(self) -> None:
         with pytest.raises(ValueError, match="items must be non-empty"):
             AddStepAction(action="add_step_after", stage="syn", reference="setup", items=())
+
+    def test_reference_file_defaults_to_none(self) -> None:
+        action = AddStepAction(action="add_step_after", stage="syn", reference="setup", items=("a",))
+        assert action.reference_file is None
+
+    def test_reference_file_round_trips(self) -> None:
+        action = AddStepAction(
+            action="add_step_after", stage="syn", reference="setup", items=("a",), reference_file="scripts/x.steps"
+        )
+        assert action.reference_file == "scripts/x.steps"
 
 
 # ---------------------------------------------------------------------------

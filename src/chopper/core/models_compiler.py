@@ -119,6 +119,9 @@ class StageSpec:
     run_mode: Literal["serial", "parallel"] = "serial"
     language: Literal["tcl", "python"] = "tcl"
     standalone_stack: bool = False
+    reference_file: str | None = None
+    """Domain-relative path ``steps`` was materialized from at P1, or ``None``
+    when authored inline. Provenance only -- never re-read downstream."""
 
     def __post_init__(self) -> None:
         if not self.name:

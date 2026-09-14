@@ -113,7 +113,15 @@ def _load_procedures_section(
 
 
 def _load_stage_def(raw: dict[str, Any]) -> StageDefinition:
-    """Hydrate a ``stageDefinition`` object."""
+    """Hydrate a ``stageDefinition`` object.
+
+    ``raw["steps"]`` must already be resolved by this point -- when the
+    original JSON carried ``reference_file`` instead of ``steps``,
+    :class:`~chopper.config.service.ConfigService` materializes ``steps``
+    from the referenced file's content before this function ever runs
+    (see ``ConfigService._materialize_stage_steps``). ``reference_file``
+    itself is carried through unchanged as provenance metadata only.
+    """
     return StageDefinition(
         name=raw["name"],
         load_from=raw.get("load_from") or "",
@@ -126,6 +134,7 @@ def _load_stage_def(raw: dict[str, Any]) -> StageDefinition:
         run_mode=raw.get("run_mode", "serial"),  # type: ignore[arg-type]
         language=raw.get("language", "tcl"),  # type: ignore[arg-type]
         standalone_stack=raw.get("standalone_stack", False),
+        reference_file=raw.get("reference_file"),
     )
 
 
@@ -143,8 +152,9 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             action=action,  # type: ignore[arg-type]
             stage=raw["stage"],
             reference=raw["reference"],
-            items=tuple(raw["items"]),
+            items=tuple(raw.get("items") or []),
             skip_if_no_stage=skip,
+            reference_file=raw.get("reference_file"),
         )
 
     if action in ("add_stage_before", "add_stage_after"):
@@ -160,6 +170,7 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
             outputs=tuple(raw.get("outputs") or []),
             run_mode=raw.get("run_mode", "serial"),  # type: ignore[arg-type]
             language=raw.get("language", "tcl"),  # type: ignore[arg-type]
+            reference_file=raw.get("reference_file"),
         )
         return AddStageAction(
             action=action,  # type: ignore[arg-type]
