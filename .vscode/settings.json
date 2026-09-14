@@ -46,11 +46,11 @@
   "files.eol": "\n",
   "files.encoding": "utf8",
 
-  // Chopper Python code targets the 3.13 dev venv created by setup.ps1 /
-  // setup.sh / setup.csh / setup.bat. Pointing the Python extension at it
+  // Chopper Python code targets the Unix 3.13 dev venv. Pointing the Python
+  // extension at it
   // means `chopper`, `pytest`, `ruff`, and `mypy` all resolve against the
   // right interpreter without a per-workspace prompt.
-  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "python.terminal.activateEnvironment": true,
 
   // Line length 120 is the project's declared style (ruff + .editorconfig).

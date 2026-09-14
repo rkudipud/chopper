@@ -276,7 +276,19 @@ When `true` (default), P6 checks every step string in every surviving stage agai
 
 ### Can a stage's `steps` come from an existing script file instead of being typed into JSON?
 
-Yes -- set `reference_file` (domain-relative path) on the stage instead of `steps`. Chopper reads the file at P1 and uses one step per physical line, blank/comment lines preserved, any line-ending convention normalized. See [JSON_AUTHORING_GUIDE.md Sec.2.3](../technical_docs/JSON_AUTHORING_GUIDE.md). The two fields are mutually exclusive per stage; an unreadable, undecodable, or empty file fails with `VE-39`. The source file itself is not automatically kept in the trimmed output -- add it to `files.include` too if you want it to survive, otherwise Chopper warns with `VW-26`.
+Yes. Set `reference_file` (a domain-relative path) on the stage instead of `steps`. Chopper reads the file at P1 and uses one step per physical line. Blank lines and comments are preserved, and line endings are normalized. See [JSON_AUTHORING_GUIDE.md Sec.2.3](../technical_docs/JSON_AUTHORING_GUIDE.md). The two fields are mutually exclusive; an unreadable, undecodable, or empty file fails with `VE-39`. A separate source file is not automatically kept, so add it to `files.include` when it must survive the trim; otherwise Chopper emits `VW-26`.
+
+For an in-place stage replacement, use the existing output name as the reference file and omit the `.tcl` extension from the stage name:
+
+```json
+{
+  "name": "rtl2rtl",
+  "load_from": "",
+  "reference_file": "rtl2rtl.tcl"
+}
+```
+
+Chopper reads the original `rtl2rtl.tcl` first, then generates `rtl2rtl.tcl` from the resolved stage. Do not add this path to `files.include`, because generated stage paths cannot also have a normal file decision. Add the exact anchor comments required by any constraint feature before its first trim. The generated file has Chopper's header and provenance banner, so it is a replacement, not a byte-identical copy. On a later re-trim, Chopper reads the pristine file from the backup directory.
 
 ### My feature injects steps into stages created by another feature. How do I avoid VE-05 when that feature is not loaded?
 

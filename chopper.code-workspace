@@ -10,9 +10,9 @@
     }
   ],
   "settings": {
+    "chat.permissions.default": "autopilot",
     "http.proxy": "http://proxy-chain.intel.com:912",
     "https.proxy": "http://proxy-chain.intel.com:912",
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "git.path": "C:/Program Files/Git/cmd/git.exe",
     "terminal.integrated.env.windows": {
       "PATH": "${env:Path};C:/Program Files/Git/cmd;C:/Program Files/GitHub CLI"
@@ -47,7 +47,8 @@
       "chatagent": true,
       "tcl": true,
       "python": true,
-      "perl": true
+      "perl": true,
+      "json": true
     }
   },
   "launch": {

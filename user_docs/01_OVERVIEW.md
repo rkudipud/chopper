@@ -147,6 +147,20 @@ A stage object (in `base.stages[]`, in an `add_stage_*` action, or inside a `rep
 
 > `load_from` is the **data** predecessor (what the script reads). `dependencies` is the **scheduler** parent list (`D` in the stack). They are independent -- set both when they differ.
 
+#### Use an existing stage file as the source
+
+Use `reference_file` when the current stage Tcl is the canonical body and you do not want to duplicate every line in JSON. The stage name has no extension because Chopper writes the generated file as `<name>.tcl`.
+
+```json
+{
+  "name": "rtl2rtl",
+  "load_from": "",
+  "reference_file": "rtl2rtl.tcl"
+}
+```
+
+Chopper reads `rtl2rtl.tcl` in P1, then writes the resolved stage back to `rtl2rtl.tcl` in P5. Do not put that same path in `files.include`; it is already a generated stage path, and a normal file decision would collide with it. The source file needs exact anchor comments wherever another feature will insert steps. Chopper adds its generated-file header and provenance banner to the output, so this form replaces rather than byte-preserves the original file. Re-trims read the pristine source from the backup directory.
+
 ### 3.1 F3 flow actions -- how features modify the stage flow
 
 A feature mutates the working stage sequence with an ordered `flow_actions` list. Actions apply top-to-bottom within a feature, and features apply in selected order (Sec.5). Each action names a target by `action` type; step-level actions also match a step by its exact `reference` string.
@@ -324,6 +338,7 @@ The message for each of these codes names the specific proc(s) involved so you c
 | Keep only a few procs from a big file | `{"procedures": {"include": [{"file": "procs/core.tcl", "procs": ["run_setup"]}]}}` (do **not** also list the file in `files.include` -- emits `VW-09`) |
 | Layer a feature on top of base | Feature JSON with its own `files.include` / `procedures.include` / `flow_actions`, selected via `--features` or in `project.json`'s `features` array |
 | Express feature dependency | `{"$schema": "feature-v1", "name": "scan_eco", "depends_on": ["dft"]}` |
+| Prevent two feature choices from being combined | `{"$schema": "feature-v1", "name": "eco", "incompatible_with": ["full_signoff"]}` |
 
 ### Behavior quick-reference
 
@@ -351,6 +366,7 @@ For each pattern, copy from the matching folder in [../examples/](../examples/) 
 | `options.generate_stack` | `base.json` | `false` | When `stages` are defined, emit an aggregate `<domain>.stack` alongside per-stage `<stage>.tcl` files |
 | `options.indent` | `base.json` | `false` | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Off by default -- the current formatter has known limitations; only opt in after verifying it on your domain. |
 | `depends_on` | feature JSON | `[]` | Topologically order this feature after the named features |
+| `incompatible_with` | feature JSON | none | Names of features that cannot be selected with this feature. Declare it on either feature only; feature order does not matter. Selecting both fails validation with `VE-38`. |
 | `flow_actions` | feature JSON | none | Append/insert/replace stage entries from the base or earlier features |
 
 CLI-side switches (covered in [02_CLI_GUIDE.md](02_CLI_GUIDE.md)):
