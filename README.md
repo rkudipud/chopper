@@ -469,6 +469,14 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.6.1 -- 2026-09-14
+
+- **Doc/test correction, no behavior change.** `JSON_AUTHORING_GUIDE.md` Sec.6 and its "Mistake 3" incorrectly claimed `depends_on` selection order is statically validated and cited a non-existent `VE-16 depends-on-out-of-order` code; corrected to describe the real behavior (`topo_sort_features` auto-reorders by dependency -- only a missing prerequisite `VE-15` or a cycle `VE-22` fails). Also fixed a stale assertion in `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_dry_run_stages_domain` that contradicted `GeneratorService`'s own documented dry-run contract (it still builds the full artifact tuple in memory; only the disk write is skipped). No schema, CLI, or runtime behavior change.
+
+### 4.6.0 -- 2026-09-14
+
+- **New: `incompatible_with` feature-level mutual-exclusion constraint (issue #27).** A feature JSON may declare `incompatible_with: [<name>, ...]` naming other feature names that must never be selected together with it in the same run. The check is symmetric (either side declaring it is sufficient) and order-independent, and runs in Phase 1 alongside the existing `depends_on` topological sort. Selecting two mutually incompatible features now fails `chopper validate` (and `chopper trim`) with the new `VE-38 incompatible-features-selected` (exit 1), naming both conflicting features. See ARCHITECTURE.md Sec.3.2.1, FR-54.
+
 ### 4.5.0 -- 2026-09-03
 
 - **New: Sec.3.11 provenance comment markers for F2 kept/removed procs and F3 added/replaced/removed steps and stages.** Every `PROC_TRIM` file now wraps every proc -- surviving or removed -- with a `## CHOPPER: BEGIN/END <action> proc "<name>" source=<layer>` comment pair naming the winning JSON layer (`base`, `feature:<name>`, or `default` for an R2 default-exclude removal). Every generated `<stage>.tcl` wraps the steps/stages a `flow_action` actually added, replaced, or removed the same way; untouched base content stays bare. Always-on, no opt-out option. `remove_stage` has no in-file marker (no file exists to hold one) and `standalone_stack: true` output stays verbatim per its pre-existing contract. See ARCHITECTURE.md Sec.3.11.

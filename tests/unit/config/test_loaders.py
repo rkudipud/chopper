@@ -399,8 +399,13 @@ class TestLoadProject:
 # ---------------------------------------------------------------------------
 
 
-def _make_feat(name: str, depends_on: list[str] = []) -> FeatureJson:  # noqa: B006
-    return FeatureJson(source_path=Path(f"{name}.json"), name=name, depends_on=tuple(depends_on))
+def _make_feat(name: str, depends_on: list[str] = [], incompatible_with: list[str] = []) -> FeatureJson:  # noqa: B006
+    return FeatureJson(
+        source_path=Path(f"{name}.json"),
+        name=name,
+        depends_on=tuple(depends_on),
+        incompatible_with=tuple(incompatible_with),
+    )
 
 
 class TestTopoSort:
@@ -459,6 +464,54 @@ class TestTopoSort:
         assert any(d.code == "VE-15" for d in diags)
         # Returns as-is when edges are dangling
         assert len(result) == 1
+
+    def test_ve38_incompatible_pair_selected(self) -> None:
+        feats = [_make_feat("a", incompatible_with=["b"]), _make_feat("b")]
+        diags: list[Diagnostic] = []
+        result = topo_sort_features(feats, Path("p.json"), diags.append)
+        assert any(d.code == "VE-38" for d in diags)
+        assert len(result) == 2
+
+    def test_ve38_not_emitted_when_declared_but_not_selected(self) -> None:
+        feats = [_make_feat("a", incompatible_with=["ghost"])]
+        diags: list[Diagnostic] = []
+        topo_sort_features(feats, Path("p.json"), diags.append)
+        assert not any(d.code == "VE-38" for d in diags)
+
+    def test_ve38_symmetric_declaration_on_either_side_is_sufficient(self) -> None:
+        # Only "b" declares the incompatibility; "a" says nothing about "b".
+        feats = [_make_feat("a"), _make_feat("b", incompatible_with=["a"])]
+        diags: list[Diagnostic] = []
+        topo_sort_features(feats, Path("p.json"), diags.append)
+        assert any(d.code == "VE-38" for d in diags)
+
+    def test_ve38_emitted_once_when_both_sides_declare(self) -> None:
+        feats = [_make_feat("a", incompatible_with=["b"]), _make_feat("b", incompatible_with=["a"])]
+        diags: list[Diagnostic] = []
+        topo_sort_features(feats, Path("p.json"), diags.append)
+        assert sum(1 for d in diags if d.code == "VE-38") == 1
+
+    def test_ve38_order_independent_message(self) -> None:
+        feats = [_make_feat("zeta", incompatible_with=["alpha"]), _make_feat("alpha")]
+        diags: list[Diagnostic] = []
+        topo_sort_features(feats, Path("p.json"), diags.append)
+        msg = next(d.message for d in diags if d.code == "VE-38")
+        assert "'alpha'" in msg and "'zeta'" in msg
+        assert msg.index("'alpha'") < msg.index("'zeta'")  # sorted order in message
+
+    def test_ve38_coexists_with_depends_on(self) -> None:
+        # a depends_on b, and separately a is incompatible with c. Both checks
+        # are independent and both must fire in the same run.
+        feats = [
+            _make_feat("a", depends_on=["b"], incompatible_with=["c"]),
+            _make_feat("b"),
+            _make_feat("c"),
+        ]
+        diags: list[Diagnostic] = []
+        result = topo_sort_features(feats, Path("p.json"), diags.append)
+        assert any(d.code == "VE-38" for d in diags)
+        names = [f.name for f in result]
+        assert names.index("b") < names.index("a")  # depends_on still honored
 
     def test_stable_sort_within_rank(self) -> None:
         # b and c both depend on a -- their relative order should match input.

@@ -111,7 +111,7 @@ None observed in tests. Source-vs-spec items are noted under ARCHITECTURE.md.
 
 ### Covered (sampled)
 
-The registry has 72 active codes. Per code-family parity is enforced by `schemas/scripts/check_diagnostic_registry.py`, which is run in CI. Sampled emission tests:
+The registry has 89 active codes. Per code-family parity is enforced by `schemas/scripts/check_diagnostic_registry.py`, which is run in CI. Sampled emission tests:
 
 | Code | Test |
 | --- | --- |
@@ -121,6 +121,7 @@ The registry has 72 active codes. Per code-family parity is enforced by `schemas
 | `VE-17` | covered above |
 | `VE-21` | covered above |
 | `VE-22` | [tests/unit/config/test_loaders.py](unit/config/test_loaders.py#L405) |
+| `VE-38` | [tests/unit/config/test_loaders.py](unit/config/test_loaders.py) `TestTopoSort` incompatible_with tests |
 | `VE-23` / `VE-24` / `VE-25` / `VE-26` | [tests/unit/trimmer/test_service.py](unit/trimmer/test_service.py) |
 | `VW-09` / `VW-11` / `VW-12` / `VW-13` | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) |
 | `VW-14` / `VW-15` / `VW-16` / `VW-17` | [tests/unit/validator/test_validator.py](unit/validator/test_validator.py#L740) |

@@ -2388,6 +2388,10 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 
 **FD-02 -- Cross-domain dependency awareness.** v1 treats domains as fully isolated; cross-domain calls are logged as `TW-02 unresolved-proc-call` but never traced. A future version could accept a multi-domain manifest for read-only cross-domain call validation (not trimming). Source: `technical_docs/ARCHITECTURE.md` Sec.2.2.
 
+### Compiler
+
+**FD-08 -- Feature mutual-incompatibility constraints -- ADOPTED in 4.6.0.** Requested in GitHub issue #27: an `incompatible_with` field on Feature JSON, the negative counterpart to `depends_on`, so selecting two mutually-exclusive features (e.g. `eco_analysis` and `full_signoff`) fails validation instead of producing wrong output at runtime. Filed as a Future Consideration per the Sec.3 Proposal Procedure, then promoted the same session once the user explicitly approved implementation. See `technical_docs/ARCHITECTURE.md` Sec.3.2.1, FR-54, and the 4.6.0 revision-history entry for the adopted design (`VE-38 incompatible-features-selected`). Kept here only as the origin record of the proposal, per registry policy of never deleting an `FD-xx` slot once assigned.
+
 ### CLI / UX
 
 **FD-03 -- Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred -- CLI-first is correct today; the service-layer + renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` Sec.5.11) enables this with no engine changes.
@@ -2420,6 +2424,7 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 |---|---|---|
 | FD-01 | Parser | Advanced namespace resolution |
 | FD-02 | Pipeline | Cross-domain dependency awareness |
+| FD-08 | Compiler | Feature mutual-incompatibility constraints (`incompatible_with`) -- ADOPTED in 4.6.0 |
 | FD-03 | CLI/UX | Interactive feature-selection TUI |
 | FD-04 | CLI/UX | GUI client over stdio JSON protocol |
 | FD-05 | Docs | Quick-start guide |

@@ -24,7 +24,7 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01-VE-40 | 37 | 3 | 40 | Schema, path, action, ordering, filesystem failures -- block output |
+| `VE` Validation Errors | VE-01-VE-40 | 38 | 2 | 40 | Schema, path, action, ordering, filesystem failures -- block output |
 | `VW` Validation Warnings | VW-01-VW-30 | 23 | 5 | 30 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing, already-absent exclude-literal target (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01-VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01-TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
@@ -32,11 +32,11 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | `PE` Parse Errors | PE-01-PE-10 | 3 | 6 | 10 | Fatal parse failures; file skipped or partial (1 retired slot: PE-04) |
 | `PW` Parse Warnings | PW-01-PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01-PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **83** | **39** | **125** | |
+| **Total** | | **89** | **38** | **130** | |
 
 ---
 
-## 1. Validation Errors -- `VE-01` through `VE-35`
+## 1. Validation Errors -- `VE-01` through `VE-40`
 
 > Phase 1 = Pre-Trim ? Phase 6 = Post-Trim ? Phase 5 = Trim. All errors block output generation (exit 1) unless noted.
 
@@ -79,7 +79,8 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | VE-35 | `base-autodiscovery-failed` | 1 | cli | **2** | No base JSON was found via auto-discovery. When `--base` is not supplied, Chopper searches `<domain>/jsons/base.json` then `<domain>/jsons/<domain_name>.json`; neither path exists. | Pass `--base <path>` explicitly, or add `jsons/base.json` to the domain. |
 | VE-36 | `feature-name-not-found` | 1 | cli | **2** | A feature name passed in `--features` does not match any `*.feature.json` file under `<domain>/jsons/features/`. The message includes the closest available feature name when one can be inferred. | Check the feature name spelling. Run `ls <domain>/jsons/features/` to see available features. Use the exact stem before `.feature.json` (e.g. `dft` for `dft.feature.json`). |
 | VE-37 | `p4-checkout-failed` | 5 | trimmer | 1 | `p4 edit -t text+x <path>` failed for a file Chopper needed to check out before rewriting it (opt-in `--p4` flag). Emitted only when `--p4` was passed, the domain was confirmed p4-tracked, and at least one checkout call failed partway through the batch. All files successfully checked out before the failure are reverted via `p4 revert`; if the domain rename/rebuild had already started, it is also immediately restored from `<domain>_backup/`. Never emitted under `--dry-run` (p4 integration is fully disabled there). | Check the reported file/reason (locked by another user, wrong client workspace, `p4` not logged in, network/server issue), fix it, and re-run `chopper trim --p4`. The domain is left exactly as it was before this run -- no partial state. |
-| -- | -- | -- | -- | -- | **VE-38 through VE-40 reserved** | -- |
+| VE-38 | `incompatible-features-selected` | 1 | compiler | 1 | Two selected features declare each other (or one declares the other) via `incompatible_with` and both are present in the same run (project mode or `--base`/`--features` mode). The check is symmetric and order-independent -- either feature naming the other is sufficient. Message lists both feature names in sorted order. | Remove one of the two conflicting features from the selection, or split them into separate project recipes. |
+| -- | -- | -- | -- | -- | **VE-39 through VE-40 reserved** | -- |
 
 ---
 

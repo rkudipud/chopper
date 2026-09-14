@@ -325,6 +325,7 @@ A standalone `<stage>.stack` collision with `files.*` entries or with the aggreg
 | `domain` | string | No | Target domain. If set, Chopper warns if mismatched with selected base |
 | `description` | string | No | Human-readable summary |
 | `depends_on` | string[] | No | Prerequisite feature names (must appear earlier in project) |
+| `incompatible_with` | string[] | No | Feature names that must never be selected together with this feature. Symmetric and order-independent -- either side declaring it is enough. |
 | `metadata` | object | No | Documentation fields: `owner`, `tags`, `wiki`, `related_ivars`, `related_appvars` |
 | `files.include` | string[] | No | Additional files to include |
 | `files.exclude` | string[] | No | Files to remove from the effective include set |
@@ -392,9 +393,9 @@ All paths in `base` and `features` must be:
 ### Rules
 
 1. Values in `depends_on` are **feature `name` strings**, not file paths.
-2. Each prerequisite must appear in the project `features` list.
-3. Each prerequisite must appear **earlier** in the list than the feature declaring the dependency.
-4. Chopper validates this at project-level (`VE-15 missing-depends-on-feature` and `VE-16 depends-on-out-of-order`).
+2. Each prerequisite must appear in the project `features` selection (or the `--features` CLI list). If it does not, Chopper emits `VE-15 missing-depends-on-feature` (error).
+3. If the prerequisites form a cycle (`A` depends on `B`, `B` depends on `A`), Chopper emits `VE-22 feature-depends-on-cycle` (error).
+4. **Authored order in `project.features[]` is not required to already satisfy `depends_on`.** Chopper topologically sorts the selected features (`config/loaders.py::topo_sort_features`, Kahn's algorithm) before P3 compilation, so a prerequisite is always applied before its dependent regardless of how you listed them. Author in dependency order anyway for readability -- the topo-sort changes *evaluation* order, not the authored text.
 
 ### Example -- three-level chain
 
@@ -422,14 +423,72 @@ All paths in `base` and `features` must be:
 }
 ```
 
-**Invalid ordering** -- would fail validation:
+**Authored order is advisory, not enforced** -- Chopper reorders automatically:
 
 ```json
+// This project lists power_analysis before its prerequisite dft_support.
+// Chopper does NOT reject this: topo_sort_features reorders dft_support
+// ahead of power_analysis before P3 compilation runs.
 "features": [
-  "jsons/features/power_analysis.feature.json",    // ERROR: dft_support not yet seen
+  "jsons/features/power_analysis.feature.json",
   "jsons/features/dft_support.feature.json"
 ]
 ```
+
+**What actually fails validation:**
+
+```json
+// VE-15 missing-depends-on-feature: dft_support is never selected at all.
+"features": [
+  "jsons/features/power_analysis.feature.json"
+]
+```
+
+```json
+// VE-22 feature-depends-on-cycle: a.feature.json declares depends_on: ["b"],
+// b.feature.json declares depends_on: ["a"].
+"features": [
+  "jsons/features/a.feature.json",
+  "jsons/features/b.feature.json"
+]
+```
+
+### Feature Incompatibility (`incompatible_with`)
+
+`incompatible_with` declares the *opposite* relationship: feature names that must **never** be selected together with the declaring feature, in the same run.
+
+**Rules:**
+
+1. Values are feature `name` strings, not file paths (same convention as `depends_on`).
+2. The check is symmetric: declaring `incompatible_with` on either one of the two features is sufficient -- Chopper does not require both sides to declare it.
+3. Selection order does not matter (unlike `depends_on`, there is no "must appear earlier" requirement).
+4. Naming a feature that is not part of the current selection is **not** an error -- there is nothing to conflict with.
+5. Selecting two mutually incompatible features fails `chopper validate` with `VE-38 incompatible-features-selected`, naming both features.
+
+**Example:**
+
+```json
+// eco_analysis.feature.json
+{ "$schema": "feature-v1", "name": "eco_analysis", "incompatible_with": ["full_signoff"] }
+
+// full_signoff.feature.json -- does not need to declare anything back
+{ "$schema": "feature-v1", "name": "full_signoff" }
+```
+
+```json
+// project.json -- INVALID: both conflicting features selected
+{
+  "$schema": "project-v1",
+  "project": "BAD_RECIPE",
+  "domain": "my_domain",
+  "base": "jsons/base.json",
+  "features": [
+    "jsons/features/eco_analysis.feature.json",
+    "jsons/features/full_signoff.feature.json"
+  ]
+}
+```
+Running `chopper validate --project project.json` on the above fails with `VE-38`, naming `eco_analysis` and `full_signoff`.
 
 ---
 
@@ -592,6 +651,7 @@ Glob patterns support three special characters to match multiple files:
 - `flow_actions`: `minItems: 1`
 - `dependencies`, `exit_codes`, `inputs`, `outputs`, `steps`: all `minItems: 1`
 - `depends_on`: `minItems: 1`
+- `incompatible_with`: `minItems: 1`
 
 **Correct:**
 ```json
@@ -753,6 +813,10 @@ Does feature A require feature B to be applied first?
   YES -> Add depends_on: ["feature_b_name"] to feature A's JSON
   NO  -> No depends_on needed
 
+Must feature A and feature B never be selected in the same run?
+  YES -> Add incompatible_with: ["feature_b_name"] to either feature A's or feature B's JSON (not both required)
+  NO  -> No incompatible_with needed
+
 Are you selecting which features to apply for a specific project run?
   YES -> Create a project JSON, list base path + ordered feature paths
   NO  -> Not needed (single-base-only trim)
@@ -843,7 +907,8 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 
 | Check | How to verify manually |
 |-------|----------------------|
-| `depends_on` prerequisites appear earlier in project | Review `features` list order vs each feature's `depends_on` |
+| `depends_on` prerequisites are present and acyclic (order does not matter -- Chopper topo-sorts automatically) | Confirm every `depends_on` name appears somewhere in the selection and that no dependency cycle exists |
+| No two selected features are mutually `incompatible_with` each other | Cross-check every selected feature's `incompatible_with` list against every other selected feature's `name` |
 | `add_stage_after` reference exists in base | Confirm `reference` value matches a stage `name` in base |
 | `add_step_after` reference step exists in stage | Confirm step string appears in base stage's `steps` array |
 | Paths resolve within domain root | Ensure no `..` traversal in any path field |
@@ -874,21 +939,18 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
 "depends_on": ["dft_support"]
 ```
 
-### Mistake 3 -- Wrong ordering in project features
+### Mistake 3 -- Expecting authored order to matter for `depends_on`
 
 ```json
-// WRONG -- power_analysis declared depends_on dft_support, but dft_support comes after
+// This looks backwards but is NOT an error -- Chopper topologically
+// sorts by depends_on before compiling, regardless of authored order.
 "features": [
   "jsons/features/power_analysis.feature.json",
   "jsons/features/dft_support.feature.json"
 ]
-
-// CORRECT
-"features": [
-  "jsons/features/dft_support.feature.json",
-  "jsons/features/power_analysis.feature.json"
-]
 ```
+
+Only a **missing** prerequisite (`VE-15`) or a **cycle** (`VE-22`) fails validation -- not authored order. Still author in dependency order for readability; do not rely on auto-reordering as a substitute for correct `depends_on` declarations.
 
 ### Mistake 4 -- `load_from` and `dependencies` confused
 
@@ -945,3 +1007,13 @@ These are not enforced by JSON schema but are validated at runtime by Chopper:
   "reference": "main"
 }
 ```
+
+### Mistake 8 -- Expecting `incompatible_with` to require both sides to declare it
+
+```json
+// Only "eco_analysis" declares the conflict -- this is sufficient.
+// "full_signoff" does NOT also need "incompatible_with": ["eco_analysis"].
+{ "$schema": "feature-v1", "name": "eco_analysis", "incompatible_with": ["full_signoff"] }
+```
+
+Declaring the relationship on one side is enough; Chopper checks both directions automatically. Also remember: naming a feature that isn't part of the current selection is not an error -- `incompatible_with` only fires when both named features are actually selected together.

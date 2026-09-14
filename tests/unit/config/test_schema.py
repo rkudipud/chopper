@@ -176,6 +176,18 @@ class TestFeatureSchema:
         }
         assert _valid(doc)
 
+    def test_incompatible_with_valid(self) -> None:
+        doc = {
+            "$schema": "feature-v1",
+            "name": "eco_analysis",
+            "incompatible_with": ["full_signoff", "legacy_route"],
+        }
+        assert _valid(doc)
+
+    def test_incompatible_with_empty_array_invalid(self) -> None:
+        doc = {"$schema": "feature-v1", "name": "x", "incompatible_with": []}
+        assert not _valid(doc)
+
     def test_invalid_flow_action(self) -> None:
         doc = {
             "$schema": "feature-v1",

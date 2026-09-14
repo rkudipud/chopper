@@ -211,6 +211,7 @@ class FeatureJson:
     domain: str | None = None
     description: str | None = None
     depends_on: tuple[str, ...] = ()
+    incompatible_with: tuple[str, ...] = ()
     metadata: FeatureMetadata = field(default_factory=FeatureMetadata)
     files: FilesSection = field(default_factory=FilesSection)
     procedures: ProceduresSection = field(default_factory=ProceduresSection)

@@ -357,9 +357,15 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
     assert "run_flow.stack" not in generated
     assert "promote.stack" not in generated
 
-    # Dry-run: no files written.
+    # Dry-run: no files written, but GeneratorService still builds the full
+    # in-memory artifact tuple (GeneratorService docstring: "the audit
+    # bundle needs to report what *would* have been generated") -- same
+    # 4 artifacts (3 stage .tcl + 1 aggregate .stack) as the live-trim
+    # equivalent in test_runner_localfs_live_trim_stages_domain_generates_stack_files.
     assert result.trim_report is None
-    assert result.generated_artifacts == ()
+    assert len(result.generated_artifacts) == 4
+    kinds = tuple(a.kind for a in result.generated_artifacts)
+    assert kinds == ("tcl", "tcl", "tcl", "stack")
     assert not (domain / "setup.tcl").exists()
     assert not (domain / "stages_domain.stack").exists()
 

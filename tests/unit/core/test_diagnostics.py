@@ -14,14 +14,16 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 88 active +
-        # 3 retired (VW-18, VW-19, PE-04) = 91 registered entries.
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 89 active +
+        # 3 retired (VW-18, VW-19, PE-04) = 92 registered entries.
         # 4.1.0 added VE-32..VE-36 (ward-env-not-set, domain-not-found,
         # ambiguous-domain-name, base-autodiscovery-failed, feature-name-not-found).
         # VW-25 (exclude-target-absent) added to downgrade missing files.exclude
         # literals from VE-06 to a warning. VE-37 (p4-checkout-failed) added for
-        # the opt-in --p4 checkout-before-edit feature.
-        assert len(all_codes()) == 91
+        # the opt-in --p4 checkout-before-edit feature. VE-38
+        # (incompatible-features-selected) added for the `incompatible_with`
+        # feature-level mutual-exclusion constraint (issue #27).
+        assert len(all_codes()) == 92
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")

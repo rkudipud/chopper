@@ -16,6 +16,8 @@ Diagnostic emission:
 * ``VE-14`` -- duplicate ``name`` across selected features.
 * ``VE-15`` -- ``depends_on`` names a feature not present in the selection.
 * ``VE-22`` -- ``depends_on`` forms a cycle.
+* ``VE-38`` -- two selected features declare each other incompatible via
+  ``incompatible_with`` and both are present in the same run.
 """
 
 from __future__ import annotations
@@ -280,6 +282,7 @@ def load_feature(
         domain=raw.get("domain"),
         description=raw.get("description"),
         depends_on=tuple(raw.get("depends_on") or []),
+        incompatible_with=tuple(raw.get("incompatible_with") or []),
         metadata=metadata,
         files=files,
         procedures=procs,
@@ -327,6 +330,10 @@ def topo_sort_features(
       duplicates are dropped before sorting).
     * ``VE-15`` for each ``depends_on`` name that is not present in the
       selection.
+    * ``VE-38`` once per unordered pair of mutually-incompatible selected
+      features (deterministic: names sorted lexicographically in the
+      message; each unordered pair reported at most once even if both
+      features declare the relationship).
     * ``VE-22`` if a cycle is detected; returns the original order so
       the caller can continue loading (and the pipeline gate will abort
       cleanly after the phase).
@@ -377,6 +384,32 @@ def topo_sort_features(
                         hint="Add the prerequisite feature to the project or remove the dependency",
                     )
                 )
+
+    # --- VE-38: check incompatible_with constraints (symmetric, order-independent) ---
+    reported_pairs: set[frozenset[str]] = set()
+    for feat in deduped:
+        for bad in feat.incompatible_with:
+            if bad not in name_to_feat or bad == feat.name:
+                continue
+            pair = frozenset((feat.name, bad))
+            if pair in reported_pairs:
+                continue
+            reported_pairs.add(pair)
+            name_a, name_b = sorted(pair)
+            on_diagnostic(
+                Diagnostic.build(
+                    "VE-38",
+                    phase=Phase.P1_CONFIG,
+                    message=(
+                        f"Feature {name_a!r} and feature {name_b!r} are declared incompatible "
+                        "and cannot be selected together"
+                    ),
+                    path=source_path,
+                    hint=(
+                        "Remove one of the two features from the selection, or split them into separate project recipes"
+                    ),
+                )
+            )
 
     if has_missing:
         # Can't sort a graph with dangling edges -- return as-is; phase gate

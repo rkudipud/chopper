@@ -31,6 +31,12 @@
       "minItems": 1,
       "description": "Optional prerequisite feature names. Values must reference other Feature JSON `name` fields, not file paths. Use this to declare inter-feature dependency chains. Project-level validation should ensure prerequisite features are selected and appear earlier in project.features order."
     },
+    "incompatible_with": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "description": "Optional feature names that must never be selected together with this feature in the same run. Values must reference other Feature JSON `name` fields, not file paths. The check is symmetric and order-independent: declaring the relationship on either feature is sufficient. A name that does not correspond to a currently selected feature is not an error (nothing to conflict with)."
+    },
     "metadata": {
       "type": "object",
       "description": "Optional informational metadata. Chopper never evaluates these fields -- they are documentation only. Preserved in audit artifacts and scan output.",
