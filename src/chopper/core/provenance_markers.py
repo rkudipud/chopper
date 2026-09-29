@@ -15,11 +15,19 @@ __all__ = ["Action", "Kind", "marker_pair"]
 Action = Literal["kept", "removed", "added", "replaced"]
 Kind = Literal["proc", "step", "stage"]
 
+# Backslash first so the escapes added after it are not doubled. Braces matter
+# even in a comment: Tcl counts them when matching an enclosing body's close.
+_ESCAPES = (("\\", "\\\\"), ('"', '\\"'), ("{", "\\{"), ("}", "\\}"), ("\r", "\\r"), ("\n", "\\n"))
+
+
+def _escape(text: str) -> str:
+    for raw, escaped in _ESCAPES:
+        text = text.replace(raw, escaped)
+    return text
+
 
 def marker_pair(*, action: Action, kind: Kind, name: str, source: str) -> tuple[str, str]:
     """Return the ``(begin, end)`` marker line pair for one wrapped unit."""
 
-    name = name.replace("\r", r"\r").replace("\n", r"\n")
-    source = source.replace("\r", r"\r").replace("\n", r"\n")
-    body = f'{action} {kind} "{name}" source={source}'
+    body = f'{action} {kind} "{_escape(name)}" source={_escape(source)}'
     return f"## CHOPPER: BEGIN {body}", f"## CHOPPER: END {body}"

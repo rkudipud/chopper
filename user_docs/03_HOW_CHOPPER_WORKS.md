@@ -288,7 +288,7 @@ For an in-place stage replacement, use the existing output name as the reference
 }
 ```
 
-Chopper reads the original `rtl2rtl.tcl` first, then generates `rtl2rtl.tcl` from the resolved stage. Do not add this path to `files.include`, because generated stage paths cannot also have a normal file decision. Add the exact anchor comments required by any constraint feature before its first trim. The generated file has Chopper's header and provenance banner, so it is a replacement, not a byte-identical copy. On a later re-trim, Chopper reads the pristine file from the backup directory.
+Chopper reads the original `rtl2rtl.tcl` first, then generates `rtl2rtl.tcl` from the resolved stage. Do not add this path to `files.include`, because generated stage paths cannot also have a normal file decision. Add the exact anchor comments required by any constraint feature before its first trim. The generated file gets Chopper's header and provenance banner only when the source has no header of its own; a source that starts with a `#!` shebang or already carries a copyright notice in its leading comments is written back as-is (see [ARCHITECTURE.md Sec.6.6.1](../technical_docs/ARCHITECTURE.md)). On a later re-trim, Chopper reads the pristine file from the backup directory.
 
 ### My feature injects steps into stages created by another feature. How do I avoid VE-05 when that feature is not loaded?
 
@@ -308,7 +308,7 @@ Opt-in, live-trim-only (4.4.0+): before rewriting a file, Chopper runs `p4 edit 
 
 ### Why does my trimmed `.tcl` file have `## CHOPPER: BEGIN/END ...` comments I didn't write?
 
-Since 4.5.0, every `PROC_TRIM` file wraps every proc -- kept or removed -- with a provenance marker naming the JSON layer responsible (`base`, `feature:<name>`, or `default` for an R2 default-exclude removal). Every generated `<stage>.tcl` wraps steps/stages a `flow_action` actually added, replaced, or removed the same way; base content no feature touched stays bare. This is always-on and cannot be disabled. See [ARCHITECTURE.md Sec.3.11](../technical_docs/ARCHITECTURE.md).
+Because your base JSON sets `"options": {"insert_markers": true}`. Remove it (or set it to `false`, the default since 4.9.0) and no file gets them. When it is on, every `PROC_TRIM` file wraps every proc -- kept or removed -- with a provenance marker naming the JSON layer responsible (`base`, `feature:<name>`, or `default` for an R2 default-exclude removal), and every generated `<stage>.tcl` wraps the steps/stages a `flow_action` actually added, replaced, or removed; base content no feature touched stays bare. Markers are always comment lines of their own, with quotes and braces escaped, and a pair that would land where Tcl does not read `#` as a comment -- inside braces such as a `::parseOpt::cmdSpec` option list, inside a multi-line string, after a `\`-continued line, above a shebang -- is moved out to wrap the whole command instead. Switching markers on or off changes comment lines only. See [ARCHITECTURE.md Sec.3.11](../technical_docs/ARCHITECTURE.md).
 
 ---
 

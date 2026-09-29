@@ -12,7 +12,8 @@ Two emission modes, exposed as two pure value functions (no I/O):
   file produced when the stage sets ``standalone_stack: true``. The
   body is the Intel header followed by a single blank line and then
   the authored ``steps`` joined by ``"\\n"`` verbatim -- no record
-  derivation, no field interpretation.
+  derivation, no field interpretation. Header and blank line are
+  omitted when the steps own their header (ARCHITECTURE.md Sec.6.6.1).
 
 Per-record line order in the aggregate is fixed::
 
@@ -42,7 +43,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chopper.core.header import intel_header_lines
+from chopper.core.header import intel_header_lines, needs_header
 from chopper.core.models_compiler import StageSpec
 from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -121,6 +122,7 @@ def emit_flow_stack(
     else:
         ordered_stages = stages
 
+    # Records are Chopper-authored (no user body), so the header is unconditional.
     parts: list[str] = ["\n".join(intel_header_lines())]
     parts.extend("\n".join(_render_record(stage)) for stage in ordered_stages)
     content = "\n\n".join(parts) + "\n"
@@ -146,15 +148,17 @@ def emit_standalone_stack(stage: StageSpec) -> GeneratedArtifact:
 
     No record derivation; ``command``, ``exit_codes``, ``dependencies``,
     ``inputs``, ``outputs``, ``load_from``, and ``run_mode`` are
-    ignored.
+    ignored. When the steps own their header (line-1 ``#!`` shebang or
+    a leading copyright notice) the file is exactly the steps.
     """
 
-    header = "\n".join(intel_header_lines())
-    body = "\n".join(stage.steps)
-    content = f"{header}\n\n{body}\n"
+    path = standalone_stack_path(stage)
+    content = "\n".join(stage.steps) + "\n"
+    if needs_header(path, stage.steps):
+        content = "\n".join(intel_header_lines()) + "\n\n" + content
 
     return GeneratedArtifact(
-        path=standalone_stack_path(stage),
+        path=path,
         kind="stack",
         content=content,
         source_stage=stage.name,

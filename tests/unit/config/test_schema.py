@@ -176,6 +176,11 @@ class TestBaseSchema:
         diags = _collect(doc)
         assert len(diags) == 1
 
+    def test_options_insert_markers_must_be_boolean(self) -> None:
+        doc = {"$schema": "base-v1", "domain": "d", "files": {"include": ["a.tcl"]}}
+        assert _valid({**doc, "options": {"insert_markers": True}})
+        assert _collect({**doc, "options": {"insert_markers": "yes"}})[0].code == "VE-02"
+
 
 # ---------------------------------------------------------------------------
 # Feature JSON schema

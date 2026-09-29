@@ -17,6 +17,7 @@ import pytest
 
 from chopper.compiler.flow_resolver import resolve_stages
 from chopper.core.errors import ChopperError
+from chopper.core.models_compiler import StageSpec
 from chopper.core.models_config import (
     AddStageAction,
     AddStepAction,
@@ -75,10 +76,203 @@ def test_marker_pair_escapes_multiline_step_metadata() -> None:
     name = "if {condition} {\n  do_work\n}"
     begin, end = marker_pair(action="added", kind="step", name=name, source="feature:verify")
 
-    assert begin == '## CHOPPER: BEGIN added step "if {condition} {\\n  do_work\\n}" source=feature:verify'
-    assert end == '## CHOPPER: END added step "if {condition} {\\n  do_work\\n}" source=feature:verify'
+    assert begin == '## CHOPPER: BEGIN added step "if \\{condition\\} \\{\\n  do_work\\n\\}" source=feature:verify'
+    assert end == '## CHOPPER: END added step "if \\{condition\\} \\{\\n  do_work\\n\\}" source=feature:verify'
     assert "\n" not in begin
     assert "\n" not in end
+
+
+@pytest.mark.parametrize(
+    ("name", "source", "payload"),
+    [
+        # Issue #31: raw quotes in the step text must not end the quoted name early.
+        ('-help "Add eco suffix."', "feature:eco", '"-help \\"Add eco suffix.\\"" source=feature:eco'),
+        # Backslash is escaped first, so the escapes added for other bytes are not doubled.
+        ("a\\b\r{c}", "base", '"a\\\\b\\r\\{c\\}" source=base'),
+        # Feature names are unconstrained, so source= is escaped the same way.
+        ("x", 'feature:odd"{name}', '"x" source=feature:odd\\"\\{name\\}'),
+    ],
+)
+def test_marker_pair_escapes_tcl_significant_bytes(name: str, source: str, payload: str) -> None:
+    begin, end = marker_pair(action="replaced", kind="step", name=name, source=source)
+    assert begin == f"## CHOPPER: BEGIN replaced step {payload}"
+    assert end == f"## CHOPPER: END replaced step {payload}"
+
+
+def _tcl():
+    """A real Tcl interpreter -- the evidence that markers never change what a script does."""
+    tkinter = pytest.importorskip("tkinter")
+    try:
+        return tkinter.Tcl()
+    except tkinter.TclError:
+        pytest.skip("Python built without a usable Tcl runtime")
+
+
+def test_markers_inside_a_braced_script_body_stay_valid_tcl() -> None:
+    """Issue #31: a marker naming ``if {...} {`` would land inside the new ``if`` body;
+    placement moves the pair out to wrap the whole ``if`` command."""
+    tcl = _tcl()
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "set hits {}", "if {1} {", "    lappend hits body", "}"),)
+    feat = _make_feature(
+        "feat",
+        ReplaceStepAction(action="replace_step", stage="setup", reference="if {1} {", replacement='if {"a" ne "b"} {'),
+    )
+    out = resolve_stages(ctx, base, (feat,))
+
+    begin, end = marker_pair(action="replaced", kind="step", name='if {"a" ne "b"} {', source="feature:feat")
+    assert out[0].steps == ("set hits {}", begin, 'if {"a" ne "b"} {', "    lappend hits body", "}", end)
+    tcl.eval("\n".join(out[0].steps))
+    assert tcl.eval("set hits") == "body"
+
+
+# ---------------------------------------------------------------------------
+# options.insert_markers switch and marker placement (Sec.3.11, issue #31)
+# ---------------------------------------------------------------------------
+
+_CMDSPEC = (
+    "::parseOpt::cmdSpec sta_setup {",
+    "    -opt {",
+    '        {-optname -block -type string -help "Block name"}',
+    "    }",
+    "}",
+)
+_ECO_OPT = '        {-optname -eco -type bool -help "Add eco suffix."}'
+
+
+def test_marker_inside_a_data_list_wraps_the_enclosing_command_instead() -> None:
+    """The issue #31 report: a step added inside ``::parseOpt::cmdSpec``'s option list.
+    A ``#`` line there is list data, so the pair moves out to the command boundary."""
+    tcl = _tcl()
+    tcl.eval(
+        "namespace eval ::parseOpt {}\n"
+        "proc ::parseOpt::cmdSpec {name spec} {\n"
+        "    foreach opt [dict get $spec -opt] { dict create {*}$opt }\n"
+        "    set ::opts [llength [dict get $spec -opt]]\n"
+        "}"
+    )
+    ctx, _ = make_ctx()
+    feat = _make_feature(
+        "eco", AddStepAction(action="add_step_after", stage="sta_setup", reference=_CMDSPEC[2], items=(_ECO_OPT,))
+    )
+    out = resolve_stages(ctx, (_sd("sta_setup", *_CMDSPEC),), (feat,))
+
+    begin, end = marker_pair(action="added", kind="step", name=_ECO_OPT, source="feature:eco")
+    assert out[0].steps == (begin, *_CMDSPEC[:3], _ECO_OPT, *_CMDSPEC[3:], end)
+    tcl.eval("\n".join(out[0].steps))
+    assert tcl.eval("set ::opts") == "2"
+
+
+def test_marker_never_lands_between_a_continued_line_and_its_continuation() -> None:
+    tcl = _tcl()
+    tcl.eval("proc run_tool {args} { set ::seen $args }")
+    ctx, _ = make_ctx()
+    base = (_sd("setup", "run_tool -a 1 \\", "    -b 2", "done"),)
+    feat = _make_feature(
+        "f", AddStepAction(action="add_step_after", stage="setup", reference="run_tool -a 1 \\", items=("    -c 3 \\",))
+    )
+    out = resolve_stages(ctx, base, (feat,))
+
+    begin, end = marker_pair(action="added", kind="step", name="    -c 3 \\", source="feature:f")
+    assert out[0].steps == (begin, "run_tool -a 1 \\", "    -c 3 \\", "    -b 2", end, "done")
+    tcl.eval("proc done {} {}\n" + "\n".join(out[0].steps))
+    assert tcl.eval("set ::seen") == "-a 1 -c 3 -b 2"
+
+
+def test_marker_never_lands_inside_a_multi_line_quoted_word() -> None:
+    tcl = _tcl()
+    ctx, _ = make_ctx()
+    base = (_sd("setup", 'set msg "line one', 'line two"', "set done 1"),)
+    feat = _make_feature(
+        "f", AddStepAction(action="add_step_after", stage="setup", reference='set msg "line one', items=("extra",))
+    )
+    out = resolve_stages(ctx, base, (feat,))
+
+    begin, end = marker_pair(action="added", kind="step", name="extra", source="feature:f")
+    assert out[0].steps == (begin, 'set msg "line one', "extra", 'line two"', end, "set done 1")
+    tcl.eval("\n".join(out[0].steps))
+    assert tcl.eval("set msg") == "line one\nextra\nline two"
+
+
+def test_markers_at_top_level_boundaries_stay_where_they_are() -> None:
+    """A ``;#`` comment's brace is inert at top level, so the gap after it is still a boundary."""
+    ctx, _ = make_ctx()
+    feat = _make_feature(
+        "f", AddStepAction(action="add_step_after", stage="s", reference="set y 2", items=("set z 3",))
+    )
+    out = resolve_stages(ctx, (_sd("s", "set x 1 ;# note {", "set y 2"),), (feat,))
+
+    begin, end = marker_pair(action="added", kind="step", name="set z 3", source="feature:f")
+    assert out[0].steps == ("set x 1 ;# note {", "set y 2", begin, "set z 3", end)
+
+
+def test_marker_pair_is_dropped_when_content_leaves_no_boundary_below() -> None:
+    """Unbalanced content (a missing close brace) has no safe gap after the touched line."""
+    ctx, _ = make_ctx()
+    feat = _make_feature("f", AddStepAction(action="add_step_after", stage="s", reference="  a", items=("  b",)))
+    out = resolve_stages(ctx, (_sd("s", "if {1} {", "  a"),), (feat,))
+    assert out[0].steps == ("if {1} {", "  a", "  b")
+
+
+def test_orphaned_markers_are_dropped_when_placement_rebuilds_a_stage() -> None:
+    from chopper.compiler.flow_resolver import _Marker, _place_markers  # type: ignore[attr-defined]
+
+    begin, end = marker_pair(action="added", kind="step", name="x", source="feature:f")
+    steps = [_Marker(end), "if {1} {", _Marker(begin), "  a", "}"]
+    assert _place_markers(steps) == ["if {1} {", "  a", "}"]
+
+
+def test_marker_pair_is_dropped_when_no_line_is_a_top_level_boundary() -> None:
+    from chopper.compiler.flow_resolver import _Marker, _place_markers  # type: ignore[attr-defined]
+
+    begin, end = marker_pair(action="added", kind="step", name="x", source="feature:f")
+    # Shebang forbids gap 0; its continuation backslashes forbid every later gap.
+    assert _place_markers(["#!/bin/sh \\", _Marker(begin), "x \\", _Marker(end)]) == ["#!/bin/sh \\", "x \\"]
+
+
+def test_insert_markers_off_places_the_same_content_without_markers() -> None:
+    """Toggling the switch changes marker lines only -- never where content lands."""
+    base = (_sd("setup", "a", "b", "c"), _sd("run", "if {1} {", "    go", "}"), _sd("tail", "t"))
+    features = (
+        _make_feature(
+            "f1",
+            AddStepAction(action="add_step_after", stage="setup", reference="a", items=("a1", "a2")),
+            AddStepAction(action="add_step_after", stage="run", reference="    go", items=("    more",)),
+            AddStageAction(action="add_stage_after", reference="run", stage=_sd("extra", "#!/bin/sh", "e")),
+        ),
+        _make_feature(
+            "f2",
+            AddStepAction(action="add_step_before", stage="setup", reference="a1", items=("pre",)),
+            AddStepAction(action="add_step_after", stage="setup", reference="a2", items=("post",)),
+            ReplaceStepAction(action="replace_step", stage="setup", reference="b", replacement="B"),
+            RemoveStepAction(action="remove_step", stage="setup", reference="c"),
+            ReplaceStageAction(action="replace_stage", reference="tail", replacement=_sd("tail", "t2")),
+        ),
+    )
+    marked = resolve_stages(make_ctx()[0], base, features, insert_markers=True)
+    bare = resolve_stages(make_ctx()[0], base, features, insert_markers=False)
+
+    def content(stage: StageSpec) -> tuple[str, ...]:
+        return tuple(step for step in stage.steps if not step.startswith("## CHOPPER:"))
+
+    assert [content(stage) for stage in marked] == [stage.steps for stage in bare]
+    assert all(not step.startswith("## CHOPPER:") for stage in bare for step in stage.steps)
+    assert all(type(step) is str for stage in marked for step in stage.steps)
+
+
+def test_standalone_stack_stage_is_never_marked() -> None:
+    ctx, _ = make_ctx()
+    standalone = StageDefinition(name="eco", load_from="", steps=("N eco", "D"), standalone_stack=True)
+    feat = _make_feature(
+        "f",
+        AddStepAction(action="add_step_after", stage="eco", reference="N eco", items=("J -tool x",)),
+        AddStepAction(action="add_step_after", stage="setup", reference="a", items=("b",)),
+    )
+    out = resolve_stages(ctx, (standalone, _sd("setup", "a")), (feat,))
+
+    begin, end = marker_pair(action="added", kind="step", name="b", source="feature:f")
+    assert out[0].steps == ("N eco", "J -tool x", "D")
+    assert out[1].steps == ("a", begin, "b", end)
 
 
 def test_add_step_before_and_after() -> None:
@@ -192,6 +386,67 @@ def test_load_from_action() -> None:
     feat = _make_feature("feat", LoadFromAction(action="load_from", stage="run", reference="setup"))
     out = resolve_stages(ctx, base, (feat,))
     assert out[1].load_from == "setup"
+
+
+# ---------------------------------------------------------------------------
+# Shebang keeps line 1 (architecture doc Sec.3.11, issue #30)
+# ---------------------------------------------------------------------------
+
+_BOOTSTRAP = ("#!/bin/sh", "# restart under tclsh \\", 'exec tclsh "$0" "$@"', "puts ready")
+
+
+def test_add_stage_from_shebang_script_keeps_shebang_first() -> None:
+    ctx, _ = make_ctx()
+    feat = _make_feature(
+        "feat",
+        AddStageAction(action="add_stage_after", reference="setup", stage=_sd("sta", *_BOOTSTRAP)),
+    )
+    out = resolve_stages(ctx, (_sd("setup", "a"),), (feat,))
+    begin, end = marker_pair(action="added", kind="stage", name="sta", source="feature:feat")
+    # BEGIN follows the shebang; the backslash-continued comment stays glued to its exec line.
+    assert out[1].steps == (_BOOTSTRAP[0], begin, *_BOOTSTRAP[1:], end)
+
+
+def test_replace_stage_with_shebang_script_keeps_shebang_first() -> None:
+    ctx, _ = make_ctx()
+    feat = _make_feature(
+        "feat",
+        ReplaceStageAction(action="replace_stage", reference="setup", replacement=_sd("setup", *_BOOTSTRAP)),
+    )
+    out = resolve_stages(ctx, (_sd("setup", "a"),), (feat,))
+    begin, end = marker_pair(action="replaced", kind="stage", name="setup", source="feature:feat")
+    assert out[0].steps == (_BOOTSTRAP[0], begin, *_BOOTSTRAP[1:], end)
+
+
+def test_replace_step_of_shebang_keeps_replacement_first() -> None:
+    ctx, _ = make_ctx()
+    feat = _make_feature(
+        "feat",
+        ReplaceStepAction(action="replace_step", stage="setup", reference="#!/bin/sh", replacement="#!/bin/bash"),
+    )
+    out = resolve_stages(ctx, (_sd("setup", "#!/bin/sh", "puts a"),), (feat,))
+    begin, end = marker_pair(action="replaced", kind="step", name="#!/bin/bash", source="feature:feat")
+    assert out[0].steps == ("#!/bin/bash", begin, end, "puts a")
+
+
+def test_add_step_before_shebang_is_authored_content_and_not_reordered() -> None:
+    ctx, _ = make_ctx()
+    feat = _make_feature(
+        "feat",
+        AddStepAction(action="add_step_before", stage="setup", reference="#!/bin/sh", items=("echo pre",)),
+    )
+    out = resolve_stages(ctx, (_sd("setup", "#!/bin/sh", "puts a"),), (feat,))
+    begin, end = marker_pair(action="added", kind="step", name="echo pre", source="feature:feat")
+    assert out[0].steps == (begin, "echo pre", end, "#!/bin/sh", "puts a")
+
+
+def test_base_shebang_stage_and_marker_only_stage_are_left_alone() -> None:
+    ctx, _ = make_ctx()
+    feat = _make_feature("feat", RemoveStepAction(action="remove_step", stage="gone", reference="only"))
+    out = resolve_stages(ctx, (_sd("sta", *_BOOTSTRAP), _sd("gone", "only")), (feat,))
+    begin, end = marker_pair(action="removed", kind="step", name="only", source="feature:feat")
+    assert out[0].steps == _BOOTSTRAP
+    assert out[1].steps == (begin, end)
 
 
 # ---------------------------------------------------------------------------

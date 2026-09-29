@@ -67,6 +67,7 @@ def test_proc_trim_file_sorts_kept_and_removed_proc_names() -> None:
         parsed=parsed,
         keep_canonical=frozenset({z_keep.canonical_name, b_keep.canonical_name}),
         source_of=lambda cn: "base",
+        insert_markers=False,
     )
 
     assert "proc a_drop {} {}" not in fs.read_text(DOMAIN / rel)
@@ -84,7 +85,12 @@ def test_proc_trim_file_dry_run_reports_without_writing() -> None:
     parsed = ParsedFile(path=rel, procs=(keep, drop), encoding="utf-8")
 
     outcome = proc_trim_file(
-        ctx, rel, parsed=parsed, keep_canonical=frozenset({keep.canonical_name}), source_of=lambda cn: "base"
+        ctx,
+        rel,
+        parsed=parsed,
+        keep_canonical=frozenset({keep.canonical_name}),
+        source_of=lambda cn: "base",
+        insert_markers=False,
     )
 
     assert not fs.exists(DOMAIN / rel)

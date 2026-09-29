@@ -57,6 +57,8 @@ def _parsed(files: dict[str, list[ProcEntry]]) -> ParseResult:
 def _manifest(
     file_decisions: dict[str, FileTreatment],
     proc_survivors: dict[str, str],
+    *,
+    insert_markers: bool = False,
 ) -> CompiledManifest:
     """Build a CompiledManifest.
 
@@ -88,7 +90,7 @@ def _manifest(
             source_file=Path(file_part),
             selection_source=f"base:{field}",
         )
-    return CompiledManifest(file_decisions=fd, proc_decisions=pd, provenance=pv)
+    return CompiledManifest(file_decisions=fd, proc_decisions=pd, provenance=pv, insert_markers=insert_markers)
 
 
 def _state(case: int, *, domain_exists: bool, backup_exists: bool) -> DomainState:
@@ -238,6 +240,7 @@ def test_proc_trim_drops_non_surviving_procs() -> None:
     manifest = _manifest(
         {"m.tcl": FileTreatment.PROC_TRIM},
         {"m.tcl::a": "procedures.include", "m.tcl::c": "procedures.include"},
+        insert_markers=True,
     )
     parsed = _parsed(
         {
@@ -264,6 +267,29 @@ def test_proc_trim_drops_non_surviving_procs() -> None:
     outcome = report.outcomes[0]
     assert outcome.procs_kept == ("m.tcl::a", "m.tcl::c")
     assert outcome.procs_removed == ("m.tcl::b",)
+
+
+def test_proc_trim_without_insert_markers_deletes_procs_and_writes_no_markers() -> None:
+    """``options.insert_markers`` defaults to off: kept procs untouched, removed ones gone without a trace."""
+    fs = InMemoryFS({DOMAIN / "m.tcl": "proc a {} {}\nproc b {} {}\nproc c {} {}\n"})
+    ctx, _ = make_ctx(fs=fs)
+    manifest = _manifest(
+        {"m.tcl": FileTreatment.PROC_TRIM},
+        {"m.tcl::a": "procedures.include", "m.tcl::c": "procedures.include"},
+    )
+    parsed = _parsed(
+        {
+            "m.tcl": [
+                _proc("m.tcl", "a", start=1, end=1),
+                _proc("m.tcl", "b", start=2, end=2),
+                _proc("m.tcl", "c", start=3, end=3),
+            ],
+        }
+    )
+
+    TrimmerService().run(ctx, manifest, parsed, _state(1, domain_exists=True, backup_exists=False))
+
+    assert fs.read_text(DOMAIN / "m.tcl") == "proc a {} {}\nproc c {} {}\n"
 
 
 def test_source_by_file_indexes_proc_removals() -> None:

@@ -14,6 +14,10 @@ real disk.
 trim (``options.generate_stack`` -> ``.tcl`` + ``.stack`` on disk) of the
 F3 stage generation path.  These are the authoritative integration tests
 for ``options.generate_stack``.
+
+``header_domain`` holds the generated-file header vectors (issue #30):
+in-place regeneration of a shebang script and of an Intel-headed script,
+a header-less body, a feature-added shebang stage, and both stack kinds.
 """
 
 from __future__ import annotations
@@ -23,15 +27,19 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from chopper.adapters import CollectingSink, LocalFS, SilentProgress
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.header import intel_header_text
 from chopper.core.models_common import FileTreatment
+from chopper.core.provenance_markers import marker_pair
 from chopper.orchestrator import ChopperRunner
 from chopper.parser.service import parse_file
 
 FIXTURE_MINI = Path(__file__).resolve().parents[1] / "fixtures" / "mini_domain"
 FIXTURE_STAGES = Path(__file__).resolve().parents[1] / "fixtures" / "stages_domain"
+FIXTURE_HEADER = Path(__file__).resolve().parents[1] / "fixtures" / "header_domain"
 FIXTURE_OVERLAY_REPLACE = Path(__file__).resolve().parents[1] / "fixtures" / "overlay_replace"
 FIXTURE_OVERLAY_REMOVE_ONLY = Path(__file__).resolve().parents[1] / "fixtures" / "overlay_remove_only"
 FIXTURE_OVERLAY_NO_OP_EXCLUDE = Path(__file__).resolve().parents[1] / "fixtures" / "overlay_no_op_exclude"
@@ -627,3 +635,125 @@ def test_runner_localfs_overlay_two_features_last_layer_wins(tmp_path: Path) -> 
     proc_names = {d.canonical_name.split("::", 1)[1] for d in result.manifest.proc_decisions.values()}
     assert "foo" in proc_names, f"foo should survive feature_b PI; got {proc_names}"
     assert "bar" in proc_names, f"bar should survive base WHOLE; got {proc_names}"
+
+
+# ---------------------------------------------------------------------------
+# header_domain -- generated-file header ownership (Sec.6.6.1 / Sec.3.11, issue #30)
+# ---------------------------------------------------------------------------
+
+
+def _as_p1_reads(path: Path) -> str:
+    """Source text as P1 materializes it: universal newlines, one trailing newline."""
+
+    return "\n".join(path.read_text(encoding="utf-8").splitlines()) + "\n"
+
+
+def test_runner_localfs_header_domain_keeps_owned_headers_on_top(tmp_path: Path) -> None:
+    """A body that owns its header (line-1 shebang or copyright notice) is written
+    verbatim; any other body gets Chopper's header on line 1. A re-trim is byte-stable."""
+
+    domain = tmp_path / "header_domain"
+    shutil.copytree(FIXTURE_HEADER, domain)
+
+    ctx, sink = _make_overlay_ctx(domain, dry_run=False)
+    result = ChopperRunner().run(ctx, command="trim")
+
+    codes = [d.code for d in sink.snapshot()]
+    assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
+
+    def out(name: str) -> str:
+        return (domain / name).read_text(encoding="utf-8")
+
+    header = intel_header_text()
+    # Issue #30 repro: the sh -> tclsh bootstrap regenerated in place is untouched.
+    assert out("sta_setup.tcl") == _as_p1_reads(FIXTURE_HEADER / "sta_setup.tcl")
+    assert out("sta_setup.tcl").startswith("#!/bin/sh\n")
+    # Intel-headed script regenerated in place keeps its single notice.
+    assert out("rtl2rtl.tcl") == _as_p1_reads(FIXTURE_HEADER / "rtl2rtl.tcl")
+    assert out("rtl2rtl.tcl").count("Copyright (c)") == 1
+    # Header-less body: Chopper header on line 1, then banner, then body.
+    assert out("plain.tcl") == (
+        header
+        + "# Chopper-generated stage: plain\n# load_from: rtl2rtl\n"
+        + _as_p1_reads(FIXTURE_HEADER / "scripts" / "plain.steps")
+    )
+    # Feature-added stage from a shebang script: BEGIN marker sits under the shebang.
+    begin, end = marker_pair(action="added", kind="stage", name="post_check", source="feature:post_check")
+    body = _as_p1_reads(FIXTURE_HEADER / "scripts" / "post_check.tcl").splitlines()
+    assert out("post_check.tcl").splitlines() == [body[0], begin, *body[1:], end]
+    # Both stack kinds carry header-less bodies, so the header opens each file.
+    assert out("eco_hook.stack").startswith(header + "\n")
+    assert out("header_domain.stack").startswith(header)
+
+    first = _domain_payload_hashes(domain)
+    ctx, _ = _make_overlay_ctx(domain, dry_run=False)
+    assert ChopperRunner().run(ctx, command="trim").exit_code == 0
+    assert _domain_payload_hashes(domain) == first
+
+
+# ---------------------------------------------------------------------------
+# options.insert_markers -- one switch, comment lines only (Sec.3.11, issue #31)
+# ---------------------------------------------------------------------------
+
+
+def _write_marker_domain(domain: Path, *, insert_markers: bool) -> None:
+    """A PROC_TRIM library plus the issue #31 stage: an option spec added inside a data list."""
+
+    (domain / "jsons" / "features").mkdir(parents=True)
+    (domain / "lib.tcl").write_text("proc keep {} { return 1 }\nproc drop {} { return 2 }\n", encoding="utf-8")
+    spec = ["::parseOpt::cmdSpec sta_setup {", "    -opt {", '        {-optname -block -help "Block"}', "    }", "}"]
+    base = {
+        "$schema": "base-v1",
+        "domain": domain.name,
+        "options": {"cross_validate": False, "insert_markers": insert_markers},
+        "procedures": {"include": [{"file": "lib.tcl", "procs": ["keep"]}]},
+        "stages": [{"name": "sta_setup", "load_from": "", "steps": spec}],
+    }
+    feature = {
+        "$schema": "feature-v1",
+        "name": "eco",
+        "flow_actions": [
+            {
+                "action": "add_step_after",
+                "stage": "sta_setup",
+                "reference": spec[2],
+                "items": ['        {-optname -eco -help "Add eco suffix."}'],
+            }
+        ],
+    }
+    (domain / "jsons" / "base.json").write_text(json.dumps(base), encoding="utf-8")
+    (domain / "jsons" / "features" / "eco.feature.json").write_text(json.dumps(feature), encoding="utf-8")
+
+
+def test_runner_localfs_insert_markers_switch_changes_comment_lines_only(tmp_path: Path) -> None:
+    outputs: dict[bool, dict[str, str]] = {}
+    for insert_markers in (False, True):
+        domain = tmp_path / f"markers_{str(insert_markers).lower()}" / "dom"
+        _write_marker_domain(domain, insert_markers=insert_markers)
+        ctx, sink = _make_overlay_ctx(domain, dry_run=False)
+        result = ChopperRunner().run(ctx, command="trim")
+        assert result.exit_code == 0, [d.code for d in sink.snapshot()]
+        outputs[insert_markers] = {
+            name: (domain / name).read_text(encoding="utf-8") for name in ("lib.tcl", "sta_setup.tcl")
+        }
+
+    for name, bare in outputs[False].items():
+        assert "## CHOPPER:" not in bare
+        marked = outputs[True][name]
+        assert "## CHOPPER: BEGIN" in marked
+        assert [line for line in marked.splitlines() if not line.startswith("## CHOPPER:")] == bare.splitlines()
+
+    tkinter = pytest.importorskip("tkinter")
+    try:
+        tcl = tkinter.Tcl()
+    except tkinter.TclError:
+        pytest.skip("Python built without a usable Tcl runtime")
+    tcl.eval(
+        "namespace eval ::parseOpt {}\n"
+        "proc ::parseOpt::cmdSpec {name spec} {\n"
+        "    foreach opt [dict get $spec -opt] { dict create {*}$opt }\n"
+        "    set ::opts [llength [dict get $spec -opt]]\n"
+        "}"
+    )
+    tcl.eval(outputs[True]["sta_setup.tcl"])
+    assert tcl.eval("set ::opts") == "2"

@@ -1,0 +1,2 @@
+# plain stage body: no header of its own, so Chopper adds one
+puts "plain: run"

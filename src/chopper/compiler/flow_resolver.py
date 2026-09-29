@@ -43,6 +43,14 @@ for them. Order-independent F3 actions (``replace_step``,
 ``replace_stage``, ``remove_step``, ``remove_stage``, ``load_from``)
 follow last-layer-wins semantics, which is consistent with R1.
 
+**Marker contract (Sec.3.11):** markers are always inserted while actions
+apply, so block-aware anchoring behaves the same with
+``options.insert_markers`` on or off. Once every action has applied they
+are either stripped (switch off, or a ``standalone_stack`` stage) or moved
+outward to top-level Tcl command boundaries -- never inside braces or a
+quoted word, after a continuation line, or above a line-1 shebang -- so a
+marker can never change what the script does.
+
 Diagnostics emitted:
 
 * ``VE-05 missing-action-target`` -- a flow_action ``stage`` or step
@@ -69,7 +77,9 @@ raise :class:`ChopperError` and the runner maps that to exit 3.
 from __future__ import annotations
 
 import re
-from dataclasses import replace
+from collections.abc import Iterable
+from dataclasses import dataclass, replace
+from itertools import chain
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
@@ -87,7 +97,7 @@ from chopper.core.models_config import (
     ReplaceStepAction,
     StageDefinition,
 )
-from chopper.core.provenance_markers import marker_pair
+from chopper.core.provenance_markers import Action, Kind, marker_pair
 
 __all__ = ["resolve_stages"]
 
@@ -97,6 +107,25 @@ __all__ = ["resolve_stages"]
 # rather than splitting it.
 _MARKER_BEGIN_PREFIX = "## CHOPPER: BEGIN"
 _MARKER_END_PREFIX = "## CHOPPER: END"
+
+
+class _Marker(str):
+    """A marker line this run inserted -- the only kind of line placement may move or drop."""
+
+    __slots__ = ()
+
+
+def _markers(*, action: Action, kind: Kind, name: str, feature: str) -> tuple[_Marker, _Marker]:
+    begin, end = marker_pair(action=action, kind=kind, name=name, source=f"feature:{feature}")
+    return _Marker(begin), _Marker(end)
+
+
+def _is_begin(step: str) -> bool:
+    return isinstance(step, _Marker) and step.startswith(_MARKER_BEGIN_PREFIX)
+
+
+def _is_end(step: str) -> bool:
+    return isinstance(step, _Marker) and step.startswith(_MARKER_END_PREFIX)
 
 
 # ``step@n`` -- ``@n`` applies to the trailing integer only; step strings
@@ -119,11 +148,14 @@ def resolve_stages(
     ctx: ChopperContext,
     base_stages: tuple[StageDefinition, ...],
     features: tuple[FeatureJson, ...],
+    *,
+    insert_markers: bool = True,
 ) -> tuple[StageSpec, ...]:
     """Return the resolved stage sequence.
 
     The input ``base_stages`` is never mutated; the resolver works on a
-    list-of-lists copy internally.
+    list-of-lists copy internally. ``insert_markers`` is
+    ``options.insert_markers``; see the module docstring's marker contract.
     """
 
     # Working state: list of dicts so we can mutate steps in place.
@@ -148,6 +180,11 @@ def resolve_stages(
                 stage_after_offsets=stage_after_offsets,
             )
 
+    for stage in working:
+        if insert_markers and not stage.standalone_stack:
+            stage.steps = _place_markers(stage.steps)
+        else:
+            stage.steps = [step for step in stage.steps if not isinstance(step, _Marker)]
     return tuple(ms.freeze() for ms in working)
 
 
@@ -223,7 +260,7 @@ class _MutableStage:
         return StageSpec(
             name=self.name,
             load_from=self.load_from,
-            steps=tuple(self.steps),
+            steps=tuple(str(step) for step in self.steps),
             dependencies=self.dependencies,
             exit_codes=self.exit_codes,
             command=self.command,
@@ -383,15 +420,13 @@ def _apply_add_step(
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind=action.action)
     if idx is None:
         return
-    begin, end = marker_pair(
-        action="added", kind="step", name=", ".join(action.items), source=f"feature:{feature_name}"
-    )
+    begin, end = _markers(action="added", kind="step", name=", ".join(action.items), feature=feature_name)
     wrapped_items = [begin, *action.items, end]
     if action.action == "add_step_before":
         # If the anchor is itself the first content line of an earlier
         # feature's added/replaced marker block, "before" means before
         # that whole block, not between its BEGIN marker and content.
-        if idx > 0 and stage.steps[idx - 1].startswith(_MARKER_BEGIN_PREFIX):
+        if idx > 0 and _is_begin(stage.steps[idx - 1]):
             idx -= 1
         # Anchor index is re-resolved each call; previous insertions
         # before the anchor have already shifted the anchor down, so
@@ -402,7 +437,7 @@ def _apply_add_step(
         # If the anchor is itself the last content line of an earlier
         # feature's added/replaced marker block, "after" means after
         # that whole block, not between its content and END marker.
-        if idx + 1 < len(stage.steps) and stage.steps[idx + 1].startswith(_MARKER_END_PREFIX):
+        if idx + 1 < len(stage.steps) and _is_end(stage.steps[idx + 1]):
             idx += 1
         # add_step_after: preserve selected feature order by walking
         # past prior same-anchor insertions from earlier features. The
@@ -434,12 +469,7 @@ def _enclosing_span(stage: _MutableStage, idx: int) -> tuple[int, int]:
     unrelated sibling items from the same action.
     """
 
-    if (
-        idx > 0
-        and stage.steps[idx - 1].startswith(_MARKER_BEGIN_PREFIX)
-        and idx + 1 < len(stage.steps)
-        and stage.steps[idx + 1].startswith(_MARKER_END_PREFIX)
-    ):
+    if idx > 0 and _is_begin(stage.steps[idx - 1]) and idx + 1 < len(stage.steps) and _is_end(stage.steps[idx + 1]):
         return idx - 1, idx + 1
     return idx, idx
 
@@ -467,7 +497,7 @@ def _apply_remove_step(
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind="remove_step")
     if idx is None:
         return
-    begin, end = marker_pair(action="removed", kind="step", name=stage.steps[idx], source=f"feature:{feature_name}")
+    begin, end = _markers(action="removed", kind="step", name=stage.steps[idx], feature=feature_name)
     start, stop = _enclosing_span(stage, idx)
     stage.steps[start : stop + 1] = [begin, end]
 
@@ -495,7 +525,7 @@ def _apply_replace_step(
     idx = _resolve_step_index(ctx, stage, action.reference, feature_name=feature_name, action_kind="replace_step")
     if idx is None:
         return
-    begin, end = marker_pair(action="replaced", kind="step", name=action.replacement, source=f"feature:{feature_name}")
+    begin, end = _markers(action="replaced", kind="step", name=action.replacement, feature=feature_name)
     start, stop = _enclosing_span(stage, idx)
     stage.steps[start : stop + 1] = [begin, action.replacement, end]
 
@@ -534,7 +564,7 @@ def _apply_add_stage(
             stage_name=new_stage.name,
         )
         return
-    begin, end = marker_pair(action="added", kind="stage", name=new_stage.name, source=f"feature:{feature_name}")
+    begin, end = _markers(action="added", kind="stage", name=new_stage.name, feature=feature_name)
     new_stage.steps = [begin, *new_stage.steps, end]
     if action.action == "add_stage_before":
         # Mirrors ``add_step_before``: each insertion shifts the
@@ -604,7 +634,7 @@ def _apply_replace_stage(
             stage_name=replacement.name,
         )
         return
-    begin, end = marker_pair(action="replaced", kind="stage", name=replacement.name, source=f"feature:{feature_name}")
+    begin, end = _markers(action="replaced", kind="stage", name=replacement.name, feature=feature_name)
     replacement.steps = [begin, *replacement.steps, end]
     working[idx] = replacement
     # Rewrite existing load_from references from the old stage name to
@@ -648,6 +678,139 @@ def _assert_unique_stage_names(working: list[_MutableStage]) -> None:
     names = [s.name for s in working]
     if len(set(names)) != len(names):
         raise ChopperError(f"base stages contain duplicate names: {names!r}")
+
+
+# ---------------------------------------------------------------------------
+# Marker placement (Sec.3.11)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _Pair:
+    """A BEGIN/END marker pair, located by the gaps between content lines it sits in."""
+
+    top: int
+    begin: str
+    bottom: int = -1
+    end: str = ""
+
+
+def _place_markers(steps: list[str]) -> list[str]:
+    """Keep marker pairs on top-level Tcl command boundaries; content lines never move.
+
+    A pair off a safe gap moves outward -- BEGIN up, END down -- to wrap the
+    enclosing top-level command. A pair with no safe gap to reach, or missing
+    its partner, is dropped.
+    """
+
+    content: list[str] = []
+    gaps: list[int] = []
+    pairs: list[_Pair] = []
+    open_pairs: list[_Pair] = []
+    for step in steps:
+        if not isinstance(step, _Marker):
+            content.append(step)
+            continue
+        gaps.append(len(content))
+        if _is_begin(step):
+            open_pairs.append(_Pair(top=len(content), begin=step))
+            pairs.append(open_pairs[-1])
+        elif open_pairs:
+            closed = open_pairs.pop()
+            closed.bottom, closed.end = len(content), step
+    safe = _safe_gaps(content) if gaps else []
+    if all(safe[gap] for gap in gaps):
+        return steps
+
+    placed: list[tuple[int, _Pair]] = []
+    for ordinal, pair in enumerate(pairs):
+        # BEGIN goes up; only a line-1 shebang with nothing safe above pushes it down.
+        top = _first_safe(safe, chain(range(pair.top, -1, -1), range(pair.top + 1, len(safe))))
+        if top is None or not pair.end:
+            continue
+        bottom = _first_safe(safe, range(max(pair.bottom, top), len(safe)))
+        if bottom is not None:
+            placed.append((ordinal, _Pair(top=top, begin=pair.begin, bottom=bottom, end=pair.end)))
+
+    # Per gap: close inner pairs first, then empty pairs, then open outer pairs first.
+    out: list[str] = []
+    for gap in range(len(content) + 1):
+        closing = sorted((p for p in placed if p[1].top < gap == p[1].bottom), key=lambda p: (-p[1].top, -p[0]))
+        opening = sorted((p for p in placed if p[1].top == gap < p[1].bottom), key=lambda p: (-p[1].bottom, p[0]))
+        out.extend(pair.end for _, pair in closing)
+        for _, pair in placed:
+            if pair.top == gap == pair.bottom:
+                out.extend((pair.begin, pair.end))
+        out.extend(pair.begin for _, pair in opening)
+        if gap < len(content):
+            out.append(content[gap])
+    return out
+
+
+def _first_safe(safe: list[bool], gaps: Iterable[int]) -> int | None:
+    return next((gap for gap in gaps if safe[gap]), None)
+
+
+def _safe_gaps(lines: list[str]) -> list[bool]:
+    """Return ``safe[g]``: a new ``#`` line inserted before ``lines[g]`` (or at the end) is a top-level comment.
+
+    Tracks what Tcl tracks across lines -- brace depth, an open quoted word,
+    backslash-newline continuation -- and never allows a line above a line-1
+    ``#!`` shebang.
+    """
+
+    safe: list[bool] = []
+    depth, in_quote, continued, in_comment = 0, False, False, False
+    for line in lines:
+        at_top = depth == 0 and not in_quote and not continued
+        safe.append(at_top)
+        if in_comment or (at_top and line.lstrip().startswith("#")):
+            in_comment = continued = _continues(line)
+            continue
+        depth, in_quote, trailing_comment = _scan_code(line, depth, in_quote)
+        continued = _continues(line)
+        in_comment = trailing_comment and continued
+    safe.append(depth == 0 and not in_quote and not continued)
+    if lines and lines[0].startswith("#!"):
+        safe[0] = False
+    return safe
+
+
+def _scan_code(line: str, depth: int, in_quote: bool) -> tuple[int, bool, bool]:
+    """Advance brace depth and quote state across one line of Tcl code.
+
+    Inside braces every unescaped brace counts, comment text included, as in
+    Tcl's own brace matching. At top level only a word-initial ``{`` or ``"``
+    opens a word, and ``;#`` starts a comment (reported by the third value).
+    """
+
+    word_start = True
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\":
+            i += 2
+            word_start = False
+            continue
+        if in_quote:
+            in_quote = ch != '"'
+        elif depth:
+            depth += {"{": 1, "}": -1}.get(ch, 0)
+        elif ch == '"' and word_start:
+            in_quote = True
+        elif ch == "{" and word_start:
+            depth = 1
+        elif ch == ";" and line[i + 1 :].lstrip().startswith("#"):
+            return depth, in_quote, True
+        word_start = ch in " \t;["
+        i += 1
+    return depth, in_quote, False
+
+
+def _continues(line: str) -> bool:
+    """Whether ``line`` ends in an unescaped backslash, joining the next line to it."""
+
+    return (len(line) - len(line.rstrip("\\"))) % 2 == 1
 
 
 # ---------------------------------------------------------------------------

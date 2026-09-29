@@ -11,7 +11,8 @@ Covers:
   (``dependencies`` > ``load_from`` > bare ``D``), and ``J`` / ``L`` /
   ``I`` / ``O`` suppression when the corresponding field is empty.
 * :func:`emit_standalone_stack` -- per-stage file is Intel header + one
-  blank line + authored ``steps`` joined by ``"\\n"`` verbatim.
+  blank line + authored ``steps`` joined by ``"\\n"`` verbatim; header and
+  blank line are omitted when the steps own their header (Sec.6.6.1).
 """
 
 from __future__ import annotations
@@ -246,3 +247,22 @@ def test_emit_standalone_stack_single_step() -> None:
     stage = StageSpec(name="solo", steps=("one_step",))
     art = emit_standalone_stack(stage)
     assert art.content == intel_header_text() + "\n" + "one_step\n"
+
+
+def test_emit_standalone_stack_shebang_body_is_verbatim() -> None:
+    """Issue #30: no header (and no blank separator) above a line-1 shebang."""
+    stage = StageSpec(name="eco_hook", steps=("#!/bin/csh -f", "echo hook"))
+    assert emit_standalone_stack(stage).content == "#!/bin/csh -f\necho hook\n"
+
+
+def test_emit_standalone_stack_existing_copyright_is_not_duplicated() -> None:
+    steps = ("# Copyright (c) 2025 Intel Corporation", "N eco_hook", "D")
+    art = emit_standalone_stack(StageSpec(name="eco_hook", steps=steps))
+    assert art.content == "\n".join(steps) + "\n"
+
+
+def test_emit_flow_stack_header_is_unconditional() -> None:
+    """Aggregate records are Chopper-authored: a stage whose body owns a header changes nothing."""
+    stage = StageSpec(name="sta_setup", steps=("#!/bin/sh", "# Copyright (c) 2025 Intel Corporation"))
+    art = emit_flow_stack((stage,), "dom")
+    assert art.content.startswith(intel_header_text())

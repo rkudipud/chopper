@@ -50,6 +50,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, P5c re-indents every PROC_TRIM and GENERATED .tcl output before P6 validation runs. Default false: Chopper writes PROC_TRIM and GENERATED outputs verbatim and skips the indentation pass entirely. The current implementation has known limitations (no quote/comment awareness, no line-continuation handling); leave this off unless you have explicitly verified the formatter on your domain."
+        },
+        "insert_markers": {
+          "type": "boolean",
+          "default": false,
+          "description": "Master switch for the '## CHOPPER: BEGIN/END' provenance comment markers (ARCHITECTURE.md Sec.3.11): around every proc in PROC_TRIM files and around every step or stage a flow_action touched in generated <stage>.tcl files. Default false: no file receives a marker. When true, markers are standalone comment lines placed only where Tcl reads them as comments, so they never change what a script does."
         }
       },
       "additionalProperties": false

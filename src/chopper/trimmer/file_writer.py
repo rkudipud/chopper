@@ -78,12 +78,14 @@ def proc_trim_file(
     parsed: ParsedFile,
     keep_canonical: frozenset[str],
     source_of: Callable[[str], str],
+    insert_markers: bool,
 ) -> FileOutcome:
     """Rewrite ``rel`` with non-surviving procs deleted.
 
-    Every proc -- surviving or removed -- is wrapped in a Sec.3.11
-    provenance marker by :func:`chopper.trimmer.proc_dropper.annotate_procs`;
-    ``source_of`` resolves each proc's ``source=`` attribution.
+    With ``insert_markers`` every proc -- surviving or removed -- is wrapped
+    in a Sec.3.11 provenance marker by
+    :func:`chopper.trimmer.proc_dropper.annotate_procs`; ``source_of``
+    resolves each proc's ``source=`` attribution.
     """
 
     src = _backup_path(ctx, rel)
@@ -94,7 +96,7 @@ def proc_trim_file(
     to_drop: list[ProcEntry] = [p for p in parsed.procs if p.canonical_name not in keep_canonical]
     kept: list[ProcEntry] = [p for p in parsed.procs if p.canonical_name in keep_canonical]
 
-    new_content = annotate_procs(content, kept, to_drop, source_of)
+    new_content = annotate_procs(content, kept, to_drop, source_of, insert_markers=insert_markers)
     bytes_out = len(new_content.encode("utf-8"))
     if not ctx.config.dry_run:
         ctx.fs.write_text(dst, new_content)

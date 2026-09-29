@@ -85,7 +85,7 @@ def _stage_by_name(stages: tuple, name: str):
 
 
 def _base_with_main_only(domain: Path) -> Path:
-    """Author a minimal base with a single ``main`` stage and one Tcl source."""
+    """Author a minimal base with a single ``main`` stage and one Tcl source (markers on)."""
 
     _write_tcl(domain / "src" / "core.tcl", "proc setup {} { return ok }\nproc run {} { return done }\n")
     base = domain / "jsons" / "base.json"
@@ -94,6 +94,7 @@ def _base_with_main_only(domain: Path) -> Path:
         {
             "$schema": "base-v1",
             "domain": domain.name,
+            "options": {"insert_markers": True},
             "files": {"include": ["src/core.tcl"]},
             "stages": [
                 {
@@ -634,6 +635,7 @@ def test_add_step_after_with_at_n_instance_targeting(tmp_path: Path) -> None:
         {
             "$schema": "base-v1",
             "domain": "at_n",
+            "options": {"insert_markers": True},
             "files": {"include": ["src/x.tcl"]},
             "stages": [
                 {
@@ -967,6 +969,7 @@ def test_action_step_references_pe_dropped_proc_stages_unchanged(tmp_path: Path)
         {
             "$schema": "base-v1",
             "domain": "action_plus_pe",
+            "options": {"insert_markers": True},
             "files": {"include": ["src/lib.tcl"]},
             "stages": [
                 {

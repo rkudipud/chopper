@@ -141,6 +141,8 @@ class CompiledManifest:
     stages: tuple[StageSpec, ...] = ()
     generate_stack: bool = False
     stack_order: tuple[str, ...] = ()
+    insert_markers: bool = False
+    """``options.insert_markers``, carried to P5a so F2 knows whether to write Sec.3.11 markers."""
 
     def __post_init__(self) -> None:
         fd_keys = [p.as_posix() for p in self.file_decisions]

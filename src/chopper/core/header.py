@@ -1,11 +1,12 @@
 """Intel-standard provenance + copyright header for Chopper-generated files.
 
 Every artifact emitted by Chopper's F3 generators (P5 ``<stage>.tcl``
-run scripts and ``<stage>.stack`` files) carries this header. The
-header is **not** prepended to F1 ``FULL_COPY`` or F2 ``PROC_TRIM``
-files: those originate on disk and already carry their own headers;
-rewriting them would be a destructive content edit outside the
-trimmer's contract.
+run scripts and ``<stage>.stack`` files) carries this header unless its
+body already owns one -- see :func:`needs_header` and ARCHITECTURE.md
+Sec.6.6.1. The header is **not** prepended to F1 ``FULL_COPY`` or F2
+``PROC_TRIM`` files: those originate on disk and already carry their
+own headers; rewriting them would be a destructive content edit outside
+the trimmer's contract.
 
 The header text is the canonical Intel legal-compliant copyright block
 shipped with every Intel-owned EDA file. It is reproduced verbatim
@@ -24,9 +25,12 @@ helper.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
 from datetime import datetime
+from pathlib import Path
 
-__all__ = ["intel_header_lines", "intel_header_text"]
+__all__ = ["intel_header_lines", "intel_header_text", "needs_header"]
 
 # Verbatim Intel legal-compliant copyright header. Whitespace
 # (including trailing spaces on a few lines) is preserved by design to
@@ -74,3 +78,42 @@ def intel_header_lines(*, year: int | None = None) -> tuple[str, ...]:
     """Return the header as a tuple of lines (no trailing newline on each line)."""
 
     return tuple(intel_header_text(year=year).rstrip("\n").split("\n"))
+
+
+# Output types whose line comment is ``#`` -- the only syntax the header is
+# written in. Any other type is left header-less rather than corrupted.
+_HASH_COMMENT_SUFFIXES = frozenset(
+    {".tcl", ".stack", ".py", ".pl", ".pm", ".sh", ".bash", ".csh", ".tcsh", ".zsh", ".ksh"}
+)
+_COPYRIGHT_WORD = re.compile(r"\bcopyright\b", re.IGNORECASE)
+_COPYRIGHT_MARK = re.compile(r"\(c\)|\b\d{4}\b", re.IGNORECASE)
+
+
+def needs_header(path: Path, lines: Sequence[str]) -> bool:
+    """Return ``True`` when a generated file at ``path`` whose body is ``lines`` gets the Intel header.
+
+    Only ``#``-comment output types qualify, and never a body that owns its
+    header already. See ARCHITECTURE.md Sec.6.6.1.
+    """
+
+    return path.suffix.lower() in _HASH_COMMENT_SUFFIXES and not _has_own_header(lines)
+
+
+def _has_own_header(lines: Sequence[str]) -> bool:
+    """Return ``True`` for a line-1 ``#!`` shebang or a copyright notice in the leading comment block.
+
+    A shebang only works on line 1, so nothing may be written above it. A
+    notice is the word ``copyright`` plus ``(c)`` or a four-digit year on one
+    line; the leading comment block is the contiguous blank / ``#`` lines at
+    the top of the body.
+    """
+
+    if lines and lines[0].startswith("#!"):
+        return True
+    for line in lines:
+        text = line.strip()
+        if text and not text.startswith("#"):
+            return False
+        if _COPYRIGHT_WORD.search(text) and _COPYRIGHT_MARK.search(text):
+            return True
+    return False

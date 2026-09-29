@@ -159,7 +159,7 @@ Use `reference_file` when the current stage Tcl is the canonical body and you do
 }
 ```
 
-Chopper reads `rtl2rtl.tcl` in P1, then writes the resolved stage back to `rtl2rtl.tcl` in P5. Do not put that same path in `files.include`; it is already a generated stage path, and a normal file decision would collide with it. The source file needs exact anchor comments wherever another feature will insert steps. Chopper adds its generated-file header and provenance banner to the output, so this form replaces rather than byte-preserves the original file. Re-trims read the pristine source from the backup directory.
+Chopper reads `rtl2rtl.tcl` in P1, then writes the resolved stage back to `rtl2rtl.tcl` in P5. Do not put that same path in `files.include`; it is already a generated stage path, and a normal file decision would collide with it. The source file needs exact anchor comments wherever another feature will insert steps. Chopper adds its generated-file header and provenance banner only when the source has no header of its own: a source that starts with a `#!` shebang, or whose leading comments carry a copyright notice, is written back as-is (shebang still on line 1, notice not duplicated), so an untouched in-place replacement round-trips unchanged apart from LF line endings. Re-trims read the pristine source from the backup directory.
 
 ### 3.1 F3 flow actions -- how features modify the stage flow
 
@@ -365,6 +365,7 @@ For each pattern, copy from the matching folder in [../examples/](../examples/) 
 | `options.cross_validate` | `base.json` | `true` | Cross-validate F3 stage steps against surviving F1/F2 set. When `true`, missing file/proc references emit `VW-14`/`VW-15`/`VW-16` warnings. Set to `false` to suppress when stages intentionally reference content outside the trimmed domain. |
 | `options.generate_stack` | `base.json` | `false` | When `stages` are defined, emit an aggregate `<domain>.stack` alongside per-stage `<stage>.tcl` files |
 | `options.indent` | `base.json` | `false` | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Off by default -- the current formatter has known limitations; only opt in after verifying it on your domain. |
+| `options.insert_markers` | `base.json` | `false` | Write `## CHOPPER: BEGIN/END` comments naming the JSON layer behind every trimmed proc and every step a feature touched. One switch for all markers; they never change what the code does. |
 | `depends_on` | feature JSON | `[]` | Topologically order this feature after the named features |
 | `incompatible_with` | feature JSON | none | Names of features that cannot be selected with this feature. Declare it on either feature only; feature order does not matter. Selecting both fails validation with `VE-38`. |
 | `flow_actions` | feature JSON | none | Append/insert/replace stage entries from the base or earlier features |

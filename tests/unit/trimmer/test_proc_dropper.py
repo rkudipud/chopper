@@ -78,6 +78,18 @@ def test_drop_all_lines_leaves_only_marker_pair() -> None:
     assert annotate_procs(text, [], [proc], _source_of) == f"{begin}\n{end}\n"
 
 
+def test_without_markers_kept_procs_are_untouched_and_removed_spans_vanish() -> None:
+    text = "# banner\nproc gone {} {}\nproc kept {} {\n  body\n}\ntail\n"
+    gone = _mk("gone", start=2, end=2, comment=(1, 1))
+    kept = _mk("kept", start=3, end=5)
+    result = annotate_procs(text, [kept], [gone], _source_of, insert_markers=False)
+    assert result == "proc kept {} {\n  body\n}\ntail\n"
+
+
+def test_without_markers_deleting_every_line_returns_empty_text() -> None:
+    assert annotate_procs("only\n", [], [_mk("f", start=1, end=1)], _source_of, insert_markers=False) == ""
+
+
 def test_kept_proc_wraps_body_in_place_unchanged() -> None:
     text = "proc foo {} {\n  body\n}\n"
     proc = _mk("foo", start=1, end=3)

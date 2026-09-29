@@ -168,6 +168,7 @@ def test_proc_trim_file_preserves_executable_bit(tmp_path: Path) -> None:
         parsed=parsed,
         keep_canonical=frozenset({keep.canonical_name}),
         source_of=lambda cn: "base",
+        insert_markers=False,
     )
 
     dst = ctx.config.domain_root / rel

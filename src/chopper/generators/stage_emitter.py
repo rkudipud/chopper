@@ -8,10 +8,12 @@ Tcl (or the target language).
 The only interpretation performed:
 
 * the Intel-standard copyright header (see :mod:`chopper.core.header`)
-  is prepended to every emitted file with the current calendar year;
-* a single-line provenance banner so audit consumers can correlate a
-  generated file back to its source stage without opening
-  ``compiled_manifest.json``;
+  is prepended with the current calendar year -- unless the steps own
+  their header (line-1 ``#!`` shebang or a leading copyright notice),
+  in which case the file is exactly the steps (ARCHITECTURE.md Sec.6.6.1);
+* a single-line provenance banner, emitted with the header, so audit
+  consumers can correlate a generated file back to its source stage
+  without opening ``compiled_manifest.json``;
 * steps joined with ``"\n"`` and file terminated with a trailing newline.
 """
 
@@ -19,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chopper.core.header import intel_header_lines
+from chopper.core.header import intel_header_lines, needs_header
 from chopper.core.models_compiler import StageSpec
 from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -40,15 +42,18 @@ def emit_stage_tcl(stage: StageSpec) -> GeneratedArtifact:
     writes the content via :attr:`ChopperContext.fs`.
     """
 
-    lines: list[str] = list(intel_header_lines())
-    lines.append(f"# Chopper-generated stage: {stage.name}")
-    if stage.load_from:
-        lines.append(f"# load_from: {stage.load_from}")
+    path = stage_output_path(stage)
+    lines: list[str] = []
+    if needs_header(path, stage.steps):
+        lines.extend(intel_header_lines())
+        lines.append(f"# Chopper-generated stage: {stage.name}")
+        if stage.load_from:
+            lines.append(f"# load_from: {stage.load_from}")
     lines.extend(stage.steps)
     content = "\n".join(lines) + "\n"
 
     return GeneratedArtifact(
-        path=stage_output_path(stage),
+        path=path,
         kind="tcl",
         content=content,
         source_stage=stage.name,

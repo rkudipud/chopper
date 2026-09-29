@@ -1,7 +1,23 @@
 # Chopper Buildout Memory
 
 ## Current Focus
-- 2026-09-06: GitHub issue #29 fixed and validated; no open implementation work.
+- 2026-09-29: issue #30 (4.8.1) and issue #31 (4.9.0, `options.insert_markers`) done, both uncommitted in the working tree.
+
+## Issue #31 (4.9.0, FD-17 adopted)
+- Owner approved a base-JSON key `insert_markers` (under `options`, default false) as the master switch for all Sec.3.11 markers (F2 + F3); scope delegated to me -> one switch, standalone stacks never marked.
+- Resolver always inserts markers tagged as `_Marker(str)` (keeps block-aware anchoring identical on/off), then a final pass strips them (off / standalone) or `_place_markers` moves pairs to top-level Tcl command boundaries (depth 0, no open quote, no `\` continuation, not above line-1 shebang); content never moves; pairs with no boundary are dropped. This subsumed #30's `_keep_shebang_first`.
+- F2: `annotate_procs(..., insert_markers=True)` default at function level; `proc_trim_file` requires the flag; `CompiledManifest.insert_markers` carries it to P5a (generate_stack precedent). Payload escaping `\ " { }` + CR/LF in `marker_pair`.
+- Verified in real Tcl 9.0.4 (tkinter) and through the real CLI; full suite 100% coverage. GitNexus detect_changes rates CRITICAL (touches config/compile/trim flows) -- expected for a pipeline-wide option.
+- Unreleased 4.8.2 (escaping only) was folded into 4.9.0 in README + ARCH revision history.
+
+## Issue #30 (4.8.1)
+- Bug: F3 emitters prepended Intel header + `# Chopper-generated stage:` banner unconditionally, so a `reference_file` stage regenerated in place from a `#!/bin/sh` -> `exec tclsh` bootstrap lost its line-1 shebang and duplicated its own copyright header.
+- Fix: `core/header.py::needs_header(path, lines)` -- inject only into `#`-comment types, never above a line-1 `#!`, never on top of a leading-comment copyright notice (`copyright` word + `(c)`/4-digit year). Emitters (`stage_emitter`, standalone `stack_emitter`) write the body verbatim otherwise; aggregate stack stays unconditional. `flow_resolver._keep_shebang_first` moves a shebang preceded only by Sec.3.11 marker lines back to index 0 (single line only -- moving comment blocks breaks `\`-continued Tcl bootstrap comments).
+- Docs: ARCH Sec.6.6.1/3.6/3.11 + rev history; JSON guide 2.2/2.3; user_docs 01/03; IMPLEMENTATION P-49; README changelog; pyproject 4.8.1; chopper-agent.agent.md.
+- Test vectors: `tests/fixtures/header_domain/` + parametrized `test_needs_header_vectors`; 9 new behavioral tests proven to fail on pre-fix code.
+- Gates: ruff/format/mypy/import-linter/docs-gate green; full suite 100% coverage; only failures are 2 pre-existing Windows-only `tests/unit/test_p4_sync_planner.py` cases (`shlex.quote` quotes Windows paths) from HEAD commit bd7e6bf -- unrelated.
+- Pre-existing, not fixed: a feature-added `standalone_stack` stage gets Sec.3.11 markers in its `.stack` despite Sec.3.11 saying standalone stacks are never marked.
+- GitNexus: re-ran `node .gitnexus/run.cjs analyze` (6276 symbols / 12552 edges / 241 flows); MCP server still served the stale index for impact(), so blast radius came from VS Code usages (LOW: 1 caller each).
 
 ## Issue #29
 - Escaped carriage returns and line feeds in provenance marker names and sources so every F2/F3 marker remains one physical Tcl comment line.

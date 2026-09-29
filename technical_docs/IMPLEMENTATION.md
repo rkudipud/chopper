@@ -14,8 +14,8 @@
 ## Contents
 
 1. [Parser Module](#1-parser-module) -- Tcl parser engineering spec, parser pitfalls (P-01 ... P-07, P-32 ... P-43, P-46 ... P-48), and parser decisions (D-1b-01 ... D-1e-03)
-2. [Compiler & Tracer Module](#2-compiler--tracer-module) -- Merge algorithm and trace expansion (P-08 ... P-12, P-41, P-42)
-3. [Trimmer Module](#3-trimmer-module) -- Backup / rebuild / write contract (P-13, P-15, P-37, P-44)
+2. [Compiler & Tracer Module](#2-compiler--tracer-module) -- Merge algorithm and trace expansion (P-08 ... P-12, P-41, P-42, P-50)
+3. [Trimmer Module](#3-trimmer-module) -- Backup / rebuild / write contract (P-13, P-15, P-37, P-44, P-45, P-49)
 4. [Validator Module](#4-validator-module) -- Pre/post-trim integrity checks (P-16, P-17)
 5. [Audit & Diagnostics](#5-audit--diagnostics) -- Diagnostic emission and audit-bundle invariants (P-18, P-19)
 6. [Backup & Recovery](#6-backup--recovery) -- Re-trim semantics (P-20)
@@ -1630,6 +1630,28 @@ patterns = ["**/*.tcl", "sub/../file.tcl"]  # Unnormalized
 
 ---
 
+### Pitfall P-50: Provenance Markers Must Never Change the Tcl They Annotate
+
+**THE TRAP (bug report: GitHub #31):**
+```python
+# WRONG: markers spliced in wherever the touched step sits, payload escaped for CR/LF only
+stage.steps[insertion:insertion] = [begin, *action.items, end]
+```
+
+A Sec.3.11 marker repeats the unit's name -- for F3 steps, the step text itself -- and lands next to the touched line. Both break real scripts. Inside a braced script body Tcl matches the body's closing brace before it knows which lines are comments, so every unescaped `{` or `}` counts: `replace_step` on `if {$ready} {` puts the END marker, carrying that unmatched `{`, inside the new `if` body, and Tcl fails with "missing close-brace: possible unbalanced brace in comment". And a step added inside the option list of `::parseOpt::cmdSpec` puts marker lines inside a braced *data* word, where Tcl reads them as list elements. Chopper's own checks miss both: P2 and P6 model comment braces as inert (P-07), so VE-16 stays silent.
+
+**Correct Behavior:** Markers are opt-in (`options.insert_markers`, default `false`), and when on they must be inert wherever they land. `marker_pair` in `src/chopper/core/provenance_markers.py` backslash-escapes `\`, `"`, `{`, `}`, CR, and LF in both `<name>` and `<source>`, backslash first so later escapes are not doubled. Escaping is not enough on its own: inside a braced *data* word (for example a `::parseOpt::cmdSpec` option list) a `#` line is list data, and after a `\`-continued line it becomes arguments. So `flow_resolver._place_markers` scans the resolved stage the way Tcl does -- brace depth, open quoted words, continuation backslashes, top-level `#` / `;#` comments -- and moves each F3 marker pair that is not on a top-level command boundary outward to the nearest one, moving marker lines only. Inserted markers are tagged (`_Marker`), so a line of authored content that looks like a marker is never moved.
+
+**Why It Matters:** Markers are written into every `PROC_TRIM` file and every stage file a `flow_action` touches, carrying arbitrary author text, and the breakage only shows at Tcl run time.
+
+**Tests:**
+- `tests/unit/compiler/test_flow_resolver.py::test_marker_pair_escapes_tcl_significant_bytes`
+- `tests/unit/compiler/test_flow_resolver.py::test_marker_inside_a_data_list_wraps_the_enclosing_command_instead`, `test_markers_inside_a_braced_script_body_stay_valid_tcl`, `test_marker_never_lands_between_a_continued_line_and_its_continuation`, `test_marker_never_lands_inside_a_multi_line_quoted_word` (each evaluates the result in a real Tcl interpreter; skipped where Python has no Tcl runtime)
+- `tests/unit/compiler/test_flow_resolver.py::test_insert_markers_off_places_the_same_content_without_markers`
+- `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_insert_markers_switch_changes_comment_lines_only`
+
+---
+
 
 ---
 
@@ -1748,6 +1770,28 @@ When P5c was first introduced (0.8.4) it normalized indentation for **every** em
 **Tests:**
 - `tests/unit/trimmer/test_indentation.py::test_service_formats_proc_trim_and_generated_but_not_full_copy_tcl`
 - `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_live_trim_formats_proc_trim_and_generated_tcl_only`
+
+---
+
+### Pitfall P-49: Generated Files Must Not Bury a Shebang or Duplicate an Existing Header
+
+**THE TRAP (bug report: GitHub #30):**
+```python
+# WRONG: header + banner prepended to every generated file unconditionally
+lines = [*intel_header_lines(), f"# Chopper-generated stage: {stage.name}", *stage.steps]
+```
+
+A stage whose steps come from an existing script -- typically a `reference_file` naming the very `<stage>.tcl` it regenerates -- already opens with its own header. For a `#!/bin/sh` -> `exec tclsh "$0" "$@"` bootstrap, anything written above line 1 moves the shebang to where the kernel no longer honors it, so the generated script stops running, and the script's own copyright notice ends up duplicated under Chopper's. A feature `add_stage_*` / `replace_stage` sourced from a shebang script fails the same way through its Sec.3.11 BEGIN marker line.
+
+**Correct Behavior:** `needs_header(path, steps)` in `src/chopper/core/header.py` gates injection: `#`-comment output types only, and never when line 1 is a `#!` shebang or the leading comment block already holds a copyright notice (ARCHITECTURE.md Sec.6.6.1). When injected, header and banner are the first lines of the file; otherwise the file is exactly the steps. `flow_resolver._place_markers` never leaves a Sec.3.11 marker above a line-1 shebang or between a `\`-continued line and the line it continues (P-50); it moves marker lines only, never content -- shifting a comment block instead could split a `\`-continued Tcl comment from its next line and make Tcl execute the bootstrap's `exec` line.
+
+**Why It Matters:** In-place regeneration is the documented way to adopt `reference_file` for an existing stage script, and it runs on every trim. Unconditional injection breaks executable scripts and re-stamps Chopper's own output with one more header per regeneration.
+
+**Tests:**
+- `tests/unit/core/test_header_coverage.py::test_needs_header_vectors`
+- `tests/unit/generators/test_service.py::test_emit_stage_tcl_shebang_body_is_emitted_verbatim`
+- `tests/unit/compiler/test_flow_resolver.py::test_add_stage_from_shebang_script_keeps_shebang_first`
+- `tests/integration/test_runner_localfs_e2e.py::test_runner_localfs_header_domain_keeps_owned_headers_on_top`
 
 ---
 
@@ -2339,10 +2383,12 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **Compiler** | Trace expansion is non-deterministic | Require exact match, not ambiguous (P-08) |
 | **Compiler** | Excludes override includes | Remember: include wins (P-09) |
 | **Compiler** | Glob results include duplicates | Normalize + deduplicate (P-11) |
+| **Compiler** | Marker payload carries raw braces/quotes from step text, or a marker lands inside braces/a string/a continued command, and changes the Tcl | Escape `\ " { }` plus CR/LF in `marker_pair`; place F3 markers only on top-level command boundaries (`_place_markers`) (P-50) |
 | **Trimmer** | Crash leaves domain half-rebuilt | Backup-and-rebuild model with deterministic safe re-run from `domain_backup/` (P-13) |
 | **Trimmer** | Lost work on re-trim | Detect existing backup and rebuild from it (P-20) |
 | **Trimmer** | `FULL_COPY` decodes opaque files as text | Use filesystem-level opaque copy; reserve content reads to Tcl `PROC_TRIM` only (P-44) |
 | **Trimmer** | P5c rewrites `FULL_COPY` `.tcl` and breaks the verbatim contract | Scope `_NORMALIZED_TREATMENTS` to `{PROC_TRIM, GENERATED}`; `FULL_COPY` `.tcl` outputs are byte-for-byte copies and must never reach the indentation pass (P-45) |
+| **Generators** | Header and banner prepended above a shebang, or on top of the body's own copyright notice | Gate injection on `needs_header()`; marker placement never lands above a line-1 shebang (P-49) |
 | **Validator** | Typos in JSON go unnoticed | Validate JSON references exist (P-16) |
 | **Audit** | Diagnostics lack context | Include location in every diagnostic (P-18) |
 | **Config** | Paths break on different OS | Always use forward slashes (P-21) |
@@ -2408,6 +2454,8 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 
 **FD-16 -- Stage steps sourced from a reference file (`reference_file`) -- ADOPTED in 4.7.0.** Requested in GitHub issue #28: let a stage definition (base `stages[]`, or a feature `add_stage_before` / `add_stage_after` / `replace_stage`) specify `reference_file` (a domain-relative path) instead of authoring `steps` inline, so domains that already maintain a stage as a hand-written script file are not forced to duplicate its lines into JSON. Filed as a Future Consideration per the Sec.3 Proposal Procedure, then promoted the same session once the user explicitly approved implementation. See `technical_docs/ARCHITECTURE.md` Sec.3.6, FR-55, and the 4.7.0 revision-history entry for the adopted design (`VE-39 stage-reference-file-invalid`, `VW-26 stage-reference-file-not-preserved`). Kept here only as the origin record of the proposal, per registry policy of never deleting an `FD-xx` slot once assigned.
 
+**FD-17 -- Opt-in provenance markers (`options.insert_markers`) -- ADOPTED in 4.9.0.** Requested in GitHub issue #31: make the Sec.3.11 `## CHOPPER: BEGIN/END` markers optional and off by default, because a step-level `flow_action` landing inside a braced *data* word -- the option list of `::parseOpt::cmdSpec` in the report -- gets marker lines that Tcl reads as list elements. Filed as a Future Consideration per the Sec.3 Proposal Procedure, since it reversed the 4.5.0 always-on decision, then promoted the same session once the owner approved it, naming the key `insert_markers` and asking for one master switch that, when on, writes markers only where they cannot interfere with code. See `technical_docs/ARCHITECTURE.md` Sec.3.11, FR-56, and the 4.9.0 revision-history entry for the adopted design. Kept here only as the origin record of the proposal, per registry policy of never deleting an `FD-xx` slot once assigned.
+
 ### Performance
 
 **FD-09 -- Benchmark harness + phase budgets.** Deferred until core pipeline is verified across more production domains.
@@ -2438,6 +2486,7 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 | FD-12 | Generator | Template-script generation |
 | FD-13 | CLI/UX | Host-integrated GitHub issue attachment upload |
 | FD-16 | Generator | Stage steps sourced from `reference_file` -- ADOPTED in 4.7.0 |
+| FD-17 | Generator | Opt-in provenance markers (`options.insert_markers`) -- ADOPTED in 4.9.0 |
 
 **Adopted historical entries** (no longer tracked here):
 

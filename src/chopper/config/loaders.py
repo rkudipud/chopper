@@ -248,6 +248,7 @@ def load_base(
         cross_validate=options_raw.get("cross_validate", True),
         generate_stack=options_raw.get("generate_stack", False),
         indent=options_raw.get("indent", False),
+        insert_markers=options_raw.get("insert_markers", False),
     )
 
     stages = tuple(_load_stage_def(s) for s in (raw.get("stages") or []))

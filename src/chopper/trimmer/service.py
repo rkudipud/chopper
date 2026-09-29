@@ -216,7 +216,15 @@ class TrimmerService:
                 # here is correct.
                 continue
             try:
-                outcome = self._dispatch(ctx, rel_path, treatment, parsed, keep_by_file, source_by_file)
+                outcome = self._dispatch(
+                    ctx,
+                    rel_path,
+                    treatment,
+                    parsed,
+                    keep_by_file,
+                    source_by_file,
+                    insert_markers=manifest.insert_markers,
+                )
             except ProcDropError as exc:
                 _emit_ve26(ctx, rel_path, str(exc))
                 interrupted = True
@@ -373,6 +381,8 @@ class TrimmerService:
         parsed: ParseResult,
         keep_by_file: dict[Path, frozenset[str]],
         source_by_file: dict[Path, dict[str, str]],
+        *,
+        insert_markers: bool = False,
     ) -> FileOutcome:
         if treatment is FileTreatment.FULL_COPY:
             procs_here = tuple(sorted(cn for cn in keep_by_file.get(rel_path, frozenset())))
@@ -395,6 +405,7 @@ class TrimmerService:
                 parsed=parsed_file,
                 keep_canonical=keep_canonical,
                 source_of=_source_of,
+                insert_markers=insert_markers,
             )
             if not outcome.procs_removed:
                 _emit_vw22(ctx, rel_path)

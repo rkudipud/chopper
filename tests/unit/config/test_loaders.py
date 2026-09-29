@@ -83,6 +83,12 @@ class TestLoadBase:
         base, _ = _collect_base(raw)
         assert base.options.cross_validate is False
 
+    def test_options_insert_markers_defaults_off_and_hydrates_when_set(self) -> None:
+        raw = {"$schema": "base-v1", "domain": "d", "files": {"include": ["a.tcl"]}}
+        assert _collect_base(raw)[0].options.insert_markers is False
+        raw["options"] = {"insert_markers": True}
+        assert _collect_base(raw)[0].options.insert_markers is True
+
     def test_procedures_include_hydrated(self) -> None:
         raw = {
             "$schema": "base-v1",

@@ -43,6 +43,7 @@ chopper trim --dry-run --domain . --base jsons/base.json --features dft
 ```
 
 `run_verify`'s resolved `steps` will show `run_scan` and `verify_scan` spliced in
-right after `run_verification`, wrapped in `## CHOPPER: BEGIN/END added step`
-provenance markers (Sec.3.11) -- indistinguishable from an inline-authored
-injected block.
+right after `run_verification` -- indistinguishable from an inline-authored
+injected block. Set `"options": {"insert_markers": true}` in `base.json` to also
+see the block wrapped in `## CHOPPER: BEGIN/END added step` provenance markers
+(Sec.3.11).

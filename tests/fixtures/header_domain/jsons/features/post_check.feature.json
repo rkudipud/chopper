@@ -1,0 +1,19 @@
+{
+  "$schema": "feature-v1",
+  "name": "post_check",
+  "domain": "header_domain",
+  "description": "Adds a stage sourced from a shebang script: its added-stage BEGIN marker must not push the shebang off line 1 (ARCHITECTURE.md Sec.3.11).",
+  "files": {
+    "include": ["scripts/post_check.tcl"]
+  },
+  "flow_actions": [
+    {
+      "action": "add_stage_after",
+      "name": "post_check",
+      "reference": "plain",
+      "load_from": "plain",
+      "command": "-xt vw my_shell -B BLOCK -T post_check",
+      "reference_file": "scripts/post_check.tcl"
+    }
+  ]
+}

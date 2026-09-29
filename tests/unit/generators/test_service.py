@@ -7,7 +7,7 @@ from pathlib import Path
 from chopper.adapters import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
-from chopper.core.header import intel_header_text
+from chopper.core.header import intel_header_lines, intel_header_text
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, StageSpec
 from chopper.generators import GeneratorService
@@ -122,6 +122,40 @@ def test_emit_stage_tcl_includes_load_from_when_set() -> None:
     stage = StageSpec(name="run", steps=("do_it",), load_from="setup")
     art = emit_stage_tcl(stage)
     assert "# load_from: setup" in art.content
+
+
+def test_emit_stage_tcl_header_is_line_one_then_banner_then_steps() -> None:
+    stage = StageSpec(name="plain", steps=("# body comment", "puts hi"), load_from="setup")
+    lines = emit_stage_tcl(stage).content.splitlines()
+    header = intel_header_lines()
+    assert tuple(lines[: len(header)]) == header
+    assert lines[len(header) :] == [
+        "# Chopper-generated stage: plain",
+        "# load_from: setup",
+        "# body comment",
+        "puts hi",
+    ]
+
+
+def test_emit_stage_tcl_shebang_body_is_emitted_verbatim() -> None:
+    """Issue #30: nothing may be written above a line-1 shebang -- no header, no banner."""
+    steps = ("#!/bin/sh", "# restart under tclsh \\", 'exec tclsh "$0" "$@"', 'puts "ready"')
+    art = emit_stage_tcl(StageSpec(name="sta_setup", steps=steps, load_from="setup"))
+    assert art.content == "\n".join(steps) + "\n"
+
+
+def test_emit_stage_tcl_existing_copyright_header_is_not_duplicated() -> None:
+    steps = ("#" * 20, "#-- INTEL CONFIDENTIAL", "#-- Copyright (c) 2025 Intel Corporation", "#" * 20, "source a.tcl")
+    art = emit_stage_tcl(StageSpec(name="rtl2rtl", steps=steps))
+    assert art.content == "\n".join(steps) + "\n"
+    assert art.content.count("Copyright (c)") == 1
+
+
+def test_emit_stage_tcl_regeneration_from_own_output_is_idempotent() -> None:
+    """A stage re-sourced from Chopper's own output must not accumulate headers per trim."""
+    first = emit_stage_tcl(StageSpec(name="setup", steps=("source setup.tcl",)))
+    second = emit_stage_tcl(StageSpec(name="setup", steps=tuple(first.content.splitlines())))
+    assert second.content == first.content
 
 
 def test_stage_output_path_defaults_to_stage_name_tcl() -> None:

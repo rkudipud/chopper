@@ -161,7 +161,8 @@ class CompilerService:
         )
 
         # ---- F3 flow-action resolution -----------------------------------
-        stages = resolve_stages(ctx, loaded.base.stages, loaded.features)
+        insert_markers = loaded.base.options.insert_markers
+        stages = resolve_stages(ctx, loaded.base.stages, loaded.features, insert_markers=insert_markers)
         _register_generated_stage_files(ctx, file_decisions, provenance, stages, loaded)
         stack_order = compute_stack_order(ctx, stages)
 
@@ -173,6 +174,7 @@ class CompilerService:
             stages=stages,
             generate_stack=loaded.base.options.generate_stack,
             stack_order=stack_order,
+            insert_markers=insert_markers,
         )
 
 

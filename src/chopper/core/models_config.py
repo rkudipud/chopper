@@ -180,6 +180,7 @@ class BaseOptions:
     cross_validate: bool = True
     generate_stack: bool = False
     indent: bool = False
+    insert_markers: bool = False
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,12 @@
 """Atomic proc-annotate-and-drop algorithm.
 
-:func:`annotate_procs` rewrites a Tcl file's text so every proc known to
-the file -- surviving or removed -- carries a Sec.3.11 provenance
-comment-marker pair (``## CHOPPER: BEGIN/END ...``). A surviving proc's
+:func:`annotate_procs` rewrites a Tcl file's text so every removed proc's
 span (body plus any associated ``define_proc_attributes`` block and
-comment banner, merged into the minimum enclosing range) is wrapped in
-place; a removed proc's span is replaced with an empty marker pair (the
-body is still fully deleted -- only the two-line marker remains).
+comment banner, merged into the minimum enclosing range) is deleted.
+With ``insert_markers`` (``options.insert_markers``) every proc known to
+the file -- surviving or removed -- also carries a Sec.3.11 provenance
+comment-marker pair (``## CHOPPER: BEGIN/END ...``): a surviving proc's
+span is wrapped in place and a removed proc leaves only its empty pair.
 
 Ranges are applied **bottom-up** (descending by start line) so
 not-yet-processed procs' 1-indexed line coordinates stay valid during
@@ -57,8 +57,10 @@ def annotate_procs(
     kept: Iterable[ProcEntry],
     dropped: Iterable[ProcEntry],
     source_of: Callable[[str], str],
+    *,
+    insert_markers: bool = True,
 ) -> str:
-    """Return ``text`` with every proc in ``kept`` and ``dropped`` wrapped in a provenance marker.
+    """Return ``text`` with every proc in ``dropped`` deleted and, if ``insert_markers``, every proc marked.
 
     ``source_of(canonical_name)`` returns the marker's ``source=`` value
     (``"base"``, ``"feature:<name>"``, or ``"default"``) for that proc.
@@ -111,14 +113,15 @@ def annotate_procs(
     # Apply descending-order rewrite (bottom-up) to preserve line coords
     # of not-yet-processed spans while we iterate.
     for rng, kind, proc in sorted(units, key=lambda u: u[0].start, reverse=True):
-        begin, end = marker_pair(action=kind, kind="proc", name=proc.short_name, source=source_of(proc.canonical_name))
-        replacement = [begin, end] if kind == "removed" else [begin, *lines[rng.start - 1 : rng.end], end]
+        replacement = lines[rng.start - 1 : rng.end] if kind == "kept" else []
+        if insert_markers:
+            begin, end = marker_pair(
+                action=kind, kind="proc", name=proc.short_name, source=source_of(proc.canonical_name)
+            )
+            replacement = [begin, *replacement, end]
         lines[rng.start - 1 : rng.end] = replacement
 
-    # Every unit contributes at least a two-line marker pair, so ``lines``
-    # is never empty here (unlike the old pure-deletion drop_procs, which
-    # could delete every line and legitimately return "").
     result = "\n".join(lines)
-    if had_trailing_newline:
+    if had_trailing_newline and lines:
         result += "\n"
     return result

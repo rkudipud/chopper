@@ -203,7 +203,7 @@ Working example: a stage that wraps an external scheduler invocation --
 }
 ```
 
-Produces a `eco_apply_patch.stack` containing the Intel header followed by exactly those three lines.
+Produces a `eco_apply_patch.stack` containing the Intel header followed by exactly those three lines. If the `steps` open with their own header -- a line-1 `#!` shebang or a copyright notice in the leading comment lines -- the header (and its blank separator) is omitted and the file is exactly the `steps` (ARCHITECTURE.md Sec.6.6.1).
 
 A standalone `<stage>.stack` collision with `files.*` entries or with the aggregate `<domain>.stack` path is reported as `VE-29 standalone-stack-collision`. Aggregate `<domain>.stack` collisions with `files.*` are reported as `VE-28 aggregate-stack-collision`.
 
@@ -244,6 +244,7 @@ Chopper resolves this stage exactly as if you had authored:
 - **One step per physical line, verbatim.** Blank lines and comment lines are preserved as their own step strings -- neither is stripped or skipped. Leading/trailing whitespace within a line is preserved too; if a `flow_actions` entry targets that exact step string via `reference`, it must match byte-for-byte (the same "whitespace mismatch" failure mode that already applies to inline-authored `steps` and `VE-05`).
 - **Line endings are normalized.** Any of `\r\n` (Windows), bare `\r` (legacy Mac), or `\n` (Unix) is treated as a line boundary, so the same file produces identical `steps` regardless of which platform authored or last edited it. A trailing newline does not add a spurious empty final step.
 - **Encoding is UTF-8**, tolerating a leading byte-order mark (BOM) from a Windows-editor-saved file -- the BOM is stripped, not treated as content.
+- **A file that owns its header keeps it on top.** Chopper normally opens every generated `<stage>.tcl` with the Intel copyright header and a `# Chopper-generated stage:` banner. When the resolved steps start with a `#!` shebang, or their leading comment lines already carry a copyright notice (`Copyright` plus `(c)` or a year), nothing is injected: the shebang stays on line 1 (the only line where it works) and the file's own notice is not duplicated. Flow-action markers never push a shebang down either. So a script regenerated in place from itself -- including a `#!/bin/sh` -> `exec tclsh` bootstrap -- comes back unchanged apart from LF line endings, unless a feature edits it. See ARCHITECTURE.md Sec.6.6.1 and Sec.3.11.
 - **Failures are one code: `VE-39 reference-file-invalid`.** Covers a missing path, an unreadable file, invalid UTF-8, and a file that splits into zero lines (empty). Fix the path, permissions, encoding, or add content, respectively. The same code covers `add_step_before` / `add_step_after`'s `reference_file` too (Sec.6, Action Vocabulary).
 - **The referenced file is not automatically kept in the trimmed output.** Reading it for its content does not add it to `files.include` -- default-exclude still applies. If you want the source `.steps` file itself to survive trimming (not just its content baked into the generated `<stage>.tcl`), add it to `files.include` explicitly. If you forget, Chopper emits advisory `VW-26 stage-reference-file-not-preserved` (gated by `options.cross_validate`, same as VW-14/15/16) so the gap does not go unnoticed.
 - **Provenance only, not a new data path.** The resolved `steps` are indistinguishable downstream from inline authoring -- same generated `<stage>.tcl`, same `flow_actions` targeting, same cross-validation. `reference_file` is retained on the compiled stage purely so `compiled_manifest.json` can explain where a stage's steps came from.
@@ -282,6 +283,7 @@ Chopper resolves this stage exactly as if you had authored:
 | `options.cross_validate` | boolean | No | Cross-validate F3 output. Default: `true` |
 | `options.indent` | boolean | No | Run the P5c Tcl indentation pass on `PROC_TRIM`/`GENERATED` outputs. Default: `false` (skip indentation entirely). |
 | `options.generate_stack` | boolean | No | Emit aggregate `<basename(domain_root)>.stack` with one record per stage (see Sec.2.1). Default: `false` |
+| `options.insert_markers` | boolean | No | Write `## CHOPPER: BEGIN/END` provenance comment markers around every proc in proc-trimmed files and around every step or stage a `flow_action` touched in generated `<stage>.tcl` files (one switch for both). Default: `false` -- no markers anywhere; provenance stays in `.chopper/compiled_manifest.json`. See Sec.7 and ARCHITECTURE.md Sec.3.11. |
 | `files.include` | string[] | No* | Glob patterns to include |
 | `files.exclude` | string[] | No | Glob patterns to exclude |
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
@@ -555,6 +557,8 @@ Flow actions modify the base flow during feature application. All actions go in 
 | `load_from` | `stage`, `reference` | Change the data predecessor of a stage |
 
 > `add_step_before` / `add_step_after` may set `reference_file` (domain-relative path) instead of `items` -- same rules as Sec.2.3, applied to the injected block rather than a whole stage. `replace_step` does not accept `reference_file`: `with` is exactly one replacement string, not a block, so a multi-line file has no sensible mapping there.
+
+> **Provenance markers (`options.insert_markers`).** With `"options": {"insert_markers": true}` in the base JSON, every step or stage a flow action adds, replaces, or removes is wrapped in `## CHOPPER: BEGIN/END` comment lines naming the feature responsible (ARCHITECTURE.md Sec.3.11). Default `false`: no markers, same content in the same places. Markers never change what a script does -- each is its own line, and a pair that would land where Tcl does not read `#` as a comment (inside braces, such as the `-opt {...}` option specs of `::parseOpt::cmdSpec`; inside a multi-line quoted string; right after a `\`-continued line; above a line-1 shebang) is moved out to wrap the whole top-level command instead.
 
 ### `add_stage_after` example
 
