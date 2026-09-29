@@ -1,0 +1,7 @@
+# files_removed.txt -- paths physically removed from the rebuilt domain
+# Format: <path>\t<provenance>
+# <provenance>: 'removed-by:<layer_key>:files.exclude' when a later layer's
+# files.exclude removed the file; 'shadowed-by:<layer_key>:procedures.exclude'
+# when the last shadow event was a PE-driven removal; otherwise 'default-exclude'
+# (the file was never positively contributed to by any layer).
+scripts/post_check.tcl	default-exclude

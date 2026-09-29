@@ -1,0 +1,178 @@
+{
+  "chopper_version": "4.9.1",
+  "domain": "header_domain",
+  "files": [
+    {
+      "contributed_by": "base:stages",
+      "excluded_procs": null,
+      "input_sources": [
+        "base:stages"
+      ],
+      "path": "eco_hook.stack",
+      "proc_model": null,
+      "reason": "fi-literal",
+      "shadowed_by": [],
+      "surviving_procs": null,
+      "treatment": "generated"
+    },
+    {
+      "contributed_by": "base:stages",
+      "excluded_procs": null,
+      "input_sources": [
+        "base:stages"
+      ],
+      "path": "header_domain.stack",
+      "proc_model": null,
+      "reason": "fi-literal",
+      "shadowed_by": [],
+      "surviving_procs": null,
+      "treatment": "generated"
+    },
+    {
+      "contributed_by": "base:stages",
+      "excluded_procs": null,
+      "input_sources": [
+        "base:stages"
+      ],
+      "path": "plain.tcl",
+      "proc_model": null,
+      "reason": "fi-literal",
+      "shadowed_by": [],
+      "surviving_procs": null,
+      "treatment": "generated"
+    },
+    {
+      "contributed_by": "base:stages",
+      "excluded_procs": null,
+      "input_sources": [
+        "base:stages"
+      ],
+      "path": "rtl2rtl.tcl",
+      "proc_model": null,
+      "reason": "fi-literal",
+      "shadowed_by": [],
+      "surviving_procs": null,
+      "treatment": "generated"
+    },
+    {
+      "contributed_by": "base",
+      "excluded_procs": null,
+      "input_sources": [
+        "base:files.include"
+      ],
+      "path": "scripts/plain.steps",
+      "proc_model": null,
+      "reason": "fi-literal",
+      "shadowed_by": [],
+      "surviving_procs": null,
+      "treatment": "full-copy"
+    },
+    {
+      "contributed_by": "base:stages",
+      "excluded_procs": null,
+      "input_sources": [
+        "base:stages"
+      ],
+      "path": "sta_setup.tcl",
+      "proc_model": null,
+      "reason": "fi-literal",
+      "shadowed_by": [],
+      "surviving_procs": null,
+      "treatment": "generated"
+    }
+  ],
+  "flow_actions": [
+    {
+      "command": "-xt vw my_shell -B BLOCK -T sta_setup",
+      "dependencies": [],
+      "exit_codes": [],
+      "inputs": [],
+      "language": "tcl",
+      "load_from": "",
+      "name": "sta_setup",
+      "outputs": [],
+      "run_mode": "serial",
+      "steps": [
+        "#!/bin/sh",
+        "####################################################################################################",
+        "#Intel Legal compliant copyright header",
+        "####################################################################################################",
+        "#",
+        "#-- INTEL CONFIDENTIAL",
+        "#-- Copyright (c) 2025 Intel Corporation",
+        "#",
+        "####################################################################################################",
+        "# Restart under tclsh; Tcl reads the exec line below as part of this comment \\",
+        "exec tclsh \"$0\" \"$@\"",
+        "",
+        "puts \"sta_setup: environment ready\""
+      ]
+    },
+    {
+      "command": "-xt vw my_shell -B BLOCK -T rtl2rtl",
+      "dependencies": [],
+      "exit_codes": [],
+      "inputs": [],
+      "language": "tcl",
+      "load_from": "sta_setup",
+      "name": "rtl2rtl",
+      "outputs": [],
+      "run_mode": "serial",
+      "steps": [
+        "####################################################################################################",
+        "#Intel Legal compliant copyright header",
+        "####################################################################################################",
+        "#",
+        "#-- INTEL CONFIDENTIAL",
+        "#-- Copyright (c) 2025 Intel Corporation",
+        "#",
+        "####################################################################################################",
+        "# rtl2rtl -- stage body regenerated in place from this file",
+        "puts \"rtl2rtl: compare\""
+      ]
+    },
+    {
+      "command": "-xt vw my_shell -B BLOCK -T plain",
+      "dependencies": [],
+      "exit_codes": [],
+      "inputs": [],
+      "language": "tcl",
+      "load_from": "rtl2rtl",
+      "name": "plain",
+      "outputs": [],
+      "run_mode": "serial",
+      "steps": [
+        "# plain stage body: no header of its own, so Chopper adds one",
+        "puts \"plain: run\""
+      ]
+    },
+    {
+      "command": "-xt vw my_shell -B BLOCK -T eco_hook",
+      "dependencies": [],
+      "exit_codes": [],
+      "inputs": [],
+      "language": "tcl",
+      "load_from": "plain",
+      "name": "eco_hook",
+      "outputs": [],
+      "run_mode": "serial",
+      "steps": [
+        "N eco_hook",
+        "J -xt vw my_shell -B BLOCK -T eco_hook",
+        "D plain"
+      ]
+    }
+  ],
+  "inputs": {
+    "base": "C:/personal/projects/chopper/tests/fixtures/header_domain/jsons/base.json",
+    "features": [],
+    "project": null
+  },
+  "interaction_warnings": [],
+  "procedures": {
+    "excluded": [],
+    "surviving": [],
+    "traced": []
+  },
+  "run_id": "f4bb7b5d6950491eaaf23b92f8ddef1c"
+}

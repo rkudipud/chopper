@@ -1,0 +1,17 @@
+Chopper Trim Report
+========================================
+Run ID:   f4bb7b5d6950491eaaf23b92f8ddef1c
+Domain:   header_domain
+Mode:     dry-run
+Started:  2026-09-29T23:22:17Z
+Ended:    2026-09-29T23:22:17Z
+Exit:     0
+
+File treatment summary
+----------------------------------------
+  full-copy : 1
+  generated : 5
+
+Surviving procs: 0
+
+(no files were modified)

@@ -1,0 +1,12 @@
+# files_kept.txt -- paths that survive trimming
+# Format: <path>\t<contributed_by>
+# <contributed_by>: the single layer key from
+# CompiledManifest.provenance[<path>].contributed_by (the last layer
+# that positively contributed to the file under the R1 overlay), or '-'
+# when no JSON names the file directly.
+eco_hook.stack	base:stages
+header_domain.stack	base:stages
+plain.tcl	base:stages
+rtl2rtl.tcl	base:stages
+scripts/plain.steps	base
+sta_setup.tcl	base:stages

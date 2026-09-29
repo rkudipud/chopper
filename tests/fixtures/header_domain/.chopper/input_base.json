@@ -1,0 +1,44 @@
+{
+  "$schema": "base-v1",
+  "domain": "header_domain",
+  "description": "Test vectors for generated-file header ownership (ARCHITECTURE.md Sec.6.6.1, issue #30): a shebang script and an Intel-headed script regenerated in place keep their own headers; a header-less body gets Chopper's header at the top.",
+  "options": {
+    "cross_validate": false,
+    "generate_stack": true,
+    "insert_markers": true
+  },
+  "files": {
+    "include": ["scripts/plain.steps"]
+  },
+  "stages": [
+    {
+      "name": "sta_setup",
+      "load_from": "",
+      "command": "-xt vw my_shell -B BLOCK -T sta_setup",
+      "reference_file": "sta_setup.tcl"
+    },
+    {
+      "name": "rtl2rtl",
+      "load_from": "sta_setup",
+      "command": "-xt vw my_shell -B BLOCK -T rtl2rtl",
+      "reference_file": "rtl2rtl.tcl"
+    },
+    {
+      "name": "plain",
+      "load_from": "rtl2rtl",
+      "command": "-xt vw my_shell -B BLOCK -T plain",
+      "reference_file": "scripts/plain.steps"
+    },
+    {
+      "name": "eco_hook",
+      "load_from": "plain",
+      "command": "-xt vw my_shell -B BLOCK -T eco_hook",
+      "standalone_stack": true,
+      "steps": [
+        "N eco_hook",
+        "J -xt vw my_shell -B BLOCK -T eco_hook",
+        "D plain"
+      ]
+    }
+  ]
+}

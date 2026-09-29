@@ -1,0 +1,58 @@
+{
+  "chopper_version": "4.9.1",
+  "diagnostics": [],
+  "file_report": [
+    {
+      "path": "eco_hook.stack",
+      "reason": "fi-literal",
+      "treatment": "generated"
+    },
+    {
+      "path": "header_domain.stack",
+      "reason": "fi-literal",
+      "treatment": "generated"
+    },
+    {
+      "path": "plain.tcl",
+      "reason": "fi-literal",
+      "treatment": "generated"
+    },
+    {
+      "path": "rtl2rtl.tcl",
+      "reason": "fi-literal",
+      "treatment": "generated"
+    },
+    {
+      "path": "scripts/plain.steps",
+      "reason": "fi-literal",
+      "treatment": "full-copy"
+    },
+    {
+      "path": "sta_setup.tcl",
+      "reason": "fi-literal",
+      "treatment": "generated"
+    }
+  ],
+  "mode": "dry-run",
+  "proc_report": [],
+  "run_id": "f4bb7b5d6950491eaaf23b92f8ddef1c",
+  "summary": {
+    "files_removed": 0,
+    "files_skipped_decode": 0,
+    "files_surviving": 6,
+    "procs_removed": 0,
+    "procs_surviving": 0,
+    "procs_traced": 0,
+    "raw_lines_after": 22,
+    "raw_lines_before": 25,
+    "sloc_after": 3,
+    "sloc_before": 4,
+    "sloc_removed": 1,
+    "total_domain_files": 4,
+    "total_domain_procs": 0
+  },
+  "validation_results": {
+    "phase1": "pass",
+    "phase2": "pass"
+  }
+}

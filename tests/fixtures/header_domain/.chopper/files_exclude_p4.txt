@@ -1,0 +1,5 @@
+# files_exclude_p4.txt -- files excluded from this Chopper trim (P4 client exclusion list).
+# Same path set as the exclude_file_list section of p4_commands.txt.
+# Paths are domain-relative ($ward not set; use as-is from domain root).
+
+scripts/post_check.tcl
