@@ -484,7 +484,7 @@ class TestGenerateStackPipeline:
         codes = [d.code for d in sink.snapshot()]
         assert result.exit_code == 0, f"non-zero exit; diagnostics: {codes}"
         assert result.manifest is not None
-        assert result.manifest.generate_stack is True
+        assert result.manifest.options.generate_stack is True
 
         file_decisions = result.manifest.file_decisions
         assert file_decisions.get(Path("setup.tcl")) is FileTreatment.GENERATED

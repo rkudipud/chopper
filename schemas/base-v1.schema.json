@@ -44,7 +44,7 @@
         "generate_stack": {
           "type": "boolean",
           "default": false,
-          "description": "When true and the base declares at least one stage, Chopper emits one aggregate scheduler stack file at the domain root named <basename(domain_root)>.stack (filename sourced from the runtime domain-root basename; there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage in declared order, with records separated by a single blank line. Per-record line order is N -> J -> L -> I -> O -> D -> (R parallel). The R line is emitted only when run_mode == 'parallel'; serial is implicit. Orthogonal to per-stage standalone_stack. See the JSON authoring guide and ARCHITECTURE.md Sec.3.6 for details. No effect when stages is empty."
+          "description": "When true and the base declares at least one stage, Chopper emits one aggregate scheduler stack file at the domain root named <basename(domain_root)>.stack (filename sourced from the runtime domain-root basename; there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage in topological order of the stage dependency graph (dependencies plus load_from edges, authored position as tiebreaker), with records separated by a single blank line. Per-record line order is N -> J -> L -> I -> O -> D -> (R parallel). The R line is emitted only when run_mode == 'parallel'; serial is implicit. Orthogonal to per-stage standalone_stack. See the JSON authoring guide and ARCHITECTURE.md Sec.3.6 for details. No effect when stages is empty."
         },
         "indent": {
           "type": "boolean",
@@ -115,7 +115,7 @@
         "$ref": "#/$defs/stageDefinition"
       },
       "minItems": 1,
-      "description": "Optional ordered list of stage definitions for F3 run-file generation. Stages are optional; users who want to generate `<stage>.tcl` run scripts from JSON can define stages here. Each stage produces one run script file where `name` becomes the script filename. Stack files are optional and can be created manually. For users not using stages, omit this section; Chopper will still perform F1 (file trimming) and F2 (proc trimming). MUST NOT be empty if stages is present."
+      "description": "Optional ordered list of stage definitions for F3 run-file generation. Stages are optional; users who want to generate `<stage>.tcl` run scripts from JSON can define stages here. Each stage produces one run script file where `name` becomes the script filename (`<stage>.stack` instead when the stage sets `standalone_stack`). Set `options.generate_stack` to also emit one aggregate stack file; otherwise stack files stay hand-authored. For users not using stages, omit this section; Chopper will still perform F1 (file trimming) and F2 (proc trimming). MUST NOT be empty if stages is present."
     }
   },
   "anyOf": [
@@ -158,7 +158,7 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
+          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "load_from": {
           "type": "string",
@@ -168,36 +168,36 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "exit_codes": {
           "type": "array",
           "items": { "type": "integer" },
           "minItems": 1,
-          "description": "Optional legal exit codes for the stage. Becomes the `L` line in a manually-created stack file (for example `L 0 3 5`)."
+          "description": "Optional legal exit codes for the stage. Becomes the `L` line in the aggregate stack (options.generate_stack) or a hand-authored stack file (for example `L 0 3 5`)."
         },
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional execution command for the stage. Becomes the `J` line in a manually-created stack file (for example `J -xt vw Ifev_fm_shell -B BLOCK -T fev_fm_lite`)."
+          "description": "Optional execution command for the stage. Becomes the `J` line in the aggregate stack (options.generate_stack) or a hand-authored stack file (for example `J -xt vw Ifev_fm_shell -B BLOCK -T fev_fm_lite`)."
         },
         "inputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "run_mode": {
           "type": "string",
           "enum": ["serial", "parallel"],
           "default": "serial",
-          "description": "Optional execution mode (serial or parallel). Translated into `R <value>` in a manually-created stack file. Since 2025.12."
+          "description": "Optional execution mode (serial or parallel). The aggregate stack (options.generate_stack) emits an `R parallel` line only when set to parallel; serial is implicit."
         },
         "language": {
           "type": "string",
@@ -208,7 +208,7 @@
         "standalone_stack": {
           "type": "boolean",
           "default": false,
-          "description": "When true, F3 additionally emits <stage>.stack whose body is the Intel header followed by the authored steps verbatim (no N/J/L/D record derivation; command, exit_codes, dependencies, inputs, outputs, load_from, and run_mode are ignored for body construction). Orthogonal to options.generate_stack and to <stage>.tcl emission: the stage still emits its .tcl and (when generate_stack is true) is still included as a derived record in the aggregate <domain>.stack. Default: false. See ARCHITECTURE.md Sec.3.6 and the JSON authoring guide Sec.2.2."
+          "description": "When true, F3 emits <stage>.stack whose body is the Intel header followed by the authored steps verbatim (no N/J/L/D record derivation; command, exit_codes, dependencies, inputs, outputs, load_from, and run_mode are ignored for body construction) instead of <stage>.tcl: the standalone stack is the stage's sole driver. When options.generate_stack is true the stage is still included as a derived record in the aggregate <domain>.stack. Default: false. See ARCHITECTURE.md Sec.3.6 and the JSON authoring guide Sec.2.2."
         },
         "steps": {
           "type": "array",

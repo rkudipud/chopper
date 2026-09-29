@@ -293,22 +293,6 @@ def test_walk_relative_files_stat_raises_filenotfound() -> None:
     assert name == "files_removed.txt"
 
 
-def test_resolve_before_path_with_state_none() -> None:
-    """_resolve_before_path calls _before_root; with state=None returns domain_root/rel."""
-    from datetime import datetime
-
-    from chopper.audit.writers import _resolve_before_path
-    from chopper.core.models_audit import RunRecord
-
-    now = datetime.now(UTC)
-    record = RunRecord(run_id="r3", command="trim", started_at=now, ended_at=now, exit_code=0, state=None)
-    cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=False)
-    ctx2 = ChopperContext(config=cfg, fs=InMemoryFS(), diag=_Sink(), progress=_Progress())
-
-    result = _resolve_before_path(ctx2, record, Path("lib.tcl"))
-    assert result == DOMAIN / "lib.tcl"
-
-
 def test_p4_commands_ctx_ward_root_fallback() -> None:
     """Line 567: when ward_root kwarg is None, _ward_root falls back to ctx.config.ward_root."""
     from datetime import datetime

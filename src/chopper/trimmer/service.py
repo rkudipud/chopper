@@ -76,6 +76,7 @@ from pathlib import Path
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.fs_walk import copy_tree
 from chopper.core.models_common import DomainState, FileTreatment
 from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_parser import ParseResult
@@ -223,7 +224,7 @@ class TrimmerService:
                     parsed,
                     keep_by_file,
                     source_by_file,
-                    insert_markers=manifest.insert_markers,
+                    insert_markers=manifest.options.insert_markers,
                 )
             except ProcDropError as exc:
                 _emit_ve26(ctx, rel_path, str(exc))
@@ -363,7 +364,7 @@ class TrimmerService:
             if ctx.fs.exists(backup_jsons):
                 ctx.fs.remove(backup_jsons, recursive=True)
             ctx.fs.mkdir(backup_jsons, parents=True, exist_ok=True)
-            _sync_dir(ctx, domain_jsons, backup_jsons)
+            copy_tree(ctx.fs, domain_jsons, backup_jsons)
         except OSError:
             # Best-effort; preserve_input_sources will use whatever the
             # backup has. The run itself is unaffected because P1 already
@@ -745,20 +746,3 @@ def _emit_vw22(ctx: ChopperContext, rel_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Filesystem helpers
 # ---------------------------------------------------------------------------
-
-
-def _sync_dir(ctx: ChopperContext, src: Path, dst: Path) -> None:
-    """Recursively copy all files under *src* into *dst*.
-
-    Creates intermediate directories as needed. *dst* must already exist.
-    """
-    for child in ctx.fs.list(src):
-        stat = ctx.fs.stat(child)
-        rel = child.relative_to(src)
-        dst_child = dst / rel
-        if stat.is_dir:
-            ctx.fs.mkdir(dst_child, parents=True, exist_ok=True)
-            _sync_dir(ctx, child, dst_child)
-        else:
-            ctx.fs.mkdir(dst_child.parent, parents=True, exist_ok=True)
-            ctx.fs.copy_file(child, dst_child)

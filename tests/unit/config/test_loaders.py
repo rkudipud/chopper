@@ -12,6 +12,7 @@ from chopper.config.loaders import (
     load_project,
     topo_sort_features,
 )
+from chopper.config.schema import validate_json
 from chopper.core.diagnostics import Diagnostic
 from chopper.core.models_config import (
     AddStageAction,
@@ -377,6 +378,30 @@ class TestLoadFeature:
         action = feat.flow_actions[0]
         assert isinstance(action, AddStageAction)
         assert action.stage.reference_file == "scripts/dft_check.steps"
+
+    @pytest.mark.parametrize("standalone", [True, False])
+    def test_feature_stages_accept_and_hydrate_standalone_stack(self, standalone: bool) -> None:
+        # ARCHITECTURE.md Sec.3.6: standalone_stack is a stageDefinition field on
+        # every authoring surface -- base stages, add_stage_*, replace_stage.with.
+        stage: dict = {"name": "eco", "load_from": "", "steps": ["N eco"]}
+        if standalone:
+            stage["standalone_stack"] = True
+        raw = {
+            "$schema": "feature-v1",
+            "name": "x",
+            "flow_actions": [
+                {"action": "add_stage_after", "reference": "main", **stage},
+                {"action": "replace_stage", "reference": "old", "with": stage},
+            ],
+        }
+        schema_diags: list[Diagnostic] = []
+        assert validate_json(raw, Path("feat.json"), schema_diags.append), schema_diags
+        feat, _ = _collect_feat(raw)
+        added, replaced = feat.flow_actions
+        assert isinstance(added, AddStageAction)
+        assert isinstance(replaced, ReplaceStageAction)
+        assert added.stage.standalone_stack is standalone
+        assert replaced.replacement.standalone_stack is standalone
 
     def test_remove_step_action(self) -> None:
         raw = {

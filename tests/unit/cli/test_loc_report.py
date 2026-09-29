@@ -4,7 +4,7 @@ End-to-end behaviour (writes nothing, table renders, exit codes) is
 covered by :mod:`tests.integration.test_cli_loc`. This module isolates
 the percent-reduction math and the per-treatment bucket attribution of
 :func:`build_loc_report`, which replays the real trim in memory (see
-:mod:`chopper.trimmer.simulate`).
+:mod:`chopper.orchestrator.simulate`).
 """
 
 from __future__ import annotations
@@ -22,15 +22,8 @@ from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance
-from chopper.core.models_config import BaseJson, LoadedConfig
 from chopper.core.models_parser import ParseResult
 from chopper.core.models_trimmer import GeneratedArtifact
-
-
-def _minimal_loaded() -> LoadedConfig:
-    """Smallest valid config the in-memory trim replay needs."""
-    return LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
-
 
 # ---------------------------------------------------------------------------
 # LocReport percent-reduction math
@@ -171,7 +164,6 @@ def test_build_loc_report_generated_preexisting_contributes_before_sloc() -> Non
 
     report = build_loc_report(
         ctx=ctx,
-        loaded=_minimal_loaded(),
         parsed=parsed,
         manifest=manifest,
         generated_artifacts=artifacts,

@@ -79,5 +79,4 @@ class DomainStateService:
             case=case,  # type: ignore[arg-type]
             domain_exists=domain_exists,
             backup_exists=backup_exists,
-            hand_edited=False,
         )

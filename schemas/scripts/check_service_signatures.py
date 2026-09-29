@@ -1,16 +1,18 @@
 """Fail CI if any ``class *Service`` under ``src/chopper/`` has a ``run``
 signature that disagrees with the canonical table in
-``technical_docs/ENGINEERING.md`` Sec.9.2.
+``technical_docs/ENGINEERING.md`` Sec.9.2, or if a module-level function
+that the table names (``validate_pre``, ``validate_post``) drifts.
 
-This is the doc<->code single-source-of-truth gate described in
-``technical_docs/FINAL_HANDOFF_REVIEW.md`` PR-4. Agents that silently change a service
-signature (param order, types, return type) fail this check.
+This is the doc<->code single-source-of-truth gate for the service seams.
+Agents that silently change a service signature (param order, types,
+return type) fail this check.
 
 Extraction approach:
 
 * Source side -- parse every ``class *Service`` in ``src/chopper/`` with
   ``ast`` and capture the ``run`` method's signature as a canonical string:
-  ``run(self, ctx, ...) -> ReturnType``.
+  ``run(self, ctx, ...) -> ReturnType``; also capture every top-level
+  function whose name appears in the table.
 * Docs side -- scan ``technical_docs/ENGINEERING.md`` for the Sec.9.2 service table
   and extract each row's signature string, normalised the same way.
 
@@ -65,15 +67,25 @@ def load_documented_signatures() -> dict[str, str]:
         print(f"ERROR: architecture plan not found: {ARCH_PLAN}", file=sys.stderr)
         sys.exit(2)
     sigs: dict[str, str] = {}
+    in_section = False
     for line in ARCH_PLAN.read_text(encoding="utf-8").splitlines():
-        match = TABLE_ROW_RE.match(line)
+        if line.startswith("### "):
+            # Only the Sec.9.2 table is the seam contract; other tables in the
+            # doc (ports, CLI flags) share the row shape but are not seams.
+            in_section = line.startswith("### 9.2 ")
+            continue
+        match = TABLE_ROW_RE.match(line) if in_section else None
         if match:
             sigs[match.group(1)] = normalise_signature(match.group(2))
     return sigs
 
 
-def load_source_signatures() -> dict[str, str]:
-    """Return ``{ServiceName: normalised_run_signature}`` from the source tree."""
+def load_source_signatures(documented_functions: frozenset[str] = frozenset()) -> dict[str, str]:
+    """Return ``{name: normalised_signature}`` from the source tree.
+
+    Covers every ``class *Service`` ``run`` method plus each top-level
+    function whose name is in ``documented_functions``.
+    """
     sigs: dict[str, str] = {}
     if not SOURCE_ROOT.is_dir():
         return sigs
@@ -82,6 +94,9 @@ def load_source_signatures() -> dict[str, str]:
             tree = ast.parse(py_file.read_text(encoding="utf-8"))
         except SyntaxError:
             continue
+        for item in tree.body:
+            if isinstance(item, ast.FunctionDef) and item.name in documented_functions:
+                sigs[item.name] = _signature(item)
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -89,16 +104,20 @@ def load_source_signatures() -> dict[str, str]:
                 continue
             for item in node.body:
                 if isinstance(item, ast.FunctionDef) and item.name == "run":
-                    args = ast.unparse(item.args)
-                    returns = ast.unparse(item.returns) if item.returns else "None"
-                    sigs[node.name] = normalise_signature(f"run({args}) -> {returns}")
+                    sigs[node.name] = _signature(item)
                     break
     return sigs
 
 
+def _signature(func: ast.FunctionDef) -> str:
+    returns = ast.unparse(func.returns) if func.returns else "None"
+    return normalise_signature(f"{func.name}({ast.unparse(func.args)}) -> {returns}")
+
+
 def main() -> int:
     documented = load_documented_signatures()
-    source = load_source_signatures()
+    functions = frozenset(name for name in documented if not name.endswith("Service"))
+    source = load_source_signatures(functions)
     if not documented:
         print(
             "ERROR: no Service rows found in technical_docs/ENGINEERING.md Sec.9.2. "
@@ -115,6 +134,8 @@ def main() -> int:
             continue
         if documented[name] != src_sig:
             mismatches.append((name, documented[name], src_sig))
+    # A documented seam with no implementation is drift in the other direction.
+    mismatches.extend((name, documented[name], "<not in source>") for name in sorted(documented.keys() - source.keys()))
 
     if not mismatches:
         print(f"OK: {len(source)} service signatures match technical_docs/ENGINEERING.md Sec.9.2")

@@ -759,13 +759,11 @@ def _render_loc_table(ctx: ChopperContext, result: object) -> None:
     """Render the LOC breakdown table for a single cmd_loc result."""
     manifest = getattr(result, "manifest", None)
     parsed = getattr(result, "parsed", None)
-    loaded = getattr(result, "loaded", None)
     generated_artifacts = getattr(result, "generated_artifacts", None) or ()
 
-    if manifest is not None and parsed is not None and loaded is not None:
+    if manifest is not None and parsed is not None:
         report = build_loc_report(
             ctx=ctx,
-            loaded=loaded,
             parsed=parsed,
             manifest=manifest,
             generated_artifacts=generated_artifacts,

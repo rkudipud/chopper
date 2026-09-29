@@ -351,7 +351,7 @@ def test_runner_localfs_dry_run_stages_domain(tmp_path: Path) -> None:
     assert result.manifest is not None
 
     manifest = result.manifest
-    assert manifest.generate_stack is True
+    assert manifest.options.generate_stack is True
 
     # Three stages -> three .tcl GENERATED entries, plus one aggregate
     # ``stages_domain.stack`` (domain basename). No per-stage .stack files

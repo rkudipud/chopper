@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from chopper.core.models_common import FileTreatment
+from chopper.core.models_config import BaseOptions
 
 __all__ = [
     "CompiledManifest",
@@ -139,10 +140,11 @@ class CompiledManifest:
     proc_removals: dict[str, ProcRemoval] = field(default_factory=dict)
     provenance: dict[Path, FileProvenance] = field(default_factory=dict)
     stages: tuple[StageSpec, ...] = ()
-    generate_stack: bool = False
     stack_order: tuple[str, ...] = ()
-    insert_markers: bool = False
-    """``options.insert_markers``, carried to P5a so F2 knows whether to write Sec.3.11 markers."""
+    options: BaseOptions = field(default_factory=BaseOptions)
+    """The base JSON ``options`` block, frozen at P3. The single channel through
+    which P5 (``insert_markers``, ``generate_stack``, ``indent``) and P6
+    (``cross_validate``) read run-wide switches."""
 
     def __post_init__(self) -> None:
         fd_keys = [p.as_posix() for p in self.file_decisions]

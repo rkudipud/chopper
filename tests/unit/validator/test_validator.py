@@ -322,6 +322,8 @@ def _make_manifest(
     files: dict[Path, FileTreatment] | None = None,
     procs: dict[str, ProcDecision] | None = None,
     stages: tuple[StageSpec, ...] = (),
+    *,
+    cross_validate: bool = True,
 ) -> CompiledManifest:
     files = files or {}
     procs = procs or {}
@@ -334,6 +336,7 @@ def _make_manifest(
         proc_decisions={k: procs[k] for k in sorted(procs)},
         provenance=provenance,
         stages=stages,
+        options=BaseOptions(cross_validate=cross_validate),
     )
 
 
@@ -861,11 +864,14 @@ def test_validate_post_ignores_blank_and_comment_stage_steps() -> None:
 
 
 def test_validate_post_cross_validate_false_suppresses_vw14_15_16() -> None:
-    """When cross_validate=False, VW-14/15/16 are suppressed but VW-17 still fires."""
-    manifest = _make_manifest(stages=(_stage(steps=("missing.tcl", "run_flow", "source lib/x.tcl", "/abs/path.tcl")),))
+    """When options.cross_validate is false, VW-14/15/16 are suppressed but VW-17 still fires."""
+    manifest = _make_manifest(
+        stages=(_stage(steps=("missing.tcl", "run_flow", "source lib/x.tcl", "/abs/path.tcl")),),
+        cross_validate=False,
+    )
     ctx = _ctx()
 
-    validate_post(ctx, manifest, _empty_graph(), rewritten=(), cross_validate=False)
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
 
     codes = _codes(ctx)
     # VW-14/15/16 suppressed
@@ -908,10 +914,13 @@ def test_validate_post_skips_vw26_when_reference_file_is_none() -> None:
 
 
 def test_validate_post_cross_validate_false_suppresses_vw26() -> None:
-    manifest = _make_manifest(stages=(_stage(steps=("a",), reference_file="scripts/setup.steps"),))
+    manifest = _make_manifest(
+        stages=(_stage(steps=("a",), reference_file="scripts/setup.steps"),),
+        cross_validate=False,
+    )
     ctx = _ctx()
 
-    validate_post(ctx, manifest, _empty_graph(), rewritten=(), cross_validate=False)
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
 
     assert "VW-26" not in _codes(ctx)
 

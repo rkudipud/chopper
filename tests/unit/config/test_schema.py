@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from chopper.config.schema import validate_json
@@ -458,3 +459,35 @@ class TestUnknownSchema:
         path = Path("jsons/base.json")
         diags = _collect({"$schema": "base-v1"}, path=path)
         assert diags[0].path == path
+
+
+# ---------------------------------------------------------------------------
+# Shipped JSON corpus
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_CHOPPER_SCHEMAS = {"base-v1", "feature-v1", "project-v1"}
+
+
+def _shipped_chopper_jsons() -> list[Path]:
+    found = []
+    for root in ("examples", "tests/fixtures"):
+        for path in sorted((_REPO_ROOT / root).rglob("*.json")):
+            try:
+                doc = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if isinstance(doc, dict) and doc.get("$schema") in _CHOPPER_SCHEMAS:
+                found.append(path)
+    return found
+
+
+def test_every_shipped_chopper_json_is_schema_valid() -> None:
+    """Examples and fixtures are the authoring reference; none may drift from the schemas."""
+    corpus = _shipped_chopper_jsons()
+    assert len(corpus) > 40  # guard against the glob silently matching nothing
+    failures = {
+        path.relative_to(_REPO_ROOT).as_posix(): [d.message for d in _collect(json.loads(path.read_text("utf-8")))]
+        for path in corpus
+    }
+    assert {k: v for k, v in failures.items() if v} == {}

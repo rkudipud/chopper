@@ -230,31 +230,31 @@ You **do not need** a project JSON to use features -- pass `--base` and `--featu
 
 ```text
 <domain>/
-??? jsons/
-    ??? base.json
++-- jsons/
+    +-- base.json
 ```
 
 **Base + features**, no project file:
 
 ```text
 <domain>/
-??? jsons/
-    ??? base.json
-    ??? features/
-        ??? dft.feature.json
-        ??? scan_eco.feature.json
++-- jsons/
+    +-- base.json
+    +-- features/
+        +-- dft.feature.json
+        +-- scan_eco.feature.json
 ```
 
 **Base + features + project recipe**:
 
 ```text
 <domain>/
-??? jsons/
-?   ??? base.json
-?   ??? features/
-?       ??? dft.feature.json
-?       ??? scan_eco.feature.json
-??? project.json     <- names base + [dft, scan_eco]
++-- jsons/
+|   +-- base.json
+|   +-- features/
+|       +-- dft.feature.json
+|       +-- scan_eco.feature.json
++-- project.json     <- names base + [dft, scan_eco]
 ```
 
 The project JSON can also sit outside the domain (a shared `configs/` dir, a release repo). It just stores paths.

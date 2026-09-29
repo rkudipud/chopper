@@ -28,10 +28,10 @@ def test_config_source_root_returns_backup_when_state_says_backup_exists() -> No
     from chopper.core.models_common import DomainState
 
     ctx = _ctx()
-    state_with_backup = DomainState(case=2, domain_exists=True, backup_exists=True, hand_edited=False)
+    state_with_backup = DomainState(case=2, domain_exists=True, backup_exists=True)
     assert _config_source_root(ctx, state_with_backup) == BACKUP
 
-    state_no_backup = DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False)
+    state_no_backup = DomainState(case=1, domain_exists=True, backup_exists=False)
     assert _config_source_root(ctx, state_no_backup) == DOMAIN
     assert _config_source_root(ctx, None) == DOMAIN
 

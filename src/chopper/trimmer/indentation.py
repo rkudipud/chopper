@@ -47,8 +47,6 @@ class TclIndentationService:
         manifest: CompiledManifest,
         trim_report: TrimReport,
         artifacts: tuple[GeneratedArtifact, ...],
-        *,
-        enabled: bool = True,
     ) -> tuple[TrimReport, tuple[GeneratedArtifact, ...], tuple[Path, ...]]:
         """Format final ``.tcl`` outputs and return updated P6 inputs.
 
@@ -58,14 +56,14 @@ class TclIndentationService:
         The path tuple is absolute and is intended for ``validate_post``'s
         ``rewritten`` argument.
 
-        When ``enabled`` is ``False`` (the default for ``base.options.indent``
-        is ``false``), the formatter is skipped entirely: ``trim_report`` and
-        ``artifacts`` pass through unchanged, but the rewritten-path tuple is
-        still computed so P6's brace-balance check runs over every PROC_TRIM
-        and GENERATED ``.tcl`` output that P5a/P5b wrote.
+        When ``manifest.options.indent`` is ``False`` (the default), the
+        formatter is skipped entirely: ``trim_report`` and ``artifacts`` pass
+        through unchanged, but the rewritten-path tuple is still computed so
+        P6's brace-balance check runs over every PROC_TRIM and GENERATED
+        ``.tcl`` output that P5a/P5b wrote.
         """
 
-        if not enabled:
+        if not manifest.options.indent:
             rewritten_paths = tuple(ctx.config.domain_root / rel_path for rel_path in tcl_output_paths(manifest))
             return trim_report, artifacts, rewritten_paths
 

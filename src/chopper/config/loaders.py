@@ -77,39 +77,29 @@ def _load_procedures_section(
     on_diagnostic: DiagnosticEmitter,
 ) -> ProceduresSection:
     """Hydrate a ``procedures`` object; emits ``VE-03`` for empty procs arrays."""
-    include: list[ProcEntryRef] = []
-    for entry in raw.get("include") or []:
-        procs = tuple(entry.get("procs") or [])
-        if not procs:
-            on_diagnostic(
-                Diagnostic.build(
-                    "VE-03",
-                    phase=Phase.P1_CONFIG,
-                    message=(f"procedures.include entry for file {entry.get('file')!r} has an empty procs array"),
-                    path=source_path,
-                    hint="Remove the entry or add at least one proc name",
-                )
-            )
-            continue
-        include.append(ProcEntryRef(file=Path(entry["file"]), procs=procs))
 
-    exclude: list[ProcEntryRef] = []
-    for entry in raw.get("exclude") or []:
-        procs = tuple(entry.get("procs") or [])
-        if not procs:
-            on_diagnostic(
-                Diagnostic.build(
-                    "VE-03",
-                    phase=Phase.P1_CONFIG,
-                    message=(f"procedures.exclude entry for file {entry.get('file')!r} has an empty procs array"),
-                    path=source_path,
-                    hint="Remove the entry if you have nothing to exclude",
+    def _entries(key: str, hint: str) -> tuple[ProcEntryRef, ...]:
+        refs: list[ProcEntryRef] = []
+        for entry in raw.get(key) or []:
+            procs = tuple(entry.get("procs") or [])
+            if not procs:
+                on_diagnostic(
+                    Diagnostic.build(
+                        "VE-03",
+                        phase=Phase.P1_CONFIG,
+                        message=f"procedures.{key} entry for file {entry.get('file')!r} has an empty procs array",
+                        path=source_path,
+                        hint=hint,
+                    )
                 )
-            )
-            continue
-        exclude.append(ProcEntryRef(file=Path(entry["file"]), procs=procs))
+                continue
+            refs.append(ProcEntryRef(file=Path(entry["file"]), procs=procs))
+        return tuple(refs)
 
-    return ProceduresSection(include=tuple(include), exclude=tuple(exclude))
+    return ProceduresSection(
+        include=_entries("include", "Remove the entry or add at least one proc name"),
+        exclude=_entries("exclude", "Remove the entry if you have nothing to exclude"),
+    )
 
 
 def _load_stage_def(raw: dict[str, Any]) -> StageDefinition:
@@ -158,24 +148,12 @@ def _load_flow_action(raw: dict[str, Any]) -> FlowAction:
         )
 
     if action in ("add_stage_before", "add_stage_after"):
-        # The new stage fields are inline in the action object, not nested.
-        stage_def = StageDefinition(
-            name=raw["name"],
-            load_from=raw.get("load_from") or "",
-            steps=tuple(raw.get("steps") or []),
-            dependencies=tuple(raw.get("dependencies") or []),
-            exit_codes=tuple(raw.get("exit_codes") or []),
-            command=raw.get("command") or None,
-            inputs=tuple(raw.get("inputs") or []),
-            outputs=tuple(raw.get("outputs") or []),
-            run_mode=raw.get("run_mode", "serial"),  # type: ignore[arg-type]
-            language=raw.get("language", "tcl"),  # type: ignore[arg-type]
-            reference_file=raw.get("reference_file"),
-        )
+        # The new stage fields are inline in the action object, not nested;
+        # _load_stage_def reads only stage keys, so the action keys are ignored.
         return AddStageAction(
             action=action,  # type: ignore[arg-type]
             reference=raw["reference"],
-            stage=stage_def,
+            stage=_load_stage_def(raw),
             skip_if_no_stage=skip,
         )
 
@@ -243,13 +221,9 @@ def load_base(
         schema errors are the schema layer's responsibility.
     :returns: Populated :class:`BaseJson` instance.
     """
-    options_raw = raw.get("options") or {}
-    options = BaseOptions(
-        cross_validate=options_raw.get("cross_validate", True),
-        generate_stack=options_raw.get("generate_stack", False),
-        indent=options_raw.get("indent", False),
-        insert_markers=options_raw.get("insert_markers", False),
-    )
+    # The schema closes ``options`` (additionalProperties: false), so every
+    # key maps to a BaseOptions field; defaults live on BaseOptions only.
+    options = BaseOptions(**(raw.get("options") or {}))
 
     stages = tuple(_load_stage_def(s) for s in (raw.get("stages") or []))
     files = _load_files_section(raw.get("files") or {})

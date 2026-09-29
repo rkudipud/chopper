@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.fs_walk import iter_domain_files
 from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 
@@ -314,43 +315,12 @@ class ParserService:
         """
         # O1 fast path: reuse P1's domain walk if available.
         if loaded is not None and loaded.domain_file_cache:
-            tcl_files = [rel for rel, _ in loaded.domain_file_cache if rel.suffix.lower() == _TCL_SUFFIX]
-            tcl_files.sort(key=lambda p: p.as_posix())
-            return tcl_files
-
-        # Fallback: full BFS walk (P1 had no globs so no cache).
-        from collections import deque  # noqa: PLC0415
-
-        source_root = self._source_root(ctx)
-        if not ctx.fs.exists(source_root):
-            return []
-
-        results: list[Path] = []
-        frontier: deque[Path] = deque([source_root])
-        while frontier:
-            current = frontier.popleft()
-            try:
-                children = ctx.fs.list(current)
-            except OSError:
-                continue
-            for child in children:
-                try:
-                    rel = child.relative_to(source_root)
-                except ValueError:
-                    continue
-                rel_posix = rel.as_posix()
-                if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
-                    continue
-                try:
-                    st = ctx.fs.stat(child)
-                except OSError:
-                    continue
-                if st.is_dir:
-                    frontier.append(child)
-                elif rel.suffix.lower() == _TCL_SUFFIX:
-                    results.append(rel)
-        results.sort(key=lambda p: p.as_posix())
-        return results
+            candidates = [rel for rel, _ in loaded.domain_file_cache]
+        else:
+            candidates = list(iter_domain_files(ctx.fs, self._source_root(ctx)))
+        tcl_files = [rel for rel in candidates if rel.suffix.lower() == _TCL_SUFFIX]
+        tcl_files.sort(key=lambda p: p.as_posix())
+        return tcl_files
 
     @staticmethod
     def _source_root(ctx: ChopperContext) -> Path:

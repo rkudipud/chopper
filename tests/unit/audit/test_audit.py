@@ -707,14 +707,14 @@ def test_audit_service_tolerates_missing_input_file() -> None:
 def test_audit_service_records_trim_state_first_vs_retrim() -> None:
     fs = InMemoryFS()
     ctx = _make_ctx(fs=fs)
-    state_first = DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False)
+    state_first = DomainState(case=1, domain_exists=True, backup_exists=False)
     AuditService().run(ctx, _record(state=state_first))
     payload_first = json.loads(fs.read_text(AUDIT / "chopper_run.json"))
     assert payload_first["trim_state"] == "first-trim"
 
     fs2 = InMemoryFS()
     ctx2 = _make_ctx(fs=fs2)
-    state_retrim = DomainState(case=2, domain_exists=True, backup_exists=True, hand_edited=False)
+    state_retrim = DomainState(case=2, domain_exists=True, backup_exists=True)
     AuditService().run(ctx2, _record(state=state_retrim))
     payload_retrim = json.loads(fs2.read_text(AUDIT / "chopper_run.json"))
     assert payload_retrim["trim_state"] == "re-trim"

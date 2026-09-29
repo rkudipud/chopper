@@ -71,107 +71,107 @@ Authoritative layout of `src/chopper/` as of v3.4.0. Every file below exists on 
 
 ```
 src/chopper/
-??? core/                        # Stage 0 -- no deps on sibling modules
-?   ??? models_common.py         # Shared primitives: FileTreatment, DomainState, FileStat
-?   ??? models_parser.py         # P2 parser records: ProcEntry, ParsedFile, ParseResult
-?   ??? models_config.py         # P1 JSON/config records: BaseJson, FeatureJson, LoadedConfig
-?   ??? models_compiler.py       # P3/P4 records: CompiledManifest, DependencyGraph, StageSpec, ...
-?   ??? models_trimmer.py        # P5 trimmer/generator records: TrimReport, GeneratedArtifact
-?   ??? models_audit.py          # P7/run records: RunRecord, RunResult, AuditManifest
-?   ??? diagnostics.py           # Severity, Phase, Diagnostic, code registry guard
-?   ??? _diagnostic_registry.py  # Machine-generated band -> code mapping (mirrors DIAGNOSTIC_CODES.md)
-?   ??? errors.py                # Exception types (programmer errors only)
-?   ??? protocols.py             # Ports: FileSystemPort, DiagnosticSink, ProgressSink
-?   ??? context.py               # ChopperContext + RunConfig (service bundle, Sec.6.1)
-?   ??? serialization.py         # JSON encode/decode for all models
-?   ??? globs.py                 # Canonical POSIX glob -> regex translator
-?   ??? tool_commands.py         # Vendor-tool command pool parser (TI-01)
-?   ??? file_perms.py            # Cross-phase permission helpers (ensure_executable, mirror_perms_plus_exec)
-?   ??? fs_walk.py               # Shared filesystem-tree walker (TEXT_LIKE_EXTENSIONS, walk_files)
-?   ??? header.py                # Intel-standard copyright header for generated files
-?
-??? adapters/                    # Concrete implementations of ports (ctx.fs / ctx.diag / ctx.progress only)
-?   ??? fs_local.py              # LocalFS
-?   ??? fs_memory.py             # InMemoryFS (tests)
-?   ??? sink_collecting.py       # CollectingSink (default)
-?   ??? progress_rich.py         # RichProgress
-?   ??? progress_silent.py       # SilentProgress
-?
-??? data/                        # Bundled static data consumed at runtime
-?   ??? tool_commands/           # Vendor tool-command pools (auto-loaded; see Sec.3.10 in architecture doc)
-?       ??? pt.commands          # PrimeTime (~1 050 commands)
-?       ??? pwr.commands         # PrimePower (~1 110)
-?       ??? pe.commands          # PrimeECO (~1 000)
-?       ??? ps.commands          # PrimeSim (~1 000)
-?       ??? fm.commands          # Formality (~650)
-?       ??? pc.commands          # PrimeClosure (~350)
-?
-??? parser/                      # Stage 1 -- Tcl static analysis (P2)
-?   ??? service.py               # ParserService.run(ctx, files) -> ParseResult
-?   ??? tokenizer.py             # Tcl state machine tokenizer
-?   ??? proc_extractor.py        # ProcEntry extraction from token stream
-?   ??? namespace_tracker.py     # LIFO namespace stack
-?   ??? call_extractor_body.py   # Call-site extraction from proc bodies
-?   ??? call_extractor_classify.py  # Call classification (local / qualified / dynamic)
-?   ??? call_extractor_constants.py # Constant patterns for call recognition
-?   ??? call_extractor_sources.py   # Source-reference extraction
-?   ??? call_extractor_structural.py # Structural call patterns (namespace eval, etc.)
-?
-??? config/                      # Stage 2a -- JSON loading (part of P1)
-?   ??? service.py               # ConfigService.run(ctx, state) -> LoadedConfig
-?   ??? loaders.py               # File I/O + depends_on topo-sort
-?   ??? schema.py                # jsonschema validation adapters
-?
-??? compiler/                    # Stage 2b -- Merge + trace + F3 (P3, P4)
-?   ??? merge_service.py         # CompilerService.run(...) -- R1 ordered-overlay fold
-?   ??? trace_service.py         # TracerService.run(...) -- BFS call-tree trace
-?   ??? flow_resolver.py         # F3 flow-action resolver (add_stage_after, replace_steps, ...)
-?   ??? stack_graph.py           # Stage dependency graph + Kahn topo-sort for aggregate stacks
-?
-??? trimmer/                     # Stage 3a -- Trim state machine (P5a, P5c, P5d)
-?   ??? service.py               # TrimmerService.run(...) -- P5a dispatch loop
-?   ??? file_writer.py           # FULL_COPY / PROC_TRIM / REMOVE file dispatch
-?   ??? proc_dropper.py          # Atomic proc-body deletion from Tcl files
-?   ??? indentation.py           # TclIndentationService -- P5c opt-in normaliser
-?   ??? companion_sync.py        # CompanionSyncService -- P5d companion-file sync
-?   ??? input_preserver.py       # P5a tail: mirror jsons/ + out-of-tree inputs into rebuilt domain
-?
-??? generators/                  # Stage 3b -- Run-file emission (P5b)
-?   ??? service.py               # GeneratorService.run(...)
-?   ??? stage_emitter.py         # F3 <stage>.tcl writer
-?   ??? stack_emitter.py         # F3 <stage>.stack writer (N/J/L/D/I/O/R format)
-?
-??? audit/                       # Stage 3c -- .chopper/ writes (P7)
-?   ??? service.py               # AuditService.run(...)
-?   ??? writers.py               # Per-artifact writers (JSON, txt, logs)
-?   ??? hashing.py               # Deterministic content hashing for manifests
-?   ??? sloc.py                  # SLOC counting orchestrator (cloc -> fallback strategy)
-?   ??? cloc_backend.py          # cloc.pl invocation + JSON result parsing
-?   ??? internal_error.py        # internal-error.log writer (exit-3 path)
-?   ??? vendor/                  # Vendored third-party tools
-?       ??? cloc.pl              # cloc v2.x (Perl; used by cloc_backend.py)
-?
-??? validator/                   # Stage 4 -- Pre+post validation (P1, P6)
-?   ??? functions.py             # validate_pre(ctx, loaded), validate_post(ctx, manifest, graph, rewritten)
-?
-??? orchestrator/                # Composes the services; owns phase loop
-?   ??? runner.py                # ChopperRunner
-?   ??? domain_state.py          # DomainStateService (P0)
-?   ??? gates.py                 # Phase-boundary gating logic
-?
-??? cli/                         # Stage 5 -- thin CLI (no business logic)
-    ??? main.py                  # argparse entrypoint
-    ??? commands.py              # validate / trim / loc / cleanup handlers
-    ??? loc_report.py            # LOC report builder (chopper loc)
-    ??? render.py                # Rich-based output formatting
++-- core/                        # Stage 0 -- no deps on sibling modules
+|   +-- models_common.py         # Shared primitives: FileTreatment, DomainState, FileStat
+|   +-- models_parser.py         # P2 parser records: ProcEntry, ParsedFile, ParseResult
+|   +-- models_config.py         # P1 JSON/config records: BaseJson, FeatureJson, LoadedConfig
+|   +-- models_compiler.py       # P3/P4 records: CompiledManifest, DependencyGraph, StageSpec, ...
+|   +-- models_trimmer.py        # P5 trimmer/generator records: TrimReport, GeneratedArtifact
+|   +-- models_audit.py          # P7/run records: RunRecord, RunResult, AuditManifest
+|   +-- diagnostics.py           # Severity, Phase, Diagnostic, code registry guard
+|   +-- _diagnostic_registry.py  # Machine-generated band -> code mapping (mirrors DIAGNOSTIC_CODES.md)
+|   +-- errors.py                # Exception types (programmer errors only)
+|   +-- protocols.py             # Ports: FileSystemPort, DiagnosticSink, ProgressSink
+|   +-- context.py               # ChopperContext + RunConfig (service bundle, Sec.6.1)
+|   +-- serialization.py         # JSON encode/decode for all models
+|   +-- globs.py                 # glob_match: the one Sec.6.3.1 glob matcher (P1, P1 validation, P3)
+|   +-- tool_commands.py         # Vendor-tool command pool parser (TI-01)
+|   +-- file_perms.py            # Cross-phase permission helpers (ensure_executable, mirror_perms_plus_exec)
+|   +-- fs_walk.py               # Domain walk + copy helpers (iter_domain_files, walk_files, copy_tree)
+|   +-- header.py                # Intel-standard copyright header for generated files
+|
++-- adapters/                    # Concrete implementations of ports (ctx.fs / ctx.diag / ctx.progress only)
+|   +-- fs_local.py              # LocalFS
+|   +-- fs_memory.py             # InMemoryFS (tests)
+|   +-- sink_collecting.py       # CollectingSink (default)
+|   +-- progress_rich.py         # RichProgress
+|   +-- progress_silent.py       # SilentProgress
+|
++-- data/                        # Bundled static data consumed at runtime
+|   +-- tool_commands/           # Vendor tool-command pools (auto-loaded; see Sec.3.10 in architecture doc)
+|       +-- pt.commands          # PrimeTime (~1 050 commands)
+|       +-- pwr.commands         # PrimePower (~1 110)
+|       +-- pe.commands          # PrimeECO (~1 000)
+|       +-- ps.commands          # PrimeSim (~1 000)
+|       +-- fm.commands          # Formality (~650)
+|       +-- pc.commands          # PrimeClosure (~350)
+|
++-- parser/                      # Stage 1 -- Tcl static analysis (P2)
+|   +-- service.py               # ParserService.run(ctx, files) -> ParseResult
+|   +-- tokenizer.py             # Tcl state machine tokenizer
+|   +-- proc_extractor.py        # ProcEntry extraction from token stream
+|   +-- namespace_tracker.py     # LIFO namespace stack
+|   +-- call_extractor_body.py   # Call-site extraction from proc bodies
+|   +-- call_extractor_classify.py  # Call classification (local / qualified / dynamic)
+|   +-- call_extractor_constants.py # Constant patterns for call recognition
+|   +-- call_extractor_sources.py   # Source-reference extraction
+|   +-- call_extractor_structural.py # Structural call patterns (namespace eval, etc.)
+|
++-- config/                      # Stage 2a -- JSON loading (part of P1)
+|   +-- service.py               # ConfigService.run(ctx, state) -> LoadedConfig
+|   +-- loaders.py               # File I/O + depends_on topo-sort
+|   +-- schema.py                # jsonschema validation adapters
+|
++-- compiler/                    # Stage 2b -- Merge + trace + F3 (P3, P4)
+|   +-- merge_service.py         # CompilerService.run(...) -- R1 ordered-overlay fold
+|   +-- trace_service.py         # TracerService.run(...) -- BFS call-tree trace
+|   +-- flow_resolver.py         # F3 flow-action resolver (add_stage_after, replace_steps, ...)
+|   +-- stack_graph.py           # Stage dependency graph + Kahn topo-sort for aggregate stacks
+|
++-- trimmer/                     # Stage 3a -- Trim state machine (P5a, P5c, P5d)
+|   +-- service.py               # TrimmerService.run(...) -- P5a dispatch loop
+|   +-- file_writer.py           # FULL_COPY / PROC_TRIM / REMOVE file dispatch
+|   +-- proc_dropper.py          # Atomic proc-body deletion from Tcl files
+|   +-- indentation.py           # TclIndentationService -- P5c opt-in normaliser
+|   +-- companion_sync.py        # CompanionSyncService -- P5d companion-file sync
+|   +-- input_preserver.py       # P5a tail: mirror jsons/ + out-of-tree inputs into rebuilt domain
+|
++-- generators/                  # Stage 3b -- Run-file emission (P5b)
+|   +-- service.py               # GeneratorService.run(...)
+|   +-- stage_emitter.py         # F3 <stage>.tcl writer
+|   +-- stack_emitter.py         # F3 <stage>.stack writer (N/J/L/D/I/O/R format)
+|
++-- audit/                       # Stage 3c -- .chopper/ writes (P7)
+|   +-- service.py               # AuditService.run(...)
+|   +-- writers.py               # Per-artifact writers (JSON, txt, logs)
+|   +-- hashing.py               # Deterministic content hashing for manifests
+|   +-- sloc.py                  # SLOC counting orchestrator (cloc -> fallback strategy)
+|   +-- cloc_backend.py          # cloc.pl invocation + JSON result parsing
+|   +-- internal_error.py        # internal-error.log writer (exit-3 path)
+|   +-- vendor/                  # Vendored third-party tools
+|       +-- cloc.pl              # cloc v2.x (Perl; used by cloc_backend.py)
+|
++-- validator/                   # Stage 4 -- Pre+post validation (P1, P6)
+|   +-- functions.py             # validate_pre(ctx, loaded), validate_post(ctx, manifest, graph, rewritten)
+|
++-- orchestrator/                # Composes the services; owns phase loop
+|   +-- runner.py                # ChopperRunner
+|   +-- domain_state.py          # DomainStateService (P0)
+|   +-- gates.py                 # Phase-boundary gating logic
+|
++-- cli/                         # Stage 5 -- thin CLI (no business logic)
+    +-- main.py                  # argparse entrypoint
+    +-- commands.py              # validate / trim / loc / cleanup handlers
+    +-- loc_report.py            # LOC report builder (chopper loc)
+    +-- render.py                # Rich-based output formatting
 ```
 
 **The dependency rule is strict and enforced at CI** (`import-linter`):
 
 ```
-cli ?? orchestrator ?? services ?? core (ports + models)
-                                      ?
-adapters ???????????????????????????????
+cli -> orchestrator -> services -> core (ports + models)
+                                      ^
+adapters -----------------------------+
 ```
 
 - `core` imports nothing from siblings -- only stdlib.
@@ -204,7 +204,7 @@ Each service is a class with a single public `run(...) -> TypedResult`. Services
 | `validate_post` (function) | P6 | `ctx, manifest, graph, rewritten` -> emits diagnostics | `validator/functions.py` |
 | `AuditService` | P7 | `ctx, record` -> `AuditManifest` | `audit/service.py` |
 
-**Every service has exactly one public method named `run(...)`.** Pre- and post-validation are plain module-level functions (`validate_pre`, `validate_post` in `validator/functions.py`) -- they read inputs and emit diagnostics; no service class is warranted (per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A9). Every other pipeline step is a service class with one `run()` method.
+**Every service has exactly one public method named `run(...)`.** Pre- and post-validation are plain module-level functions (`validate_pre`, `validate_post` in `validator/functions.py`) -- they read inputs and emit diagnostics; no service class is warranted. Every other pipeline step is a service class with one `run()` method.
 
 **Key discipline:** Services **do not** call each other directly. They return typed results; the orchestrator decides what flows where. This is what makes isolated feature development possible -- you can rewrite `TracerService` without touching `CompilerService` because neither imports the other.
 
@@ -237,7 +237,7 @@ Ports live in `src/chopper/core/protocols.py` as `typing.Protocol` definitions. 
 
 **Only two progress adapters exist.** Under `--plain`, no new `PlainProgress` class is introduced -- `RichProgress` is instantiated with a `rich.Console(no_color=True, force_terminal=False, legacy_windows=False)` and the live progress bar is disabled, so it emits single-line ASCII status messages. Same class, reconfigured. The CLI selects the adapter as follows: `-q / --quiet` -> `SilentProgress`; `--plain` -> `RichProgress` in ASCII/no-color mode; otherwise -> `RichProgress` in styled mode.
 
-**No `ClockPort`, no `SerializerPort`, no `AuditStore`, no `TableRenderer` port.** Per [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A2-A5:
+**No `ClockPort`, no `SerializerPort`, no `AuditStore`, no `TableRenderer` port.** Each was considered at design time and cut:
 
 - **Clock** -- `datetime.now(timezone.utc)` is called directly by `AuditService`. Tests use `freezegun` or `monkeypatch` to freeze time. Two call sites do not warrant a port.
 - **Serialization** -- `core/serialization.py` exposes a single helper `dump_model(obj) -> str` (`json.dumps(asdict(obj), sort_keys=True, default=_encode)`). Services and `AuditService` call it directly. No port, no `ctx.serde`.
@@ -304,7 +304,7 @@ class RunConfig:
     project_config_path: Path | None     # auto-discovered .project.features.config path (4.2.0+)
     # No `mode` field. The CLI dispatches on subcommand name (`validate` / `trim` /
     # `cleanup`); `cleanup` never enters ChopperRunner at all (it is a standalone
-    # `shutil.rmtree(<domain>_backup)` function). See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A7.
+    # `shutil.rmtree(<domain>_backup)` function).
 
 
 @dataclass(frozen=True)
@@ -313,7 +313,7 @@ class PresentationConfig:
     verbose: bool = False                # -v   : raise progress verbosity (DEBUG-ish detail)
     quiet: bool = False                  # -q   : SilentProgress; suppresses progress output
     plain: bool = False                  # --plain : no Rich rendering; plain text + no ANSI colors
-    # `--debug`, `--no-color`, `--json` were cut per DAY0_REVIEW A1. Rich honors NO_COLOR
+    # `--debug`, `--no-color`, `--json` were considered and cut. Rich honors NO_COLOR
     # automatically; exit-code-3 writes .chopper/internal-error.log; diagnostics.json
     # in the audit bundle is the machine-readable surface (tracked as FD-10).
 
@@ -328,7 +328,7 @@ class ChopperContext:
     diag: DiagnosticSink
     progress: ProgressSink
     # No clock / serde / audit ports. Services call datetime.now(timezone.utc),
-    # core.serialization.dump_model(), and ctx.fs directly. See [`DAY0_REVIEW.md`](DAY0_REVIEW.md) A3-A5.
+    # core.serialization.dump_model(), and ctx.fs directly.
 ```
 
 **Flag-to-adapter mapping (CLI responsibility; see [`technical_docs/CLI_REFERENCE.md`](CLI_REFERENCE.md) for flag definitions).**
@@ -505,8 +505,8 @@ class DiagnosticSink(Protocol):
 ### 8.4 Render path
 
 ```
-Service ?emit()?? CollectingSink ?snapshot()?? CLI cli/render.py (Rich)
-                        ??? AuditService ?? .chopper/diagnostics.json (via core.serialization.dump_model)
+Service -emit()-> CollectingSink -snapshot()-> CLI cli/render.py (Rich)
+                        +-- AuditService -> .chopper/diagnostics.json (via core.serialization.dump_model)
 ```
 
 The CLI is the **only** layer that formats for humans. Libraries stay silent.
@@ -531,7 +531,6 @@ class DomainState:
     case: Literal[1,2,3,4]               # architecture doc Sec.2.8 matrix (cases 1-4 only)
     domain_exists: bool
     backup_exists: bool
-    hand_edited: bool                    # informational only; no diagnostic emitted
 
 @dataclass(frozen=True)
 class LoadedConfig:
@@ -581,9 +580,13 @@ class ParseResult:
 @dataclass(frozen=True)
 class CompiledManifest:
     file_decisions: Mapping[Path, FileTreatment]
-    proc_decisions: Mapping[str, ProcDecision]
-    provenance:     Mapping[str, Provenance]
+    proc_decisions: Mapping[str, ProcDecision]    # surviving procs
+    proc_removals:  Mapping[str, ProcRemoval]     # excluded procs (F2 provenance)
+    provenance:     Mapping[Path, FileProvenance]
     stages:         tuple[StageSpec, ...]
+    stack_order:    tuple[str, ...]               # topological aggregate-stack order
+    options:        BaseOptions                   # base JSON `options`, frozen at P3;
+                                                  # the only channel P5/P6 read switches from
 
 @dataclass(frozen=True)
 class DependencyGraph:
@@ -670,10 +673,10 @@ class AuditManifest:
 | `TracerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, loaded: LoadedConfig | None = None) -> DependencyGraph` |
 | `TrimmerService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, parsed: ParseResult, state: DomainState) -> TrimReport` |
 | `GeneratorService.run` | `(ctx: ChopperContext, manifest: CompiledManifest) -> tuple[GeneratedArtifact, ...]` -- writes each generated file directly via `ctx.fs.write_text()` as it is produced; the returned tuple is handed to `TclIndentationService.run` for optional P5c indentation normalization (gated by `base.options.indent`, default off). |
-| `TclIndentationService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, trim_report: TrimReport, artifacts: tuple[GeneratedArtifact, ...], *, enabled: bool = True) -> tuple[TrimReport, tuple[GeneratedArtifact, ...], tuple[Path, ...]]` -- P5c live-only normalization pass. **Gated by `base.options.indent` (default `false`).** When `enabled=False`, the service is a no-op pass-through that returns `trim_report` and `artifacts` unchanged but still computes the rewritten-path tuple via `tcl_output_paths(manifest)` so P6's brace-balance check (`VE-16`) covers every PROC_TRIM and GENERATED `.tcl` output. When `enabled=True`, reads every emitted `.tcl` whose manifest treatment is `PROC_TRIM` or `GENERATED`, rewrites leading indentation with the legacy brace-driven rules, updates `TrimReport.bytes_out` for `PROC_TRIM` outcomes, updates generated Tcl artifact content, and returns the absolute Tcl path tuple consumed by `validate_post`. `FULL_COPY` outputs are always excluded (issue #22). The current formatter has known structural gaps (no quote/comment awareness, no line-continuation handling) documented inline in the architecture doc Sec.3.1 (`options.indent` row) and Sec.5.5 (P5c paragraph); leave the flag off unless the formatter has been explicitly verified for the domain in question. |
+| `TclIndentationService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, trim_report: TrimReport, artifacts: tuple[GeneratedArtifact, ...]) -> tuple[TrimReport, tuple[GeneratedArtifact, ...], tuple[Path, ...]]` -- P5c live-only normalization pass. **Gated by `manifest.options.indent` (the base JSON's `options.indent`, default `false`).** When the option is off, the service is a no-op pass-through that returns `trim_report` and `artifacts` unchanged but still computes the rewritten-path tuple via `tcl_output_paths(manifest)` so P6's brace-balance check (`VE-16`) covers every PROC_TRIM and GENERATED `.tcl` output. When on, reads every emitted `.tcl` whose manifest treatment is `PROC_TRIM` or `GENERATED`, rewrites leading indentation with the legacy brace-driven rules, updates `TrimReport.bytes_out` for `PROC_TRIM` outcomes, updates generated Tcl artifact content, and returns the absolute Tcl path tuple consumed by `validate_post`. `FULL_COPY` outputs are always excluded (issue #22). The current formatter has known structural gaps (no quote/comment awareness, no line-continuation handling) documented inline in the architecture doc Sec.3.1 (`options.indent` row) and Sec.5.5 (P5c paragraph); leave the flag off unless the formatter has been explicitly verified for the domain in question. |
 | `CompanionSyncService.run` | `(ctx: ChopperContext, manifest: CompiledManifest, trim_report: TrimReport) -> TrimReport` -- P5d companion-file sync. For every `PROC_TRIM` file whose basename matches `default_rules.<sfx>.tcl`, filters `default_config.<sfx>.csv` (removes data rows for non-surviving procs) and `default_milestone.<sfx>.tcl` (removes `change_config <ProcName>` lines for non-surviving procs). The surviving proc set is the final PI set from `manifest.proc_decisions`. Emits `VW-24 companion-file-missing` if a companion is absent; `VI-04 companion-sync-applied` on success. Returns an updated `TrimReport` with corrected `bytes_out` for modified `FULL_COPY` outcomes. |
-| `validate_pre` | `(ctx, loaded) -> None` -- plain module function in `validator/functions.py`; emits diagnostics. |
-| `validate_post` | `(ctx, manifest, graph, rewritten: Sequence[Path]) -> None` -- plain module function; emits diagnostics. `rewritten` contains final Tcl outputs rewritten or indentation-normalized during P5. `graph` is the P4 :class:`DependencyGraph`; VW-05 / VW-06 read resolved edges from it to detect calls/source-refs into trimmed-away procs/files without re-parsing. |
+| `validate_pre` | `(ctx: ChopperContext, loaded: LoadedConfig) -> None` -- plain module function in `validator/functions.py`; emits diagnostics. |
+| `validate_post` | `(ctx: ChopperContext, manifest: CompiledManifest, graph: DependencyGraph, rewritten: Sequence[Path], *, generated_artifacts: Sequence[GeneratedArtifact] = (), trim_report: TrimReport | None = None, tool_command_pool: frozenset[str] = frozenset()) -> None` -- plain module function; emits diagnostics. `rewritten` contains final Tcl outputs rewritten or indentation-normalized during P5. `graph` is the P4 :class:`DependencyGraph`; VW-05 / VW-06 read resolved edges from it to detect calls/source-refs into trimmed-away procs/files without re-parsing. `manifest.options.cross_validate` gates the F3 step cross-checks. |
 | `AuditService.run` | `(ctx: ChopperContext, record: RunRecord) -> AuditManifest` -- the runner assembles a :class:`RunRecord` in its `finally` block with whatever phase outputs were produced (manifest / graph / trim_report may be ``None``) and hands it to the audit service, which writes every artifact under `ctx.config.audit_root` via `ctx.fs.write_text()`. |
 
 ### 9.3 Communication rules
@@ -705,7 +708,7 @@ To make every feature "individually and isolatedly developable/enhanceable" (you
 4. **Diagnostic codes are the API contract for user-visible behavior.** Adding a code requires a registry edit in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) before use.
 5. **Stage discipline is hard.** Stage N may not import from Stage N+1. Enforced by `import-linter` contracts in CI.
 
-   **Permitted exception:** P6 validator imports P2 parser for post-trim validation accuracy. The validator's `validate_post` function calls `parse_file()` from the parser to re-parse trimmed `.tcl` outputs and verify that the proc set matches the `TrimReport` promise (VW-10 check). This is the **only** permitted cross-stage import; all other stage boundaries remain sealed. See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) Sec.5.12.9 and [`.github/instructions/project.instructions.md`](.../.github/instructions/project.instructions.md) Sec.1.1 for the full rationale: re-parsing is the cleanest way to catch real bugs (incorrect proc drops), and the parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
+   **Permitted exception:** P6 validator imports P2 parser for post-trim validation accuracy. The validator's `validate_post` function calls `parse_file()` from the parser to re-parse trimmed `.tcl` outputs and verify that the proc set matches the `TrimReport` promise (VW-10 check). This is the **only** permitted cross-stage import; all other stage boundaries remain sealed. See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) Sec.5.12.9 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Sec.1.1 for the full rationale: re-parsing is the cleanest way to catch real bugs (incorrect proc drops), and the parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
 6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `CollectingSink`, `SilentProgress` -- they never touch the real filesystem. Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`; there is no ClockPort.
 7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (Sec.6.2) -- no plugin registry, no dynamic phase insertion. Adding a new phase means editing `runner.py`. That is deliberate: v1 has seven phases, period.
@@ -806,7 +809,7 @@ def make_test_context(
 
 ## 13. Multi-Expert Review Panel
 
-**Removed.** The Day-0 devil's-advocate review is now [`technical_docs/DAY0_REVIEW.md`](DAY0_REVIEW.md), and its action items have been absorbed into this plan (via the A1-A9 cuts), the architecture doc, the diagnostic registry, and [`technical_docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). The multi-reviewer panel served its purpose at planning time; perpetuating it here would only drift out of sync with the single-sweep review record.
+**Removed.** The Day-0 devil's-advocate review's action items were absorbed into this plan (via the A1-A9 cuts), the architecture doc, and the diagnostic registry; the review document itself was retired. The multi-reviewer panel served its purpose at planning time; perpetuating it here would only drift out of sync.
 
 ---
 
@@ -818,7 +821,7 @@ def make_test_context(
 
 ## 15. Adoption Roadmap (Stage-Aligned)
 
-**Superseded.** The stage-by-stage implementation roadmap -- DoD, test gates, demo checkpoints, exit criteria -- now lives in [`technical_docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md). That document is the single source of truth for engineering handoff sequencing; this section no longer duplicates it.
+**Retired.** The stage-by-stage build-out roadmap was completed and its document deleted; the stage boundaries remain recorded in `.github/instructions/project.instructions.md` (Implementation Stages), and the gates it defined live on as `make check` / `make ci`.
 
 **There is no Stage 6 and none is planned.** Plugin host, MCP, AI advisor: permanently out of scope (Sec.7, Sec.16 Q1).
 

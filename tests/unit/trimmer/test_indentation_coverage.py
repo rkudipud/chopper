@@ -33,6 +33,7 @@ def test_format_tcl_indentation_empty_returns_empty() -> None:
 def test_indentation_service_emits_ve25_on_read_failure() -> None:
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
+    from chopper.core.models_config import BaseOptions
     from chopper.core.models_trimmer import TrimReport
     from chopper.trimmer.indentation import TclIndentationService
 
@@ -52,6 +53,7 @@ def test_indentation_service_emits_ve25_on_read_failure() -> None:
             rel: FileProvenance(path=rel, treatment=FileTreatment.PROC_TRIM, reason="fi-literal"),
         },
         stages=(),
+        options=BaseOptions(indent=True),
     )
     trim_report = TrimReport(
         outcomes=(),
@@ -101,6 +103,7 @@ def test_indentation_normalizer_skips_write_when_unchanged() -> None:
     """IndentationNormalizer skips ctx.fs.write_text when formatted == text (branch 85->91)."""
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
+    from chopper.core.models_config import BaseOptions
     from chopper.trimmer.indentation import TclIndentationService
 
     fs = InMemoryFS()
@@ -126,7 +129,7 @@ def test_indentation_normalizer_skips_write_when_unchanged() -> None:
         proc_decisions={},
         provenance={Path("lib.tcl"): prov},
         stages=(),
-        generate_stack=False,
+        options=BaseOptions(indent=True),
     )
 
     artifacts: tuple = ()

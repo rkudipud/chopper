@@ -606,7 +606,7 @@ def test_validate_post_removed_file_not_present_no_mismatch() -> None:
 
 
 def test_glob_has_matches_oserror_in_list_continues() -> None:
-    """_glob_has_matches continues past OSError from ctx.fs.list (lines 269-270)."""
+    """_glob_has_matches treats an unlistable directory as empty (shared walk)."""
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
@@ -621,7 +621,7 @@ def test_glob_has_matches_oserror_in_list_continues() -> None:
 
 
 def test_glob_has_matches_child_outside_domain_skipped() -> None:
-    """_glob_has_matches skips children whose relative_to raises ValueError (274-275)."""
+    """_glob_has_matches skips listed children that are not under the source root."""
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
@@ -637,8 +637,8 @@ def test_glob_has_matches_child_outside_domain_skipped() -> None:
     assert result is False  # ValueError -> continue -> no match
 
 
-def test_glob_has_matches_regex_pattern_matches_returns_true() -> None:
-    """_glob_has_matches returns True via regex branch (lines 287-288) for ** glob."""
+def test_glob_has_matches_double_star_matches_nested_file() -> None:
+    """``**/*.tcl`` matches a nested file."""
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
@@ -646,18 +646,16 @@ def test_glob_has_matches_regex_pattern_matches_returns_true() -> None:
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
-    # ** pattern -> glob_to_regex returns a Pattern; fullmatch on "lib/foo.tcl" returns True
     result = _glob_has_matches(ctx2, "**/*.tcl")
-    assert result is True  # lines 287-288 covered
+    assert result is True
 
 
-def test_glob_has_matches_regex_pattern_skips_non_matching_file() -> None:
-    """When regex is not None but fullmatch is False for a file, the loop
-    continues to the next child (covers branch 287->271)."""
+def test_glob_has_matches_skips_non_matching_file() -> None:
+    """A non-matching file does not stop the search for a later match."""
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
-    # aaa.py sorts before zzz.tcl -- regex skips aaa.py then matches zzz.tcl
+    # aaa.py sorts before zzz.tcl -- the walk skips aaa.py then matches zzz.tcl
     fs.write_text(DOMAIN / "aaa.py", "")
     fs.write_text(DOMAIN / "zzz.tcl", "")
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
@@ -667,19 +665,18 @@ def test_glob_has_matches_regex_pattern_skips_non_matching_file() -> None:
     assert result is True  # zzz.tcl matches after skipping aaa.py
 
 
-def test_glob_has_matches_fnmatchcase_no_match_continues() -> None:
-    """_glob_has_matches continues when fnmatchcase returns False (289->271)."""
+def test_glob_has_matches_star_does_not_cross_directories() -> None:
+    """ARCHITECTURE.md Sec.6.3.1: ``*.tcl`` matches root-level files only."""
     from chopper.validator.functions import _glob_has_matches
 
     fs = InMemoryFS()
-    # file is foo.py but pattern is *.tcl -> no match
     fs.write_text(DOMAIN / "foo.py", "")
+    fs.write_text(DOMAIN / "lib" / "nested.tcl", "")
     cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
     ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
 
-    # Non-** pattern -> glob_to_regex returns None, _fnmatchcase("foo.py", "*.tcl") is False
-    result = _glob_has_matches(ctx2, "*.tcl")
-    assert result is False
+    assert _glob_has_matches(ctx2, "*.tcl") is False
+    assert _glob_has_matches(ctx2, "lib/*.tcl") is True
 
 
 def test_brace_delta_full_line_comment_skipped() -> None:

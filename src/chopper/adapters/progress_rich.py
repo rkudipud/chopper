@@ -52,7 +52,6 @@ class RichProgress:
             )
         else:
             self._console = Console(stderr=True)
-        self._plain = plain
 
     def phase_started(self, phase: Phase) -> None:
         self._console.print(f"[{phase.name}] started")

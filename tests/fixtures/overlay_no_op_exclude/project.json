@@ -1,5 +1,6 @@
 {
   "$schema": "project-v1",
+  "project": "OVERLAY_NO_OP_EXCLUDE",
   "domain": "overlay_no_op_exclude",
   "base": "jsons/base.json",
   "features": [

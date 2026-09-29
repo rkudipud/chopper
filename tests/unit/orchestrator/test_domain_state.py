@@ -80,12 +80,12 @@ def test_nested_audit_dir_does_not_leak_into_classification() -> None:
     assert sink.codes() == []
 
 
-def test_hand_edited_flag_is_always_false() -> None:
-    """Architecture Doc Sec.2.8 Case 2: hand-edit detection is CLI-pre-flight only, not diagnostic."""
+def test_domain_state_carries_no_hand_edit_detection() -> None:
+    """ENGINEERING.md Sec.16 Q2: hand-edit detection is closed -- the state has no such field."""
     fs = InMemoryFS({DOMAIN / "x": "", BACKUP / "x": ""})
     ctx, _ = make_ctx(fs=fs)
     state = DomainStateService().run(ctx)
-    assert state.hand_edited is False
+    assert set(vars(state)) == {"case", "domain_exists", "backup_exists"}
 
 
 def test_custom_roots_are_honoured() -> None:

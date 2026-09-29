@@ -1,14 +1,13 @@
 """Lock the active-scenario count in tests/TESTING_STRATEGY.md Sec.5.
 
-Per technical_docs/FINAL_HANDOFF_REVIEW.md PR-2, the scenario table in
+The scenario table in
 `tests/TESTING_STRATEGY.md` Sec.5 is the single source of truth for the
 integration-scenario roster. Deferred crash-injection scenarios remain named
 for planning purposes but are not part of the active gate.
 
 This test parses the scenario table directly and asserts the row count
 matches ``EXPECTED_SCENARIO_COUNT``. Adding, removing, or splitting a
-scenario forces a conscious edit here -- which in turn forces a matching
-edit in ``technical_docs/IMPLEMENTATION_ROADMAP.md`` M6.
+scenario forces a conscious edit here.
 """
 
 from __future__ import annotations
@@ -62,5 +61,5 @@ def test_scenario_count_matches_roadmap() -> None:
     assert actual == EXPECTED_SCENARIO_COUNT, (
         f"TESTING_STRATEGY.md Sec.5 lists {actual} scenarios; "
         f"roadmap M6 expects {EXPECTED_SCENARIO_COUNT}. "
-        "Update EXPECTED_SCENARIO_COUNT and technical_docs/IMPLEMENTATION_ROADMAP.md M6 together."
+        "Update EXPECTED_SCENARIO_COUNT together with the table."
     )

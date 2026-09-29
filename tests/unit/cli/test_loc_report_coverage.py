@@ -298,11 +298,8 @@ def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
-    from chopper.core.models_config import BaseJson, LoadedConfig
     from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
     from chopper.core.models_trimmer import GeneratedArtifact
-
-    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -393,7 +390,6 @@ def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
 
     report = build_loc_report(
         ctx=ctx,
-        loaded=loaded,
         parsed=parsed,
         manifest=manifest,
         generated_artifacts=artifacts,
@@ -420,7 +416,6 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
-    from chopper.core.models_config import BaseJson, LoadedConfig
     from chopper.core.models_parser import ParseResult
     from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -441,8 +436,6 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
     keep_rel = Path("keep.tcl")
     gone_rel = Path("gone.tcl")
     external_gen = Path("not_in_source.bin")  # non-text, not on disk
-
-    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
     manifest = CompiledManifest(
         file_decisions={
             gone_rel: FileTreatment.REMOVE,
@@ -465,7 +458,6 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
 
     report = lr.build_loc_report(
         ctx=ctx,
-        loaded=loaded,
         parsed=ParseResult(files={}, index={}),
         manifest=manifest,
         generated_artifacts=artifacts,

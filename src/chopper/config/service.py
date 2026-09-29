@@ -42,15 +42,14 @@ service returns.
 from __future__ import annotations
 
 import json
-import re
-from collections import deque
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.fs_walk import iter_domain_files
+from chopper.core.globs import glob_match
 from chopper.core.models_common import DomainState
 from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
 
@@ -431,22 +430,6 @@ def _materialize_feature_stage_steps(
     return {**raw, "flow_actions": resolved}
 
 
-def _glob_to_regex_local(pattern: str) -> re.Pattern[str] | None:
-    """Thin re-export of :func:`chopper.core.globs.glob_to_regex`.
-
-    Kept as a private alias so existing P1 / P3 call sites in this module
-    do not need to change. The single canonical implementation lives in
-    :mod:`chopper.core.globs` so :mod:`chopper.compiler.merge_service`
-    and :mod:`chopper.validator.functions` can share it without any
-    cross-service import (see import-linter contracts in
-    :file:`pyproject.toml`).
-    """
-
-    from chopper.core.globs import glob_to_regex  # noqa: PLC0415
-
-    return glob_to_regex(pattern)
-
-
 def _config_source_root(ctx: ChopperContext, state: DomainState | None) -> Path:
     if state is not None and state.backup_exists:
         return ctx.config.backup_root
@@ -454,56 +437,13 @@ def _config_source_root(ctx: ChopperContext, state: DomainState | None) -> Path:
 
 
 def _enumerate_domain_files(ctx: ChopperContext, state: DomainState | None = None) -> list[tuple[Path, str]]:
-    """Walk the domain filesystem once and return all regular files as
-    ``(domain_relative_path, posix_string)`` pairs.
-
-    The ``.chopper/`` audit directory is always excluded.  Returns an empty
-    list if the domain root does not exist (e.g. unit-test in-memory FS).
-    """
-    source_root = _config_source_root(ctx, state)
-    if not ctx.fs.exists(source_root):
-        return []
-
-    results: list[tuple[Path, str]] = []
-    frontier: deque[Path] = deque([source_root])
-    while frontier:
-        current = frontier.popleft()
-        try:
-            children = ctx.fs.list(current)
-        except OSError:
-            continue
-        for child in children:
-            try:
-                rel = child.relative_to(source_root)
-            except ValueError:
-                continue
-            rel_posix = rel.as_posix()
-            if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
-                continue
-            try:
-                st = ctx.fs.stat(child)
-            except OSError:
-                continue
-            if st.is_dir:
-                frontier.append(child)
-            else:
-                results.append((rel, rel_posix))
-    return results
+    """Walk the domain once; return every regular file as ``(rel_path, posix_string)``."""
+    return [(rel, rel.as_posix()) for rel in iter_domain_files(ctx.fs, _config_source_root(ctx, state))]
 
 
 def _match_glob_against(pattern: str, domain_files: list[tuple[Path, str]]) -> set[Path]:
     """Filter pre-enumerated domain files by a single glob pattern."""
-    regex = _glob_to_regex_local(pattern)
-    matches: set[Path] = set()
-    if regex is not None:
-        for rel, rel_posix in domain_files:
-            if regex.fullmatch(rel_posix):
-                matches.add(rel)
-    else:
-        for rel, rel_posix in domain_files:
-            if fnmatchcase(rel_posix, pattern):
-                matches.add(rel)
-    return matches
+    return {rel for rel, rel_posix in domain_files if glob_match(pattern, rel_posix)}
 
 
 def _collect_surface_files(

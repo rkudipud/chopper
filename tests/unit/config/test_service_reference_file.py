@@ -219,7 +219,7 @@ class TestReferenceFileBackupRootAware:
             {base_path: _base_with_reference_file(), backup_ref_path: "pristine_step.tcl\n"},
             base_path=base_path,
         )
-        state = DomainState(case=2, domain_exists=True, backup_exists=True, hand_edited=False)
+        state = DomainState(case=2, domain_exists=True, backup_exists=True)
         result = ConfigService().run(ctx, state)
         assert sink.emissions == []
         assert result.base.stages[0].steps == ("pristine_step.tcl",)
@@ -231,7 +231,7 @@ class TestReferenceFileBackupRootAware:
             {base_path: _base_with_reference_file(), ref_path: "domain_step.tcl\n"},
             base_path=base_path,
         )
-        state = DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False)
+        state = DomainState(case=1, domain_exists=True, backup_exists=False)
         result = ConfigService().run(ctx, state)
         assert sink.emissions == []
         assert result.base.stages[0].steps == ("domain_step.tcl",)

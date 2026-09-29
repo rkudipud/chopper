@@ -145,13 +145,13 @@ These concepts are **permanently closed**. Do NOT implement, stub, or reserve:
 ### Phase 1: Spec Grounding (MANDATORY before every task)
 
 ```
-???????????????????????????????????????????????????????????????
-?  1. READ the architecture doc section for this task                     ?
-?  2. QUOTE the specific requirement (FR-xx, Sec.x.x)            ?
-?  3. CHECK DIAGNOSTIC_CODES.md for any codes needed          ?
-?  4. CHECK IMPLEMENTATION.md (pitfalls) for relevant P-xx pitfalls  ?
-?  5. VERIFY no scope-lock violations                          ?
-???????????????????????????????????????????????????????????????
++-------------------------------------------------------------+
+|  1. READ the architecture doc section for this task                     |
+|  2. QUOTE the specific requirement (FR-xx, Sec.x.x)            |
+|  3. CHECK DIAGNOSTIC_CODES.md for any codes needed          |
+|  4. CHECK IMPLEMENTATION.md (pitfalls) for relevant P-xx pitfalls  |
+|  5. VERIFY no scope-lock violations                          |
++-------------------------------------------------------------+
 ```
 
 ### Phase 2: Design Validation
@@ -375,7 +375,7 @@ make check                                      # before any commit
 - `src/chopper/core/context.py` -- `ChopperContext` frozen container
 - `src/chopper/core/serialization.py` -- `dump_model()`, `load_model()` with determinism
 - `src/chopper/core/tool_commands.py` -- Vendor-tool command pool parser (TI-01)
-- `src/chopper/core/globs.py` -- Canonical POSIX glob -> regex translator (used by config / compiler / validator)
+- `src/chopper/core/globs.py` -- `glob_match`, the one Sec.6.3.1 glob matcher (used by config / compiler / validator)
 
 **Quality Gate:**
 ```bash

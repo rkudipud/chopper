@@ -120,16 +120,16 @@ class ChopperRunner:
                 # P5b -- Generators.
                 artifacts = GeneratorService().run(ctx, manifest)
                 # P5c -- Tcl indentation normalization. Off by default; opt
-                # in via ``base.options.indent: true``. When disabled, the
-                # service is a no-op pass-through but still returns the
-                # rewritten-path set so P6's brace-balance check covers
-                # every PROC_TRIM and GENERATED ``.tcl`` output.
+                # in via ``base.options.indent: true`` (read from
+                # ``manifest.options``). When disabled, the service is a
+                # no-op pass-through but still returns the rewritten-path
+                # set so P6's brace-balance check covers every PROC_TRIM
+                # and GENERATED ``.tcl`` output.
                 trim_report, artifacts, rewritten = TclIndentationService().run(
                     ctx,
                     manifest,
                     trim_report,
                     artifacts,
-                    enabled=loaded.base.options.indent,
                 )
                 if has_errors(ctx, Phase.P5_TRIM):
                     ctx.progress.phase_done(Phase.P5_TRIM)
@@ -160,7 +160,6 @@ class ChopperRunner:
                     rewritten,
                     trim_report=trim_report,
                     tool_command_pool=loaded.tool_command_pool,
-                    cross_validate=loaded.base.options.cross_validate,
                 )
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):
@@ -183,7 +182,6 @@ class ChopperRunner:
                     generated_artifacts=artifacts,
                     trim_report=None,
                     tool_command_pool=loaded.tool_command_pool,
-                    cross_validate=loaded.base.options.cross_validate,
                 )
                 ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
                 if has_errors(ctx, Phase.P6_POSTVALIDATE):

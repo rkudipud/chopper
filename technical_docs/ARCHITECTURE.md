@@ -131,34 +131,34 @@ The TFM repo has this top-level structure under `global/`:
 
 ```text
 global/
-??? snps/
-?   ??? fev_formality/         ??? DOMAIN (trimmable)
-?   ??? sta_pt/                ??? DOMAIN (trimmable)
-?   ??? power/                 ??? DOMAIN (trimmable)
-?   ??? apr_fc/                ??? DOMAIN (trimmable)
-?   ??? dft_fc/                ??? DOMAIN (trimmable)
-?   ??? extraction/            ??? DOMAIN (trimmable)
-?   ??? hc/                    ??? DOMAIN (trimmable)
-?   ??? lv_icv/                ??? DOMAIN (trimmable)
-?   ??? intel_caliber/         ??? DOMAIN (trimmable)
-?   ??? hv_openrail/           ??? DOMAIN (trimmable)
-?   ??? assembly/              ??? DOMAIN (trimmable)
-?   ??? contourgen/            ??? DOMAIN (trimmable)
-?   ??? caliber_eco/           ??? DOMAIN (trimmable)
-??? cdns/
-    ??? fev_formality/         ??? DOMAIN (trimmable)
-    ??? sta_pt/                ??? DOMAIN (trimmable)
-    ??? power/                 ??? DOMAIN (trimmable)
-    ??? apr_fc/                ??? DOMAIN (trimmable)
-    ??? dft_fc/                ??? DOMAIN (trimmable)
-    ??? extraction/            ??? DOMAIN (trimmable)
-    ??? hc/                    ??? DOMAIN (trimmable)
-    ??? lv_icv/                ??? DOMAIN (trimmable)
-    ??? intel_caliber/         ??? DOMAIN (trimmable)
-    ??? hv_openrail/           ??? DOMAIN (trimmable)
-    ??? assembly/              ??? DOMAIN (trimmable)
-    ??? contourgen/            ??? DOMAIN (trimmable)
-    ??? caliber_eco/           ??? DOMAIN (trimmable)
++-- snps/
+|   +-- fev_formality/         <-- DOMAIN (trimmable)
+|   +-- sta_pt/                <-- DOMAIN (trimmable)
+|   +-- power/                 <-- DOMAIN (trimmable)
+|   +-- apr_fc/                <-- DOMAIN (trimmable)
+|   +-- dft_fc/                <-- DOMAIN (trimmable)
+|   +-- extraction/            <-- DOMAIN (trimmable)
+|   +-- hc/                    <-- DOMAIN (trimmable)
+|   +-- lv_icv/                <-- DOMAIN (trimmable)
+|   +-- intel_caliber/         <-- DOMAIN (trimmable)
+|   +-- hv_openrail/           <-- DOMAIN (trimmable)
+|   +-- assembly/              <-- DOMAIN (trimmable)
+|   +-- contourgen/            <-- DOMAIN (trimmable)
+|   +-- caliber_eco/           <-- DOMAIN (trimmable)
++-- cdns/
+    +-- fev_formality/         <-- DOMAIN (trimmable)
+    +-- sta_pt/                <-- DOMAIN (trimmable)
+    +-- power/                 <-- DOMAIN (trimmable)
+    +-- apr_fc/                <-- DOMAIN (trimmable)
+    +-- dft_fc/                <-- DOMAIN (trimmable)
+    +-- extraction/            <-- DOMAIN (trimmable)
+    +-- hc/                    <-- DOMAIN (trimmable)
+    +-- lv_icv/                <-- DOMAIN (trimmable)
+    +-- intel_caliber/         <-- DOMAIN (trimmable)
+    +-- hv_openrail/           <-- DOMAIN (trimmable)
+    +-- assembly/              <-- DOMAIN (trimmable)
+    +-- contourgen/            <-- DOMAIN (trimmable)
+    +-- caliber_eco/           <-- DOMAIN (trimmable)
 ```
 
 **Key rule: anything outside the selected domain's boundary is a "DO NOT TOUCH" zone and is NEVER trimmed.** Chopper operates strictly on the single domain directory it is invoked from; sibling domains, vendor roots, shared `global/` infrastructure, and any path that escapes the domain are never read, written, or backed up. References from domain code into external paths are surfaced as advisory diagnostics (`VW-17 external-reference`) but never cause trimming or survival decisions.
@@ -176,20 +176,20 @@ Each domain is typically flat or shallow, with Tcl at the root and optional subd
 
 ```text
 domain_X/
-??? jsons/
-?   ??? base.json
-?   ??? features/
-?       ??? <feature_a>.feature.json
-?       ??? <feature_b>.feature.json
-??? *.tcl
-??? *_procs.tcl
-??? vars.tcl
-??? promote.tcl
-??? *.stack
-??? *.csv
-??? *.pl / *.py / *.csh
-??? subdirs/
-    ??? ...
++-- jsons/
+|   +-- base.json
+|   +-- features/
+|       +-- <feature_a>.feature.json
+|       +-- <feature_b>.feature.json
++-- *.tcl
++-- *_procs.tcl
++-- vars.tcl
++-- promote.tcl
++-- *.stack
++-- *.csv
++-- *.pl / *.py / *.csh
++-- subdirs/
+    +-- ...
 ```
 
 Owner-curated base and feature JSONs are expected by default under the domain-local `jsons/` directory:
@@ -203,18 +203,18 @@ Project JSON does not have a fixed default location. The user provides its path 
 
 ```text
 main branch (full TFM, all domains, all features)
-  ?
-  ??? git branch project_ABC
-  ?
-  ?   ???? 2-week trim window ????
-  ?   ?                           ?
-  ?   ?  Domain Owner 1           ???? trims Domain A
-  ?   ?  Domain Owner 2           ???? trims Domain B
-  ?   ?  Domain Owner 3           ???? trims Domain C
-  ?   ?  ...                      ?
-  ?   ?????????????????????????????
-  ?
-  ??? final project branch contains trimmed domains
+  |
+  +-- git branch project_ABC
+  |
+  |   +--- 2-week trim window ---+
+  |   |                           |
+  |   |  Domain Owner 1           ---> trims Domain A
+  |   |  Domain Owner 2           ---> trims Domain B
+  |   |  Domain Owner 3           ---> trims Domain C
+  |   |  ...                      |
+  |   +---------------------------+
+  |
+  +-- final project branch contains trimmed domains
 ```
 
 ### 2.7 Flow Code Languages
@@ -368,7 +368,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 | `tool` | No | Tool name (e.g., `primetime`, `innovus`) |
 | `description` | No | Human-readable summary |
 | `options.cross_validate` | No | Cross-validate F3 run-file output against the F1/F2 surviving set. When `true` (default), every step in every surviving stage is checked against the set of files and procs that survived trim; missing targets emit `VW-14` (step file missing), `VW-15` (step proc missing), or `VW-16` (step source missing) -- all warnings, never errors. Set to `false` to suppress those warnings when F3 intentionally references content outside the trimmed domain. |
-| `options.generate_stack` | No | When `true`, F3 emits one aggregate scheduler stack file at the domain root named `<basename(domain_root)>.stack` containing one record per resolved stage. Record order is the **topological sort** of the stage dependency graph (edges = `dependencies` ? `{load_from}`), with authored position as the tiebreaker; see Sec.3.6. Default: `false`. No effect when `stages` is empty. Per-stage `standalone_stack: true` is orthogonal in artifact terms but **suppresses** that stage's `<stage>.tcl` (the standalone `.stack` becomes the stage's sole driver); see Sec.3.6. |
+| `options.generate_stack` | No | When `true`, F3 emits one aggregate scheduler stack file at the domain root named `<basename(domain_root)>.stack` containing one record per resolved stage. Record order is the **topological sort** of the stage dependency graph (edges = `dependencies` union `{load_from}`), with authored position as the tiebreaker; see Sec.3.6. Default: `false`. No effect when `stages` is empty. Per-stage `standalone_stack: true` is orthogonal in artifact terms but **suppresses** that stage's `<stage>.tcl` (the standalone `.stack` becomes the stage's sole driver); see Sec.3.6. |
 | `options.indent` | No | When `true`, P5c re-indents every `PROC_TRIM` and `GENERATED` `.tcl` output before P6 validation runs (legacy four-space brace-driven formatter; see Sec.5.5). Default: `false` -- Chopper writes those outputs verbatim and skips the indentation pass entirely. The current formatter is intentionally minimal (no quote/comment awareness, no line-continuation handling); leave this off unless you have explicitly verified it on your domain. P6's brace-balance check (`VE-16`) runs over `PROC_TRIM`/`GENERATED` outputs regardless of this flag. |
 | `options.insert_markers` | No | Master switch for the Sec.3.11 `## CHOPPER: BEGIN/END` provenance comment markers -- F2 markers around every proc in `PROC_TRIM` files and F3 markers around every step or stage a `flow_action` touched in generated `<stage>.tcl` files. Default: `false` -- no file receives a marker; provenance stays in the audit bundle. When `true`, markers are standalone comment lines placed only where Tcl reads them as comments (Sec.3.11), so they never change what a script does. |
 | `files.include` | No* | Glob patterns or literal paths to include |
@@ -436,7 +436,7 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 | `name` | Yes | Feature identifier -- referenced by `depends_on` and project `features` list |
 | `domain` | No | Target domain. Chopper warns if mismatched with selected base |
 | `description` | No | Human-readable summary |
-| `depends_on` | No | Prerequisite feature names (must appear earlier in project) |
+| `depends_on` | No | Prerequisite feature names; each must be selected in the same run (`VE-15`). P1 topologically sorts the selection so prerequisites are applied first |
 | `incompatible_with` | No | Feature names that cannot be selected together with this feature (Sec.3.2.1); checked symmetrically regardless of declaration side or selection order |
 | `metadata` | No | Documentation fields: `owner`, `tags`, `wiki`, `related_ivars`, `related_appvars` |
 | `files.include` | No | Additional files to include |
@@ -463,7 +463,7 @@ Optional companion to `depends_on`, expressing a *negative* constraint: two feat
 
 - The check is **symmetric** and **order-independent**: it is sufficient for either side of the pair to declare the relationship; declaring it on both sides is redundant but harmless.
 - It runs once per resolved selection (project mode or direct `--base`/`--features` mode) alongside the `depends_on` topological sort in P1, before P3.
-- A name in `incompatible_with` that does not correspond to a currently selected feature is not an error -- there is nothing to conflict with. This is the deliberate asymmetry with `depends_on`, which requires the prerequisite to be present because it must precede the dependent in application order; incompatibility only matters when both sides are actually present together.
+- A name in `incompatible_with` that does not correspond to a currently selected feature is not an error -- there is nothing to conflict with. This is the deliberate asymmetry with `depends_on`, which requires the prerequisite to be present because P1's topological sort must apply it before the dependent; incompatibility only matters when both sides are actually present together.
 - Selecting two mutually incompatible features emits `VE-38 incompatible-features-selected` (error, exit code 1) naming both feature names in a deterministic (sorted) order. This does not participate in the ordered-overlay fold (R1) -- it is a pure pre-flight selection check, like the `depends_on` cycle check (`VE-22`).
 - `incompatible_with` is unrelated to `depends_on` and the two may coexist freely on the same feature (mutually exclusive with one set of features, dependent on another).
 
@@ -621,7 +621,7 @@ F3 generates stage-based run files from JSON stage definitions. Users who want g
 
 **Stage dependency graph.** For each resolved stage `S`, the directed edges entering `S` are the union of (1) one edge `P -> S` for every `P` in `S.dependencies` and (2) one edge `S.load_from -> S` when `S.load_from` is non-empty. The graph is built once per compile; cycles and dangling references are hard errors:
 
-* `VE-30 stage-dependency-cycle` -- any cycle (including a self-loop via `load_from == name` or `name ? dependencies`) aborts compilation (exit 1). The diagnostic message names the cycle in the order discovered.
+* `VE-30 stage-dependency-cycle` -- any cycle (including a self-loop via `load_from == name` or `name in dependencies`) aborts compilation (exit 1). The diagnostic message names the cycle in the order discovered.
 * `VE-31 stage-dependency-unresolved` -- any edge whose source is not a defined stage in the resolved flow aborts compilation (exit 1). The diagnostic names the referrer stage, the unresolved name, and the field (`dependencies` or `load_from`) that carried it.
 
 These errors fire whenever `stages` is non-empty, regardless of `options.generate_stack` -- a malformed dependency graph is an authoring bug independent of stack emission.
@@ -1360,42 +1360,42 @@ chopper loc --project configs/project_abc.json
 
 ```
   P0  Detect trim state        first trim vs re-trim (backup detection)
-   ?
-   ?
+   |
+   |
   P1  Read & validate inputs   load base + feature JSONs; Phase 1 schema/structural checks;
-   ?                           expand `files.include` glob patterns against the on-disk
-   ?                           domain to populate `surface_files` (the set of files P2 parses)
-   ?
-   ?
+   |                           expand `files.include` glob patterns against the on-disk
+   |                           domain to populate `surface_files` (the set of files P2 parses)
+   |
+   |
   P2  Parse domain Tcl         build per-file ParsedFile entries for every `.tcl` in
-   ?                           `surface_files` (with diagnostics), and harvest a
-   ?                           full-domain proc index by silently parsing every
-   ?                           other `.tcl` under `domain_root` so P4 can resolve
-   ?                           calls into non-surfaced files
-   ?
-   ?
+   |                           `surface_files` (with diagnostics), and harvest a
+   |                           full-domain proc index by silently parsing every
+   |                           other `.tcl` under `domain_root` so P4 can resolve
+   |                           calls into non-surfaced files
+   |
+   |
   P3  Compile selections       merge JSON rules -> FI_literal, FI_glob, FE, PI, PE;
-   ?                           re-evaluate glob patterns against the parsed universe;
-   ?                           apply R1 conflict resolution;
-   ?                           resolve per-file PI/PE interaction; emit VW-09..VW-13;
-   ?                           produce surviving-files set and surviving-procs set
-   ?
-   ?
+   |                           re-evaluate glob patterns against the parsed universe;
+   |                           apply R1 conflict resolution;
+   |                           resolve per-file PI/PE interaction; emit VW-09..VW-13;
+   |                           produce surviving-files set and surviving-procs set
+   |
+   |
   P4  Trace dependencies       expand PI -> PI+ via BFS call-tree walk;
-   ?                           emit dependency_graph.json and TW-* diagnostics;
-   ?                           PI+ is reporting-only -- it does NOT modify the surviving sets
-   ?
-   ?
+   |                           emit dependency_graph.json and TW-* diagnostics;
+   |                           PI+ is reporting-only -- it does NOT modify the surviving sets
+   |
+   |
   P5  Build output             copy surviving files from backup; proc-delete unwanted
-   ?                           definitions from PROC_TRIM files; generate F3 stage scripts;
-   ?                           normalize indentation for every surviving/generated `.tcl`;
-   ?                           write directly into rebuilt domain/  [NO DOMAIN WRITES in --dry-run]
-   ?
-   ?
+   |                           definitions from PROC_TRIM files; generate F3 stage scripts;
+   |                           normalize indentation for every surviving/generated `.tcl`;
+   |                           write directly into rebuilt domain/  [NO DOMAIN WRITES in --dry-run]
+   |
+   |
   P6  Post-trim validate       Phase 2 checks against the resolved output:
-   ?                           brace balance, dangling proc refs, missing source targets
-   ?
-   ?
+   |                           brace balance, dangling proc refs, missing source targets
+   |
+   |
   P7  Finalize & audit         emit .chopper/ artifacts for the run
                                [in --dry-run: report-only artifacts, no domain writes]
 ```
@@ -1418,8 +1418,8 @@ This walkthrough expands the pipeline diagram into the concrete data flow each p
 
 - Resolve the input mode: `--project <path>` (loads a project JSON which names `base` and ordered `features`), or explicit `--base <path> [--feature <path> ...]`.
 - Schema-validate every loaded JSON against `schemas/*.schema.json`.
-- Run Phase 1 structural checks: file existence, glob well-formedness, `feature.domain` matches `base.domain`, `depends_on` prerequisites precede dependents in the project `features` order, no two selected features declare each other via `incompatible_with` (`VE-38`), etc.
-- Build `surface_files` -- the union of every domain-relative path contributed by any source. Literal `files.include` entries and the file paths in `procedures.include` / `procedures.exclude` are added directly. `files.include` patterns containing `*`, `?`, or `[` are expanded against the on-disk domain via a single deterministic BFS walk (with `.chopper/` excluded), using the same `**`-aware glob semantics as P3 so that any file P1 surfaces will also be matched by P3's conflict resolution. `files.exclude` globs are *not* expanded here -- they are resolved in P3 against the parsed universe. When a glob-driven walk occurs, the file list is cached in `LoadedConfig.domain_file_cache` for P2 reuse (O1 optimization).
+- Run Phase 1 structural checks: file existence, glob well-formedness, `feature.domain` matches `base.domain`, every `depends_on` prerequisite is selected (`VE-15`) and acyclic (`VE-22`) -- the topological sort then orders prerequisites first, no two selected features declare each other via `incompatible_with` (`VE-38`), etc.
+- Build `surface_files` -- the union of every domain-relative path contributed by any source. Literal `files.include` entries and the file paths in `procedures.include` / `procedures.exclude` are added directly. `files.include` patterns containing `*`, `?`, or `[` are expanded against the on-disk domain via a single deterministic BFS walk (skipping any `.chopper/` directory), using the one Sec.6.3.1 glob matcher shared with P1 validation and P3 conflict resolution, so any file P1 surfaces is also matched by P3. `files.exclude` globs are *not* expanded here -- they are resolved in P3 against the parsed universe. When a glob-driven walk occurs, the file list is cached in `LoadedConfig.domain_file_cache` for P2 reuse (O1 optimization).
 - Emit `VE-*` on hard failures (non-zero exit); emit `VW-*` / `VI-*` on soft issues. `VW-03 glob-matches-nothing` is emitted by `validate_pre` when a `files.include` glob produces zero matches. A missing literal in `files.include` is the hard `VE-06`; a missing literal in `files.exclude` is the soft `VW-25 exclude-target-absent` (the exclusion is a no-op because the target is already gone) and the pipeline proceeds -- the absent literal is harmlessly filtered at P3 (`merge_service` `_distill_facts`, which keeps only `files.exclude` literals present on the surface).
 - Owner: `config/` + `validator/` (Phase 1 validation).
 - Output: a frozen `LoadedConfig` carrying `(base_json, [feature_jsons], surface_files, domain_file_cache, ...)` -- no on-disk artifact.
@@ -1505,75 +1505,75 @@ P3 is the deterministic core of the pipeline. It consumes the parsed JSON rules 
   Inputs from P1 + P2:
     base JSON + selected feature JSONs (in declared order)
     proc index (all procs in domain, from P2)
-                    ?
-                    ?
-  ???????????????????????????????????????????????????
-  ?  Initialize:                                    ?
-  ?    running_files: dict[Path, FileSignal] = {}   ?
-  ?    layers = [base, *features_in_order]          ?
-  ???????????????????????????????????????????????????
-                    ?
-                    ?
-  ???????????????????????????????????????????????????
-  ?  For each layer L in layers:                    ?
-  ?    1. Expand L.files.include:                   ?
-  ?       FI_literal(L) = exact paths               ?
-  ?       FI_glob(L) = wildcard matches             ?
-  ?           ? L.files.exclude glob pruning        ?
-  ?    2. For each F in (FI_literal ? FI_glob):     ?
-  ?       prior = running_files.get(F)              ?
-  ?       new = WHOLE  (or TRIM if same-layer PE)   ?
-  ?       running_files[F] = new                    ?
-  ?       if prior and prior != new: emit VW-21     ?
-  ?           (record (L, prior_layer) shadow)      ?
-  ?    3. For each F in L.files.exclude (literal):  ?
-  ?       if F in running_files:                    ?
-  ?           remove F; emit VW-21                  ?
-  ?       elif F not matched by any glob and not    ?
-  ?            in running_files:                    ?
-  ?           emit VE-27                            ?
-  ?    4. For each (F, p) in L.procedures.include:  ?
-  ?       same-layer rules (VW-09 / VW-12)          ?
-  ?       union p into running_files[F].keep        ?
-  ?       emit VW-21 if downgrading prior WHOLE     ?
-  ?    5. For each (F, p) in L.procedures.exclude:  ?
-  ?       same-layer rules (VW-11 / VW-12 / VW-13)  ?
-  ?       remove p from running_files[F].keep       ?
-  ?       if p was kept by an earlier layer:        ?
-  ?           emit VW-21                            ?
-  ?       elif p not in running_files[F].keep and   ?
-  ?            not in all_procs(F):                 ?
-  ?           emit VE-27                            ?
-  ???????????????????????????????????????????????????
-                    ?
-                    ?
-  ???????????????????????????????????????????????????
-  ?  Derive treatment per file F:                   ?
-  ?    if running_files[F] == WHOLE:                ?
-  ?        treatment(F) = FULL_COPY                 ?
-  ?        surviving_procs(F) = all                 ?
-  ?    elif running_files[F] == TRIM(keep):         ?
-  ?        treatment(F) = PROC_TRIM                 ?
-  ?        surviving_procs(F) = keep                ?
-  ?    else:                                        ?
-  ?        if F is F3 generator output:             ?
-  ?            treatment(F) = GENERATED             ?
-  ?        else: treatment(F) = REMOVE              ?
-  ???????????????????????????????????????????????????
-                    ?
-                    ?
-  ???????????????????????????????????????????????????
-  ?  Record provenance on every manifest entry:     ?
-  ?    contributed_by   (last layer whose signal    ?
-  ?                       survived)                 ?
-  ?    treatment        (FULL_COPY / PROC_TRIM /    ?
-  ?                      GENERATED / REMOVE)        ?
-  ?    surviving_procs[]                            ?
-  ?    shadowed_by[]    ((layer, prior_layer)       ?
-  ?                      pairs that fired VW-21)    ?
-  ???????????????????????????????????????????????????
-                    ?
-                    ?
+                    |
+                    |
+  +-------------------------------------------------+
+  |  Initialize:                                    |
+  |    running_files: dict[Path, FileSignal] = {}   |
+  |    layers = [base, *features_in_order]          |
+  +-------------------------------------------------+
+                    |
+                    |
+  +-------------------------------------------------+
+  |  For each layer L in layers:                    |
+  |    1. Expand L.files.include:                   |
+  |       FI_literal(L) = exact paths               |
+  |       FI_glob(L) = wildcard matches             |
+  |           minus L.files.exclude glob matches    |
+  |    2. For each F in (FI_literal + FI_glob):     |
+  |       prior = running_files.get(F)              |
+  |       new = WHOLE  (or TRIM if same-layer PE)   |
+  |       running_files[F] = new                    |
+  |       if prior and prior != new: emit VW-21     |
+  |           (record (L, prior_layer) shadow)      |
+  |    3. For each F in L.files.exclude (literal):  |
+  |       if F in running_files:                    |
+  |           remove F; emit VW-21                  |
+  |       elif F not matched by any glob and not    |
+  |            in running_files:                    |
+  |           emit VE-27                            |
+  |    4. For each (F, p) in L.procedures.include:  |
+  |       same-layer rules (VW-09 / VW-12)          |
+  |       union p into running_files[F].keep        |
+  |       emit VW-21 if downgrading prior WHOLE     |
+  |    5. For each (F, p) in L.procedures.exclude:  |
+  |       same-layer rules (VW-11 / VW-12 / VW-13)  |
+  |       remove p from running_files[F].keep       |
+  |       if p was kept by an earlier layer:        |
+  |           emit VW-21                            |
+  |       elif p not in running_files[F].keep and   |
+  |            not in all_procs(F):                 |
+  |           emit VE-27                            |
+  +-------------------------------------------------+
+                    |
+                    |
+  +-------------------------------------------------+
+  |  Derive treatment per file F:                   |
+  |    if running_files[F] == WHOLE:                |
+  |        treatment(F) = FULL_COPY                 |
+  |        surviving_procs(F) = all                 |
+  |    elif running_files[F] == TRIM(keep):         |
+  |        treatment(F) = PROC_TRIM                 |
+  |        surviving_procs(F) = keep                |
+  |    else:                                        |
+  |        if F is F3 generator output:             |
+  |            treatment(F) = GENERATED             |
+  |        else: treatment(F) = REMOVE              |
+  +-------------------------------------------------+
+                    |
+                    |
+  +-------------------------------------------------+
+  |  Record provenance on every manifest entry:     |
+  |    contributed_by   (last layer whose signal    |
+  |                       survived)                 |
+  |    treatment        (FULL_COPY / PROC_TRIM /    |
+  |                      GENERATED / REMOVE)        |
+  |    surviving_procs[]                            |
+  |    shadowed_by[]    ((layer, prior_layer)       |
+  |                      pairs that fired VW-21)    |
+  +-------------------------------------------------+
+                    |
+                    |
             compiled_manifest.json
 ```
 
@@ -1599,7 +1599,7 @@ When `--project` is used, Chopper resolves the base and selected feature paths f
 
 Detailed compilation data models, execution-freeze rules, and implementation contracts live alongside the phase-owned core model modules in `src/chopper/core/models_*.py` and the compiler implementation in `src/chopper/compiler/`.
 
-This architecture document defines what Chopper must do. How the implementation structures and preserves those contracts is split across three peer documents: [`technical_docs/ENGINEERING.md`](ENGINEERING.md) (ports, services, stage layering), [`technical_docs/IMPLEMENTATION.md` (parser section)](IMPLEMENTATION.md) (P2 engineering baseline), and [`technical_docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (stage gates, DoD, checkpoints).
+This architecture document defines what Chopper must do. How the implementation structures and preserves those contracts is split across two peer documents: [`technical_docs/ENGINEERING.md`](ENGINEERING.md) (ports, services, stage layering) and [`technical_docs/IMPLEMENTATION.md` (parser section)](IMPLEMENTATION.md) (P2 engineering baseline).
 
 ### 5.4 Trace Phase (P4 Detail)
 
@@ -1790,25 +1790,25 @@ Every Chopper run produces a `.chopper/` directory in the domain root containing
 
 ```
 domain/
-??? .chopper/
-?   ??? run_id                        <- plain text UUID for log correlation
-?   ??? chopper_run.json              <- run metadata (who, when, how, exit code)
-?   ??? input_base.json               <- exact copy of base JSON used
-?   ??? input_features/               <- exact copies of feature JSONs (ordered)
-?   ?   ??? 01_dft.feature.json
-?   ?   ??? 02_power.feature.json
-?   ??? input_project.json            <- optional; present only when --project is used
-?   ??? compiled_manifest.json        <- frozen P3 output: file/proc treatments + reasons
-?   ??? dependency_graph.json         <- P4 output: call-tree edges, PI+, TW-* warnings
-?   ??? diagnostics.json              <- all VE/VW/VI/TW/PE/PW/PI diagnostics with context
-?   ??? trim_report.json              <- summary: counts, before/after, validation results
-?   ??? trim_report.txt              <- human-readable projection of trim_report.json
-?   ??? trim_stats.json              <- numbers: files before/after, procs before/after, SLOC delta
-?   ??? files_kept.txt               <- surviving paths + last-contributing layer
-?   ??? files_removed.txt            <- physically-removed paths + provenance
-?   ??? p4_commands.txt              <- Perforce command list (p4 edit / add / delete) -- see Sec.5.5.14
-?   ??? files_exclude_p4.txt         <- standalone exclude_file_list path set -- see Sec.5.5.14
-??? ...trimmed domain files...
++-- .chopper/
+|   +-- run_id                        <- plain text UUID for log correlation
+|   +-- chopper_run.json              <- run metadata (who, when, how, exit code)
+|   +-- input_base.json               <- exact copy of base JSON used
+|   +-- input_features/               <- exact copies of feature JSONs (ordered)
+|   |   +-- 01_dft.feature.json
+|   |   +-- 02_power.feature.json
+|   +-- input_project.json            <- optional; present only when --project is used
+|   +-- compiled_manifest.json        <- frozen P3 output: file/proc treatments + reasons
+|   +-- dependency_graph.json         <- P4 output: call-tree edges, PI+, TW-* warnings
+|   +-- diagnostics.json              <- all VE/VW/VI/TW/PE/PW/PI diagnostics with context
+|   +-- trim_report.json              <- summary: counts, before/after, validation results
+|   +-- trim_report.txt              <- human-readable projection of trim_report.json
+|   +-- trim_stats.json              <- numbers: files before/after, procs before/after, SLOC delta
+|   +-- files_kept.txt               <- surviving paths + last-contributing layer
+|   +-- files_removed.txt            <- physically-removed paths + provenance
+|   +-- p4_commands.txt              <- Perforce command list (p4 edit / add / delete) -- see Sec.5.5.14
+|   +-- files_exclude_p4.txt         <- standalone exclude_file_list path set -- see Sec.5.5.14
++-- ...trimmed domain files...
 ```
 
 **Naming rule for input_features/:** feature JSONs are prefixed with a two-digit sequence number reflecting selected feature order (e.g., `01_`, `02_`). This preserves the application order that determined the compilation result.
@@ -1893,7 +1893,7 @@ This is the P3 output. It is the single source of truth for what Chopper decided
 | `reason` | string | Why this treatment was chosen (e.g., `fi-literal`, `pi-overlay`, `pe-overlay`, `fe-glob-pruned`, `fe-shadow`, `default-exclude`) |
 | `contributed_by` | string \| null | The single last layer (`base` or feature `name`) whose signal produced the surviving treatment. `null` for `REMOVE` and `GENERATED`. |
 | `input_sources` | string[] | Every layer that referenced this file at any point during the fold, keyed by `base` or feature `name` (e.g., `["base:files.include", "dft:procedures.include"]`). Used by P5 to copy the input JSONs into the rebuilt domain. |
-| `shadowed_by` | object[] | Layer transitions that fired `VW-21` for this file. Each entry: `{ layer, prior_layer, action }` where `action ? {"replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"}`. Empty array if no shadowing occurred. |
+| `shadowed_by` | object[] | Layer transitions that fired `VW-21` for this file. Each entry: `{ layer, prior_layer, action }` where `action in {"replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"}`. Empty array if no shadowing occurred. |
 | `surviving_procs` | string[] \| null | For `proc-trim` files: canonical names of procs that survive. Null for other treatments. |
 | `excluded_procs` | string[] \| null | For `proc-trim` files using PE model: canonical names of procs removed. Null otherwise. |
 | `proc_model` | string \| null | `overlay` (the file's surviving proc set comes from the R1 fold), or null if not proc-trimmed |
@@ -2590,7 +2590,7 @@ Chopper is a Python >= 3.13 CLI. The rules below are authoritative for every fil
 #### 5.12.5 Errors and Exceptions
 
 - User-visible conditions are **diagnostics**, not exceptions. Services never raise `ValueError` / `FileNotFoundError` to signal bad input.
-- `ChopperError` (in `core/errors.py`) is the base for programmer-error exceptions. Subclasses: `UnknownDiagnosticCodeError` (registry mismatch at `Diagnostic` construction), `ProgrammerError` (internal-consistency assertions).
+- `ChopperError` (in `core/errors.py`) is the base for programmer-error exceptions and is raised directly for internal-consistency failures. Its one subclass, `UnknownDiagnosticCodeError`, flags a registry mismatch at `Diagnostic` construction.
 - An unhandled exception that escapes a service is an exit-code-3 programmer error; the runner catches it in `finally` (see [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.6.2), writes a stack trace to `.chopper/internal-error.log`, and exits 3. `--debug` additionally re-raises so the trace hits stderr.
 
 #### 5.12.6 Style and Formatting
@@ -2710,6 +2710,7 @@ Glob patterns support three special characters to match multiple files:
 - When a glob pattern expands to zero files, it is silently ignored (no error).
 - All glob pattern expansions are normalized, deduplicated, and sorted in lexicographic order before compilation.
 - Patterns are **case-sensitive**.
+- One matcher (`chopper.core.globs.glob_match`) serves every phase that evaluates a glob -- P1 surface expansion, P1 `VW-03` validation, and P3 conflict resolution -- so the three can never disagree. Every domain walk likewise goes through one walker (`chopper.core.fs_walk.iter_domain_files`) that skips any `.chopper/` directory at every depth.
 - Literal file paths (no special characters) refer to exact single files and take precedence over glob patterns per R1.
 
 **R1 Application to Glob Patterns:**
@@ -3405,7 +3406,6 @@ The GUI-readiness surface is defined in Sec.5.11 above. At the architecture leve
 - Diagnostic code registry: [technical_docs/DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
 - Risk and pitfall ledger: [technical_docs/IMPLEMENTATION.md (pitfalls)](IMPLEMENTATION.md).
 - CLI surface: [technical_docs/CLI_REFERENCE.md](CLI_REFERENCE.md).
-- SNORT comparison and absorbed guardrails: [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md).
 
 ### 8.6 Key Observations
 
@@ -3599,7 +3599,6 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | [technical_docs/IMPLEMENTATION.md (pitfalls)](IMPLEMENTATION.md) | Technical risks (TC-01-TC-10) and implementation pitfalls (P-01-P-36) |
 | [technical_docs/ARCHITECTURE.md](ARCHITECTURE.md) Sec.5.11 | GUI-readiness surface: typed results, deterministic serialization, service-layer discipline |
 | [technical_docs/IMPLEMENTATION.md Future Considerations](IMPLEMENTATION.md) | Roadmap items explicitly out of v1 scope |
-| [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) | SNORT comparison and absorbed proc-extraction guardrails |
 | Python logging cookbook | Confirms that library code should not configure global logging handlers |
 | Python `argparse` docs | Confirms subcommand-oriented CLI structure for `validate`, `trim`, and `cleanup` |
 | Python `pathlib`, `shutil`, and `os` docs | Support deterministic path handling, directory rebuild mechanics, and direct-write recovery behavior |
@@ -3672,7 +3671,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-06-17 | **4.1.0 -- Domain-name resolution, multi-domain trim, feature-name lookup, base auto-discovery, P4 branch analysis, `exclude_file_list`.** `--domain` now accepts logical names (`fev_formality`, `snps/power`) resolved via `$ward/global/<vendor>/<name>`; vendor-qualified and absolute-path forms supported (Sec.5.1.0). `--base` optional when domain is named (auto-discovery from `jsons/base.json`; VE-35). `--features` accepts feature names resolved from `<domain>/jsons/features/*.feature.json` with close-match suggestions (VE-36). `--domain` CSV for multi-domain sequential trim; `max()` exit code across domains (Sec.5.1.2). P4 branch analysis printed to stdout after every run (Sec.5.5.15, FR-48). `p4 delete` section in `p4_commands.txt` replaced by `exclude_file_list` section with `$ward`-relative paths (Sec.5.5.14, FR-47 updated). New codes: VE-32 (`ward-env-not-set`), VE-33 (`domain-not-found`), VE-34 (`ambiguous-domain-name`), VE-35 (`base-autodiscovery-failed`), VE-36 (`feature-name-not-found`). |
 | 2026-05-18 | **3.1.0 -- `.chopper/p4_commands.txt` audit artifact (FR-47).** Deterministic Perforce command list correlating every file-treatment decision to `p4 edit` / `p4 add` / `p4 delete`. Three alphabetically-sorted sections; trailing LF; `-t text+x` matches `ensure_executable()`. Emitted on live trim and `--dry-run`; not by `validate` / `loc` / `cleanup`. Chopper never invokes `p4` -- the file is a review artifact, not an automation surface. |
 | 2026-05-21 | **3.3.0 -- F3 aggregate `<domain>.stack` + per-stage `standalone_stack`.** Aggregate stack corrected to one file per flow (matches production EDA artifact contract -- pre-3.3 per-stage stacks were wrong). Record-line order `N -> J -> L -> I -> O -> D -> (R parallel)`. `standalone_stack: true` is orthogonal and additive (per-stage verbatim emission). Three new diagnostics: `VE-28`, `VE-29`, `VW-23`. Hard cutover, no shim. |
-| 2026-05-21 | **3.4.0 -- Topological aggregate stack + `standalone_stack` suppresses `<stage>.tcl`.** Aggregate records now emitted in topological order over `dependencies ? {load_from}` (Kahn's algorithm, authored-position tiebreaker) -- deterministic, preserves unrelated-subgraph authoring intent. Materialized on `CompiledManifest.stack_order`. `standalone_stack: true` now emits **only** `<stage>.stack` (was both `.tcl` and `.stack`). `VE-30 stage-dependency-cycle` / `VE-31 stage-dependency-unresolved` added. |
+| 2026-05-21 | **3.4.0 -- Topological aggregate stack + `standalone_stack` suppresses `<stage>.tcl`.** Aggregate records now emitted in topological order over `dependencies` union `{load_from}` (Kahn's algorithm, authored-position tiebreaker) -- deterministic, preserves unrelated-subgraph authoring intent. Materialized on `CompiledManifest.stack_order`. `standalone_stack: true` now emits **only** `<stage>.stack` (was both `.tcl` and `.stack`). `VE-30 stage-dependency-cycle` / `VE-31 stage-dependency-unresolved` added. |
 | 2026-05-22 | **3.4.1 -- P5d companion-file sync (FD-15 ADOPTED).** `CompanionSyncService` runs after P5c. For every `PROC_TRIM` `default_rules.<sfx>.tcl`, filters sibling `default_config.<sfx>.csv` (column 0) and `default_milestone.<sfx>.tcl` (`change_config <ProcName>` lines) against surviving proc short-names. `VW-24 companion-file-missing` and `VI-04 companion-sync-applied` added. |
 | 2026-05-23 | **3.5.0 -- Optional flow-action stage targets (`skip_if_no_stage`).** Cross-cutting features (e.g. `sequential_const_check`) inject steps into N stages; in partial-project compositions, missing stages previously aborted with `VE-05`. Added per-action boolean `skip_if_no_stage` (default `false`, backward-compatible). When `true` and the target stage is absent, resolver emits new `VI-05 flow-action-skipped-no-stage` (info, exit 0) and skips silently. Step-level miss inside a present stage still emits `VE-05` -- stage existence and step existence are distinct contracts. Rejected alternatives: feature-level `optional: true` (too coarse -- author cannot opt one injection in); project-level allow-list (couples authoring to project shape); silent fallthrough on every `VE-05` (loses authoring-bug detection). Sec.6.7 updated; `VI-05` registered; feature-v1 schema accepts the new field on every flow_action variant. |
 | 2026-05-22 | **3.4.2 -- Honor `options.cross_validate` + doc declutter.** The `cross_validate` flag was loaded but never consumed -- VW-14/15/16 ran unconditionally. Threaded through `validate_post` -> `_check_stage_steps` -> `_classify_and_emit`; when `false`, VW-14/15/16 suppressed entirely; VW-17 still fires (does not depend on manifest lookups). Aggressive trim of this revision-history table (the canonical release log lives in git + README.md changelog). `IMPLEMENTATION.md` Appendix A removed (scope-lock in [.github/instructions/project.instructions.md](../.github/instructions/project.instructions.md) already covers OOS items); Appendix B -> main-body "Future Considerations" section. |
@@ -3692,6 +3691,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-09-14 | **4.8.0 -- `reference_file` extended to `add_step_before` / `add_step_after` (`items`, FR-55 revised).** The same mechanism 4.7.0 shipped for whole-stage `steps` now also applies to the block of `items` a feature injects at a `reference` anchor: `reference_file` is an alternative to authoring `items` inline, same P1 resolution, same encoding/line-splitting contract, same `VE-39` failure code (renamed from `stage-reference-file-invalid` to `reference-file-invalid` since it is no longer stage-scoped -- same code number, no registry slot consumed, no behavior change for existing callers). Deliberately excluded: `replace_step` (its `with` is exactly one replacement string, not a block -- a file with more than one line has no sensible mapping); step-level `reference_file` provenance is not retained past P3 resolution (spliced items become indistinguishable from the surrounding stage's `steps`), unlike stage-level `reference_file` which survives as `StageSpec.reference_file`. Raised and approved in conversation while discussing anchor-based feature injection; no separate GitHub issue. |
 | 2026-09-29 | **4.8.1 -- Generated files never bury a shebang or duplicate an existing header (issue #30).** A stage sourced from a script that starts with `#!/bin/sh` (the `sh` -> `exec tclsh` bootstrap, commonly regenerated in place via `reference_file`) came out with the Intel header and `# Chopper-generated stage:` banner above its shebang, so the kernel no longer honored the shebang and the script's own copyright header was duplicated. Sec.6.6.1 now injects the header only when the body does not already own one: never above a line-1 `#!` shebang, never on top of a leading-comment copyright notice (`Copyright` + `(c)` or a four-digit year), and only into `#`-comment output types; when injected it is always the first line of the file, and when not injected the file is exactly its body. Sec.3.11 gains the matching resolver rule: a shebang that ends up behind flow-action marker lines (an added or replaced stage sourced from a shebang script) is moved back to line 1. Rejected alternative: injecting the header *after* the shebang -- it still duplicates the script's own notice and still re-stamps Chopper's own output on every regeneration. No schema, diagnostic, or CLI surface change. |
 | 2026-09-29 | **4.9.0 -- Provenance markers opt-in (`options.insert_markers`, FR-56) and Tcl-safe (issue #31).** Real stage files broke on Sec.3.11 markers in two ways: an `add_step_after` into the option list of `::parseOpt::cmdSpec` put marker lines inside a braced data word, where Tcl reads `#` lines as list elements; and `replace_step` on `if {$ready} {` left an END marker with an unmatched `{` inside the new `if` body, which Tcl counts when matching the body's close. P6 passed both files, because its brace counter skips comment lines. Three changes. Markers are opt-in: `options.insert_markers` (default `false`) is one master switch for F2 and F3 alike, reversing the 4.5.0 always-on decision on the owner's approval of `FD-17`; with it off, flow actions place bare content at the same positions and F2 deletes removed procs outright. Marker text escapes `\`, `"`, `{`, and `}` as well as CR/LF, in `<name>` and `<source>`. F3 marker pairs sit only at top-level command boundaries (brace depth 0, outside a quoted word, not after a continuation line, never above a line-1 shebang); a pair landing anywhere else moves outward to wrap the enclosing top-level command, and is dropped if the content leaves no boundary -- this subsumes the 4.8.1 shebang rule. Standalone-stack stages, which Sec.3.11 always excluded but the resolver still marked, now get no markers. Rejected alternatives: suppressing markers inside braces (loses them wherever a stage uses `if` or `proc` blocks), and recognizing script-taking commands to keep markers inside their bodies (heuristic -- unknown commands such as `::parseOpt::cmdSpec` take data). No diagnostic or CLI change; `base-v1` gains one optional boolean. |
+| 2026-09-30 | **4.9.1 -- One options channel, one glob matcher, one domain walker (cleanup; one glob bug fix).** Four decisions. (1) *Options:* the base `options` object is frozen onto `CompiledManifest.options` (a `BaseOptions`) at P3, and P5/P6 read every switch there; this replaces two loose manifest bools (`generate_stack`, `insert_markers`) and two per-call keyword arguments (`TclIndentationService.run(enabled=)`, `validate_post(cross_validate=)`), so a new option is a schema field plus a `BaseOptions` field with no plumbing. Rejected: keeping per-option arguments, which gave four options four different routes. (2) *Glob bug:* Sec.6.3.1 says `*` and `?` never cross `/`, but P1, P1 validation, and P3 fell back to `fnmatch` for patterns without `**`, whose `*` does cross `/` -- `procs/*.tcl` also matched `procs/sub/file.tcl`, contradicting this document's own example table. All three now call one `core.globs.glob_match` built on the stdlib `PurePath.full_match`, which implements Sec.6.3.1 exactly and agreed with the old `**` translator on 56,000 pattern/path pairs. JSONs that relied on `*` reaching into subdirectories must use `**/`; no shipped example or fixture did. Rejected: keeping the hand-written translator and extending it to plain patterns (duplicates the stdlib). (3) *Walker:* P1 surface expansion, P1 glob validation, and the P2 parse each had their own BFS walk that skipped only a top-level `.chopper/`, while the LOC walk skipped it at every depth; all now share `core.fs_walk.iter_domain_files`, which skips `.chopper/` at every depth. (4) *Contract drift:* the feature schema omitted `standalone_stack` on `add_stage_*` and `replace_stage.with` although Sec.3.6 defines it as a `stageDefinition` field and the resolver honors it -- restored; `depends_on` text claiming prerequisites "must appear earlier" is corrected to the 4.6.1 contract (P1 topologically sorts, `VE-15`/`VE-22` are the only failures). Dead code removed: `DomainState.hand_edited` (always `False`; a leftover of the retired hand-edit detector, ENGINEERING.md Sec.16 Q2), the never-raised `ProgrammerError`, and an unused `simulate_trim_in_memory` / `build_loc_report` `loaded` parameter. The Sec.9.2 signature gate now also checks `validate_pre` / `validate_post` in both directions. No diagnostic or CLI change. |
 
 ---
 

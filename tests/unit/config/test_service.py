@@ -99,7 +99,7 @@ _BACKUP = Path("/dom/my_domain_backup")
 
 
 def _default_state() -> DomainState:
-    return DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False)
+    return DomainState(case=1, domain_exists=True, backup_exists=False)
 
 
 def _make_ctx(

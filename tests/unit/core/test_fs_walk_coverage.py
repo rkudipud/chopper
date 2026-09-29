@@ -98,23 +98,43 @@ def test_walk_files_oserror_on_stat_skips_entry() -> None:
 
 
 def test_walk_files_skips_deeply_nested_excluded_dirs() -> None:
-    """Excluded dir names are checked at any depth, not just the top level.
-    A .chopper/ directory nested inside a feature subdirectory must also be
-    excluded (ARCHITECTURE.md Sec.5.3 exclusion contract)."""
+    """A .chopper/ directory is skipped at any depth, not just the top level
+    (ARCHITECTURE.md Sec.5.3 exclusion contract)."""
     from chopper.core.fs_walk import walk_files
 
     fs = InMemoryFS()
     fs.write_text(DOMAIN / "sub" / "ok.tcl", "x")
-    fs.write_text(DOMAIN / "sub" / ".chopper" / "audit.json", "{}")
+    fs.write_text(DOMAIN / "sub" / ".chopper" / "audit.tcl", "{}")
 
-    result = walk_files(fs, DOMAIN, exclude_dirs=(".chopper",))
+    result = walk_files(fs, DOMAIN)
     posix = {p.as_posix() for p in result}
     assert "sub/ok.tcl" in posix
-    assert "sub/.chopper/audit.json" not in posix
+    assert "sub/.chopper/audit.tcl" not in posix
+
+
+def test_every_domain_walk_shares_one_exclusion_rule() -> None:
+    """P1 surface collection, P1 glob validation, and the P2 full-domain parse
+    all walk through iter_domain_files, so a nested .chopper/ is invisible to
+    every phase alike."""
+    from chopper.config.service import _enumerate_domain_files
+    from chopper.parser.service import ParserService
+    from chopper.validator.functions import _glob_has_matches
+
+    fs = InMemoryFS()
+    fs.write_text(DOMAIN / "lib" / "keep.tcl", "proc k {} {}")
+    fs.write_text(DOMAIN / "lib" / ".chopper" / "stale.tcl", "proc s {} {}")
+    fs.write_text(DOMAIN / ".chopper" / "top.tcl", "proc t {} {}")
+    ctx = _ctx(fs=fs)
+
+    assert [p for p, _ in _enumerate_domain_files(ctx)] == [Path("lib/keep.tcl")]
+    assert ParserService()._enumerate_domain_tcl(ctx) == [Path("lib/keep.tcl")]
+    assert _glob_has_matches(ctx, "lib/**/keep.tcl")
+    assert not _glob_has_matches(ctx, "**/stale.tcl")
+    assert not _glob_has_matches(ctx, "**/top.tcl")
 
 
 def test_walk_files_skips_nested_excluded_dir_by_name() -> None:
-    """walk_files must skip any directory whose NAME is in exclude_dirs, even when nested."""
+    """walk_files must skip any directory named .chopper, even when nested."""
     from chopper.core.fs_walk import walk_files
 
     fs = InMemoryFS()

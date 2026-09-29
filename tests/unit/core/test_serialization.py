@@ -93,14 +93,13 @@ class TestCollections:
 
 class TestDataclass:
     def test_frozen_dataclass(self) -> None:
-        state = DomainState(case=2, domain_exists=True, backup_exists=True, hand_edited=False)
+        state = DomainState(case=2, domain_exists=True, backup_exists=True)
         out = dump_model(state)
         parsed = loads(out)
         assert parsed == {
             "case": 2,
             "domain_exists": True,
             "backup_exists": True,
-            "hand_edited": False,
         }
 
     def test_nested_dataclass(self) -> None:
@@ -110,7 +109,7 @@ class TestDataclass:
             name: str
 
         outer = Outer(
-            inner=DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False),
+            inner=DomainState(case=1, domain_exists=True, backup_exists=False),
             name="test",
         )
         parsed = loads(dump_model(outer))

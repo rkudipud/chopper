@@ -10,6 +10,7 @@ from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from chopper.core.header import intel_header_lines, intel_header_text
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, StageSpec
+from chopper.core.models_config import BaseOptions
 from chopper.generators import GeneratorService
 from chopper.generators.stage_emitter import emit_stage_tcl, stage_output_path
 
@@ -95,7 +96,7 @@ def _manifest_with_stages_and_stack(stages: tuple[StageSpec, ...]) -> CompiledMa
         proc_decisions={},
         provenance=provenance,
         stages=stages,
-        generate_stack=True,
+        options=BaseOptions(generate_stack=True),
     )
 
 

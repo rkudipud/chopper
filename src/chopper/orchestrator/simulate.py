@@ -26,7 +26,6 @@ from chopper.core.context import ChopperContext
 from chopper.core.fs_walk import walk_files
 from chopper.core.models_common import DomainState
 from chopper.core.models_compiler import CompiledManifest
-from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParseResult
 from chopper.generators.service import GeneratorService
 from chopper.trimmer.companion_sync import CompanionSyncService
@@ -76,7 +75,6 @@ def _read_text(ctx: ChopperContext, path: Path) -> str | None:
 def simulate_trim_in_memory(
     ctx: ChopperContext,
     *,
-    loaded: LoadedConfig,
     parsed: ParseResult,
     manifest: CompiledManifest,
 ) -> SimulatedTrim:
@@ -127,17 +125,11 @@ def simulate_trim_in_memory(
         progress=SilentProgress(),
     )
     # Reconstruct a clean Case-1 layout: domain present, backup absent.
-    state = DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False)
+    state = DomainState(case=1, domain_exists=True, backup_exists=False)
 
     trim_report = TrimmerService().run(mem_ctx, manifest, parsed, state)
     artifacts = GeneratorService().run(mem_ctx, manifest)
-    trim_report, _artifacts, _rewritten = TclIndentationService().run(
-        mem_ctx,
-        manifest,
-        trim_report,
-        artifacts,
-        enabled=loaded.base.options.indent,
-    )
+    trim_report, _artifacts, _rewritten = TclIndentationService().run(mem_ctx, manifest, trim_report, artifacts)
     CompanionSyncService().run(mem_ctx, manifest, trim_report)
 
     return SimulatedTrim(fs=memfs, domain_root=domain_root, backup_root=backup_root)

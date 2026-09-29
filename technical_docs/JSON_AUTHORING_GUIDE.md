@@ -33,13 +33,13 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 
 ```
 project.json
-  ??? jsons/base.json                           (one, required)
-  ??? jsons/features/feature_a.feature.json    (optional)
-  ??? jsons/features/feature_b.feature.json    (optional)
-  ??? jsons/features/feature_c.feature.json    (optional)
+  +-- jsons/base.json                           (one, required)
+  +-- jsons/features/feature_a.feature.json    (optional)
+  +-- jsons/features/feature_b.feature.json    (optional)
+  +-- jsons/features/feature_c.feature.json    (optional)
 ```
 
-Feature order in the project file is **authoritative for everything** -- F1 (file trimming), F2 (proc trimming), and F3 (flow_actions). The base is layer 0; each entry of `project.features[]` is the next layer in declared order. Layers are folded as an **ordered overlay**: the last layer that mentions a file or proc wins. Reordering features can therefore change which files and procs survive (an earlier feature's include may be cancelled by a later feature's exclude, and vice versa). `depends_on` validation also uses this order: each prerequisite must appear earlier in the list.
+Feature order in the project file is **authoritative for everything** -- F1 (file trimming), F2 (proc trimming), and F3 (flow_actions). The base is layer 0; each entry of `project.features[]` is the next layer in declared order. Layers are folded as an **ordered overlay**: the last layer that mentions a file or proc wins. Reordering features can therefore change which files and procs survive (an earlier feature's include may be cancelled by a later feature's exclude, and vice versa). `depends_on` is the one exception to authored order: P1 topologically sorts the selection so every prerequisite is applied before its dependent, keeping authored order among unrelated features.
 
 ### Starting from `examples/`
 
@@ -113,7 +113,7 @@ Equivalent JSON stage definition:
 ```
 
 > **What Chopper emits:**  
-> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to additionally emit one aggregate `<basename(domain_root)>.stack` containing one record per stage -- record order is the **topological sort** of the stage dependency graph (`dependencies` ? `{load_from}` edges); see the auto-generation subsection below. For wrapper stages whose `steps` are themselves a verbatim scheduler record, set `standalone_stack: true` on the stage to emit `<stage>.stack` **instead of** `<stage>.tcl` (the standalone stack becomes the stage's sole driver).
+> By default, Chopper writes only the generated `<stage>.tcl` file and leaves stack-file authoring to you. Set `options.generate_stack: true` in the base JSON to additionally emit one aggregate `<basename(domain_root)>.stack` containing one record per stage -- record order is the **topological sort** of the stage dependency graph (`dependencies` union `{load_from}` edges); see the auto-generation subsection below. For wrapper stages whose `steps` are themselves a verbatim scheduler record, set `standalone_stack: true` on the stage to emit `<stage>.stack` **instead of** `<stage>.tcl` (the standalone stack becomes the stage's sole driver).
 >
 > **Note on `load_from` vs `dependencies`:**  
 > `load_from` feeds the generated `<stage>.tcl` script (data sourcing, `ivar(src_task)` semantics). It is **not** the stack `D` line.  
@@ -331,7 +331,8 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 |-------|----------|-----------|-------|
 | `name` | Yes | `N` | Unique within domain |
 | `load_from` | Yes | -- | Data predecessor for generated script; can be empty string |
-| `steps` | Yes | -- | Ordered step strings written into `<stage>.tcl` |
+| `steps` | One of `steps` / `reference_file` | -- | Ordered step strings written into `<stage>.tcl` |
+| `reference_file` | One of `steps` / `reference_file` | -- | Domain-relative path read at P1, one step per physical line, used in place of `steps` |
 | `command` | No | `J` | Scheduler job command |
 | `exit_codes` | No | `L` | Legal exit codes (integers) |
 | `dependencies` | No | `D` | Scheduler dependency (parent task names) |
@@ -339,7 +340,7 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 | `outputs` | No | `O` | Output artifact markers |
 | `run_mode` | No | `R` | `"serial"` (default) or `"parallel"`. Aggregate stack emits `R parallel` only when set to `"parallel"`; serial is implicit. |
 | `language` | No | -- | `"tcl"` (default) or `"python"` |
-| `standalone_stack` | No | -- | When `true`, additionally emit `<stage>.stack` with the authored `steps` verbatim (see Sec.2.2). Orthogonal to `options.generate_stack` and to `<stage>.tcl` emission. Default: `false`. |
+| `standalone_stack` | No | -- | When `true`, emit `<stage>.stack` with the authored `steps` verbatim **instead of** `<stage>.tcl` (see Sec.2.2). The stage still gets a record in the aggregate stack when `options.generate_stack` is on. Allowed on every stage definition: base `stages[]`, feature `add_stage_*`, and `replace_stage.with`. Default: `false`. |
 
 ---
 
@@ -370,7 +371,7 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 | `name` | string | Yes | Feature identifier -- referenced by `depends_on` and project `features` list |
 | `domain` | string | No | Target domain. If set, Chopper warns if mismatched with selected base |
 | `description` | string | No | Human-readable summary |
-| `depends_on` | string[] | No | Prerequisite feature names (must appear earlier in project) |
+| `depends_on` | string[] | No | Prerequisite feature names; each must be selected in the same run (`VE-15`), and P1 applies it before the dependent |
 | `incompatible_with` | string[] | No | Feature names that must never be selected together with this feature. Symmetric and order-independent -- either side declaring it is enough. |
 | `metadata` | object | No | Documentation fields: `owner`, `tags`, `wiki`, `related_ivars`, `related_appvars` |
 | `files.include` | string[] | No | Additional files to include |
@@ -463,8 +464,8 @@ All paths in `base` and `features` must be:
   "base": "jsons/base.json",
   "features": [
     "jsons/features/dft_support.feature.json",       // position 1: no deps
-    "jsons/features/power_analysis.feature.json",    // position 2: dft_support at 1 ?
-    "jsons/features/pipeline_signoff.feature.json"   // position 3: both above ?
+    "jsons/features/power_analysis.feature.json",    // position 2: dft_support at 1 |
+    "jsons/features/pipeline_signoff.feature.json"   // position 3: both above |
   ]
 }
 ```
@@ -720,7 +721,7 @@ Glob patterns support three special characters to match multiple files:
 2. Across layers, the **base is layer 0** and each entry of `project.features[]` is the next layer in declared order. Layers are folded left-to-right and the last layer that mentions a file/proc/step **wins**.
 3. A later layer's `files.exclude` / `procedures.exclude` can therefore remove content contributed by an earlier layer; a later layer's `files.include` / `procedures.include` can re-add content removed by an earlier layer; and a later layer's `flow_actions` see the cumulative result of all preceding layers.
 4. Every transition that actually changes a prior decision (cancelled include, removed proc, downgraded whole-file include) emits `VW-21 layer-shadowed` with `(layer, prior_layer, action)` provenance recorded in the audit bundle.
-5. `depends_on` ordering is validated: each prerequisite feature must appear earlier in the `features` list than the dependent feature.
+5. `depends_on` is resolved, not validated for order: P1 topologically sorts the selection so each prerequisite is applied before its dependent. Only a missing prerequisite (`VE-15`) or a cycle (`VE-22`) fails.
 
 > **F1/F2/F3 Aggregation -- Ordered Overlay, Later Layer Wins**
 > All `files.include`, `files.exclude`, `procedures.include`, `procedures.exclude`, and `flow_actions` selections are folded as an ordered overlay: base first, then each feature in declared order. Reordering features in the project file **does** change which files and procs are included in the trimmed domain, because a later layer can cancel or replace an earlier layer's contribution. The compiler emits `VW-21 layer-shadowed` for every transition that actually changes a prior decision.

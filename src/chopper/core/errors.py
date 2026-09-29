@@ -30,13 +30,3 @@ class UnknownDiagnosticCodeError(ChopperError):
     Catches typos at construction time so no unregistered code can ever reach
     the sink.
     """
-
-
-class ProgrammerError(ChopperError):
-    """Internal-consistency assertion failure.
-
-    Raised when an invariant that should hold by construction is violated --
-    for example, when the runner observes a phase completing without emitting
-    the artifact its contract requires. Always a bug in Chopper itself, never
-    a user-input problem.
-    """

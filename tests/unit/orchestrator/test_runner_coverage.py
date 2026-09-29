@@ -233,7 +233,7 @@ def test_runner_p5_indentation_errors_exits_1(monkeypatch: pytest.MonkeyPatch) -
     )
     ctx = ChopperContext(config=cfg, fs=fs, diag=sink, progress=SilentProgress())
 
-    def _bad_indentation(self, ctx2, manifest, trim_report, artifacts, enabled=True):  # type: ignore[misc]
+    def _bad_indentation(self, ctx2, manifest, trim_report, artifacts):  # type: ignore[misc]
         ctx2.diag.emit(Diagnostic.build("VE-23", phase=Phase.P5_TRIM, message="indentation error"))
         return trim_report, artifacts, ()
 

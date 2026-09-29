@@ -8,6 +8,7 @@ from chopper.adapters import InMemoryFS
 from chopper.adapters.fs_local import LocalFS
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance
+from chopper.core.models_config import BaseOptions
 from chopper.core.models_trimmer import FileOutcome, GeneratedArtifact, TrimReport
 from chopper.trimmer.indentation import TclIndentationService, format_tcl_indentation
 from tests.unit.trimmer._helpers import DOMAIN, make_ctx
@@ -26,7 +27,9 @@ def _manifest(decisions: dict[str, FileTreatment]) -> CompiledManifest:
             input_sources=("base:files.include",) if treatment is not FileTreatment.REMOVE else (),
             proc_model="overlay" if treatment is FileTreatment.PROC_TRIM else None,
         )
-    return CompiledManifest(file_decisions=file_decisions, proc_decisions={}, provenance=provenance)
+    return CompiledManifest(
+        file_decisions=file_decisions, proc_decisions={}, provenance=provenance, options=BaseOptions(indent=True)
+    )
 
 
 def _outcome(path: str, treatment: FileTreatment, *, bytes_out: int) -> FileOutcome:

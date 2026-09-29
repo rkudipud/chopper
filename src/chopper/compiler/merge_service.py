@@ -31,9 +31,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from fnmatch import fnmatchcase
-from pathlib import Path, PurePosixPath
-from re import Pattern
+from pathlib import Path
 from typing import Literal
 
 from chopper.compiler.flow_resolver import resolve_stages
@@ -41,6 +39,7 @@ from chopper.compiler.stack_graph import compute_stack_order
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.errors import ChopperError
+from chopper.core.globs import glob_match
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision, ProcRemoval, ShadowEvent
 from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
@@ -161,8 +160,8 @@ class CompilerService:
         )
 
         # ---- F3 flow-action resolution -----------------------------------
-        insert_markers = loaded.base.options.insert_markers
-        stages = resolve_stages(ctx, loaded.base.stages, loaded.features, insert_markers=insert_markers)
+        options = loaded.base.options
+        stages = resolve_stages(ctx, loaded.base.stages, loaded.features, insert_markers=options.insert_markers)
         _register_generated_stage_files(ctx, file_decisions, provenance, stages, loaded)
         stack_order = compute_stack_order(ctx, stages)
 
@@ -172,9 +171,8 @@ class CompilerService:
             proc_removals=proc_removals,
             provenance=provenance,
             stages=stages,
-            generate_stack=loaded.base.options.generate_stack,
             stack_order=stack_order,
-            insert_markers=insert_markers,
+            options=options,
         )
 
 
@@ -1142,30 +1140,5 @@ def _is_glob(entry: str) -> bool:
 
 
 def _match_glob(pattern: str, paths: frozenset[Path]) -> set[Path]:
-    """Match ``pattern`` against every path in ``paths`` using POSIX semantics."""
-    regex = _glob_to_regex(pattern)
-    hits: set[Path] = set()
-    for path in paths:
-        posix = path.as_posix()
-        full_match = getattr(PurePosixPath(posix), "full_match", None)
-        if full_match is not None:  # pragma: no branch
-            try:
-                if full_match(pattern):
-                    hits.add(path)
-                    continue
-            except ValueError:  # pragma: no cover - full_match never raises on schema-accepted patterns
-                pass
-        if regex is not None:
-            if regex.fullmatch(posix):  # pragma: no cover - <3.13 fallback; Py 3.13+ uses full_match
-                hits.add(path)
-        elif fnmatchcase(posix, pattern):  # pragma: no cover - last-ditch fallback for malformed globs
-            hits.add(path)
-    return hits
-
-
-def _glob_to_regex(pattern: str) -> Pattern[str] | None:
-    """Thin re-export of :func:`chopper.core.globs.glob_to_regex`."""
-
-    from chopper.core.globs import glob_to_regex  # noqa: PLC0415
-
-    return glob_to_regex(pattern)
+    """Match ``pattern`` against every path in ``paths`` (Sec.6.3.1 semantics)."""
+    return {path for path in paths if glob_match(pattern, path.as_posix())}

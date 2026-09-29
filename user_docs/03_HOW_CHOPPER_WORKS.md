@@ -25,8 +25,8 @@ Every live `trim` executes this sequence. `validate` and `trim --dry-run` run th
 
 ```text
 P0  Domain state    ->  P1  Config + pre-validate  ->  P2  Parse Tcl  ->  P3  Compile
-                                                                          ?
-                                                                          ?
+                                                                          |
+                                                                          |
 P7  Audit  <-  P6  Post-validate  <-  P5  Build output  <-  P4  Trace (BFS, reporting-only)
 ```
 
@@ -177,21 +177,21 @@ No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
 ```text
 src/chopper/
-??? core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization,
-?              filesystem helpers (fs_walk, file_perms, globs, header, tool_commands)
-??? config/       JSON loading, schema validation, depends_on topo-sort       (P1)
-??? parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
-??? compiler/     R1 merge algorithm, BFS trace, F3 flow-actions, stack graph  (P3, P4)
-??? trimmer/      File copier, proc dropper, indentation normaliser,
-?              companion-file sync, JSON input preservation                  (P5a, P5c, P5d)
-??? generators/   F3 stage + stack file emitter                               (P5b)
-??? validator/    Pre- and post-trim validation                               (P1, P6)
-??? audit/        .chopper/ writers, SLOC counter (cloc + fallback), hashing,
-?              internal-error log                                            (P7)
-??? data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
-??? orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
-??? adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
-??? cli/          argparse, render helpers, four subcommand handlers           (user)
++-- core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization,
+|              filesystem helpers (fs_walk, file_perms, globs, header, tool_commands)
++-- config/       JSON loading, schema validation, depends_on topo-sort       (P1)
++-- parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
++-- compiler/     R1 merge algorithm, BFS trace, F3 flow-actions, stack graph  (P3, P4)
++-- trimmer/      File copier, proc dropper, indentation normaliser,
+|              companion-file sync, JSON input preservation                  (P5a, P5c, P5d)
++-- generators/   F3 stage + stack file emitter                               (P5b)
++-- validator/    Pre- and post-trim validation                               (P1, P6)
++-- audit/        .chopper/ writers, SLOC counter (cloc + fallback), hashing,
+|              internal-error log                                            (P7)
++-- data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
++-- orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
++-- adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
++-- cli/          argparse, render helpers, four subcommand handlers           (user)
 ```
 
 Each service depends only on `core/` and its own submodules. The lone permitted exception is the validator importing the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`) -- documented in `technical_docs/ARCHITECTURE.md` Sec.5.12.9.

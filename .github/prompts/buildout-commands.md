@@ -100,13 +100,13 @@ Milestone review for Stage [N].
 ## Stage Implementation Order
 
 ```text
-???????????????????????????????????????????????????????????????????
-?  Stage 0: core/     ->  Stage 1: parser/   ->  Stage 2: compiler/ ?
-?  (Foundation)          (Tcl Analysis)         (Merge + Trace)   ?
-?                                                                  ?
-?  Stage 3: trimmer/  ->  Stage 4: validator/ ->  Stage 5: cli/     ?
-?  (Trim + Audit)        (Pre/Post Checks)      (User Interface)  ?
-???????????????????????????????????????????????????????????????????
++-----------------------------------------------------------------+
+|  Stage 0: core/     ->  Stage 1: parser/   ->  Stage 2: compiler/ |
+|  (Foundation)          (Tcl Analysis)         (Merge + Trace)   |
+|                                                                  |
+|  Stage 3: trimmer/  ->  Stage 4: validator/ ->  Stage 5: cli/     |
+|  (Trim + Audit)        (Pre/Post Checks)      (User Interface)  |
++-----------------------------------------------------------------+
 ```
 
 ### Stage Dependencies
@@ -163,8 +163,6 @@ git diff tests/golden/  # Must show NO changes
 | `technical_docs/IMPLEMENTATION.md` (parser section) | Parser rules | State machine, Sec.1.3.0 |
 | `technical_docs/DIAGNOSTIC_CODES.md` | Error codes | VE-xx, VW-xx, PE-xx, etc. |
 | `technical_docs/IMPLEMENTATION.md` (pitfalls) | Gotchas | P-xx pitfalls, TC-xx risks |
-| `technical_docs/IMPLEMENTATION_ROADMAP.md` | Build order | M1-M6 milestones |
-| `technical_docs/FINAL_HANDOFF_REVIEW.md` | Sign-off status | Critical findings, fixes |
 
 ---
 

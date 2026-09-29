@@ -29,7 +29,7 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "minItems": 1,
-      "description": "Optional prerequisite feature names. Values must reference other Feature JSON `name` fields, not file paths. Use this to declare inter-feature dependency chains. Project-level validation should ensure prerequisite features are selected and appear earlier in project.features order."
+      "description": "Optional prerequisite feature names. Values must reference other Feature JSON `name` fields, not file paths. Use this to declare inter-feature dependency chains. Every prerequisite must be selected in the same run (VE-15); P1 topologically sorts the selection so prerequisites are applied first, keeping authored order among unrelated features. A cycle fails with VE-22."
     },
     "incompatible_with": {
       "type": "array",
@@ -39,7 +39,7 @@
     },
     "metadata": {
       "type": "object",
-      "description": "Optional informational metadata. Chopper never evaluates these fields -- they are documentation only. Preserved in audit artifacts and scan output.",
+      "description": "Optional informational metadata. Chopper never evaluates these fields -- they are documentation only.",
       "properties": {
         "owner": {
           "type": "string",
@@ -221,7 +221,7 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Name of the new stage. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
+          "description": "Name of the new stage. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "reference": {
           "type": "string",
@@ -236,42 +236,47 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "exit_codes": {
           "type": "array",
           "items": { "type": "integer" },
           "minItems": 1,
-          "description": "Optional legal exit codes for the added stage. Become the `L` line in a manually-created stack file."
+          "description": "Optional legal exit codes for the added stage. Become the `L` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional execution command for the added stage. Becomes the `J` line in a manually-created stack file."
+          "description": "Optional execution command for the added stage. Becomes the `J` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "inputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "run_mode": {
           "type": "string",
           "enum": ["serial", "parallel"],
           "default": "serial",
-          "description": "Optional: Execution mode (serial or parallel). Translated into R <value> in the stack file. Since 2025.12."
+          "description": "Optional execution mode (serial or parallel). The aggregate stack (options.generate_stack) emits an `R parallel` line only when set to parallel; serial is implicit."
         },
         "language": {
           "type": "string",
           "enum": ["tcl", "python"],
           "default": "tcl",
           "description": "Optional: Language of the stage. Set to 'python' if the stage uses Python. Default is tcl."
+        },
+        "standalone_stack": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the added stage emits <stage>.stack (Intel header plus the authored steps verbatim) instead of <stage>.tcl. Same contract as the base stageDefinition field; see ARCHITECTURE.md Sec.3.6."
         },
         "steps": {
           "type": "array",
@@ -435,7 +440,7 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in a manually-created stack file."
+          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "load_from": {
           "type": "string",
@@ -445,42 +450,47 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in a manually-created stack file."
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "exit_codes": {
           "type": "array",
           "items": { "type": "integer" },
           "minItems": 1,
-          "description": "Optional legal exit codes. Become the `L` line in a manually-created stack file."
+          "description": "Optional legal exit codes. Become the `L` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional execution command. Becomes the `J` line in a manually-created stack file."
+          "description": "Optional execution command. Becomes the `J` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "inputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional input artifact markers. Become one or more `I` lines in a manually-created stack file."
+          "description": "Optional input artifact markers. Become one or more `I` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "outputs": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
-          "description": "Optional output artifact markers. Become one or more `O` lines in a manually-created stack file."
+          "description": "Optional output artifact markers. Become one or more `O` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
         },
         "run_mode": {
           "type": "string",
           "enum": ["serial", "parallel"],
           "default": "serial",
-          "description": "Optional: Execution mode"
+          "description": "Optional execution mode (serial or parallel). The aggregate stack emits an `R parallel` line only when set to parallel; serial is implicit."
         },
         "language": {
           "type": "string",
           "enum": ["tcl", "python"],
           "default": "tcl",
           "description": "Optional: Stage language"
+        },
+        "standalone_stack": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the replacement stage emits <stage>.stack (Intel header plus the authored steps verbatim) instead of <stage>.tcl. Same contract as the base stageDefinition field; see ARCHITECTURE.md Sec.3.6."
         },
         "steps": {
           "type": "array",

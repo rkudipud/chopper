@@ -146,28 +146,19 @@ def test_input_preserver_emits_vw20_on_out_of_tree_copy_failure() -> None:
     assert "VW-20" in _codes(ctx)
 
 
-def test_copy_dir_recursively_copies_nested_subdirectory() -> None:
-    """_copy_dir must recursively copy directories and return the file count."""
-    from chopper.trimmer.input_preserver import _copy_dir
+def test_copy_tree_recursively_copies_nested_subdirectory() -> None:
+    """copy_tree must recursively copy directories and return the file count."""
+    from chopper.core.fs_walk import copy_tree
 
     fs = InMemoryFS()
     # Setup: /backup/jsons/sub/feat.json and /backup/jsons/base.json
     fs.write_text(Path("/backup/jsons/sub/feat.json"), '{"features":[]}')
     fs.write_text(Path("/backup/jsons/base.json"), '{"base":"x"}')
 
-    ctx_cfg = RunConfig(
-        domain_root=DOMAIN,
-        backup_root=Path("/backup"),
-        audit_root=AUDIT,
-        strict=False,
-        dry_run=False,
-    )
-    ctx2 = ChopperContext(config=ctx_cfg, fs=fs, diag=_Sink(), progress=_Progress())
-
     src = Path("/backup/jsons")
     dst = Path("/domain/jsons")
     fs.mkdir(dst, parents=True, exist_ok=True)
-    count = _copy_dir(ctx2, src, dst)
+    count = copy_tree(fs, src, dst)
     assert count == 2
     assert fs.exists(Path("/domain/jsons/base.json"))
     assert fs.exists(Path("/domain/jsons/sub/feat.json"))

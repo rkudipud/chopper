@@ -40,6 +40,8 @@ from pathlib import Path, PurePosixPath
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.fs_walk import iter_domain_files
+from chopper.core.globs import glob_match
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph, StageSpec
 from chopper.core.models_config import FeatureJson, FilesSection, LoadedConfig
@@ -262,53 +264,14 @@ def _glob_syntax_ok(pattern: str) -> bool:
 
 
 def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
-    """Return ``True`` iff ``pattern`` matches any file under ``domain_root``.
+    """Return ``True`` iff ``pattern`` matches any file in the validation source tree.
 
-    The :class:`FileSystemPort` protocol does not expose a recursive glob
-    method, so we BFS the tree via :meth:`list` and test each domain-relative
-    POSIX path using the same ``**``-aware regex translation as the P1/P3
-    glob engines.  :meth:`PurePosixPath.match` is intentionally avoided
-    because its ``**`` support is Python-version-dependent (added in 3.12).
-    Early-exits on the first matching file.
+    Same walk and glob semantics as P1 surface collection and P3 merge
+    (:mod:`chopper.core.fs_walk`, :mod:`chopper.core.globs`); stops at the
+    first match.
     """
-    import re as _re  # noqa: PLC0415
-    from fnmatch import fnmatchcase as _fnmatchcase  # noqa: PLC0415
-
-    from chopper.core.globs import glob_to_regex as _glob_to_regex_local  # noqa: PLC0415
-
-    regex = _glob_to_regex_local(pattern)
-    domain = _validation_source_root(ctx)
-    if not ctx.fs.exists(domain):
-        return False
-
-    frontier: list[Path] = [domain]
-    while frontier:
-        current = frontier.pop(0)
-        try:
-            children = ctx.fs.list(current)
-        except (FileNotFoundError, NotADirectoryError, OSError):
-            continue
-        for child in children:
-            try:
-                rel = child.relative_to(domain)
-            except ValueError:
-                continue
-            rel_posix = rel.as_posix()
-            if rel_posix == ".chopper" or rel_posix.startswith(".chopper/"):
-                continue
-            try:
-                st = ctx.fs.stat(child)
-            except OSError:
-                continue
-            if st.is_dir:
-                frontier.append(child)
-            else:
-                if regex is not None:
-                    if isinstance(regex, _re.Pattern) and regex.fullmatch(rel_posix):
-                        return True
-                elif _fnmatchcase(rel_posix, pattern):
-                    return True
-    return False
+    root = _validation_source_root(ctx)
+    return any(glob_match(pattern, rel.as_posix()) for rel in iter_domain_files(ctx.fs, root))
 
 
 def _validation_source_root(ctx: ChopperContext) -> Path:
@@ -337,7 +300,6 @@ def validate_post(
     generated_artifacts: Sequence[GeneratedArtifact] = (),
     trim_report: TrimReport | None = None,
     tool_command_pool: frozenset[str] = frozenset(),
-    cross_validate: bool = True,
 ) -> None:
     """Run Phase 2 correctness checks on the rebuilt domain.
 
@@ -348,7 +310,8 @@ def validate_post(
     rebuilt domain and matches the trimmer's recorded ``bytes_out``.
     In dry-run, ``rewritten`` is empty. P6 brace-checks generated Tcl
     from ``generated_artifacts`` in memory; other filesystem-dependent
-    checks (``VW-10``) are skipped.
+    checks (``VW-10``) are skipped. ``manifest.options.cross_validate``
+    gates the F3 step cross-checks.
     """
 
     _check_brace_balance(ctx, rewritten)
@@ -357,7 +320,7 @@ def validate_post(
     _check_trim_outputs(ctx, trim_report)
     _check_trimmed_proc_sets(ctx, trim_report)
     _check_dangling_refs(ctx, manifest, graph)
-    _check_stage_steps(ctx, manifest, tool_command_pool, cross_validate=cross_validate)
+    _check_stage_steps(ctx, manifest, tool_command_pool)
 
 
 def _check_manifest_vs_trim(
@@ -876,12 +839,11 @@ def _check_stage_steps(
     ctx: ChopperContext,
     manifest: CompiledManifest,
     tool_command_pool: frozenset[str] = frozenset(),
-    *,
-    cross_validate: bool = True,
 ) -> None:
     if not manifest.stages:
         return
 
+    cross_validate = manifest.options.cross_validate
     surviving_files = frozenset(manifest.file_decisions.keys())
     surviving_proc_short = _surviving_proc_shorts(manifest)
 

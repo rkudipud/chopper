@@ -42,7 +42,7 @@
         "minLength": 1,
         "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
       },
-      "description": "List of feature JSON paths in declared application order. Order is authoritative for everything (F1, F2, and F3): layers are applied left-to-right and the last layer that mentions a file/proc/step wins (R1 ordered overlay). If a feature declares `depends_on`, each prerequisite feature must also be selected and must appear earlier in this list."
+      "description": "List of feature JSON paths in declared application order. Order is authoritative for everything (F1, F2, and F3): layers are applied left-to-right and the last layer that mentions a file/proc/step wins (R1 ordered overlay). If a feature declares `depends_on`, each prerequisite feature must also be selected; P1 topologically sorts this list so prerequisites are applied first, keeping authored order among unrelated features."
     },
     "notes": {
       "type": "array",

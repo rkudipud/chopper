@@ -9,7 +9,7 @@ For each :class:`StageSpec` in ``manifest.stages``:
 The Intel header is injected at the top of a per-stage file only when
 its steps do not already own a header (line-1 ``#!`` shebang or a
 leading copyright notice) -- see :func:`chopper.core.header.needs_header`.
-Additionally, when ``manifest.generate_stack`` is ``True`` and
+Additionally, when ``manifest.options.generate_stack`` is ``True`` and
 ``manifest.stages`` is non-empty, emits exactly one aggregate
 ``<domain>.stack`` (where ``<domain>`` is ``ctx.config.domain_root.name``)
 containing one record per stage. Record order is
@@ -59,17 +59,14 @@ class GeneratorService:
 
         artifacts: list[GeneratedArtifact] = []
         for stage in manifest.stages:
-            if not stage.standalone_stack:
-                tcl_artifact = emit_stage_tcl(stage)
-                self._write(ctx, tcl_artifact)
-                artifacts.append(tcl_artifact)
-
             if stage.standalone_stack:
-                standalone_artifact = emit_standalone_stack(stage)
-                self._write(ctx, standalone_artifact)
-                artifacts.append(standalone_artifact)
+                artifact = emit_standalone_stack(stage)
+            else:
+                artifact = emit_stage_tcl(stage)
+            self._write(ctx, artifact)
+            artifacts.append(artifact)
 
-        if manifest.generate_stack and manifest.stages:
+        if manifest.options.generate_stack and manifest.stages:
             aggregate = emit_flow_stack(
                 manifest.stages,
                 ctx.config.domain_root.name,

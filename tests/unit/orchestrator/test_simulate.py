@@ -15,7 +15,6 @@ from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
-from chopper.core.models_config import BaseJson, LoadedConfig
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 from chopper.orchestrator.simulate import SimulatedTrim, simulate_trim_in_memory
 
@@ -122,9 +121,8 @@ def test_simulate_rebuilds_domain_and_leaves_real_disk_untouched(tmp_path: Path)
             trim_rel: FileProvenance(path=trim_rel, treatment=FileTreatment.PROC_TRIM, reason="proc-trim"),
         },
     )
-    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
 
-    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    sim = simulate_trim_in_memory(ctx, parsed=parsed, manifest=manifest)
 
     assert isinstance(sim, SimulatedTrim)
     # Real on-disk source is untouched: all three files still present verbatim.
@@ -227,10 +225,9 @@ def test_simulate_skips_unreadable_source_file(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr(sim_mod, "_read_text", lambda _ctx, _path: None)
 
     manifest = CompiledManifest(file_decisions={}, proc_decisions={}, provenance={})
-    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
     parsed = ParseResult(files={}, index={})
 
-    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    sim = simulate_trim_in_memory(ctx, parsed=parsed, manifest=manifest)
     # The unreadable file was skipped, so the in-memory domain is empty.
     assert not sim.fs.exists(sim.domain_root / Path("unreadable.tcl"))
 
@@ -268,10 +265,9 @@ def test_simulate_seeds_json_files_so_trimmer_loop_does_not_break(tmp_path: Path
             zeta_rel: FileProvenance(path=zeta_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal"),
         },
     )
-    loaded = LoadedConfig(base=BaseJson(source_path=domain / "jsons" / "base.json", domain="d"))
     parsed = ParseResult(files={}, index={})
 
-    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    sim = simulate_trim_in_memory(ctx, parsed=parsed, manifest=manifest)
 
     # Both alpha.tcl (before jsons/) and zeta.tcl (after jsons/) must be
     # in the rebuilt domain -- the trimmer loop must not break on jsons/base.json.
@@ -291,10 +287,9 @@ def test_simulate_skips_json_seed_when_file_missing_from_source_root(tmp_path: P
         proc_decisions={},
         provenance={json_rel: FileProvenance(path=json_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal")},
     )
-    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
     parsed = ParseResult(files={}, index={})
 
-    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    sim = simulate_trim_in_memory(ctx, parsed=parsed, manifest=manifest)
 
     assert not sim.fs.exists(sim.domain_root / json_rel)
 
@@ -316,9 +311,8 @@ def test_simulate_skips_json_seed_when_unreadable(tmp_path: Path, monkeypatch) -
         proc_decisions={},
         provenance={json_rel: FileProvenance(path=json_rel, treatment=FileTreatment.FULL_COPY, reason="fi-literal")},
     )
-    loaded = LoadedConfig(base=BaseJson(source_path=Path("base.json"), domain="d"))
     parsed = ParseResult(files={}, index={})
 
-    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    sim = simulate_trim_in_memory(ctx, parsed=parsed, manifest=manifest)
 
     assert not sim.fs.exists(sim.domain_root / json_rel)

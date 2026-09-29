@@ -115,31 +115,31 @@ Base-only (simplest):
 
 ```text
 <domain_root>/
-??? jsons/
-    ??? base.json                          <- universal files/procs/stages
++-- jsons/
+    +-- base.json                          <- universal files/procs/stages
 ```
 
 Base + feature JSONs (Mode 2 -- no project file needed):
 
 ```text
 <domain_root>/
-??? jsons/
-    ??? base.json
-    ??? features/
-        ??? feature_a.feature.json         <- optional capability layer A
-        ??? feature_b.feature.json         <- optional capability layer B
++-- jsons/
+    +-- base.json
+    +-- features/
+        +-- feature_a.feature.json         <- optional capability layer A
+        +-- feature_b.feature.json         <- optional capability layer B
 ```
 
 Base + feature JSONs + project recipe (Mode 3):
 
 ```text
 <domain_root>/
-??? jsons/
-?   ??? base.json
-?   ??? features/
-?       ??? feature_a.feature.json
-?       ??? feature_b.feature.json
-??? project.json                           <- optional recipe: names base + [feature_a, feature_b]
++-- jsons/
+|   +-- base.json
+|   +-- features/
+|       +-- feature_a.feature.json
+|       +-- feature_b.feature.json
++-- project.json                           <- optional recipe: names base + [feature_a, feature_b]
 ```
 
 The project JSON can also sit outside the domain -- in a separate `configs/` directory or a team repository. It just holds paths to the base and feature JSONs.
@@ -469,6 +469,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.9.1 -- 2026-09-30
+
+- **Fixed: a single `*` or `?` in a file glob no longer reaches into subdirectories.** The documented rule has always been that `*` and `?` stay within one directory level and only `**` crosses levels -- but for patterns without `**`, Chopper matched with `fnmatch`, whose `*` crosses `/`. So `procs/*.tcl` also pulled in `procs/sub/file.tcl`, and `*_procs.tcl` matched `procs/core_procs.tcl`. All glob evaluation (surface expansion, `VW-03` validation, conflict resolution) now uses one matcher that follows the documented rule. **Upgrade note:** if a base or feature relied on `*` matching nested files, write `**/` (e.g. `procs/**/*.tcl`); run `chopper trim --dry-run` and diff `compiled_manifest.json` to check. No shipped example was affected.
+- **Fixed: feature stages accept `standalone_stack`.** `add_stage_before` / `add_stage_after` and `replace_stage`'s `with` now take `"standalone_stack": true` like base stages (the schema rejected it although the stage contract defines it).
+- **Cleanup:** the base `options` block now travels to the trim, generate, indent, and post-validate phases as one object instead of four separately wired switches; every domain walk shares one walker that skips `.chopper/` at every depth; stale schema descriptions corrected (topological stack order, `standalone_stack` replaces `.tcl`, `depends_on` is sorted, not order-checked); dead code removed. No diagnostic or CLI change. See ARCHITECTURE.md Sec.6.3.1 and the 4.9.1 revision row.
+
 ### 4.9.0 -- 2026-09-29
 
 - **New: `options.insert_markers` -- provenance markers are now opt-in and can no longer break the Tcl they annotate (issue #31).** The `## CHOPPER: BEGIN/END` comments added in 4.5.0 broke real stage files: a feature step added inside the option list of `::parseOpt::cmdSpec` put marker lines inside a braced data list, where Tcl reads them as list elements, and a `replace_step` on `if {$ready} {` left an END marker with an unmatched `{` inside the new `if` body ("missing close-brace") -- while `chopper validate` reported success, because its brace check skips comments. **Markers are now off by default.** Set `"options": {"insert_markers": true}` in the base JSON to get them; it is one master switch for proc markers in trimmed files and step/stage markers in generated stage files. When on, markers are always lines of their own, quotes and braces in them are escaped, and a marker pair that would land where Tcl does not read `#` as a comment -- inside braces, inside a multi-line string, after a `\`-continued line, above a line-1 shebang -- is moved out to wrap the whole top-level command instead. Content never moves, so toggling the switch changes comment lines only. Standalone `<stage>.stack` files are never marked (the resolver used to mark them despite the spec). **Upgrade note:** outputs that relied on always-on markers lose them unless the base opts in. See ARCHITECTURE.md Sec.3.11, FR-56.
@@ -578,7 +584,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 3.4.0 -- 2026-05-21
 
-- **Aggregate `<domain>.stack` records now emitted in topological order.** Record order in the aggregate stack file (`options.generate_stack: true`) is now the topological sort of the stage dependency graph -- edges are `dependencies ? {load_from}` per stage. Kahn's algorithm with **authored position** as the tiebreaker: deterministic, preserves authoring intent for unrelated subgraphs, no lexicographic shuffle. Materialized on a new `CompiledManifest.stack_order: tuple[str, ...]` field; `manifest.stages` itself remains in authored order so `<stage>.tcl` emission, trim report, and audit views continue to use authored sequencing.
+- **Aggregate `<domain>.stack` records now emitted in topological order.** Record order in the aggregate stack file (`options.generate_stack: true`) is now the topological sort of the stage dependency graph -- edges are `dependencies` union `{load_from}` per stage. Kahn's algorithm with **authored position** as the tiebreaker: deterministic, preserves authoring intent for unrelated subgraphs, no lexicographic shuffle. Materialized on a new `CompiledManifest.stack_order: tuple[str, ...]` field; `manifest.stages` itself remains in authored order so `<stage>.tcl` emission, trim report, and audit views continue to use authored sequencing.
 - **`standalone_stack: true` now suppresses `<stage>.tcl`.** A stage with `standalone_stack: true` previously emitted both `<stage>.tcl` and `<stage>.stack`. As of 3.4.0 it emits **only** `<stage>.stack` (plus a record in the aggregate when `generate_stack` is on). The standalone stack becomes the stage's sole driver, eliminating the previous redundancy.
 - **Two new diagnostics.** `VE-30 stage-dependency-cycle` and `VE-31 stage-dependency-unresolved` (both exit 1, phase 3) are emitted whenever `stages` is non-empty, regardless of `generate_stack` -- a malformed dependency graph is an authoring bug independent of stack emission. Diagnostic registry summary updated: VE active 29->31, reserved 1->4 (band extended VE-30 -> VE-35).
 - **Hard cutover, no JSON knob.** No backward-compatibility shim; existing aggregate stacks regenerate in topological order on the next trim.
@@ -668,7 +674,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 - **R1 collapses to a single rule: ordered overlay, last layer wins.** Features are no longer additive -- they are **layered**. Layers (`base` first, then each selected feature in declared order) are applied left-to-right; for each file/proc, the last layer that mentions it wins. A feature can now add new content, remove base content, or replace base content with its own. Same-layer authoring conveniences (`VW-09`, `VW-11`, `VW-12`, `VW-13`) are unchanged. `project.json` `features` ordering is now authoritative for **F1, F2, and F3** (was F3-only). Mental model: kustomize / Docker layers / CSS cascade. Full spec in [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) Sec.4 (R1) and Sec.5.3 (P3 algorithm).
 - **Diagnostic registry: `VW-21` and `VE-27` added; `VW-18` and `VW-19` retired.** New `VW-21 layer-shadowed` (warning, exit 0) records every layer transition that changes a prior decision. New `VE-27 no-op-exclude` (error, exit 1) catches typo-class `files.exclude` / `procedures.exclude` entries that match nothing in the running set or via glob. Retired `VW-18 cross-source-pe-vetoed` and `VW-19 cross-source-fe-vetoed` cannot fire under the overlay model (a later layer's PE/FE *actually removes* the proc/file rather than being vetoed). Slot rows preserved per registry policy (slug `RETIRED`); never reuse the slots. VW band ceiling extended to `VW-30` to accommodate `VW-21` and future overlay diagnostics.
-- **`FileProvenance` shape changed.** `vetoed_entries: tuple[str, ...]` field **removed**. Two new fields: `contributed_by: str | None` (the single last layer that positively contributed to the file) and `shadowed_by: tuple[ShadowEvent, ...]` (the audit trail of every layer transition that changed a prior decision). New frozen dataclass `ShadowEvent(layer, prior_layer, action)` with `action ? {"replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"}`. `FileProvenance.proc_model` literal narrowed from `"additive" | "subtractive" | None` to `"overlay" | None`. `input_sources` field kept (P5 needs it for input-JSON copy logic in `<domain>/jsons/`).
+- **`FileProvenance` shape changed.** `vetoed_entries: tuple[str, ...]` field **removed**. Two new fields: `contributed_by: str | None` (the single last layer that positively contributed to the file) and `shadowed_by: tuple[ShadowEvent, ...]` (the audit trail of every layer transition that changed a prior decision). New frozen dataclass `ShadowEvent(layer, prior_layer, action)` with `action in {"replace", "remove", "downgrade-whole-to-trim", "add-proc", "remove-proc"}`. `FileProvenance.proc_model` literal narrowed from `"additive" | "subtractive" | None` to `"overlay" | None`. `input_sources` field kept (P5 needs it for input-JSON copy logic in `<domain>/jsons/`).
 - **Audit artifact provenance lines updated.** `files_kept.txt` provenance column changed from a comma-separated `<source_key>:<json_field>` list (formerly `FileProvenance.input_sources`) to a single `<contributed_by>` token (the last winning layer key). `files_removed.txt` provenance column changed from `vetoed-by:<src1>,<src2>,...` / `default-exclude` to one of `removed-by:<layer_key>:files.exclude` (last `ShadowEvent` action `"remove"`), `shadowed-by:<layer_key>:procedures.exclude` (last shadow event was a PE-driven removal), or `default-exclude` (file was never positively contributed to by any layer). Header comments in both artifacts updated.
 - **Compiler `merge_service.py` rewritten as an ordered fold.** Replaces the previous two-pass per-source classification + cross-source aggregation (cases A/B/C, `_classify_source`, `_aggregate`) with a single-pass fold over `(base, *features_in_order)` carrying a `running` map. `tests/unit/compiler/test_aggregate.py` and `tests/unit/compiler/test_per_source.py` deleted (tested helpers that no longer exist). The compiler emits `VE-27 no-op-exclude` directly at three sites: literal `files.exclude` not matching the running set, glob `files.exclude` matching zero files at the layer, and `procedures.exclude` proc-name typo (short name does not resolve to a canonical proc in the file).
 - **No backward compatibility** -- alpha release. JSON-authoring surface is unchanged for the additive subset (a base-only domain or a feature whose excludes only target paths the same JSON includes still behaves exactly as in 1.x), but any `project.json` whose features removed or replaced base content via `VW-18` / `VW-19` cross-source vetoes will produce different output: the later layer now wins outright.
@@ -702,7 +708,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 1.0.0 -- 2026-05-07
 
-- **Coverage hardened to >=98% across all source files.** Added 74 surgical unit tests in [tests/unit/test_coverage_98.py](tests/unit/test_coverage_98.py) covering previously-unhit defensive branches across the validator, parser, compiler (trace + merge + flow resolver), config, audit, adapters, trimmer, and CLI modules. Total line+branch coverage: 92% -> **98.75%**. Test suite: 1005 -> **1079 passing**, 7 skipped.
+- **Coverage hardened to >=98% across all source files.** Added 74 surgical unit tests in `tests/unit/test_coverage_98.py` (since redistributed into per-module `*_coverage.py` files) covering previously-unhit defensive branches across the validator, parser, compiler (trace + merge + flow resolver), config, audit, adapters, trimmer, and CLI modules. Total line+branch coverage: 92% -> **98.75%**. Test suite: 1005 -> **1079 passing**, 7 skipped.
 - **No production code drift.** No schema, diagnostic-registry, CLI surface, exit-code, runtime, or pipeline-phase changes. Pure test-coverage release.
 - **v1 stability milestone.** All six pipeline phases (P0-P7) now ship at near-complete branch coverage; version bumped 0.9.2 -> 1.0.0 to mark the v1 stability line.
 
@@ -748,7 +754,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 - **Performance uplift: O1-O6 optimization wave complete.** This release integrates all six optimizations tracked as O1-O6 across the pipeline and activates the cache-reuse pattern introduced in the architecture doc.
   - **O1 -- domain file cache.** P1 glob-expansion now caches the BFS domain walk in `LoadedConfig.domain_file_cache`. P2's full-domain harvest phase filters that cache for `.tcl` files instead of re-walking the filesystem, eliminating a second full-directory scan on every trim run.
   - **O2 -- `short_to_canonical` cache.** The per-file short-name -> canonical-name dict in the compiler merge service is now built once per `ParseResult` (in `_build_short_to_canonical()`) and reused across the classify and aggregate passes, cutting the rebuild count from `2 ? S ? F` to `S`.
-  - **O3 / O4 -- verified no-op.** Both candidates were audited and confirmed to require no code change (see [IMPROVEMENTS.md](IMPROVEMENTS.md)).
+  - **O3 / O4 -- verified no-op.** Both candidates were audited and confirmed to require no code change (see `IMPROVEMENTS.md`, since retired).
   - **O5 / O6 -- structural refactor.** Shipped in 0.8.0 (core model split, call-extractor modularization).
 - **Setup scripts: proxy applied before first network op, uninstall is now conditional.** [setup.ps1](setup.ps1), [setup.sh](setup.sh), [setup.csh](setup.csh), and [setup.bat](setup.bat) now export `HTTP_PROXY` / `HTTPS_PROXY` to the current shell session immediately after resolving `CHOPPER_PROXY`, so the step-[1/6] `git pull` already runs through the proxy. The step-[5/6] uninstall is now conditional: `pip show chopper` is checked first and the uninstall command is skipped when the package is not present, making fresh-venv installs cleaner.
 - **No behavioral, schema, diagnostic-registry, or CLI-surface changes.**
@@ -768,7 +774,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 - **Python version policy aligned.** Spec Sec.5.12 had said ">= 3.13" while [pyproject.toml](pyproject.toml) said `>=3.11` and ruff/mypy targeted 3.11 -- three-way drift. Spec narrative reconciled to ">= 3.11 (3.13 preferred)"; pyproject / ruff / mypy unchanged (already 3.11). 3.11 is the floor so Chopper installs cleanly on long-lived workstations; 3.13 is the recommended target where available. PEP 695 type-parameter syntax remains forbidden in `src/`.
 - **SLOC counter language coverage.** [src/chopper/audit/sloc.py](src/chopper/audit/sloc.py) (the engine behind the `sloc_before` / `sloc_after` / `sloc_removed` / `trim_ratio_sloc` fields in `trim_report.json` and `trim_stats.json`) was previously hash-comment-aware for Tcl, Perl, and Bourne-family shells only -- Python was missing entirely, and `.tcsh`, `.zsh`, `.ksh` were treated as unknown. Extension set widened from 6 to 10 (`.tcl, .sh, .csh, .tcsh, .bash, .zsh, .ksh, .pl, .pm, .py`). Module docstring documents Python triple-quoted module docstring behaviour explicitly: counted as code, not skipped, for predictability across SLOC-counter dialects.
 - **Compiler optimization (O2): `short_to_canonical` cached once per `ParseResult`.** [src/chopper/compiler/merge_service.py](src/chopper/compiler/merge_service.py) previously rebuilt the per-file short-name -> canonical-name dict per source per pass (classify pass + aggregate pass with PE entries), totalling `2 ? S ? F` rebuilds where `S` is the number of JSON sources and `F` is the file count. New `_build_short_to_canonical()` helper called once per parsed file at the top of `CompilerService.run()`; the resulting `dict[Path, dict[str, str]]` is threaded into `_classify_one` and `_aggregate`. Internal refactor only -- zero behavioural change, byte-identical golden outputs.
-- **Spec / code drift audit captured in [IMPROVEMENTS.md](IMPROVEMENTS.md).** The full audit (10 drifts, 6 optimisations, 5 architectural holes) plus per-decision rationale, implementation log, and Wave B verdicts (O3 / O4 verified no-op; O1 / O5 / O6 deferred to dedicated PRs) is recorded in [IMPROVEMENTS.md](IMPROVEMENTS.md) Sec.1-Sec.6 alongside the user decisions that drove each fix.
+- **Spec / code drift audit captured in `IMPROVEMENTS.md` (since retired).** The full audit (10 drifts, 6 optimisations, 5 architectural holes) plus per-decision rationale, implementation log, and Wave B verdicts (O3 / O4 verified no-op; O1 / O5 / O6 deferred to dedicated PRs) is recorded in `IMPROVEMENTS.md` (since retired) Sec.1-Sec.6 alongside the user decisions that drove each fix.
 
 ### 0.6.0 -- 2026-05-01
 
@@ -820,7 +826,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 - **Companion consolidation + discoverability.** The former `domain-analyzer` agent was absorbed into the [Chopper Agent](.github/agents/chopper-agent.agent.md), now the **single user-facing agent** for anything Chopper-related. The companion card gained explicit **Operating Modes** (`analyze-only` vs `full-loop`), a **Q1-Q5 Discovery Protocol** for unfamiliar codebases, **JSON Templates & Checklists**, a **Schema Error -> Fix Mapping** table, a **Bootstrapping-a-new-domain** playbook, and named **Common CLI Workflows** (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic). The greeting is now a tier-2 menu (Tier 1 "where are you starting from?" table -> Tier 2 full capability list).
 - **Prompt library.** New [`.github/prompts/`](.github/prompts/) directory with six ready-to-use starting points: `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
-- **USER_MANUAL cross-ref.** [doc/USER_MANUAL.md](doc/USER_MANUAL.md) now points at the companion at the top of the Operating Tasks section.
+- **USER_MANUAL cross-ref.** `doc/USER_MANUAL.md` (since replaced by `user_docs/`) now points at the companion at the top of the Operating Tasks section.
 - No runtime, schema, diagnostic-registry, or scope-lock changes -- agents, docs, and version files only.
 
 ### 0.3.1 -- 2026-04-24
@@ -831,7 +837,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 0.3.0 -- 2026-04-24
 
 - **F3 stack-file auto-generation (`options.generate_stack`).** Base JSON gains an optional `options.generate_stack` boolean (default `false`). When enabled alongside `stages`, the generator (P5b) emits one `<stage>.stack` per resolved stage alongside `<stage>.tcl`, using the N/J/L/D/I/O/R format documented in the architecture doc Sec.3.6. Dependency-line derivation follows `dependencies` > `load_from` > bare `D`. Generated `.stack` files participate in `compiled_manifest.json`, the trimmer skip-set, and the audit bundle exactly like `.tcl` run scripts.
-...it/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to `.github/agents/domain-analyzer.agent.md` (later absorbed into the Chopper Agent in 0.3.2), and the validator to [scripts/validate_jsons.py](scripts/validate_jsons.py). The kit's private version file was folded into the main package metadata.
+...it/` dissolved.** Now that the Chopper runtime has shipped, the standalone authoring kit was absorbed into the main repository: schemas moved to `schemas/`, examples to `examples/`, the authoring guide to [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), the domain-analyzer agent to `.github/agents/domain-analyzer.agent.md` (later absorbed into the Chopper Agent in 0.3.2), and the validator to [schemas/scripts/validate_jsons.py](schemas/scripts/validate_jsons.py). The kit's private version file was folded into the main package metadata.
 - Authoring guide Sec.2.1 added; example 03 and example 07 opted in to `generate_stack` for demonstration.
 
 ### 0.2.0 -- 2026-04-23

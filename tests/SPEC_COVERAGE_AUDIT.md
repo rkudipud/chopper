@@ -61,7 +61,7 @@ Generated 2026-05-07. Refresh this file when spec sections move or new tests lan
 | P1 | `.chopper/` is never copied from `<domain>_backup/` into the rebuilt domain on re-trim. | Sec.2.4 | **Closed in this pass** -- `tests/integration/test_cli_e2e.py::TestTrimSubcommand::test_re_trim_does_not_copy_backup_chopper_into_rebuilt_domain` |
 | P1 | Glob expansion in `files.include` never matches paths under `.chopper/`. | Sec.2.4 / Sec.3.4 | **Closed in this pass** -- `tests/integration/test_cli_e2e.py::TestTrimSubcommand::test_glob_expansion_never_matches_chopper_audit_directory` |
 | P1 | When `--project` is used, `base` and `features` paths in the project JSON resolve from cwd (the domain root), not from the project file's directory. | IMPLEMENTATION Sec.1.10 (P-25) | **Closed in this pass** -- `tests/integration/test_cli_e2e.py::TestTrimSubcommand::test_project_paths_resolve_from_cwd_not_project_file_directory` |
-| P2 | Audit write OSError emits `VW-20` and does not abort the run. | DIAGNOSTIC_CODES `VW-20` | Already covered at unit level in `tests/unit/test_coverage_98.py::test_audit_writers_tolerate_oserror` -- left under Covered. |
+| P2 | Audit write OSError emits `VW-20` and does not abort the run. | DIAGNOSTIC_CODES `VW-20` | Already covered at unit level in `tests/unit/audit/test_service_coverage.py` -- left under Covered. |
 | P2 | DPA name mismatch emits `PW-11`. | IMPLEMENTATION Sec.1.4.6 | Covered in `tests/unit/parser/test_proc_extractor.py:348`. |
 | P2 | Feature `depends_on` cycle emits `VE-22`. | Sec.3.2 | Covered in `tests/unit/config/test_loaders.py:405`. |
 | P2 | F3 cross-validate emits `VW-14` / `VW-15` / `VW-16` for missing step targets. | Sec.3.6 | Covered in `tests/unit/validator/test_validator.py:740-789`. |
@@ -128,7 +128,7 @@ The registry has 89 active codes. Per code-family parity is enforced by `schemas
 | `VW-18` / `VW-19` | RETIRED in 2.0.0-alpha (cannot fire under R1 ordered overlay; rows preserved per registry policy) |
 | `VW-21` | [tests/unit/compiler/test_merge_service.py](unit/compiler/test_merge_service.py) `test_vw21_emitted_when_feature_pi_overrides_base_pe` |
 | `VE-27` | [tests/integration/test_runner_localfs_e2e.py](integration/test_runner_localfs_e2e.py) `test_runner_localfs_overlay_no_op_exclude_emits_ve27`; emitted from `compiler/merge_service.py` at three sites (literal FE no-op, glob FE zero-match, PE proc-name typo). |
-| `VW-20` | [tests/unit/test_coverage_98.py](unit/test_coverage_98.py#L1078) |
+| `VW-20` | [tests/unit/audit/test_service_coverage.py](unit/audit/test_service_coverage.py), [tests/unit/trimmer/test_input_preserver_coverage.py](unit/trimmer/test_input_preserver_coverage.py) |
 | `TW-01` / `TW-02` / `TW-03` / `TW-04` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L623) |
 | `TI-01` | [tests/unit/compiler/test_tracer.py](unit/compiler/test_tracer.py#L286) |
 | `PE-01` | parser tests |

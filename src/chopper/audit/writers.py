@@ -150,13 +150,13 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
                 {"layer": ev.layer, "prior_layer": ev.prior_layer, "action": ev.action} for ev in prov.shadowed_by
             ],
             "proc_model": prov.proc_model,
+            "surviving_procs": (
+                sorted(cn for cn, d in manifest.proc_decisions.items() if d.source_file == path)
+                if treatment is FileTreatment.PROC_TRIM
+                else None
+            ),
+            "excluded_procs": None,
         }
-        if treatment is FileTreatment.PROC_TRIM:
-            entry["surviving_procs"] = sorted(cn for cn, d in manifest.proc_decisions.items() if d.source_file == path)
-            entry["excluded_procs"] = None
-        else:
-            entry["surviving_procs"] = None
-            entry["excluded_procs"] = None
         files_out.append(entry)
 
     surviving = [
@@ -170,7 +170,6 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
 
     traced = []
     if record.graph is not None:
-        seed_set = set(record.graph.pi_seeds)
         for cn in record.graph.pt:
             entry_t: dict[str, object] = {
                 "canonical_name": cn,
@@ -179,8 +178,6 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
                 "survival_effect": "none",
             }
             traced.append(entry_t)
-        # Silence unused local warning.
-        _ = seed_set
 
     flow_actions = [
         {
@@ -1036,12 +1033,6 @@ def _read_and_count(
         return 0, raw_total, skipped_decode
     sloc_total = sum(count_sloc_many(items))
     return sloc_total, raw_total, skipped_decode
-
-
-def _resolve_before_path(ctx: ChopperContext, record: RunRecord, rel_path: Path) -> Path:
-    """Return absolute path under the pre-trim source root for ``rel_path``."""
-
-    return _before_root(ctx, record) / rel_path
 
 
 def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:

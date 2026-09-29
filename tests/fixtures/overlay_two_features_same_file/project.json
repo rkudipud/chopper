@@ -1,5 +1,6 @@
 {
   "$schema": "project-v1",
+  "project": "OVERLAY_TWO_FEATURES_SAME_FILE",
   "domain": "overlay_two_features_same_file",
   "base": "jsons/base.json",
   "features": [

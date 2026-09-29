@@ -102,7 +102,7 @@ class TestRunConfig:
 
     def test_no_mode_field(self) -> None:
         # Guard against reintroduction of the rejected ``mode`` field
-        # (DAY0_REVIEW A7 / scope-lock).
+        # (scope-lock).
         assert "mode" not in RunConfig.__dataclass_fields__
 
     def test_run_config_ward_fields_default_to_none(self, tmp_path: Path) -> None:

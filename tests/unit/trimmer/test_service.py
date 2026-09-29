@@ -14,6 +14,7 @@ import pytest
 from chopper.adapters import InMemoryFS
 from chopper.core.models_common import DomainState, FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
+from chopper.core.models_config import BaseOptions
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 from chopper.core.provenance_markers import marker_pair
 from chopper.trimmer import TrimmerService
@@ -90,7 +91,9 @@ def _manifest(
             source_file=Path(file_part),
             selection_source=f"base:{field}",
         )
-    return CompiledManifest(file_decisions=fd, proc_decisions=pd, provenance=pv, insert_markers=insert_markers)
+    return CompiledManifest(
+        file_decisions=fd, proc_decisions=pd, provenance=pv, options=BaseOptions(insert_markers=insert_markers)
+    )
 
 
 def _state(case: int, *, domain_exists: bool, backup_exists: bool) -> DomainState:
@@ -98,7 +101,6 @@ def _state(case: int, *, domain_exists: bool, backup_exists: bool) -> DomainStat
         case=case,  # type: ignore[arg-type]
         domain_exists=domain_exists,
         backup_exists=backup_exists,
-        hand_edited=False,
     )
 
 

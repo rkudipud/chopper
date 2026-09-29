@@ -36,6 +36,7 @@
 - Packaging fix: keep `schemas/scripts` in `make bundle` and `make release-cth` payloads so tested helper scripts ship with runtime/CTH artifacts.
 - Ward-copied pytest gate passed after copying tests for validation only: 1501 passed, 100% coverage against ward `global/common/chopper/src`; removed validation-only `tests/`, `dom`, and `__pycache__` afterward.
 - Removed GitNexus repo customization files and obsolete workspace helper config; remaining protocol references are explicit closure/removal records only.
+- 4.9.1 cleanup (uncommitted): base `options` now travels as `CompiledManifest.options: BaseOptions` (P5/P6 read switches there; no per-call kwargs); one glob matcher `core.globs.glob_match` (stdlib `PurePath.full_match`, fixes `*`/`?` crossing `/` vs ARCH Sec.6.3.1); one domain walker `core.fs_walk.iter_domain_files` (+ `copy_tree`); feature schema regained `standalone_stack`; dead code removed (`DomainState.hand_edited`, `ProgrammerError`); signature gate now checks `validate_pre`/`validate_post` bidirectionally, scoped to ENGINEERING Sec.9.2; new guards `test_schema::test_every_shipped_chopper_json_is_schema_valid` and `tests/unit/test_doc_links.py`; box-drawing mojibake in 9 docs repaired to ASCII.
 
 ## Next Actions
 - None.
@@ -44,6 +45,7 @@
 - None.
 
 ## Validation Notes
+- 4.9.1 full gate (Windows): 1848 passed, 100.00% line+branch; only the 2 known Windows-only `test_p4_sync_planner` failures. Signature gate 12/12, registry gate OK, import contracts 4/4.
 - `make release-cth` smoke test passed with `chopper 4.0.0`.
 - Real CTH prompt direct invocation passed after launcher fix.
 - Fresh CTH reset via `cth_psetup ... -force` completed; patched bundle installed with `make install-cth WARD=/nfs/site/disks/ddi_r2g_13/rkudipud/global_dev/turn_in/r2g.1278_dev`.

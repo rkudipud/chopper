@@ -31,6 +31,7 @@ from pathlib import Path
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
+from chopper.core.fs_walk import copy_tree
 from chopper.core.models_config import LoadedConfig
 
 __all__ = ["preserve_input_sources"]
@@ -63,7 +64,7 @@ def preserve_input_sources(ctx: ChopperContext, loaded: LoadedConfig) -> int:
     if ctx.fs.exists(backup_jsons):
         try:
             ctx.fs.mkdir(domain_jsons, parents=True, exist_ok=True)
-            preserved += _copy_dir(ctx, backup_jsons, domain_jsons)
+            preserved += copy_tree(ctx.fs, backup_jsons, domain_jsons)
         except OSError as exc:
             ctx.diag.emit(
                 Diagnostic.build(
@@ -107,25 +108,3 @@ def preserve_input_sources(ctx: ChopperContext, loaded: LoadedConfig) -> int:
                 )
 
     return preserved
-
-
-def _copy_dir(ctx: ChopperContext, src: Path, dst: Path) -> int:
-    """Recursively copy all files under ``src`` into ``dst``.
-
-    Creates intermediate directories as needed. Returns the count of
-    regular files copied. ``dst`` must already exist before this is
-    called (the caller creates it).
-    """
-    count = 0
-    for child in ctx.fs.list(src):
-        stat = ctx.fs.stat(child)
-        rel = child.relative_to(src)
-        dst_child = dst / rel
-        if stat.is_dir:
-            ctx.fs.mkdir(dst_child, parents=True, exist_ok=True)
-            count += _copy_dir(ctx, child, dst_child)
-        else:
-            ctx.fs.mkdir(dst_child.parent, parents=True, exist_ok=True)
-            ctx.fs.copy_file(child, dst_child)
-            count += 1
-    return count

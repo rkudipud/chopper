@@ -42,7 +42,7 @@ def _manifest(file_decisions: dict[str, FileTreatment]) -> CompiledManifest:
 
 
 def _state(case: int, *, domain_exists: bool, backup_exists: bool) -> DomainState:
-    return DomainState(case=case, domain_exists=domain_exists, backup_exists=backup_exists, hand_edited=False)  # type: ignore[arg-type]
+    return DomainState(case=case, domain_exists=domain_exists, backup_exists=backup_exists)  # type: ignore[arg-type]
 
 
 _EMPTY_PARSED = ParseResult(files={}, index={})

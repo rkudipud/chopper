@@ -89,7 +89,7 @@ def make_ctx() -> tuple[ChopperContext, CollectingSink]:
 
 
 def default_state() -> DomainState:
-    return DomainState(case=1, domain_exists=True, backup_exists=False, hand_edited=False)
+    return DomainState(case=1, domain_exists=True, backup_exists=False)
 
 
 # ---------------------------------------------------------------------------

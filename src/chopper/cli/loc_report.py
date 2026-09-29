@@ -38,7 +38,6 @@ from chopper.core.context import ChopperContext
 from chopper.core.fs_walk import TEXT_LIKE_EXTENSIONS, walk_files
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest
-from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParseResult
 from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -183,7 +182,6 @@ def _count_tree(fs: object, root: Path) -> tuple[list[Path], dict[Path, int], di
 def build_loc_report(
     *,
     ctx: ChopperContext,
-    loaded: LoadedConfig,
     parsed: ParseResult,
     manifest: CompiledManifest,
     generated_artifacts: tuple[GeneratedArtifact, ...],
@@ -206,7 +204,7 @@ def build_loc_report(
     """
     from chopper.orchestrator.simulate import simulate_trim_in_memory
 
-    sim = simulate_trim_in_memory(ctx, loaded=loaded, parsed=parsed, manifest=manifest)
+    sim = simulate_trim_in_memory(ctx, parsed=parsed, manifest=manifest)
     before_rels, before_lines, before_sloc = _count_tree(sim.fs, sim.backup_root)
     _after_rels, after_lines, after_sloc = _count_tree(sim.fs, sim.domain_root)
 

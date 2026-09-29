@@ -25,7 +25,6 @@ class DomainState:
     case: Literal[1, 2, 3, 4]
     domain_exists: bool
     backup_exists: bool
-    hand_edited: bool
 
 
 @dataclass(frozen=True)

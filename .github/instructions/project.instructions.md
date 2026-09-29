@@ -87,10 +87,10 @@ Every hit outside a negative assertion (a sentence like "there is no `LockPort`"
 
 ```text
 Is this in technical_docs/ARCHITECTURE.md?
-??? YES -> Implement per the architecture doc. Cascade to subordinate docs if needed.
-??? NO  -> Is it in Sec.1 "Closed Decisions" above?
-         ??? YES -> Do not implement. Do not reopen. Point the requester at the rejection row.
-         ??? NO  -> File an FD-xx stub in IMPLEMENTATION.md Future Considerations section. Flag the user. Stop.
++-- YES -> Implement per the architecture doc. Cascade to subordinate docs if needed.
++-- NO  -> Is it in Sec.1 "Closed Decisions" above?
+         +-- YES -> Do not implement. Do not reopen. Point the requester at the rejection row.
+         +-- NO  -> File an FD-xx stub in IMPLEMENTATION.md Future Considerations section. Flag the user. Stop.
 ```
 
 There is no fourth branch.
@@ -110,7 +110,7 @@ First time? Set up your environment with a platform-agnostic script:
 
 **tcsh on Unix is the primary system.** Windows is supported but secondary; macOS and Linux bash/zsh are fallback paths only.
 
-This creates `.venv`, activates it, and installs dev dependencies. See [SETUP_GUIDE.md](SETUP_GUIDE.md) for auto-activation and troubleshooting.
+This creates `.venv`, activates it, and installs dev dependencies.
 
 ---
 
@@ -175,7 +175,7 @@ The codebase executes an **8-phase pipeline (P0-P7)**:
 
 ```
 P0 (Domain State)  ->  P1 (Config + Pre-Validate)  ->  P2 (Parse Tcl)  ->  P3 (Compile)
-   ?
+   |
 P4 (Trace BFS)  ->  P5 (Build Output)  ->  P6 (Post-Validate)  ->  P7 (Audit)
 ```
 
@@ -294,7 +294,6 @@ Other key docs:
 
 - [technical_docs/ARCHITECTURE.md](../../technical_docs/ARCHITECTURE.md) Sec.5.11 -- GUI-readiness surface: typed results, JSON serialization, service-layer discipline.
 - [technical_docs/IMPLEMENTATION.md Future Considerations section](../../technical_docs/IMPLEMENTATION.md) -- Roadmap items explicitly out of v1 scope.
-- [technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md](../../technical_docs/SNORT_ANALYSIS_AND_CHOPPER_COMPARISON.md) -- SNORT comparison and absorbed guardrails.
 - [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md) and [schemas/](../../schemas/) -- Domain-owner authoring surface for base / feature / project JSONs.
 
 ---
