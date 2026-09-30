@@ -951,21 +951,21 @@ Retained for authoring reference. Columns describe what **one** layer's authored
 | # | FI | FE | PI | PE | Effect on running set | Diagnostic |
 |---|---|---|---|---|---|---|
 | 1 | -- | -- | -- | -- | no change | -- |
-| 2 | ? | -- | -- | -- | set `F -> WHOLE` | `VW-21` if earlier layer had different state |
-| 3 | -- | ? | -- | -- | remove `F` from running set | `VW-21` if `F` was present; `VE-27` if not present and no glob match |
-| 4 | ? | ? | -- | -- | literal FI: `F -> WHOLE`; glob-only pruned by same-layer FE: no change | -- |
-| 5 | -- | -- | ? | -- | union PI into `F`'s `keep` (or downgrade `WHOLE` -> `TRIM(keep = running_keep ? PI)`) | `VW-21` if downgrading WHOLE |
-| 6 | -- | -- | -- | ? | `F -> TRIM(keep = (running_keep or all_procs(F)) ? PE)` | `VW-21` if removing procs that were kept |
-| 7 | -- | -- | ? | ? | union PI; PE ignored | `VW-12` |
-| 8 | ? | -- | ? | -- | `F -> WHOLE` (PI redundant) | `VW-09` |
-| 9 | ? | -- | -- | ? | `F -> TRIM(keep = all ? PE)` | -- |
-| 10 | ? | -- | ? | ? | `F -> TRIM(keep = all ? PE)` (PI redundant with FI; PE qualifies it) | `VW-09` |
-| 11 | -- | ? | ? | -- | union PI into `keep`; layer's FE on `F` is overridden by same-layer PI | -- |
-| 12 | -- | ? | -- | ? | no change (same-layer FE+PE contradiction) | `VW-11` |
-| 13 | -- | ? | ? | ? | union PI into `keep`; FE+PE both overridden by PI | `VW-12` |
-| 14 | ? | ? | ? | -- | literal FI: `F -> WHOLE`; glob-only pruned by FE: no change | `VW-09` |
-| 15 | ? | ? | -- | ? | literal FI: `F -> TRIM(keep = all ? PE)`; glob-only pruned: no change | -- |
-| 16 | ? | ? | ? | ? | literal FI: `F -> TRIM(keep = all ? PE)`; glob-only: union PI into `keep` | `VW-09` or `VW-12` |
+| 2 | yes | -- | -- | -- | set `F -> WHOLE` | `VW-21` if earlier layer had different state |
+| 3 | -- | yes | -- | -- | remove `F` from running set | `VW-21` if `F` was present; `VE-27` if not present and no glob match |
+| 4 | yes | yes | -- | -- | literal FI: `F -> WHOLE`; glob-only pruned by same-layer FE: no change | -- |
+| 5 | -- | -- | yes | -- | union PI into `F`'s `keep` (or downgrade `WHOLE` -> `TRIM(keep = running_keep + PI)`) | `VW-21` if downgrading WHOLE |
+| 6 | -- | -- | -- | yes | `F -> TRIM(keep = (running_keep or all_procs(F)) - PE)` | `VW-21` if removing procs that were kept |
+| 7 | -- | -- | yes | yes | union PI; PE ignored | `VW-12` |
+| 8 | yes | -- | yes | -- | `F -> WHOLE` (PI redundant) | `VW-09` |
+| 9 | yes | -- | -- | yes | `F -> TRIM(keep = all - PE)` | -- |
+| 10 | yes | -- | yes | yes | `F -> TRIM(keep = all - PE)` (PI redundant with FI; PE qualifies it) | `VW-09` |
+| 11 | -- | yes | yes | -- | union PI into `keep`; layer's FE on `F` is overridden by same-layer PI | -- |
+| 12 | -- | yes | -- | yes | no change (same-layer FE+PE contradiction) | `VW-11` |
+| 13 | -- | yes | yes | yes | union PI into `keep`; FE+PE both overridden by PI | `VW-12` |
+| 14 | yes | yes | yes | -- | literal FI: `F -> WHOLE`; glob-only pruned by FE: no change | `VW-09` |
+| 15 | yes | yes | -- | yes | literal FI: `F -> TRIM(keep = all - PE)`; glob-only pruned: no change | -- |
+| 16 | yes | yes | yes | yes | literal FI: `F -> TRIM(keep = all - PE)`; glob-only: union PI into `keep` | `VW-09` or `VW-12` |
 
 **Reading the matrix under the overlay model:**
 
@@ -2067,22 +2067,24 @@ The `input_base.json`, `input_features/`, and `input_project.json` files are **e
 
 | Artifact | Live trim | Dry-run | `validate` | `cleanup` |
 |---|---|---|---|---|
-| `run_id` | ? | ? | ? | ? |
-| `chopper_run.json` | ? | ? | ? | ? |
-| `input_base.json` | ? | ? | ? | -- |
-| `input_features/` | ? | ? | ? | -- |
-| `input_project.json` | ? (if used) | ? (if used) | ? (if used) | -- |
-| `compiled_manifest.json` | ? | ? | -- | -- |
-| `dependency_graph.json` | ? | ? | -- | -- |
-| `diagnostics.json` | ? | ? | ? | -- |
-| `trim_report.json` | ? | ? | -- | -- |
-| `trim_report.txt` | ? | ? | -- | -- |
-| `files_removed.txt` | ? | ? | -- | -- |
-| `files_kept.txt` | ? | ? | -- | -- |
-| `p4_commands.txt` | ? | ? | -- | -- |
-| `files_exclude_p4.txt` | ? | ? | -- | -- |
-| `trim_stats.json` | ? | ? | -- | -- |
-| `internal-error.log` | ? (exit 3 only) | ? (exit 3 only) | ? (exit 3 only) | ? (exit 3 only) |
+| `run_id` | yes | yes | yes | -- |
+| `chopper_run.json` | yes | yes | yes | -- |
+| `input_base.json` | yes | yes | yes | -- |
+| `input_features/` | yes | yes | yes | -- |
+| `input_project.json` | yes (if used) | yes (if used) | yes (if used) | -- |
+| `compiled_manifest.json` | yes | yes | yes | -- |
+| `dependency_graph.json` | yes | yes | yes | -- |
+| `diagnostics.json` | yes | yes | yes | -- |
+| `trim_report.json` | yes | yes | yes | -- |
+| `trim_report.txt` | yes | yes | yes | -- |
+| `files_removed.txt` | yes | yes | yes | -- |
+| `files_kept.txt` | yes | yes | yes | -- |
+| `p4_commands.txt` | yes | yes | yes | -- |
+| `files_exclude_p4.txt` | yes | yes | yes | -- |
+| `trim_stats.json` | yes | yes | yes | -- |
+| `internal-error.log` | yes (exit 3 only) | yes (exit 3 only) | yes (exit 3 only) | -- |
+
+`validate` runs the same pipeline as a dry-run trim, so it writes the same bundle; `input_features/` appears only when features were selected. `cleanup` is a direct filesystem operation and writes no bundle, and `chopper loc` writes none either (Sec.5.7).
 
 **`internal-error.log` contract.** This file is written **only on exit code 3** (programmer error / internal-consistency failure). It is produced by the CLI's exit-3 handler rather than `AuditService`, because the audit stage itself may have failed. Contents:
 
@@ -3691,7 +3693,8 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-09-14 | **4.8.0 -- `reference_file` extended to `add_step_before` / `add_step_after` (`items`, FR-55 revised).** The same mechanism 4.7.0 shipped for whole-stage `steps` now also applies to the block of `items` a feature injects at a `reference` anchor: `reference_file` is an alternative to authoring `items` inline, same P1 resolution, same encoding/line-splitting contract, same `VE-39` failure code (renamed from `stage-reference-file-invalid` to `reference-file-invalid` since it is no longer stage-scoped -- same code number, no registry slot consumed, no behavior change for existing callers). Deliberately excluded: `replace_step` (its `with` is exactly one replacement string, not a block -- a file with more than one line has no sensible mapping); step-level `reference_file` provenance is not retained past P3 resolution (spliced items become indistinguishable from the surrounding stage's `steps`), unlike stage-level `reference_file` which survives as `StageSpec.reference_file`. Raised and approved in conversation while discussing anchor-based feature injection; no separate GitHub issue. |
 | 2026-09-29 | **4.8.1 -- Generated files never bury a shebang or duplicate an existing header (issue #30).** A stage sourced from a script that starts with `#!/bin/sh` (the `sh` -> `exec tclsh` bootstrap, commonly regenerated in place via `reference_file`) came out with the Intel header and `# Chopper-generated stage:` banner above its shebang, so the kernel no longer honored the shebang and the script's own copyright header was duplicated. Sec.6.6.1 now injects the header only when the body does not already own one: never above a line-1 `#!` shebang, never on top of a leading-comment copyright notice (`Copyright` + `(c)` or a four-digit year), and only into `#`-comment output types; when injected it is always the first line of the file, and when not injected the file is exactly its body. Sec.3.11 gains the matching resolver rule: a shebang that ends up behind flow-action marker lines (an added or replaced stage sourced from a shebang script) is moved back to line 1. Rejected alternative: injecting the header *after* the shebang -- it still duplicates the script's own notice and still re-stamps Chopper's own output on every regeneration. No schema, diagnostic, or CLI surface change. |
 | 2026-09-29 | **4.9.0 -- Provenance markers opt-in (`options.insert_markers`, FR-56) and Tcl-safe (issue #31).** Real stage files broke on Sec.3.11 markers in two ways: an `add_step_after` into the option list of `::parseOpt::cmdSpec` put marker lines inside a braced data word, where Tcl reads `#` lines as list elements; and `replace_step` on `if {$ready} {` left an END marker with an unmatched `{` inside the new `if` body, which Tcl counts when matching the body's close. P6 passed both files, because its brace counter skips comment lines. Three changes. Markers are opt-in: `options.insert_markers` (default `false`) is one master switch for F2 and F3 alike, reversing the 4.5.0 always-on decision on the owner's approval of `FD-17`; with it off, flow actions place bare content at the same positions and F2 deletes removed procs outright. Marker text escapes `\`, `"`, `{`, and `}` as well as CR/LF, in `<name>` and `<source>`. F3 marker pairs sit only at top-level command boundaries (brace depth 0, outside a quoted word, not after a continuation line, never above a line-1 shebang); a pair landing anywhere else moves outward to wrap the enclosing top-level command, and is dropped if the content leaves no boundary -- this subsumes the 4.8.1 shebang rule. Standalone-stack stages, which Sec.3.11 always excluded but the resolver still marked, now get no markers. Rejected alternatives: suppressing markers inside braces (loses them wherever a stage uses `if` or `proc` blocks), and recognizing script-taking commands to keep markers inside their bodies (heuristic -- unknown commands such as `::parseOpt::cmdSpec` take data). No diagnostic or CLI change; `base-v1` gains one optional boolean. |
-| 2026-09-30 | **4.9.1 -- One options channel, one glob matcher, one domain walker (cleanup; one glob bug fix).** Four decisions. (1) *Options:* the base `options` object is frozen onto `CompiledManifest.options` (a `BaseOptions`) at P3, and P5/P6 read every switch there; this replaces two loose manifest bools (`generate_stack`, `insert_markers`) and two per-call keyword arguments (`TclIndentationService.run(enabled=)`, `validate_post(cross_validate=)`), so a new option is a schema field plus a `BaseOptions` field with no plumbing. Rejected: keeping per-option arguments, which gave four options four different routes. (2) *Glob bug:* Sec.6.3.1 says `*` and `?` never cross `/`, but P1, P1 validation, and P3 fell back to `fnmatch` for patterns without `**`, whose `*` does cross `/` -- `procs/*.tcl` also matched `procs/sub/file.tcl`, contradicting this document's own example table. All three now call one `core.globs.glob_match` built on the stdlib `PurePath.full_match`, which implements Sec.6.3.1 exactly and agreed with the old `**` translator on 56,000 pattern/path pairs. JSONs that relied on `*` reaching into subdirectories must use `**/`; no shipped example or fixture did. Rejected: keeping the hand-written translator and extending it to plain patterns (duplicates the stdlib). (3) *Walker:* P1 surface expansion, P1 glob validation, and the P2 parse each had their own BFS walk that skipped only a top-level `.chopper/`, while the LOC walk skipped it at every depth; all now share `core.fs_walk.iter_domain_files`, which skips `.chopper/` at every depth. (4) *Contract drift:* the feature schema omitted `standalone_stack` on `add_stage_*` and `replace_stage.with` although Sec.3.6 defines it as a `stageDefinition` field and the resolver honors it -- restored; `depends_on` text claiming prerequisites "must appear earlier" is corrected to the 4.6.1 contract (P1 topologically sorts, `VE-15`/`VE-22` are the only failures). Dead code removed: `DomainState.hand_edited` (always `False`; a leftover of the retired hand-edit detector, ENGINEERING.md Sec.16 Q2), the never-raised `ProgrammerError`, and an unused `simulate_trim_in_memory` / `build_loc_report` `loaded` parameter. The Sec.9.2 signature gate now also checks `validate_pre` / `validate_post` in both directions. No diagnostic or CLI change. |
+| 2026-09-29 | **4.9.1 -- One options channel, one glob matcher, one domain walker (cleanup; one glob bug fix).** Four decisions. (1) *Options:* the base `options` object is frozen onto `CompiledManifest.options` (a `BaseOptions`) at P3, and P5/P6 read every switch there; this replaces two loose manifest bools (`generate_stack`, `insert_markers`) and two per-call keyword arguments (`TclIndentationService.run(enabled=)`, `validate_post(cross_validate=)`), so a new option is a schema field plus a `BaseOptions` field with no plumbing. Rejected: keeping per-option arguments, which gave four options four different routes. (2) *Glob bug:* Sec.6.3.1 says `*` and `?` never cross `/`, but P1, P1 validation, and P3 fell back to `fnmatch` for patterns without `**`, whose `*` does cross `/` -- `procs/*.tcl` also matched `procs/sub/file.tcl`, contradicting this document's own example table. All three now call one `core.globs.glob_match` built on the stdlib `PurePath.full_match`, which implements Sec.6.3.1 exactly and agreed with the old `**` translator on 56,000 pattern/path pairs. JSONs that relied on `*` reaching into subdirectories must use `**/`; no shipped example or fixture did. Rejected: keeping the hand-written translator and extending it to plain patterns (duplicates the stdlib). (3) *Walker:* P1 surface expansion, P1 glob validation, and the P2 parse each had their own BFS walk that skipped only a top-level `.chopper/`, while the LOC walk skipped it at every depth; all now share `core.fs_walk.iter_domain_files`, which skips `.chopper/` at every depth. (4) *Contract drift:* the feature schema omitted `standalone_stack` on `add_stage_*` and `replace_stage.with` although Sec.3.6 defines it as a `stageDefinition` field and the resolver honors it -- restored; `depends_on` text claiming prerequisites "must appear earlier" is corrected to the 4.6.1 contract (P1 topologically sorts, `VE-15`/`VE-22` are the only failures). Dead code removed: `DomainState.hand_edited` (always `False`; a leftover of the retired hand-edit detector, ENGINEERING.md Sec.16 Q2), the never-raised `ProgrammerError`, and an unused `simulate_trim_in_memory` / `build_loc_report` `loaded` parameter. The Sec.9.2 signature gate now also checks `validate_pre` / `validate_post` in both directions. No diagnostic or CLI change. |
+| 2026-09-29 | **4.9.2 -- `--project` runs record the project JSON in the audit bundle.** Sec.5.5.1, Sec.5.5.2, and Sec.5.5.10 require `input_project.json` and the `chopper_run.json` project fields on every `--project` run, but P7 never read `LoadedConfig.project`: the copy was never written, the project fields were empty stubs, and `compiled_manifest.json` `inputs.project` was always null. The audit writers now fill all three from the hydrated `ProjectJson`. Decision: P7 still reads each input from its path at audit time, and on a first live trim falls back to the same relative path under `<domain>_backup/` for an input stored inside the domain. P5 renamed the domain before P7, so an input outside `jsons/` (the shipped examples keep `project.json` at the domain root) exists only in the backup, with the bytes P1 read; the fallback applies to base and feature inputs too. A backup that existed before the run is never read -- it may be stale. Rejected: capturing input text at P1 on `BaseJson` / `FeatureJson` / `ProjectJson`, which would change the frozen config contract to serve one P7 copy. No diagnostic or CLI change. |
 
 ---
 

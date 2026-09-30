@@ -2,7 +2,7 @@
   "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
-  "description": "Mixed flow: options.generate_stack: true emits the aggregate <basename(domain_root)>.stack; one stage (eco_apply_patch) also sets standalone_stack: true, so it additionally emits its own verbatim eco_apply_patch.stack containing the authored steps with no record-style line derivation.",
+  "description": "Mixed flow: options.generate_stack: true emits the aggregate <basename(domain_root)>.stack; one stage (eco_apply_patch) also sets standalone_stack: true, so it emits its own verbatim eco_apply_patch.stack (the authored steps, no record-style line derivation) instead of eco_apply_patch.tcl.",
   "options": {
     "generate_stack": true
   },

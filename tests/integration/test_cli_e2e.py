@@ -304,6 +304,47 @@ class TestTrimSubcommand:
             f"stderr:\n{captured.err}"
         )
 
+    @pytest.mark.parametrize(
+        "argv",
+        [["validate"], ["trim", "--dry-run"], ["trim"]],
+        ids=["validate", "dry-run", "live"],
+    )
+    def test_project_run_records_project_json_in_audit_bundle(
+        self, argv: list[str], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Scenario 11c: every ``--project`` run writes ``input_project.json``
+        byte-identical to the project JSON and records its metadata
+        (``technical_docs/ARCHITECTURE.md`` Sec.5.5.2, Sec.5.5.9, Sec.5.5.10).
+
+        The project JSON sits at the domain root, as in the shipped examples.
+        A live trim moves it into the backup before P7 runs.
+        """
+        domain = tmp_path / "mini"
+        _seed_valid_domain(domain)
+        project_path = domain / "project.json"
+        project_bytes = (
+            b'{\n  "$schema": "project-v1",\n  "project": "PROJECT_ABC",\n  "domain": "mini",\n'
+            b'  "owner": "integration-team",\n  "release_branch": "rel/2026q3",\n'
+            b'  "base": "jsons/base.json",\n  "notes": ["audit note"]\n}\n'
+        )
+        project_path.write_bytes(project_bytes)
+
+        rc = main([*argv, "--domain", str(domain), "--project", str(project_path)])
+        captured = capsys.readouterr()
+        assert rc == 0, f"stderr:\n{captured.err}"
+
+        audit = domain / ".chopper"
+        assert (audit / "input_project.json").read_bytes() == project_bytes
+        run = json.loads((audit / "chopper_run.json").read_text(encoding="utf-8"))
+        assert run["project_json"] == project_path.resolve().as_posix()
+        assert run["project_name"] == "PROJECT_ABC"
+        assert run["project_owner"] == "integration-team"
+        assert run["release_branch"] == "rel/2026q3"
+        assert run["project_notes"] == ["audit note"]
+        assert "input_project.json" in run["artifacts_present"]
+        compiled = json.loads((audit / "compiled_manifest.json").read_text(encoding="utf-8"))
+        assert compiled["inputs"]["project"] == project_path.resolve().as_posix()
+
     def test_trim_with_domain_flag_from_unrelated_cwd_succeeds(
         self,
         tmp_path: Path,

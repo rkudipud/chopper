@@ -122,7 +122,7 @@ class AuditService:
         return audit_root / name
 
     def _copy_inputs(self, ctx: ChopperContext, record: RunRecord) -> list[tuple[str, str]]:
-        """Verbatim copies of base + feature JSONs.
+        """Verbatim copies of the base, feature, and project JSONs.
 
         Content is read through :attr:`ctx.fs.read_text` and written back
         byte-for-byte as part of the second pass. If the read fails, the
@@ -134,18 +134,28 @@ class AuditService:
         if loaded is None:
             return out
 
-        base_text = self._safe_read(ctx, loaded.base.source_path)
-        if base_text is not None:
-            out.append(("input_base.json", base_text))
+        # Prefix feature JSONs with a two-digit sequence number that
+        # reflects selected feature order.
+        sources = [("input_base.json", loaded.base.source_path)]
+        sources += [
+            (f"input_features/{index:02d}_{feature.source_path.name}", feature.source_path)
+            for index, feature in enumerate(loaded.features, start=1)
+        ]
+        if loaded.project is not None:
+            sources.append(("input_project.json", loaded.project.source_path))
 
-        for index, feature in enumerate(loaded.features, start=1):
-            text = self._safe_read(ctx, feature.source_path)
-            if text is None:
-                continue
-            # Prefix feature JSONs with a two-digit sequence number that
-            # reflects selected feature order.
-            filename = f"{index:02d}_{feature.source_path.name}"
-            out.append((f"input_features/{filename}", text))
+        # A first live trim renames <domain>/ to <domain>_backup/ before P7,
+        # so an input stored in the domain outside jsons/ (which P5 restores)
+        # now exists only in the backup, with the exact bytes P1 read. A
+        # backup that existed before this run may be stale; never read it.
+        first_trim = record.state is not None and not record.state.backup_exists
+        domain_root = ctx.config.domain_root
+        for name, path in sources:
+            text = self._safe_read(ctx, path)
+            if text is None and first_trim and path.is_relative_to(domain_root):
+                text = self._safe_read(ctx, ctx.config.backup_root / path.relative_to(domain_root))
+            if text is not None:
+                out.append((name, text))
 
         return out
 

@@ -71,9 +71,13 @@ def render_chopper_run(
     project_owner = ""
     release_branch = ""
     project_notes: tuple[str, ...] = ()
-    # ProjectJson integration arrives with Stage 5 CLI wiring; we keep
-    # the fields in the artifact shape so downstream tooling need not
-    # branch on mode.
+    project = loaded.project if loaded else None
+    if project is not None:
+        project_json = project.source_path.as_posix()
+        project_name = project.project
+        project_owner = project.owner or ""
+        release_branch = project.release_branch or ""
+        project_notes = project.notes
 
     trim_state = "first-trim"
     if record.state is not None:
@@ -134,7 +138,7 @@ def render_compiled_manifest(record: RunRecord) -> tuple[str, str]:
     inputs = {
         "base": loaded.base.source_path.as_posix() if loaded else "",
         "features": [f.source_path.as_posix() for f in loaded.features] if loaded else [],
-        "project": None,
+        "project": loaded.project.source_path.as_posix() if loaded and loaded.project else None,
     }
 
     files_out = []

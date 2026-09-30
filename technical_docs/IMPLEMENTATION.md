@@ -2268,35 +2268,31 @@ iproc_source -file setup.tcl -use_hooks
 
 **THE TRAP:**
 ```python
-# CLI loads project JSON, extracts base + features
-# WRONG: discards project name, owner, notes before building RunConfig
-config = RunConfig(
-    domain_root=domain,
-    backup_root=backup,
-    audit_root=audit,
-    # project_json, project_name, project_owner, release_branch, project_notes all missing!
-)
+# P1 loads the project JSON into LoadedConfig.project, but P7 never reads it
+# WRONG: audit writers stub the project fields and skip the project copy
+payload["project_json"] = None
+payload["project_name"] = ""
 # Result: audit artifacts have no record that --project was used
 ```
 
-**Correct Behavior:** When `--project` is used, the CLI layer must populate ALL project-related fields on `RunConfig` (the engine-behavior record inside `ChopperContext`, per [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.1.6.1):
+**Correct Behavior:** When `--project` is used, `ConfigService` hydrates the project JSON into `LoadedConfig.project` (`ProjectJson`), which reaches `AuditService` on `RunRecord.loaded`. The audit writers fill every project field in `chopper_run.json`:
 - `project_json` -- path to the project JSON file
 - `project_name` -- from `project` field
 - `project_owner` -- from `owner` field
 - `release_branch` -- from `release_branch` field
 - `project_notes` -- from `notes` array
 
-These fields flow through `ConfigService` -> `CompiledManifest` and are written into `chopper_run.json` and `compiled_manifest.json` by `AuditService`.
+`compiled_manifest.json` records the same path under `inputs.project`, and the project JSON itself is copied byte-for-byte to `input_project.json`.
 
 **Implementation Requirement:**
-- CLI layer: parse project JSON, populate all `RunConfig` project fields before constructing `ChopperContext`
-- Service layer: pass project fields through to `LoadedConfig` and `CompiledManifest`
-- Audit writer: serialize project fields into `chopper_run.json` and `compiled_manifest.json`
-- When `--project` is NOT used: these fields are empty strings / None / empty tuples
+- Config service: keep the hydrated `ProjectJson` on `LoadedConfig.project`
+- Audit writer: serialize the project fields into `chopper_run.json` and `compiled_manifest.json`, and write `input_project.json`
+- Live trim: a project JSON stored inside the domain but outside `jsons/` is gone from the rebuilt domain by P7 on a first trim; read it from `<domain>_backup/`, which holds the bytes P1 read. Never read a backup that existed before the run -- it may be stale
+- When `--project` is NOT used: these fields are empty strings / null / empty arrays, and no `input_project.json` is written
 
 **Why It Matters:** The audit trail must capture WHY a particular selection was made. Without project metadata, the audit trail shows WHAT was selected but not the project-level context.
 
-**Test:** Trim with `--project`. Verify `chopper_run.json` contains `project_json_path`, `project_name`, `project_owner`, `release_branch`. Trim with `--base`/`--features`. Verify those fields are absent or null.
+**Test:** Run `validate`, `trim --dry-run`, and a live `trim` with `--project`. Verify `input_project.json` is byte-identical to the project JSON and `chopper_run.json` contains `project_json`, `project_name`, `project_owner`, `release_branch`, `project_notes`. Run with `--base`/`--features`. Verify `project_json` is null, the other fields are empty, and `input_project.json` is absent.
 
 ---
 
@@ -2398,7 +2394,7 @@ Result: Major bugs discovered after the compiler is already built on top of an u
 | **CLI** | `--strict` not checked | Escalate warnings to errors, change exit code (P-27) |
 | **CLI** | Cleanup runs without `--confirm` | Require `--confirm` -- exit code 2 without it (P-28) |
 | **Hooks** | Hook files auto-copied from `-use_hooks` | Discovery-only; must be in `files.include` (P-29) |
-| **Project** | Project metadata lost in audit | Populate all `RunConfig` project fields (P-30) |
+| **Project** | Project metadata lost in audit | Audit writers fill the project fields and `input_project.json` from `LoadedConfig.project` (P-30) |
 | **Project** | Domain mismatch with project JSON | Require current working directory consistency and reject mismatches (P-31) |
 
 ---

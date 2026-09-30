@@ -418,6 +418,7 @@ Every run writes `.chopper/` inside the current domain -- including failed runs 
 | `internal-error.log` | **Only on exit 3.** Run ID, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. |
 | `input_base.json` | Verbatim copy of the base JSON used |
 | `input_features/NN_name.json` | Verbatim copies of feature JSONs, prefixed by feature order |
+| `input_project.json` | Verbatim copy of the project JSON (only with `--project`) |
 
 All JSON is written with deterministic key order, UTF-8, trailing newline.
 

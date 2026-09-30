@@ -32,17 +32,16 @@ options:
   --strict              Exit non-zero if any warning is present (does not rewrite severity)
 ```
 
-> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as `FD-10` in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations section. `--version` prints `chopper <version>` and exits 0; it is a top-level global flag and does not require a subcommand.
+> **Flag scope.** `--debug`, `--no-color`, and `--json` were considered and cut. Rich honors `NO_COLOR` automatically; `diagnostics.json` in the audit bundle is the machine-readable surface. Machine-readable stdout is tracked as `FD-10` in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations section. `--version` prints `chopper <version>` and exits 0; it is a top-level global flag and does not require a subcommand. Every global option goes **before** the subcommand -- `chopper --strict validate ...`; placed after it (`chopper validate --strict ...`) it is rejected as an unrecognized argument (exit 2).
 
 ---
 
 ## `chopper validate`
 
 ```text
-usage: chopper validate [--domain PATH]
-                        (--base PATH [--features PATHS] | --project PATH)
-                        [--tool-commands PATH]...
-                        [global options]
+usage: chopper [global options] validate [--domain PATH]
+                                         (--base PATH [--features PATHS] | --project PATH)
+                                         [--tool-commands PATH]...
 
 Run read-only validation against JSON inputs. Checks schema
 compliance, required fields, file/proc existence, action targets,
@@ -93,9 +92,9 @@ options:
 ## `chopper trim`
 
 ```text
-usage: chopper trim [--domain PATH]
-                    (--base PATH [--features PATHS] | --project PATH)
-                    [--tool-commands PATH]... [--dry-run] [--p4] [global options]
+usage: chopper [global options] trim [--domain PATH]
+                                     (--base PATH [--features PATHS] | --project PATH)
+                                     [--tool-commands PATH]... [--dry-run] [--p4]
 
 Execute the full trim pipeline: compile selections, trace proc dependencies,
 build trimmed output, validate results, and emit audit trail.
@@ -151,9 +150,9 @@ FR-47/FR-48/FR-51/FR-52/FR-53.
 ## `chopper loc`
 
 ```text
-usage: chopper loc [--domain PATH]
-                   (--base PATH [--features PATHS] | --project PATH)
-                   [--tool-commands PATH]... [global options]
+usage: chopper [global options] loc [--domain PATH]
+                                    (--base PATH [--features PATHS] | --project PATH)
+                                    [--tool-commands PATH]...
 
 Print a read-only LOC report comparing the source domain against the
 rebuilt trimmed domain. Runs the same P0-P4 + dry-run-P6 pipeline as
@@ -235,7 +234,7 @@ Generated stage artifacts are language-detected the same way -- a generated
 ## `chopper cleanup`
 
 ```text
-usage: chopper cleanup [--domain PATH] --confirm [global options]
+usage: chopper [global options] cleanup [--domain PATH] --confirm
 
 Remove domain_backup/ permanently after the trim window is complete.
 This operation is irreversible. Requires --confirm flag.

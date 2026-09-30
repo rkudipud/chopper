@@ -2,7 +2,7 @@
   "$schema": "base-v1",
   "domain": "my_domain",
   "owner": "platform-team",
-  "description": "Base with multiple stages and options.generate_stack: true. Demonstrates the 3.3.0 aggregate scheduler-stack contract: one <basename(domain_root)>.stack file at the domain root, containing one record per stage in declared order.",
+  "description": "Base with multiple stages and options.generate_stack: true. Demonstrates the 3.3.0 aggregate scheduler-stack contract: one <basename(domain_root)>.stack file at the domain root, containing one record per stage in dependency (topological) order.",
   "options": {
     "generate_stack": true
   },

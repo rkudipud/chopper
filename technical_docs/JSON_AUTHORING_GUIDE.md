@@ -741,21 +741,21 @@ Chopper has four input sets per file: FI (`files.include`), FE (`files.exclude`)
 | # | FI | FE | PI | PE | Treatment | Surviving procs | Warning |
 |---|---|---|---|---|---|---|---|
 | 1 | -- | -- | -- | -- | `REMOVE` | -- | -- |
-| 2 | ? | -- | -- | -- | `FULL_COPY` | all | -- |
-| 3 | -- | ? | -- | -- | `REMOVE` | -- | -- |
-| 4 | ? | ? | -- | -- | `FULL_COPY` (literal) / `REMOVE` (glob) | all / -- | -- |
-| 5 | -- | -- | ? | -- | `PROC_TRIM` | PI only | -- |
-| 6 | -- | -- | -- | ? | `PROC_TRIM` | all ? PE | -- |
-| 7 | -- | -- | ? | ? | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
-| 8 | ? | -- | ? | -- | `FULL_COPY` | all (PI redundant) | `VW-09` |
-| 9 | ? | -- | -- | ? | `PROC_TRIM` | all ? PE | -- |
-| 10 | ? | -- | ? | ? | `PROC_TRIM` | all ? PE (PI redundant with FI) | `VW-09` |
-| 11 | -- | ? | ? | -- | `PROC_TRIM` | PI only (FE overridden) | -- |
-| 12 | -- | ? | -- | ? | `REMOVE` | -- | `VW-11` |
-| 13 | -- | ? | ? | ? | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
-| 14 | ? | ? | ? | -- | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
-| 15 | ? | ? | -- | ? | `PROC_TRIM` (literal) / `REMOVE` (glob) | all ? PE / -- | -- |
-| 16 | ? | ? | ? | ? | `PROC_TRIM` (literal FI) / `PROC_TRIM` (glob-only) | all ? PE / PI only | `VW-09` / `VW-12` |
+| 2 | yes | -- | -- | -- | `FULL_COPY` | all | -- |
+| 3 | -- | yes | -- | -- | `REMOVE` | -- | -- |
+| 4 | yes | yes | -- | -- | `FULL_COPY` (literal) / `REMOVE` (glob) | all / -- | -- |
+| 5 | -- | -- | yes | -- | `PROC_TRIM` | PI only | -- |
+| 6 | -- | -- | -- | yes | `PROC_TRIM` | all - PE | -- |
+| 7 | -- | -- | yes | yes | `PROC_TRIM` | PI only (PE ignored) | `VW-12` |
+| 8 | yes | -- | yes | -- | `FULL_COPY` | all (PI redundant) | `VW-09` |
+| 9 | yes | -- | -- | yes | `PROC_TRIM` | all - PE | -- |
+| 10 | yes | -- | yes | yes | `PROC_TRIM` | all - PE (PI redundant with FI) | `VW-09` |
+| 11 | -- | yes | yes | -- | `PROC_TRIM` | PI only (FE overridden) | -- |
+| 12 | -- | yes | -- | yes | `REMOVE` | -- | `VW-11` |
+| 13 | -- | yes | yes | yes | `PROC_TRIM` | PI only (PE+FE overridden) | `VW-12` |
+| 14 | yes | yes | yes | -- | `FULL_COPY` (literal) | all (PI redundant) | `VW-09` |
+| 15 | yes | yes | -- | yes | `PROC_TRIM` (literal) / `REMOVE` (glob) | all - PE / -- | -- |
+| 16 | yes | yes | yes | yes | `PROC_TRIM` (literal FI) / `PROC_TRIM` (glob-only) | all - PE / PI only | `VW-09` / `VW-12` |
 
 **Key rules:**
 - **PE downgrades FULL_COPY:** FI + PE -> `PROC_TRIM` (cases 9 and 10; literal side of 15 and 16). 100 procs minus 4 PE = 96 survive.

@@ -33,7 +33,7 @@ from chopper.core.models_compiler import (
     ProcDecision,
     StageSpec,
 )
-from chopper.core.models_config import BaseJson, LoadedConfig
+from chopper.core.models_config import BaseJson, LoadedConfig, ProjectJson
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 from chopper.core.models_trimmer import FileOutcome, TrimReport
 
@@ -689,6 +689,75 @@ def test_audit_service_copies_inputs_when_loaded_present() -> None:
     names = [a.name for a in manifest.artifacts]
     assert "input_base.json" in names
     assert fs.read_text(AUDIT / "input_base.json") == '{"name": "base"}\n'
+    assert "input_project.json" not in names
+
+
+def _project_loaded(project_path: Path) -> LoadedConfig:
+    project = ProjectJson(
+        source_path=project_path,
+        project="PROJECT_ABC",
+        domain="my_domain",
+        base="jsons/base.json",
+        owner="integration-team",
+        release_branch="rel/2026q3",
+        notes=("note one", "note two"),
+    )
+    base = BaseJson(source_path=DOMAIN / "jsons" / "base.json", domain="my_domain")
+    return LoadedConfig(base=base, project=project)
+
+
+def test_audit_service_records_project_input_and_metadata() -> None:
+    """``--project`` runs copy the project JSON verbatim to
+    ``input_project.json`` and carry its metadata into ``chopper_run.json``
+    and ``compiled_manifest.json`` (architecture doc Sec.5.5.1-5.5.3)."""
+    project_path = DOMAIN / "project.json"
+    project_text = '{\n  "project": "PROJECT_ABC"\n}\n'
+    fs = InMemoryFS()
+    fs.write_text(project_path, project_text)
+    ctx = _make_ctx(fs=fs)
+
+    manifest = AuditService().run(ctx, _record(loaded=_project_loaded(project_path), manifest=CompiledManifest()))
+
+    assert "input_project.json" in [a.name for a in manifest.artifacts]
+    assert fs.read_text(AUDIT / "input_project.json") == project_text
+    run = json.loads(fs.read_text(AUDIT / "chopper_run.json"))
+    assert run["project_json"] == project_path.as_posix()
+    assert run["project_name"] == "PROJECT_ABC"
+    assert run["project_owner"] == "integration-team"
+    assert run["release_branch"] == "rel/2026q3"
+    assert run["project_notes"] == ["note one", "note two"]
+    assert "input_project.json" in run["artifacts_present"]
+    compiled = json.loads(fs.read_text(AUDIT / "compiled_manifest.json"))
+    assert compiled["inputs"]["project"] == project_path.as_posix()
+
+
+def test_audit_service_reads_domain_input_from_backup_after_first_live_trim() -> None:
+    """On a first live trim P5 renames the domain to the backup before P7,
+    so an input stored inside the domain (outside ``jsons/``) exists only
+    in the backup -- with the exact bytes P1 read."""
+    project_path = DOMAIN / "project.json"
+    fs = InMemoryFS()
+    fs.write_text(BACKUP / "project.json", '{"project": "PROJECT_ABC"}\n')
+    ctx = _make_ctx(fs=fs)
+    first_trim = DomainState(case=1, domain_exists=True, backup_exists=False)
+
+    AuditService().run(ctx, _record(loaded=_project_loaded(project_path), state=first_trim))
+
+    assert fs.read_text(AUDIT / "input_project.json") == '{"project": "PROJECT_ABC"}\n'
+
+
+def test_audit_service_never_reads_inputs_from_pre_existing_backup() -> None:
+    """A re-trim's backup predates the run and may hold stale bytes, so a
+    missing input is skipped rather than copied from it."""
+    project_path = DOMAIN / "project.json"
+    fs = InMemoryFS()
+    fs.write_text(BACKUP / "project.json", '{"project": "STALE"}\n')
+    ctx = _make_ctx(fs=fs)
+    retrim = DomainState(case=2, domain_exists=True, backup_exists=True)
+
+    manifest = AuditService().run(ctx, _record(loaded=_project_loaded(project_path), state=retrim))
+
+    assert "input_project.json" not in [a.name for a in manifest.artifacts]
 
 
 def test_audit_service_tolerates_missing_input_file() -> None:

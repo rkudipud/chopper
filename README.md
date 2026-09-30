@@ -469,7 +469,11 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
-### 4.9.1 -- 2026-09-30
+### 4.9.2 -- 2026-09-29
+
+- **Fixed: `--project` runs now record the project in the audit bundle.** The `.chopper/` bundle was documented to include `input_project.json` -- a verbatim copy of the project JSON -- but it was never written, and the project fields in `chopper_run.json` (`project_json`, `project_name`, `project_owner`, `release_branch`, `project_notes`) and `compiled_manifest.json` (`inputs.project`) were always empty. All are now filled on `validate`, `trim --dry-run`, and live `trim`. On a first live trim, an input JSON stored inside the domain but outside `jsons/` -- such as a `project.json` at the domain root, as in the shipped examples -- is copied from `<domain>_backup/`, because the domain has been rebuilt by the time the bundle is written. See ARCHITECTURE.md Sec.5.5 and the 4.9.2 revision row.
+
+### 4.9.1 -- 2026-09-29
 
 - **Fixed: a single `*` or `?` in a file glob no longer reaches into subdirectories.** The documented rule has always been that `*` and `?` stay within one directory level and only `**` crosses levels -- but for patterns without `**`, Chopper matched with `fnmatch`, whose `*` crosses `/`. So `procs/*.tcl` also pulled in `procs/sub/file.tcl`, and `*_procs.tcl` matched `procs/core_procs.tcl`. All glob evaluation (surface expansion, `VW-03` validation, conflict resolution) now uses one matcher that follows the documented rule. **Upgrade note:** if a base or feature relied on `*` matching nested files, write `**/` (e.g. `procs/**/*.tcl`); run `chopper trim --dry-run` and diff `compiled_manifest.json` to check. No shipped example was affected.
 - **Fixed: feature stages accept `standalone_stack`.** `add_stage_before` / `add_stage_after` and `replace_stage`'s `with` now take `"standalone_stack": true` like base stages (the schema rejected it although the stage contract defines it).
