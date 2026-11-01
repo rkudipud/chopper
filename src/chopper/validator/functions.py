@@ -758,6 +758,7 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
 
     surviving_procs = frozenset(manifest.proc_decisions.keys())
     surviving_files = frozenset(manifest.file_decisions.keys())
+    generated_shorts = _generated_proc_shorts(manifest)
 
     for edge in graph.edges:
         if edge.status != "resolved":
@@ -770,7 +771,7 @@ def _check_dangling_refs(ctx: ChopperContext, manifest: CompiledManifest, graph:
             # moot for post-trim correctness.
             continue
         if edge.kind == "proc_call":
-            if edge.callee not in surviving_procs:
+            if edge.callee not in surviving_procs and _proc_short(edge.callee) not in generated_shorts:
                 ctx.diag.emit(
                     Diagnostic.build(
                         "VW-05",
@@ -845,7 +846,7 @@ def _check_stage_steps(
 
     cross_validate = manifest.options.cross_validate
     surviving_files = frozenset(manifest.file_decisions.keys())
-    surviving_proc_short = _surviving_proc_shorts(manifest)
+    surviving_proc_short = _surviving_proc_shorts(manifest) | _generated_proc_shorts(manifest)
 
     for stage in manifest.stages:
         if cross_validate and stage.reference_file is not None and Path(stage.reference_file) not in surviving_files:
@@ -870,6 +871,25 @@ def _check_stage_steps(
                 tool_command_pool=tool_command_pool,
                 cross_validate=cross_validate,
             )
+
+
+def _proc_short(canonical: str) -> str:
+    _, _, qualified = canonical.partition("::")
+    return qualified.split("::")[-1] if qualified else canonical
+
+
+def _generated_proc_shorts(manifest: CompiledManifest) -> frozenset[str]:
+    """Short names of procs defined inside generated F3 stage steps.
+
+    Visibility only: these never alter ``proc_decisions`` or survival.
+    """
+
+    shorts: set[str] = set()
+    for stage in manifest.stages:
+        text = "\n".join(stage.steps)
+        if "proc" in text:
+            shorts.update(p.short_name for p in parse_file(Path(f"{stage.name}.tcl"), text))
+    return frozenset(shorts)
 
 
 def _surviving_proc_shorts(manifest: CompiledManifest) -> frozenset[str]:
