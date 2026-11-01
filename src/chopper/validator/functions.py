@@ -861,7 +861,7 @@ def _check_stage_steps(
                     hint="Add the reference_file path to files.include to also keep the source file",
                 )
             )
-        for step in stage.steps:
+        for step in _logical_commands(stage.steps):
             _classify_and_emit(
                 ctx,
                 stage=stage,
@@ -890,6 +890,48 @@ def _generated_proc_shorts(manifest: CompiledManifest) -> frozenset[str]:
         if "proc" in text:
             shorts.update(p.short_name for p in parse_file(Path(f"{stage.name}.tcl"), text))
     return frozenset(shorts)
+
+
+def _logical_commands(steps: Iterable[str]) -> list[str]:
+    """Group physical step lines into logical Tcl commands.
+
+    A command continues while it ends in a backslash or has unbalanced
+    braces, brackets or double quotes. Comment lines do not open groups.
+    """
+
+    out: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    in_quote = False
+    for line in steps:
+        buf.append(line)
+        text = line.rstrip()
+        if not (depth or in_quote) and line.lstrip().startswith("#"):
+            pass
+        else:
+            i = 0
+            while i < len(line):
+                ch = line[i]
+                if ch == "\\":
+                    i += 2
+                    continue
+                if depth == 0 and ch == '"':
+                    in_quote = not in_quote
+                elif not in_quote or ch in "{}":
+                    if ch in "{[":
+                        depth += 1
+                    elif ch in "}]" and depth:
+                        depth -= 1
+                i += 1
+        if text.endswith("\\") and (len(text) - len(text.rstrip("\\"))) % 2 == 1:
+            continue
+        if depth or in_quote:
+            continue
+        out.append("\n".join(buf))
+        buf = []
+    if buf:
+        out.append("\n".join(buf))
+    return out
 
 
 def _surviving_proc_shorts(manifest: CompiledManifest) -> frozenset[str]:
@@ -941,6 +983,8 @@ def _classify_and_emit(
     # VW-16: source / iproc_source <path>.
     m = _SOURCE_CMD_RE.match(stripped)
     if m is not None:
+        if any(c in m.group(1) for c in "$[\\"):
+            return  # unresolved Tcl substitution: not evidence of a missing file
         target = PurePosixPath(m.group(1))
         if Path(target) not in surviving_files:
             ctx.diag.emit(
@@ -968,7 +1012,8 @@ def _classify_and_emit(
     # VW-15: bare proc token.
     if _looks_like_bare_proc(stripped):
         proc_name = stripped.split()[0]
-        if proc_name not in surviving_proc_shorts and proc_name not in tool_command_pool:
+        proc_short = proc_name.split("::")[-1] if "::" in proc_name else proc_name
+        if proc_short not in surviving_proc_shorts and proc_name not in tool_command_pool:
             ctx.diag.emit(
                 Diagnostic.build(
                     "VW-15",
@@ -980,7 +1025,7 @@ def _classify_and_emit(
 
 def _is_external_reference(step: str) -> bool:
     head = step.split()[0] if step.split() else step
-    if head.startswith("/") or (len(head) >= 2 and head[1] == ":"):
+    if head.startswith("/") or (len(head) >= 2 and head[0].isalpha() and head[1] == ":" and head[2:3] != ":"):
         return True
     parts = PurePosixPath(head).parts
     return any(p == ".." for p in parts)
