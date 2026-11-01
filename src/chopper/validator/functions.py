@@ -921,6 +921,8 @@ def _classify_and_emit(
     # VW-16: source / iproc_source <path>.
     m = _SOURCE_CMD_RE.match(stripped)
     if m is not None:
+        if any(c in m.group(1) for c in "$[\\"):
+            return  # unresolved Tcl substitution: not evidence of a missing file
         target = PurePosixPath(m.group(1))
         if Path(target) not in surviving_files:
             ctx.diag.emit(
