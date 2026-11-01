@@ -990,7 +990,8 @@ def _classify_and_emit(
     # VW-15: bare proc token.
     if _looks_like_bare_proc(stripped):
         proc_name = stripped.split()[0]
-        if proc_name not in surviving_proc_shorts and proc_name not in tool_command_pool:
+        proc_short = proc_name.split("::")[-1] if "::" in proc_name else proc_name
+        if proc_short not in surviving_proc_shorts and proc_name not in tool_command_pool:
             ctx.diag.emit(
                 Diagnostic.build(
                     "VW-15",
@@ -1002,7 +1003,7 @@ def _classify_and_emit(
 
 def _is_external_reference(step: str) -> bool:
     head = step.split()[0] if step.split() else step
-    if head.startswith("/") or (len(head) >= 2 and head[1] == ":"):
+    if head.startswith("/") or (len(head) >= 2 and head[0].isalpha() and head[1] == ":" and head[2:3] != ":"):
         return True
     parts = PurePosixPath(head).parts
     return any(p == ".." for p in parts)
