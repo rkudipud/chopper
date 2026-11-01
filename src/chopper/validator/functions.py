@@ -860,7 +860,7 @@ def _check_stage_steps(
                     hint="Add the reference_file path to files.include to also keep the source file",
                 )
             )
-        for step in stage.steps:
+        for step in _logical_commands(stage.steps):
             _classify_and_emit(
                 ctx,
                 stage=stage,
@@ -870,6 +870,48 @@ def _check_stage_steps(
                 tool_command_pool=tool_command_pool,
                 cross_validate=cross_validate,
             )
+
+
+def _logical_commands(steps: Iterable[str]) -> list[str]:
+    """Group physical step lines into logical Tcl commands.
+
+    A command continues while it ends in a backslash or has unbalanced
+    braces, brackets or double quotes. Comment lines do not open groups.
+    """
+
+    out: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    in_quote = False
+    for line in steps:
+        buf.append(line)
+        text = line.rstrip()
+        if not (depth or in_quote) and line.lstrip().startswith("#"):
+            pass
+        else:
+            i = 0
+            while i < len(line):
+                ch = line[i]
+                if ch == "\\":
+                    i += 2
+                    continue
+                if depth == 0 and ch == '"':
+                    in_quote = not in_quote
+                elif not in_quote or ch in "{}":
+                    if ch in "{[":
+                        depth += 1
+                    elif ch in "}]" and depth:
+                        depth -= 1
+                i += 1
+        if text.endswith("\\") and (len(text) - len(text.rstrip("\\"))) % 2 == 1:
+            continue
+        if depth or in_quote:
+            continue
+        out.append("\n".join(buf))
+        buf = []
+    if buf:
+        out.append("\n".join(buf))
+    return out
 
 
 def _surviving_proc_shorts(manifest: CompiledManifest) -> frozenset[str]:
