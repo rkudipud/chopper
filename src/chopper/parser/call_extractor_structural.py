@@ -79,6 +79,9 @@ def classify_and_handle(
     elif cmd == "string":
         if is_string_match(tokens, arg_start, arg_end):
             mark_opaque_arg_braces(tokens, arg_start, arg_end, depth, skip)
+    elif cmd == "array":
+        if is_array_set(tokens, arg_start, arg_end):
+            mark_opaque_arg_braces(tokens, arg_start, arg_end, depth, skip)
     elif cmd == "switch":
         mark_switch_pattern_words(tokens, arg_start, arg_end, depth, skip)
     elif cmd in CODE_BRACE_COMMANDS:
@@ -199,5 +202,16 @@ def is_string_match(tokens: tuple[Token, ...], start: int, end: int) -> bool:
         token = tokens[j]
         if token.kind is TokenKind.WORD:
             return token.value == "match"
+        j += 1
+    return False
+
+
+def is_array_set(tokens: tuple[Token, ...], start: int, end: int) -> bool:
+    """True iff this ``array`` command is ``array set ...`` (braced data is literal)."""
+    j = start
+    while j < end:
+        token = tokens[j]
+        if token.kind is TokenKind.WORD:
+            return token.value == "set"
         j += 1
     return False
