@@ -719,3 +719,19 @@ def test_looks_like_bare_proc_returns_false_for_variable_refs_and_braces() -> No
     # Syntax artifacts
     assert _looks_like_bare_proc("}") is False
     assert _looks_like_bare_proc("{") is False
+
+
+def test_generated_stage_proc_definitions_not_reported_missing() -> None:
+    from chopper.core.models_compiler import StageSpec
+    from chopper.validator.functions import _classify_and_emit, _generated_proc_shorts
+
+    class _M:
+        stages = (StageSpec(name="generated", load_from="", steps=("proc helper {} {}", "helper")),)
+
+    ctx = _ctx()
+    shorts = _generated_proc_shorts(_M())  # type: ignore[arg-type]
+    assert shorts == frozenset({"helper"})
+    _classify_and_emit(
+        ctx, stage=_M.stages[0], step="helper", surviving_files=frozenset(), surviving_proc_shorts=shorts
+    )
+    assert "VW-15" not in _codes(ctx)
