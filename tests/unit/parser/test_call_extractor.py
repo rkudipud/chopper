@@ -695,3 +695,12 @@ class TestMissingBuiltins:
     def test_builtins_in_tcl_builtins_constant(self) -> None:
         for name in ("lassign", "subst", "apply", "throw", "lmap", "lrepeat", "lreverse"):
             assert name in TCL_BUILTINS, f"{name!r} missing from TCL_BUILTINS"
+
+
+def test_py_eval_braced_python_payload_is_opaque() -> None:
+    from pathlib import Path
+
+    from chopper.parser.service import parse_file
+
+    text = "proc example {} {\n    py_eval {\n        import x\n        df = []\n    }\n}\n"
+    assert parse_file(Path("e.tcl"), text)[0].calls == ("py_eval",)

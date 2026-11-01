@@ -1,6 +1,6 @@
 """Structural skip pre-pass for Tcl body call extraction.
 
-This module owns opaque braced arguments (regex/exec/glob), recursive Tcl
+This module owns opaque braced arguments (regex/exec/glob/py_eval), recursive Tcl
 code-body descent, and ``switch`` pattern-label suppression.
 """
 
@@ -13,7 +13,7 @@ from chopper.parser.tokenizer import Token, TokenKind
 __all__ = ["compute_skip_indices"]
 
 
-OPAQUE_BRACE_COMMANDS: frozenset[str] = frozenset({"regexp", "regsub", "exec", "glob"})
+OPAQUE_BRACE_COMMANDS: frozenset[str] = frozenset({"regexp", "regsub", "exec", "glob", "py_eval"})
 CODE_BRACE_COMMANDS: frozenset[str] = frozenset(
     {
         "if",
