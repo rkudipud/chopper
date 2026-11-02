@@ -158,7 +158,7 @@ None.
 | `--quiet` suppresses progress | `test_quiet_flag_uses_silent_progress` |
 | `--plain` disables Rich | `test_plain_flag_disables_rich_styling` |
 | `--project` and `--base` mutually exclusive (argparse exit 2) | `test_project_and_base_mutually_exclusive_exits_nonzero` |
-| `validate --features <dir>` expands directory entries | `_expand_feature_dirs` unit tests |
+| `validate --features <dir>` expands directory entries | `expand_feature_dirs` unit tests (`chopper.app.catalog`) |
 
 ### Gap
 

@@ -1,4 +1,4 @@
-"""Per-file coverage tests for src/chopper/cli/loc_report.py.
+"""Per-file coverage tests for src/chopper/orchestrator/projection.py.
 
 Redistributed from the omnibus ``tests/unit/test_coverage_98.py`` and
 ``tests/unit/test_coverage_99.py`` files; see ``tests/unit/_coverage_helpers.py``
@@ -26,75 +26,6 @@ from tests.unit._coverage_helpers import (  # noqa: F401
 )
 
 
-def test_loc_report_source_root_uses_backup_when_it_exists(tmp_path: Path) -> None:
-    """_source_root must return backup_root when it exists, so 'before'
-    reflects what the parser actually saw (case 2/3 re-run)."""
-    from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import _source_root
-    from chopper.core.context import ChopperContext, RunConfig
-
-    domain = tmp_path / "d"
-    domain.mkdir()
-    backup = tmp_path / "d_backup"
-    backup.mkdir()
-
-    cfg = RunConfig(
-        domain_root=domain,
-        backup_root=backup,
-        audit_root=domain / ".chopper",
-        strict=False,
-        dry_run=True,
-    )
-    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
-    assert _source_root(ctx) == backup
-
-
-def test_loc_report_read_with_latin1_fallback(tmp_path: Path) -> None:
-    """_read must fall back to latin-1 when UTF-8 decoding fails.
-    EDA scripts often contain non-ASCII vendor comments in ISO-8859-1."""
-    from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import _read
-    from chopper.core.context import ChopperContext, RunConfig
-
-    domain = tmp_path / "d"
-    domain.mkdir()
-    bad_utf8 = b"proc x {} {}\n# caf\xe9 comment\n"
-    (domain / "f.tcl").write_bytes(bad_utf8)
-
-    cfg = RunConfig(
-        domain_root=domain,
-        backup_root=tmp_path / "d_backup",
-        audit_root=domain / ".chopper",
-        strict=False,
-        dry_run=True,
-    )
-    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
-    text = _read(ctx, Path("f.tcl"))
-    assert text is not None
-    assert "proc x" in text
-
-
-def test_loc_report_read_returns_none_on_oserror(tmp_path: Path) -> None:
-    """_read returns None (not raises) when the file doesn't exist,
-    so build_loc_report can skip missing files gracefully."""
-    from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import _read
-    from chopper.core.context import ChopperContext, RunConfig
-
-    domain = tmp_path / "d"
-    domain.mkdir()
-    cfg = RunConfig(
-        domain_root=domain,
-        backup_root=tmp_path / "d_backup",
-        audit_root=domain / ".chopper",
-        strict=False,
-        dry_run=True,
-    )
-    ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
-    result = _read(ctx, Path("nonexistent.tcl"))
-    assert result is None
-
-
 def test_build_loc_report_baseline_only_returns_full_copy_bucket(
     tmp_path: Path,
 ) -> None:
@@ -102,8 +33,8 @@ def test_build_loc_report_baseline_only_returns_full_copy_bucket(
     files in the FULL_COPY bucket (before==after for all metrics) because
     the manifest was unavailable and no trim was computed."""
     from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import build_loc_report_baseline_only
     from chopper.core.context import ChopperContext, RunConfig
+    from chopper.orchestrator.projection import build_loc_report_baseline_only
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -131,8 +62,9 @@ def test_render_loc_report_outputs_one_line_per_metric(tmp_path: Path) -> None:
     """render_loc_report must print one ``key: value`` line per metric to
     stdout (ARCHITECTURE.md Sec.5.7).  Spot-check key names."""
     from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import build_loc_report_baseline_only, render_loc_report
+    from chopper.cli.render import render_loc_report
     from chopper.core.context import ChopperContext, RunConfig
+    from chopper.orchestrator.projection import build_loc_report_baseline_only
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -158,59 +90,10 @@ def test_render_loc_report_outputs_one_line_per_metric(tmp_path: Path) -> None:
     assert "sloc.after" in output
 
 
-def test_loc_report_read_with_latin1_fallback_in_proc_body(tmp_path: Path) -> None:
-    """_read falls back to latin-1 encoding when UTF-8 decode fails (non-ASCII in proc body)."""
-    from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import _read
-
-    src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    # Write a file with a latin-1 byte that is not valid UTF-8.
-    latin_file = src_dir / "latin.tcl"
-    latin_file.write_bytes(b"proc foo {} { return \xe9 }\n")
-
-    ctx_cfg = RunConfig(
-        domain_root=src_dir,
-        backup_root=tmp_path / "src_backup",
-        audit_root=src_dir / ".chopper",
-        strict=False,
-        dry_run=True,
-    )
-    ctx = ChopperContext(config=ctx_cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
-    text = _read(ctx, Path("latin.tcl"))
-    assert text is not None
-    assert "foo" in text
-
-
-def test_loc_report_read_unicode_error_then_oserror_returns_none() -> None:
-    """_read returns None when UnicodeDecodeError on first read and OSError on latin-1 fallback (142-143)."""
-    from chopper.cli.loc_report import _read  # type: ignore[attr-defined]
-
-    fs = InMemoryFS()
-    abs_path = DOMAIN / "x.tcl"
-    fs.write_text(abs_path, "proc foo {} {}\n")
-
-    cfg = RunConfig(domain_root=DOMAIN, backup_root=BACKUP, audit_root=AUDIT, strict=False, dry_run=True)
-    ctx2 = ChopperContext(config=cfg, fs=fs, diag=_Sink(), progress=_Progress())
-
-    call_count = [0]
-
-    def _mock_read_text(self, path, encoding="utf-8", errors="strict"):  # type: ignore[misc]
-        call_count[0] += 1
-        if call_count[0] == 1:
-            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid byte")
-        raise OSError("second read also fails")
-
-    with patch.object(type(fs), "read_text", _mock_read_text):
-        result = _read(ctx2, Path("x.tcl"))
-
-    assert result is None
-
-
 def test_count_tree_skips_unreadable_and_non_sloc_files() -> None:
     """_count_tree skips a file whose read raises (lines 171-172) and does
     not add a non-text-extension file to the SLOC batch (branch 174->168)."""
-    from chopper.cli.loc_report import _count_tree
+    from chopper.orchestrator.projection import _count_tree
 
     inner = InMemoryFS()
     inner.write_text(DOMAIN / "good.tcl", "proc g {} {}\n")
@@ -248,7 +131,7 @@ def test_count_tree_skips_unreadable_and_non_sloc_files() -> None:
 
 def test_build_loc_report_baseline_only_empty_domain() -> None:
     """build_loc_report_baseline_only returns LocReport with 0 counts for empty domain."""
-    from chopper.cli.loc_report import build_loc_report_baseline_only
+    from chopper.orchestrator.projection import build_loc_report_baseline_only
 
     fs = InMemoryFS()
     fs.mkdir(DOMAIN, parents=True, exist_ok=True)
@@ -263,7 +146,8 @@ def test_build_loc_report_baseline_only_empty_domain() -> None:
 
 def test_render_loc_report_writes_note_when_no_lines(capsys: pytest.CaptureFixture) -> None:
     """render_loc_report writes 'note: no countable source files' when lines_before==0 (line 363)."""
-    from chopper.cli.loc_report import LocReport, TreatmentBucket, render_loc_report
+    from chopper.cli.render import render_loc_report
+    from chopper.core.models_audit import LocReport, TreatmentBucket
 
     report = LocReport(
         files_before=0,
@@ -294,12 +178,12 @@ def test_build_loc_report_covers_all_treatment_buckets(tmp_path: Path) -> None:
     """build_loc_report exercises every treatment-bucket branch when the
     manifest names FULL_COPY + PROC_TRIM + REMOVE + GENERATED files."""
     from chopper.adapters.fs_local import LocalFS
-    from chopper.cli.loc_report import build_loc_report
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
     from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
     from chopper.core.models_trimmer import GeneratedArtifact
+    from chopper.orchestrator.projection import build_loc_report
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -412,12 +296,12 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
     must not contribute to the GENERATED bucket's "before" baseline
     (regenerate-in-place branch not taken)."""
     from chopper.adapters.fs_local import LocalFS
-    from chopper.cli import loc_report as lr
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_compiler import CompiledManifest, FileProvenance
     from chopper.core.models_parser import ParseResult
     from chopper.core.models_trimmer import GeneratedArtifact
+    from chopper.orchestrator import projection as lr
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -475,10 +359,10 @@ def test_build_loc_report_skips_unreadable_files_and_external_generated(tmp_path
 
 
 def test_build_loc_report_baseline_only_skips_unreadable_file(tmp_path: Path) -> None:
-    """Covers line 363: build_loc_report_baseline_only continues past _read=None."""
+    """Covers line 363: build_loc_report_baseline_only continues past _read_text=None."""
     from chopper.adapters.fs_local import LocalFS
-    from chopper.cli import loc_report as lr
     from chopper.core.context import ChopperContext, RunConfig
+    from chopper.orchestrator import projection as lr
 
     domain = tmp_path / "d"
     domain.mkdir()
@@ -492,7 +376,7 @@ def test_build_loc_report_baseline_only_skips_unreadable_file(tmp_path: Path) ->
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
 
-    with patch.object(lr, "_read", return_value=None):
+    with patch.object(lr, "_read_text", return_value=None):
         report = lr.build_loc_report_baseline_only(ctx)
 
     assert report.sloc_before == 0

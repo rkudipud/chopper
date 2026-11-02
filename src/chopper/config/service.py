@@ -49,6 +49,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
+from chopper.core import layout
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.fs_walk import iter_domain_files
@@ -124,7 +125,7 @@ class ConfigService:
             feature_paths = cfg.feature_paths
 
         # --- Load base ---
-        source_root = _config_source_root(ctx, state)
+        source_root = layout.source_root(ctx)
         base_json = self._load_and_hydrate_base(ctx, base_path, source_root)
         if base_json is None:
             return _empty_config()
@@ -154,7 +155,7 @@ class ConfigService:
 
         # --- surface_files: union of literal file refs from all sources ---
         # Also capture domain_file_cache for O1 optimization (P2 reuse).
-        surface, domain_file_cache = _collect_surface_files(base_json, sorted_features, ctx, state=state)
+        surface, domain_file_cache = _collect_surface_files(base_json, sorted_features, ctx)
         surface_sorted = tuple(sorted(surface, key=lambda p: p.as_posix()))
 
         # --- tool_command_pool: built-in lists + any --tool-commands paths ---
@@ -279,7 +280,7 @@ def _read_and_split_reference_file(
     Shared core of every ``reference_file`` resolution site (whole-stage
     ``steps`` and step-injection ``items`` alike): reads the domain-relative
     file under ``source_root`` (``domain_root``, or ``backup_root`` on a
-    Case 2 re-trim -- see :func:`_config_source_root`), decodes UTF-8
+    Case 2 re-trim -- see :func:`chopper.core.layout.source_root`), decodes UTF-8
     tolerating a leading BOM, and splits on ``\\r\\n`` / ``\\r`` / ``\\n`` via
     ``str.splitlines()`` -- adapter-agnostic, so the result does not depend
     on whether the underlying ``FileSystemPort`` already normalized
@@ -447,15 +448,9 @@ def _materialize_feature_stage_steps(
     return {**raw, "flow_actions": resolved}
 
 
-def _config_source_root(ctx: ChopperContext, state: DomainState | None) -> Path:
-    if state is not None and state.backup_exists:
-        return ctx.config.backup_root
-    return ctx.config.domain_root
-
-
-def _enumerate_domain_files(ctx: ChopperContext, state: DomainState | None = None) -> list[tuple[Path, str]]:
+def _enumerate_domain_files(ctx: ChopperContext) -> list[tuple[Path, str]]:
     """Walk the domain once; return every regular file as ``(rel_path, posix_string)``."""
-    return [(rel, rel.as_posix()) for rel in iter_domain_files(ctx.fs, _config_source_root(ctx, state))]
+    return [(rel, rel.as_posix()) for rel in iter_domain_files(ctx.fs, layout.source_root(ctx))]
 
 
 def _match_glob_against(pattern: str, domain_files: list[tuple[Path, str]]) -> set[Path]:
@@ -464,7 +459,7 @@ def _match_glob_against(pattern: str, domain_files: list[tuple[Path, str]]) -> s
 
 
 def _collect_surface_files(
-    base: BaseJson, features: list[FeatureJson], ctx: ChopperContext, state: DomainState | None = None
+    base: BaseJson, features: list[FeatureJson], ctx: ChopperContext
 ) -> tuple[set[Path], list[tuple[Path, str]]]:
     """Union of every file path contributed by all JSON sources.
 
@@ -498,7 +493,7 @@ def _collect_surface_files(
 
     sources: tuple[BaseJson | FeatureJson, ...] = (base, *features)
     has_fi_glob = any(_is_glob_pattern(p) for s in sources for p in s.files.include)
-    domain_files: list[tuple[Path, str]] = _enumerate_domain_files(ctx, state) if has_fi_glob else []
+    domain_files: list[tuple[Path, str]] = _enumerate_domain_files(ctx) if has_fi_glob else []
 
     for src in sources:
         for pattern in src.files.include:

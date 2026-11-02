@@ -11,6 +11,9 @@ three modes:
    vendor-qualified name (e.g. ``snps/fev_formality``); resolved under
    ``$ward/global/``.
 
+:func:`resolve_target` adds the ``_backup`` redirect and the cwd fallback
+on top of :func:`resolve_domain` and is the entry point front ends call.
+
 See ``technical_docs/ARCHITECTURE.md`` Section 5.1.0.
 """
 
@@ -21,7 +24,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["DomainLookupResult", "resolve_domain"]
+from chopper.app.errors import AppError, AppIssue
+
+__all__ = ["DomainLookupResult", "DomainTarget", "resolve_domain", "resolve_target"]
 
 
 @dataclass(frozen=True)
@@ -183,3 +188,49 @@ def _resolve_by_name(
         ward_root=ward_root,
         domain_logical_name=f"{vendor_name}/{bare_name}",
     )
+
+
+@dataclass(frozen=True)
+class DomainTarget:
+    """The operational domain root a request runs against.
+
+    ``redirected_from`` is the ``*_backup`` path the user named when the
+    live sibling exists and the request was redirected to it (``VI-03``);
+    ``lookup`` is the name-mode lookup result, or ``None`` in path or cwd mode.
+    """
+
+    root: Path
+    redirected_from: Path | None
+    lookup: DomainLookupResult | None
+
+
+def resolve_target(domain: str | None) -> DomainTarget:
+    """Resolve ``--domain`` (or the cwd when absent) to a :class:`DomainTarget`.
+
+    Raises :class:`AppError` with the first ``VE-32`` / ``VE-33`` / ``VE-34``
+    issue when name-mode lookup fails, or with a code-less issue when the
+    current working directory cannot be determined.
+    """
+    lookup: DomainLookupResult | None = None
+    if domain is not None:
+        issues: list[AppIssue] = []
+        lookup = resolve_domain(domain, lambda code, message, hint: issues.append(AppIssue(code, message, hint)))
+        if lookup is None:
+            raise AppError(issues[0])
+        candidate = lookup.domain_root
+    else:
+        try:
+            candidate = Path.cwd().resolve()
+        except (FileNotFoundError, OSError) as exc:
+            raise AppError(
+                AppIssue(
+                    None,
+                    f"cannot determine current working directory ({type(exc).__name__}: {exc})",
+                    "Pass --domain <path> or 'cd' into an existing directory.",
+                )
+            ) from exc
+    if candidate.name.endswith("_backup"):
+        stripped = candidate.with_name(candidate.name[: -len("_backup")])
+        if stripped.is_dir():
+            return DomainTarget(stripped, candidate, lookup)
+    return DomainTarget(candidate, None, lookup)

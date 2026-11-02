@@ -325,31 +325,31 @@ def test_build_run_config_defaults_p4_checkout_false_when_absent(tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
-# _expand_feature_dirs -- validate-only directory expansion (architecture doc Sec.5.1)
+# expand_feature_dirs -- validate-only directory expansion (architecture doc Sec.5.1)
 # ---------------------------------------------------------------------------
 
 
 def test_expand_feature_dirs_none_and_empty_pass_through() -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
-    assert _expand_feature_dirs(None) is None
-    assert _expand_feature_dirs("") == ""
+    assert expand_feature_dirs(None) is None
+    assert expand_feature_dirs("") == ""
 
 
 def test_expand_feature_dirs_leaves_file_entries_unchanged(tmp_path: Path) -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
     a = tmp_path / "a.feature.json"
     b = tmp_path / "b.feature.json"
     for p in (a, b):
         p.write_text("{}", encoding="utf-8")
 
-    result = _expand_feature_dirs(f"{a},{b}")
+    result = expand_feature_dirs(f"{a},{b}")
     assert result == f"{a},{b}"
 
 
 def test_expand_feature_dirs_expands_directory_to_sorted_json_children(tmp_path: Path) -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
     feats = tmp_path / "features"
     feats.mkdir()
@@ -360,7 +360,7 @@ def test_expand_feature_dirs_expands_directory_to_sorted_json_children(tmp_path:
     # Non-json files must be ignored.
     (feats / "README.md").write_text("ignored", encoding="utf-8")
 
-    result = _expand_feature_dirs(str(feats))
+    result = expand_feature_dirs(str(feats))
     parts = result.split(",")
     assert parts == [
         (feats / "alpha.feature.json").as_posix(),
@@ -370,7 +370,7 @@ def test_expand_feature_dirs_expands_directory_to_sorted_json_children(tmp_path:
 
 
 def test_expand_feature_dirs_mixes_files_and_directories(tmp_path: Path) -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
     standalone = tmp_path / "standalone.feature.json"
     standalone.write_text("{}", encoding="utf-8")
@@ -381,7 +381,7 @@ def test_expand_feature_dirs_mixes_files_and_directories(tmp_path: Path) -> None
     trailing = tmp_path / "trailing.feature.json"
     trailing.write_text("{}", encoding="utf-8")
 
-    result = _expand_feature_dirs(f"{standalone},{feats},{trailing}")
+    result = expand_feature_dirs(f"{standalone},{feats},{trailing}")
     assert result.split(",") == [
         str(standalone),
         (feats / "a.feature.json").as_posix(),
@@ -391,20 +391,20 @@ def test_expand_feature_dirs_mixes_files_and_directories(tmp_path: Path) -> None
 
 
 def test_expand_feature_dirs_empty_directory_yields_no_entries(tmp_path: Path) -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
     empty = tmp_path / "empty_features"
     empty.mkdir()
     other = tmp_path / "x.feature.json"
     other.write_text("{}", encoding="utf-8")
 
-    result = _expand_feature_dirs(f"{empty},{other}")
+    result = expand_feature_dirs(f"{empty},{other}")
     # Empty dir contributes nothing; only the file entry survives.
     assert result == str(other)
 
 
 def test_cmd_validate_expands_feature_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``cmd_validate`` rewrites ``args.features`` via ``_expand_feature_dirs``."""
+    """``cmd_validate`` rewrites ``args.features`` via ``expand_feature_dirs``."""
     from chopper.cli import commands
 
     feats = tmp_path / "features"
@@ -510,7 +510,7 @@ def test_ve13_fires_when_project_base_unresolvable(
         runner_called["hit"] = True
         raise AssertionError("runner must not be invoked when VE-13 fires")
 
-    monkeypatch.setattr(commands.ChopperRunner, "run", _fake_runner)
+    monkeypatch.setattr("chopper.orchestrator.runner.ChopperRunner.run", _fake_runner)
 
     args = _ns(domain=None, project=str(project))
     rc = commands.cmd_validate(args)

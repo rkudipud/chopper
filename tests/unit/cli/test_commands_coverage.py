@@ -27,9 +27,9 @@ from tests.unit._coverage_helpers import (  # noqa: F401
 
 
 def test_expand_feature_dirs_preserves_empty_segments() -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
-    out = _expand_feature_dirs("a.json,,b.json")
+    out = expand_feature_dirs("a.json,,b.json")
     # Empty segment is preserved as the original "" so downstream
     # stripping still works.
     assert out is not None
@@ -37,10 +37,10 @@ def test_expand_feature_dirs_preserves_empty_segments() -> None:
 
 
 def test_expand_feature_dirs_returns_input_when_empty() -> None:
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
-    assert _expand_feature_dirs("") == ""
-    assert _expand_feature_dirs(None) is None
+    assert expand_feature_dirs("") == ""
+    assert expand_feature_dirs(None) is None
 
 
 def test_expand_feature_dirs_expands_directory_to_json_children(
@@ -48,7 +48,7 @@ def test_expand_feature_dirs_expands_directory_to_json_children(
 ) -> None:
     """When a --features entry is a directory, it must be replaced with the
     sorted list of its immediate *.json children (ARCHITECTURE.md Sec.5.1)."""
-    from chopper.cli.commands import _expand_feature_dirs
+    from chopper.app.catalog import expand_feature_dirs
 
     d = tmp_path / "feats"
     d.mkdir()
@@ -56,7 +56,7 @@ def test_expand_feature_dirs_expands_directory_to_json_children(
     (d / "a.json").write_text("{}")
     (d / "not_json.txt").write_text("x")
 
-    result = _expand_feature_dirs(d.as_posix())
+    result = expand_feature_dirs(d.as_posix())
     assert result is not None
     parts = result.split(",")
     # Only .json files, lexicographically sorted.
@@ -206,28 +206,28 @@ def test_check_project_paths_emits_ve13_for_missing_base(tmp_path: Path) -> None
 
 
 def test_expand_feature_dirs_returns_none_when_features_is_none() -> None:
-    """_expand_feature_dirs returns None unchanged when called with None."""
-    from chopper.cli.commands import _expand_feature_dirs
+    """expand_feature_dirs returns None unchanged when called with None."""
+    from chopper.app.catalog import expand_feature_dirs
 
-    assert _expand_feature_dirs(None) is None
+    assert expand_feature_dirs(None) is None
 
 
 def test_expand_feature_dirs_returns_empty_when_features_is_empty() -> None:
-    """_expand_feature_dirs returns an empty string when called with empty string."""
-    from chopper.cli.commands import _expand_feature_dirs
+    """expand_feature_dirs returns an empty string when called with empty string."""
+    from chopper.app.catalog import expand_feature_dirs
 
-    assert _expand_feature_dirs("") == ""
+    assert expand_feature_dirs("") == ""
 
 
 def test_expand_feature_dirs_expands_directory(tmp_path: Path) -> None:
-    """_expand_feature_dirs replaces a directory entry with its sorted *.json children."""
-    from chopper.cli.commands import _expand_feature_dirs
+    """expand_feature_dirs replaces a directory entry with its sorted *.json children."""
+    from chopper.app.catalog import expand_feature_dirs
 
     jsons_dir = tmp_path / "jsons"
     jsons_dir.mkdir()
     (jsons_dir / "b_feature.json").write_text("{}")
     (jsons_dir / "a_feature.json").write_text("{}")
-    result = _expand_feature_dirs(jsons_dir.as_posix())
+    result = expand_feature_dirs(jsons_dir.as_posix())
     assert result is not None
     parts = [p.strip() for p in result.split(",") if p.strip()]
     names = [Path(p).name for p in parts]
@@ -317,7 +317,7 @@ def test_resolve_domain_root_raises_system_exit_on_cwd_failure() -> None:
     from chopper.cli.commands import _resolve_domain_root  # type: ignore[attr-defined]
 
     args = argparse.Namespace(domain=None)
-    with patch("chopper.cli.commands.Path") as mock_path_cls:
+    with patch("chopper.app.domain.Path") as mock_path_cls:
         # cwd() raises FileNotFoundError
         mock_path_cls.cwd.return_value.resolve.side_effect = FileNotFoundError("stale NFS dir")
         with pytest.raises(SystemExit) as exc_info:
@@ -364,6 +364,28 @@ def test_check_project_paths_resolvable_missing_base_returns_2(tmp_path: Path) -
     args = argparse.Namespace(project=str(project_file), domain=str(tmp_path))
     result = _check_project_paths_resolvable(args)
     assert result == 2
+
+
+def test_check_project_paths_resolvable_unresolvable_domain_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A ``--domain`` name that cannot be resolved stops the preflight with the
+    rendered VE-32 error and exit 2, before any project path is checked."""
+    import json as _json
+
+    from chopper.cli.commands import _check_project_paths_resolvable  # type: ignore[attr-defined]
+
+    project_file = tmp_path / "project.json"
+    project_file.write_text(_json.dumps({"base": "jsons/base.json", "project": "p", "domain": "dom"}))
+    monkeypatch.delenv("ward", raising=False)
+
+    args = argparse.Namespace(project=str(project_file), domain="snps/not_a_domain")
+    with pytest.raises(SystemExit) as exc_info:
+        _check_project_paths_resolvable(args)
+    assert exc_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "[chopper] error (VE-32):" in err
+    assert "  hint: " in err
 
 
 # ===========================================================================
@@ -544,19 +566,19 @@ def test_cmd_loc_with_project_skips_feature_dir_expansion(
     )
     rc = cmds.cmd_loc(args)
     # Per Sec.5.10, valid exit codes for cmd_loc are 0/1/2. The point of
-    # this test is the branch (project is not None => no _expand_feature_dirs
+    # this test is the branch (project is not None => no expand_feature_dirs
     # mutation of args.features); the exit code is incidental.
     assert rc in (0, 1, 2)
     # Verify args.features was NOT rewritten (the branch we're targeting
     # is the ``project is not None`` False branch that *skips* the
-    # rewrite). Were the True branch hit, ``_expand_feature_dirs`` would
+    # rewrite). Were the True branch hit, ``expand_feature_dirs`` would
     # have returned the input verbatim (no slash -> not a directory) or
     # raised -- either way the absence of mutation is the contract.
     assert args.features == "some_unused_dir"
 
 
 # ===========================================================================
-# New coverage: _split_domain_csv, _make_error_domain_result, VE-35, VE-36,
+# New coverage: _split_domain_csv, failed_domain_summary, VE-35, VE-36,
 # name-mode backup redirect, multi-domain loops (4.1.0+ paths)
 # ===========================================================================
 
@@ -598,9 +620,9 @@ def test_split_domain_csv_ignores_empty_tokens() -> None:
 
 
 def test_make_error_domain_result_fields() -> None:
-    from chopper.cli.commands import _make_error_domain_result
+    from chopper.app.session import failed_domain_summary
 
-    r = _make_error_domain_result("snps/fev_formality", 2)
+    r = failed_domain_summary("snps/fev_formality", 2)
     assert r.domain_logical_name == "snps/fev_formality"
     assert r.exit_code == 2
     assert r.branch_needed is False
@@ -610,9 +632,9 @@ def test_make_error_domain_result_fields() -> None:
 
 
 def test_make_error_domain_result_none_token() -> None:
-    from chopper.cli.commands import _make_error_domain_result
+    from chopper.app.session import failed_domain_summary
 
-    r = _make_error_domain_result(None, 2)
+    r = failed_domain_summary(None, 2)
     assert r.domain_logical_name == "(unknown)"
 
 
@@ -783,7 +805,7 @@ def test_cmd_validate_multi_domain_propagates_max_exit_code(
         verbose=0,
         tool_commands=[],
     )
-    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+    with patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run), patch("chopper.cli.commands.render_result"):
         rc = cmds.cmd_validate(args)
 
     assert call_count["n"] == 2
@@ -829,8 +851,9 @@ def test_cmd_trim_multi_domain_propagates_max_exit_code(
         dry_run=True,
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats"),
     ):
         rc = cmds.cmd_trim(args)
@@ -876,7 +899,7 @@ def test_cmd_loc_multi_domain_propagates_max_exit_code(
         verbose=0,
         tool_commands=[],
     )
-    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+    with patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run), patch("chopper.cli.commands.render_result"):
         rc = cmds.cmd_loc(args)
 
     assert call_count["n"] == 2
@@ -887,7 +910,7 @@ def test_cmd_validate_multi_domain_early_failure_uses_error_result(
     tmp_path: Path,
 ) -> None:
     """When _check_project_paths_resolvable returns non-None for one domain in
-    a CSV run, that domain uses _make_error_domain_result and the loop
+    a CSV run, that domain uses failed_domain_summary and the loop
     continues to the next domain.
     """
     import json as _json
@@ -926,7 +949,7 @@ def test_cmd_validate_multi_domain_early_failure_uses_error_result(
         verbose=0,
         tool_commands=[],
     )
-    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+    with patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run), patch("chopper.cli.commands.render_result"):
         rc = cmds.cmd_validate(args)
 
     # domain_a contributed rc=2, domain_b contributed rc=0; max=2
@@ -1002,12 +1025,13 @@ def test_cmd_trim_single_domain_calls_render_trim_stats_on_live_run(
     )
     stats_called = {"n": 0}
 
-    def _fake_trim_stats(ctx, result):  # type: ignore[misc]
+    def _fake_trim_stats(stats):  # type: ignore[misc]
         stats_called["n"] += 1
 
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats", _fake_trim_stats),
     ):
         rc = cmds.cmd_trim(args)
@@ -1054,8 +1078,9 @@ def test_cmd_trim_single_domain_renders_p4_checkout_opened_paths(tmp_path: Path)
         captured.append(entries)
 
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats"),
         patch("chopper.cli.commands.render_p4_checkout_opened", _fake_render_p4_opened),
     ):
@@ -1099,8 +1124,9 @@ def test_cmd_trim_single_domain_renders_p4_checkout_enabled_notice(tmp_path: Pat
     )
 
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats"),
         patch("chopper.cli.commands.render_p4_checkout_opened"),
         patch("chopper.cli.commands.render_p4_checkout_enabled_notice") as mock_notice,
@@ -1140,7 +1166,7 @@ def test_cmd_trim_does_not_render_p4_checkout_enabled_notice_under_dry_run(tmp_p
     )
 
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
         patch("chopper.cli.commands.render_p4_checkout_opened"),
         patch("chopper.cli.commands.render_p4_checkout_enabled_notice") as mock_notice,
@@ -1187,8 +1213,9 @@ def test_cmd_trim_multi_domain_renders_p4_checkout_enabled_notice_per_domain(tmp
     )
 
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats"),
         patch("chopper.cli.commands.render_p4_checkout_opened"),
         patch("chopper.cli.commands.render_p4_checkout_enabled_notice") as mock_notice,
@@ -1200,23 +1227,23 @@ def test_cmd_trim_multi_domain_renders_p4_checkout_enabled_notice_per_domain(tmp
 
 
 def test_p4_checked_out_abs_paths_empty_when_no_trim_report() -> None:
-    """_p4_checked_out_abs_paths returns [] when result has no trim_report
+    """p4_opened_paths returns [] when result has no trim_report
     (e.g. an error/early-exit result)."""
-    from chopper.cli.commands import _p4_checked_out_abs_paths
+    from chopper.app.session import p4_opened_paths
 
     ctx = MagicMock()
     result = MagicMock(spec=[])  # no trim_report attribute at all
-    assert _p4_checked_out_abs_paths(ctx, result) == []
+    assert p4_opened_paths(ctx, result) == []
 
 
 def test_p4_checked_out_abs_paths_empty_when_p4_checkout_none() -> None:
-    """_p4_checked_out_abs_paths returns [] when p4_checkout is None (--p4 not passed)."""
-    from chopper.cli.commands import _p4_checked_out_abs_paths
+    """p4_opened_paths returns [] when p4_checkout is None (--p4 not passed)."""
+    from chopper.app.session import p4_opened_paths
     from chopper.core.models_trimmer import TrimReport
 
     ctx = MagicMock()
     result = MagicMock(trim_report=MagicMock(spec=TrimReport, p4_checkout=None))
-    assert _p4_checked_out_abs_paths(ctx, result) == []
+    assert p4_opened_paths(ctx, result) == []
 
 
 def _make_ctx_for_header(
@@ -1395,7 +1422,7 @@ def test_build_run_config_auto_discovers_project_features_config(tmp_path: Path)
     cfg_dir.mkdir(parents=True)
     (cfg_dir / "fev_formality.project.features.config").write_text("low_power\nmetaflop_checks\n")
 
-    from chopper.cli.domain_lookup import DomainLookupResult
+    from chopper.app.domain import DomainLookupResult, DomainTarget
 
     fake_lookup = DomainLookupResult(
         domain_root=domain_root,
@@ -1412,7 +1439,7 @@ def test_build_run_config_auto_discovers_project_features_config(tmp_path: Path)
         plain=False,
         tool_commands=None,
     )
-    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+    with patch("chopper.app.session.resolve_target", return_value=DomainTarget(domain_root, None, fake_lookup)):
         cfg, _ = _build_run_config(args, dry_run=True)
 
     assert fa in cfg.feature_paths
@@ -1438,7 +1465,7 @@ def test_build_run_config_auto_discovers_project_json(tmp_path: Path) -> None:
     proj_file = proj_dir / "fev_formality.project.json"
     proj_file.write_text("{}")
 
-    from chopper.cli.domain_lookup import DomainLookupResult
+    from chopper.app.domain import DomainLookupResult, DomainTarget
 
     fake_lookup = DomainLookupResult(
         domain_root=domain_root,
@@ -1455,7 +1482,7 @@ def test_build_run_config_auto_discovers_project_json(tmp_path: Path) -> None:
         plain=False,
         tool_commands=None,
     )
-    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+    with patch("chopper.app.session.resolve_target", return_value=DomainTarget(domain_root, None, fake_lookup)):
         cfg, _ = _build_run_config(args, dry_run=True)
 
     assert cfg.project_path == proj_file.resolve()
@@ -1476,7 +1503,7 @@ def test_build_run_config_auto_discovery_no_project_files(tmp_path: Path) -> Non
     # project dir exists but neither probe file is present
     (ward / "project" / "snps" / "fev_formality").mkdir(parents=True)
 
-    from chopper.cli.domain_lookup import DomainLookupResult
+    from chopper.app.domain import DomainLookupResult, DomainTarget
 
     fake_lookup = DomainLookupResult(
         domain_root=domain_root,
@@ -1493,7 +1520,7 @@ def test_build_run_config_auto_discovery_no_project_files(tmp_path: Path) -> Non
         plain=False,
         tool_commands=None,
     )
-    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+    with patch("chopper.app.session.resolve_target", return_value=DomainTarget(domain_root, None, fake_lookup)):
         cfg, _ = _build_run_config(args, dry_run=True)
 
     assert cfg.project_path is None
@@ -1517,7 +1544,7 @@ def test_build_run_config_auto_discovery_empty_config(tmp_path: Path) -> None:
     proj_dir.mkdir(parents=True)
     (proj_dir / "fev_formality.project.features.config").write_text("# comment only\n\n")
 
-    from chopper.cli.domain_lookup import DomainLookupResult
+    from chopper.app.domain import DomainLookupResult, DomainTarget
 
     fake_lookup = DomainLookupResult(
         domain_root=domain_root,
@@ -1534,7 +1561,7 @@ def test_build_run_config_auto_discovery_empty_config(tmp_path: Path) -> None:
         plain=False,
         tool_commands=None,
     )
-    with patch("chopper.cli.commands._resolve_domain_root", return_value=(domain_root, None, fake_lookup)):
+    with patch("chopper.app.session.resolve_target", return_value=DomainTarget(domain_root, None, fake_lookup)):
         cfg, _ = _build_run_config(args, dry_run=True)
 
     assert cfg.feature_paths == ()  # empty config -> no features loaded
@@ -1564,7 +1591,7 @@ def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
 
     stats_called = {"n": 0}
 
-    def _fake_trim_stats(ctx, result):  # type: ignore[misc]
+    def _fake_trim_stats(stats):  # type: ignore[misc]
         stats_called["n"] += 1
 
     args = argparse.Namespace(
@@ -1580,8 +1607,9 @@ def test_cmd_trim_multi_domain_live_calls_render_trim_stats(
         dry_run=False,  # live -> render_trim_stats should be called
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats", _fake_trim_stats),
     ):
         rc = cmds.cmd_trim(args)
@@ -1617,7 +1645,7 @@ def test_cmd_trim_single_domain_prints_audit_bundle_location(tmp_path: Path) -> 
         dry_run=True,
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
         patch("chopper.cli.commands.render_audit_bundle_locations") as mock_locations,
     ):
@@ -1670,8 +1698,9 @@ def test_cmd_trim_renders_p4_checkout_notice_when_skipped(tmp_path: Path) -> Non
         dry_run=False,
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats"),
         patch("chopper.cli.commands.render_p4_checkout_notice") as mock_notice,
     ):
@@ -1719,8 +1748,9 @@ def test_cmd_trim_does_not_render_p4_checkout_notice_when_attempted(tmp_path: Pa
         dry_run=False,
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
+        patch("chopper.cli.commands.build_trim_stats"),
         patch("chopper.cli.commands.render_trim_stats"),
         patch("chopper.cli.commands.render_p4_checkout_notice") as mock_notice,
     ):
@@ -1762,7 +1792,7 @@ def test_cmd_trim_multi_domain_prints_audit_bundle_location_per_domain(tmp_path:
         dry_run=True,
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
         patch("chopper.cli.commands.render_audit_bundle_locations") as mock_locations,
     ):
@@ -1825,37 +1855,37 @@ def test_resolve_domain_root_exits_2_on_name_mode_failure(tmp_path: Path) -> Non
         emit("VE-33", "Domain not found", "Check $ward")
         return None
 
-    with patch("chopper.cli.commands.resolve_domain", side_effect=_fake_resolve):
+    with patch("chopper.app.domain.resolve_domain", side_effect=_fake_resolve):
         with pytest.raises(SystemExit) as exc:
             _resolve_domain_root(args)
     assert exc.value.code == 2
 
 
 def test_autodiscover_base_returns_first_candidate(tmp_path: Path) -> None:
-    """Line 130: _autodiscover_base returns jsons/base.json when it exists."""
-    from chopper.cli.commands import _autodiscover_base
+    """Line 130: find_base returns jsons/base.json when it exists."""
+    from chopper.app.catalog import find_base
 
     (tmp_path / "jsons").mkdir()
     base = tmp_path / "jsons" / "base.json"
     base.write_text("{}")
-    assert _autodiscover_base(tmp_path, "snps/test") == base
+    assert find_base(tmp_path, "snps/test") == base
 
 
 def test_autodiscover_base_returns_second_candidate(tmp_path: Path) -> None:
-    """Line 135: _autodiscover_base returns jsons/<leaf>.json when base.json absent."""
-    from chopper.cli.commands import _autodiscover_base
+    """Line 135: find_base returns jsons/<leaf>.json when base.json absent."""
+    from chopper.app.catalog import find_base
 
     (tmp_path / "jsons").mkdir()
     named = tmp_path / "jsons" / "fev_formality.json"
     named.write_text("{}")
-    assert _autodiscover_base(tmp_path, "snps/fev_formality") == named
+    assert find_base(tmp_path, "snps/fev_formality") == named
 
 
 def test_make_domain_run_result_generated_and_remove(tmp_path: Path) -> None:
     """Lines 406-414: GENERATED counts as edits; REMOVE counts as removes."""
     from chopper.adapters import CollectingSink, LocalFS
     from chopper.adapters.progress_silent import SilentProgress
-    from chopper.cli.commands import _make_domain_run_result
+    from chopper.app.session import domain_summary
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.core.models_common import FileTreatment
 
@@ -1879,7 +1909,7 @@ def test_make_domain_run_result_generated_and_remove(tmp_path: Path) -> None:
     fake_result.manifest = fake_manifest
     fake_result.exit_code = 0
 
-    drr = _make_domain_run_result(ctx, fake_result)
+    drr = domain_summary(ctx, fake_result)
     assert drr.edits_count == 2  # PROC_TRIM + GENERATED
     assert drr.removes_count == 1  # REMOVE
 
@@ -1909,7 +1939,7 @@ def test_cmd_validate_single_domain_full_flow(tmp_path: Path) -> None:
         tool_commands=[],
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
         patch("chopper.cli.commands.render_p4_branch_analysis"),
     ):
@@ -1944,7 +1974,7 @@ def test_cmd_trim_single_domain_dry_run_skips_warn_and_stats(tmp_path: Path) -> 
         dry_run=True,  # <- False path on both guards
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
     ):
         rc = cmds.cmd_trim(args)
@@ -1984,13 +2014,13 @@ def test_cmd_trim_multi_domain_check_project_fails(tmp_path: Path) -> None:
         tool_commands=[],
         dry_run=True,
     )
-    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+    with patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run), patch("chopper.cli.commands.render_result"):
         rc = cmds.cmd_trim(args)
     assert rc == 2  # domain_a fails check; domain_b also fails check (same project)
 
 
 def test_cmd_loc_single_domain_project_none_expands_features(tmp_path: Path) -> None:
-    """Line 667: cmd_loc single-domain with project=None reaches _expand_feature_dirs call."""
+    """Line 667: cmd_loc single-domain with project=None reaches expand_feature_dirs call."""
     from chopper.cli import commands as cmds
     from chopper.core.models_audit import RunResult
 
@@ -2014,7 +2044,7 @@ def test_cmd_loc_single_domain_project_none_expands_features(tmp_path: Path) -> 
         tool_commands=[],
     )
     with (
-        patch.object(cmds.ChopperRunner, "run", _fake_run),
+        patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run),
         patch("chopper.cli.commands.render_result"),
         patch("chopper.cli.commands.render_p4_branch_analysis"),
         patch("chopper.cli.commands._render_loc_table"),
@@ -2054,7 +2084,7 @@ def test_cmd_loc_multi_domain_check_project_fails(tmp_path: Path) -> None:
         verbose=0,
         tool_commands=[],
     )
-    with patch.object(cmds.ChopperRunner, "run", _fake_run), patch("chopper.cli.commands.render_result"):
+    with patch("chopper.orchestrator.runner.ChopperRunner.run", _fake_run), patch("chopper.cli.commands.render_result"):
         rc = cmds.cmd_loc(args)
     assert rc == 2
 
@@ -2108,7 +2138,7 @@ def test_render_loc_table_with_full_manifest(tmp_path: Path) -> None:
     fake_result.generated_artifacts = ()
 
     with (
-        patch("chopper.cli.commands.build_loc_report", return_value=MagicMock()),
+        patch("chopper.app.session.build_loc_report", return_value=MagicMock()),
         patch("chopper.cli.commands.render_loc_report"),
     ):
         _render_loc_table(ctx, fake_result)

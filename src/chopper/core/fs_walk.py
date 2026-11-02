@@ -4,7 +4,7 @@ One domain walk for every phase. :func:`iter_domain_files` is the domain
 as P1-P6 see it (P1 glob expansion, P1 glob-has-matches validation, P2
 full-domain parse); :func:`walk_files` layers the LOC-accounting
 exclusions on top for :mod:`chopper.audit.writers` and
-:mod:`chopper.cli.loc_report`, so every phase agrees on what "a file in
+:mod:`chopper.orchestrator.projection`, so every phase agrees on what "a file in
 the domain" is. :func:`copy_tree` is the matching recursive copy used by
 the trimmer's ``jsons/`` sync and input preservation.
 
@@ -39,9 +39,8 @@ __all__ = [
 ]
 
 
-# Extensions for which SLOC counting is meaningful.  Kept in sync with
-# the legacy ``cli/loc_report._SLOC_EXTENSIONS`` set and extended with
-# the markup formats cloc handles natively (md / xml / yml). When in
+# Extensions for which SLOC counting is meaningful: the source-code set
+# plus the markup formats cloc handles natively (md / xml / yml). When in
 # doubt prefer adding an extension here over special-casing inside
 # callers -- symmetry between "before" and "after" walks is what
 # guarantees the delta math is honest.

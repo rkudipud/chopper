@@ -27,8 +27,9 @@ class _InMemoryFS:
         return self._files[path]
 
     def write_text(self, path: Path, content: str, *, encoding: str = "utf-8") -> None: ...  # pragma: no cover
-    def exists(self, path: Path) -> bool:  # pragma: no cover
-        return path in self._files
+    def exists(self, path: Path) -> bool:
+        # Ancestors of seeded files exist, as with the real adapters.
+        return path in self._files or any(path in f.parents for f in self._files)
 
     def list(self, path: Path, *, pattern: str | None = None):  # pragma: no cover
         return ()

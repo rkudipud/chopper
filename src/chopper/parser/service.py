@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Literal
 
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.fs_walk import iter_domain_files
+from chopper.core.layout import source_root
 from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
 
@@ -317,24 +318,10 @@ class ParserService:
         if loaded is not None and loaded.domain_file_cache:
             candidates = [rel for rel, _ in loaded.domain_file_cache]
         else:
-            candidates = list(iter_domain_files(ctx.fs, self._source_root(ctx)))
+            candidates = list(iter_domain_files(ctx.fs, source_root(ctx)))
         tcl_files = [rel for rel in candidates if rel.suffix.lower() == _TCL_SUFFIX]
         tcl_files.sort(key=lambda p: p.as_posix())
         return tcl_files
-
-    @staticmethod
-    def _source_root(ctx: ChopperContext) -> Path:
-        """Return the filesystem root P2 should read.
-
-        Case-2 and Case-3 reruns rebuild from ``backup_root`` in P5, so P2
-        must parse that same source tree. Otherwise a rerun would compute
-        proc drop ranges from the already-trimmed domain and then apply them
-        to the full backup text.
-        """
-
-        if ctx.fs.exists(ctx.config.backup_root):
-            return ctx.config.backup_root
-        return ctx.config.domain_root
 
     @staticmethod
     def _normalize(ctx: ChopperContext, raw: Path) -> Path:
@@ -398,7 +385,7 @@ class ParserService:
         """
         if path.is_absolute() or path.anchor:
             return path
-        return ParserService._source_root(ctx) / path
+        return source_root(ctx) / path
 
     def _read_with_fallback(
         self,

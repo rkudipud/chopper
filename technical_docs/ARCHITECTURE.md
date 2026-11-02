@@ -260,6 +260,8 @@ FINAL CLEANUP:
 
 **Operational rule:** backups stay in the project branch throughout the trim window and are removed explicitly by `chopper cleanup --confirm`. Users are expected to commit or move hand-edits before re-running; Chopper always rebuilds from `_backup` and does not attempt to merge.
 
+**Source-root rule (single owner).** Every reader of the pristine source -- P1 glob expansion and `reference_file` reads, P1 glob-existence checks, P2 parsing, P7 before-tree accounting, and the `chopper loc` projection -- resolves it through one function, `core/layout.source_root(ctx)`: `<domain>_backup/` when it exists on disk at the moment of the read, otherwise `<domain>/`. The check is live rather than a P0 snapshot because a first live trim creates the backup during P5, and P7 must then read the backup. P7 adds two audit-only fallbacks on top of the rule: the before-tree still prefers the backup when P0 recorded one that has since vanished, and the physical source root is `None` when neither tree exists.
+
 ### 2.9 Cross-Domain Dependencies
 
 **Current architectural assumption:** cross-domain dependencies do not materially exist in practice.
@@ -1449,6 +1451,14 @@ chopper loc --project configs/project_abc.json
 
 **Phase dependency rule:** each phase receives the output of the previous phase and produces a well-defined intermediate. No phase reaches back to re-run an earlier phase.
 
+**Single composer.** `orchestrator/runner.py` is the only owner of phase order, gates, the exception boundary, and run bookkeeping. It holds three things and nothing else:
+
+- **Composition root.** `default_providers()` constructs every phase implementation once per run and returns a frozen `Providers` bundle of typed callables (domain state, config, `validate_pre`, parser, compiler, tracer, trimmer, generator, indentation, companion sync, input preservation, `validate_post`, audit). `ChopperRunner(providers=...)` accepts a replacement bundle; swapping one implementation means passing one different callable that honors the same typed contract -- no other module changes. There is no runtime discovery and no registry (plugins are a closed decision).
+- **Run ledger.** `RunLedger` is the runner's private, mutable bookkeeping: it records each phase result as it lands, so a failure at any point still audits the partial run, and it projects to the frozen `RunResult` (returned before P7) and `RunRecord` (consumed by P7). Services never receive the ledger.
+- **One P5 sequence.** `execute_output()` runs P5a trim -> P5b generate -> P5c indentation -> P5d companion sync. A live trim calls it with gates on; the `chopper loc` in-memory projection (Sec.5.7) calls the same function with gates off. There is no second copy of the P5 order.
+
+Services never call each other and never construct providers.
+
 ### 5.2.1 End-to-End Walkthrough
 
 This walkthrough expands the pipeline diagram into the concrete data flow each phase consumes, produces, and hands off. It is the narrative companion to the boxes in Sec.5.2.
@@ -2100,7 +2110,7 @@ Pure numbers for dashboards and trend tracking across multiple trim runs.
 | `trim_ratio_procs` | number | `procs_after / procs_before` |
 | `trim_ratio_sloc` | number | `sloc_after / sloc_before` |
 
-**Before-root selection.** The "before" tree is `<domain>_backup/` whenever it exists on disk at P7 audit time, otherwise `<domain>/`. The check uses the live filesystem (`ctx.fs.exists`), not the P0 `DomainState`: on a first live trim, P0 sees `backup_exists == False` but P5 creates the backup before P7 runs, so the audit must use the backup as the pristine "before". This mirrors the parser's `_source_root()` and `cli/loc_report._source_root()` so all three reporters agree on the baseline. On `--dry-run` no backup is taken; before-root collapses to `<domain>/` and the before/after numbers are equal (the trimmer never wrote).
+**Before-root selection.** The "before" tree is `<domain>_backup/` whenever it exists on disk at P7 audit time, otherwise `<domain>/`. The check uses the live filesystem (`ctx.fs.exists`), not the P0 `DomainState`: on a first live trim, P0 sees `backup_exists == False` but P5 creates the backup before P7 runs, so the audit must use the backup as the pristine "before". This is the shared source-root rule (Sec.2.8, `core/layout.source_root`), so the parser, the audit, and `chopper loc` agree on the baseline. On `--dry-run` no backup is taken; before-root collapses to `<domain>/` and the before/after numbers are equal (the trimmer never wrote).
 
 #### 5.5.9 Input preservation contract
 
@@ -2394,7 +2404,7 @@ Dry-run emits:
 - `trim_report.json` + `trim_report.txt` -- what would change and why
 - Diagnostics log with all warnings/errors
 
-**`chopper loc` (read-only LOC report).** A third execution mode runs the same P0-P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, then **replays the real P5 trim phases against an in-memory copy of the source tree** (`cli/loc_report.build_loc_report` -> `orchestrator/simulate.simulate_trim_in_memory`) and counts the *actual* rebuilt output. The replay seeds an `InMemoryFS` from the source root and runs the production `TrimmerService` (P5a), `GeneratorService` (P5b), `TclIndentationService` (P5c), and `CompanionSyncService` (P5d) with `dry_run=False` -- the same services a live trim uses -- so the before/after numbers are byte-for-byte identical to `chopper trim`. Unlike both live and dry-run trim, `chopper loc` writes **nothing to the real filesystem** -- no domain modifications and **no `.chopper/` audit bundle**. The runner suppresses P7 audit when `command == "loc"`. Counts use the existing `audit/sloc.py` for SLOC and `len(text.splitlines())` for physical lines, read from the in-memory tree. Per-treatment accounting:
+**`chopper loc` (read-only LOC report).** A third execution mode runs the same P0-P4 + dry-run-P6 pipeline as `chopper trim --dry-run`, then **replays the real P5 trim phases against an in-memory copy of the source tree** (`orchestrator/projection.build_loc_report` -> `simulate_trim_in_memory`) and counts the *actual* rebuilt output. The replay seeds an `InMemoryFS` from the source root and calls the runner's single P5 executor (`execute_output`, gates off, no input preservation) with `dry_run=False` -- the same providers and the same P5a trim -> P5b generate -> P5c indentation -> P5d companion-sync order a live trim uses -- so the before/after numbers are byte-for-byte identical to `chopper trim`. The projection runs after `ChopperRunner.run` returns, outside the runner's exception boundary, and its diagnostics and progress go to a private sink that is discarded. Unlike both live and dry-run trim, `chopper loc` writes **nothing to the real filesystem** -- no domain modifications and **no `.chopper/` audit bundle**. The runner suppresses P7 audit when `command == "loc"`. Counts use the existing `audit/sloc.py` for SLOC and `len(text.splitlines())` for physical lines, read from the in-memory tree. Per-treatment accounting:
 
 | Treatment | After count (read from the in-memory rebuilt domain) |
 |---|---|
@@ -2405,7 +2415,7 @@ Dry-run emits:
 
 Files present in the source domain but absent from `manifest.file_decisions` are treated as REMOVE for the after totals (default-exclude under R2). The output table reports files-before, files-after, lines-before, lines-after, SLOC-before, SLOC-after, and the percentage reduction for each. Diagnostics emitted along the P0-P4 path are still summarized to stderr; exit-code policy matches `validate` (0/1/2/3).
 
-**Counted file types.** The source-domain walk in `cli/loc_report.py` accepts a closed extension allow-list mirrored from the SLOC counter language table. Files whose extension is **not** in this list are silently skipped -- they neither contribute to "before" totals nor count as REMOVE candidates:
+**Counted file types.** The source-domain walk in `orchestrator/projection.py` accepts a closed extension allow-list mirrored from the SLOC counter language table. Files whose extension is **not** in this list are silently skipped -- they neither contribute to "before" totals nor count as REMOVE candidates:
 
 | Counted? | Extensions | Notes |
 |---|---|---|
@@ -2417,7 +2427,7 @@ Files present in the source domain but absent from `manifest.file_decisions` are
 
 Generated artifacts are language-detected the same way (by artifact path suffix). A generated `<stage>.tcl` follows hash-comment SLOC rules. A hypothetical generated `.json` would be excluded by the authoring-artifact filter and would not appear in any LOC bucket.
 
-**Source-root resolution and `_backup` interaction.** `cli/loc_report._source_root(ctx)` mirrors the parser: it returns `ctx.config.backup_root` when that path exists on disk, and `ctx.config.domain_root` otherwise. Consequence: on a re-run after `chopper trim` has already produced `<domain>_backup/`, `chopper loc` enumerates the **backup** (the original pre-trim source), so "before" reflects what the parser actually sees -- not the already-trimmed output. This matches the dry-run pipeline by construction.
+**Source-root resolution and `_backup` interaction.** `chopper loc` uses the shared source-root rule (Sec.2.8, `core/layout.source_root`): `ctx.config.backup_root` when that path exists on disk, and `ctx.config.domain_root` otherwise. Consequence: on a re-run after `chopper trim` has already produced `<domain>_backup/`, `chopper loc` enumerates the **backup** (the original pre-trim source), so "before" reflects what the parser actually sees -- not the already-trimmed output. This matches the dry-run pipeline by construction.
 
 **Accounting caveats users must know:**
 
@@ -2478,11 +2488,11 @@ Detailed CLI behavior, diagnostics fields, exit codes, presentation constraints,
 
 ### 5.10 Python Implementation Guidance
 
-Chopper's Python coding standards live in Sec.5.12 below. GUI-readiness and the wire protocol live in Sec.5.11. [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) provides a short summary that points back to these sections; the architecture doc is authoritative.
+Chopper's Python coding standards live in Sec.5.12 below. Front ends, the application layer, and GUI readiness live in Sec.5.11. [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) provides a short summary that points back to these sections; the architecture doc is authoritative.
 
-### 5.11 GUI Readiness and Wire Protocol
+### 5.11 Front Ends, Application Layer, and GUI Readiness
 
-Chopper is CLI-only. However, the architecture **must** enable a future GUI without rewriting the engine. This section defines the provisions that the current implementation must satisfy so that GUI-based file selection, proc selection, trim statistics, JSON viewing, dependency-graph visualization, and diagnostic browsing can be layered on top later.
+Chopper ships one front end, the CLI. Everything a front end needs that is not presentation -- domain resolution, JSON discovery, run-config building, run dispatch, the LoC projection, trim-statistics rows, backup cleanup -- lives in one front-end-neutral application layer, `chopper.app`. A second front end (the local browser GUI recorded in `FD-04`) is therefore a peer of the CLI over the same use cases, not a rewrite of the engine and not a wrapper around the CLI. This section defines the provisions the current implementation must satisfy so that GUI-based selection, ordering, JSON authoring, trim statistics, dependency-graph visualization, and diagnostic browsing can be layered on later.
 
 #### 5.11.1 Architectural Requirements for GUI Enablement
 
@@ -2493,36 +2503,61 @@ The following rules are **non-negotiable** even though no GUI ships:
 3. **Structured diagnostics.** Every diagnostic is a `Diagnostic` record with severity, code, message, location, and hint. No ad-hoc `print()` or unstructured error messages in library code.
 4. **Deterministic serialization.** Core models are serializable through `dump_model()` in `src/chopper/core/serialization.py`, which is already the source for audit artifacts. A future GUI can consume the same shapes without changing the engine.
 5. **No presentation in core logic.** The compiler, parser, trimmer, validator, and audit writer never import terminal-rendering libraries or format user-facing output.
-6. **CLI rendering stays thin.** Human output lives in `cli/render.py`; engine code stays presentation-agnostic.
+6. **CLI rendering stays thin.** Human output lives in `cli/render.py`; front-end-neutral use cases and read models live in `app/`; engine code stays presentation-agnostic.
 7. **Machine output is deferred, not promised.** Chopper does not freeze a `--json` CLI mode or a GUI wire protocol here. If structured stdout/stderr is needed later, it enters through `FD-10` in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations section, not via an undocumented side channel.
 
-#### 5.11.2 Service Layer Contract
+#### 5.11.2 Service Layer and Application Layer Contract
 
-The engine boundary between presentation (CLI today, GUI later) and domain logic is defined in [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.6 (`ChopperContext`, `RunConfig`, `PresentationConfig`, `ChopperRunner.run()`) and Sec.9.2 (per-phase signatures: `DomainStateService`, `ConfigService`, `validate_pre`, `ParserService`, `CompilerService`, `TracerService`, `TrimmerService`, `GeneratorService`, `validate_post`, `AuditService`).
+The engine boundary is defined in [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.6 (`ChopperContext`, `RunConfig`, `PresentationConfig`, `ChopperRunner.run()`) and Sec.9.2 (per-phase signatures: `DomainStateService`, `ConfigService`, `validate_pre`, `ParserService`, `CompilerService`, `TracerService`, `TrimmerService`, `GeneratorService`, `validate_post`, `AuditService`). Front ends never call that boundary directly; they call `chopper.app`.
 
-**Invocation pattern (CLI today, future GUI later):**
+**Layering** (enforced by import-linter in `pyproject.toml`):
 
-1. The frontend parses its inputs into `RunConfig` (engine behavior) plus `PresentationConfig` (UX behavior).
-2. The frontend constructs `ChopperContext` by binding concrete ports: filesystem, diagnostic sink, and progress sink.
-3. The frontend calls `ChopperRunner().run(ctx) -> RunResult`.
-4. The frontend renders `RunResult` and the collected diagnostics using its own presentation layer and exits with `RunResult.exit_code`.
+```text
+cli/  (argparse + rich)        future GUI front end (FD-04)
+        \                        /
+   app/   typed requests -> typed results; no print, no SystemExit, no argv
+        |
+   orchestrator/   ChopperRunner (Sec.5.2 single composer) + loc projection
+        |
+   services (config, parser, compiler, trimmer, generators, validator, audit)
+        |
+   adapters/  ->  core/
+```
+
+**Invocation pattern:**
+
+1. The front end translates its input (argv today) into application calls: resolve the domain, discover base / project / feature JSONs, build `RunConfig`.
+2. The application layer constructs `ChopperContext` (real filesystem, collecting diagnostic sink, and the front end's chosen `ProgressSink`) and calls `ChopperRunner().run(ctx, command=...)`.
+3. The front end renders the typed result (`RunResult`, `LocReport`, trim-statistics rows, cleanup outcome) and the collected diagnostics with its own presentation layer, and exits with the result's exit code.
 
 **Rules:**
 
-- Services accept `ctx` plus typed inputs they declare; never print to stdout/stderr directly.
-- Services surface outcomes through `ctx.diag.emit(...)` and `ctx.progress.*`; never raise for user-visible conditions.
-- A future GUI does **not** require new engine services; it binds the same context shape and consumes the same typed results and audit artifacts as the CLI.
-- `cleanup` is the one exception to the runner pattern: it is a standalone CLI action that deletes `<domain>_backup/` and does not enter the eight-phase pipeline.
+- A front end only translates input into application calls and renders typed results. It never imports phase services, the orchestrator, or audit writers directly (import-linter contract "CLI is a thin adapter over the application layer"). Input syntax stays in the front end -- for example, the CLI splits a comma-separated `--domain` into per-domain calls.
+- Each user action maps to one application use case; front ends never re-implement discovery, ordering, or validation.
+- Front ends are peers: a GUI does not wrap the CLI and the CLI does not depend on GUI code.
+- Application errors are typed (`AppError` carrying one or more issues, each with a registered diagnostic code where one applies; an unreadable working directory has none). Each front end maps them to its own presentation; the CLI maps them to the exact stderr text and exit codes defined in [`technical_docs/CLI_REFERENCE.md`](CLI_REFERENCE.md).
+- Services accept `ctx` plus typed inputs they declare; never print to stdout/stderr directly. They surface outcomes through `ctx.diag.emit(...)` and `ctx.progress.*`; never raise for user-visible conditions.
+- Only use cases a shipped front end calls exist. JSON authoring (create, update, delete, rename, reorder) is specified in `FD-04` and is built with the GUI, not reserved now.
+
+**Application use cases (shipped):**
+
+| Use case | Owns |
+|---|---|
+| Domain resolution | `$ward` logical names, vendor-qualified and path forms, `_backup` redirect, cwd fallback (Sec.5.1.0) |
+| Catalog | Base auto-discovery, project-config auto-discovery (Sec.5.1.3), feature-name lookup with suggestions, feature-directory expansion |
+| Recipe | `RunConfig` building from base / features / project inputs; `VE-13` project-path preflight |
+| Run | Context construction and `validate` / `trim` / `loc` dispatch through the single composer; the LoC projection |
+| Trim statistics | Typed per-file before/after rows for the post-trim statistics table |
+| Cleanup | Confirmed `<domain>_backup/` removal -- the one action that does not enter the eight-phase pipeline |
+| Crash record | The internal-error log for a programmer error raised before the runner starts (the runner owns the exit-3 log for errors inside the pipeline) |
 
 #### 5.11.3 Future GUI Integration Surface
 
-The current design freezes the **data surface**, not a transport protocol. The future GUI can be added in one of two ways:
-
-1. **In-process Python integration** using `ChopperRunner.run(ctx)` plus the same ports the CLI binds today.
-2. **Structured CLI transport** added later through `FD-10` in [`IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations section, once the pipeline and artifact shapes have proven stable.
+The delivery form is decided and recorded in `FD-04` ([`IMPLEMENTATION.md`](IMPLEMENTATION.md) Future Considerations section): a local browser GUI (plain HTML, CSS, and JavaScript; Python standard-library HTTP server bound to loopback, per-launch token, foreground only) calling the same application use cases as the CLI. Until `FD-04` is adopted, no GUI code, stub, route, or reserved seam exists, and the networked-services closure in [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.16 stands unchanged. A structured CLI transport remains a separate option under `FD-10`.
 
 What is already stable is the engine-facing surface:
 
+- `chopper.app` use cases and their typed results
 - `RunConfig` and `PresentationConfig`
 - `ChopperContext`
 - `RunResult`
@@ -2552,7 +2587,7 @@ The following data is already produced by the current pipeline and available as 
 | **File selection browser** | `CompiledManifest.files` -- per-file treatment, reason, input sources | `compiled_manifest.json` |
 | **Proc selection browser** | `CompiledManifest.procs` -- per-proc decision, source file, keep reason | `compiled_manifest.json` |
 | **Dependency graph viewer** | Call-tree edges, PI+, unresolved tokens | `dependency_graph.json` |
-| **Trim statistics dashboard** | `RunResult.trim_stats` -- files/procs/SLOC before/after, trim ratios | `trim_stats.json` |
+| **Trim statistics dashboard** | P7 `trim_stats.json` (files/procs/SLOC before/after) plus the `chopper.app` trim-statistics rows (per-file before/after) | `trim_stats.json` |
 | **JSON viewer / editor** | Base, feature, and project JSON schemas + validation diagnostics | `input_base.json`, `input_features/`, `input_project.json` |
 | **Diagnostic browser** | `Diagnostic` records with severity, code, location, hint, phase | `diagnostics.json` |
 | **Stage/flow viewer** | `CompiledManifest.flow_stages` -- resolved stage sequence after flow actions | `compiled_manifest.json` |
@@ -2596,7 +2631,7 @@ Non-goals and limits:
 
 - Must NOT embed terminal-specific formatting (ANSI codes, Rich markup) in any module outside `src/chopper/cli/`.
 - Must NOT return pre-formatted strings from runner or phase functions.
-- Must NOT use `print()` in library code (`src/chopper/compiler/`, `src/chopper/parser/`, `src/chopper/trimmer/`, `src/chopper/validator/`, `src/chopper/core/`).
+- Must NOT use `print()` in library code (`src/chopper/app/`, `src/chopper/orchestrator/`, `src/chopper/compiler/`, `src/chopper/parser/`, `src/chopper/trimmer/`, `src/chopper/validator/`, `src/chopper/core/`).
 - Must NOT require a TTY for correct operation -- headless and piped invocations must work.
 - Must NOT couple diagnostic emission to console rendering -- diagnostics are data, not output.
 
@@ -2610,7 +2645,8 @@ Chopper is a Python >= 3.13 CLI. The rules below are authoritative for every fil
 
 - The repository layout is defined in [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.3. Every source module lives under `src/chopper/`. No sibling-module imports across service packages -- services depend only on `core/` and their own submodules. Cross-cutting data lives in phase-owned `core/models_*.py` modules that callers import directly; cross-cutting protocols live in `core/protocols.py`.
 - Ports-and-adapters: the only engine ports are `FileSystemPort`, `DiagnosticSink`, and `ProgressSink` in `core/protocols.py`. Concrete adapters live in `adapters/`. Services receive them via `ChopperContext`. Clock access, serialization, audit writing, and rendering are direct helpers or CLI-local concerns, not additional ports.
-- Services never construct adapters; the CLI does that at startup (see [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.6.1).
+- Layering is `cli -> app -> orchestrator -> services -> adapters -> core` (Sec.5.11.2), enforced by import-linter contracts in `pyproject.toml`. The CLI imports only `app/`, `core/`, and the progress adapters it renders with.
+- Services never construct adapters; the application layer does that when it builds `ChopperContext` (see [`technical_docs/ENGINEERING.md`](ENGINEERING.md) Sec.6.1). Phase implementations are constructed in exactly one place, `orchestrator/runner.default_providers()` (Sec.5.2).
 
 #### 5.12.2 Path Handling
 
@@ -2631,7 +2667,7 @@ Chopper is a Python >= 3.13 CLI. The rules below are authoritative for every fil
 
 #### 5.12.4 Logging and Diagnostics
 
-- **No `print()` in library code.** Any module under `src/chopper/{parser,compiler,trimmer,validator,core,config,audit,generators}` that calls `print()` is a review-blocking defect. The CLI and test harnesses may print.
+- **No `print()` in library code.** Any module under `src/chopper/{app,orchestrator,parser,compiler,trimmer,validator,core,config,audit,generators}` that calls `print()` is a review-blocking defect. The CLI and test harnesses may print.
 - All user-facing outcomes go through `ctx.diag.emit(Diagnostic(...))` (Sec.5.11.1). Every code is registered in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md).
 - **Every diagnostic that is attributable to a specific source file MUST carry a non-null `path` field.** This is a serialisation invariant: `.chopper/diagnostics.json` and `.chopper/trim_report.json` may not contain `"file": null` for any diagnostic whose root cause is locatable in a `.tcl` source file. P4 trace diagnostics (`TW-01`, `TW-02`, `TW-03`, `TW-04`, `TI-01`) pass `caller.source_file`. P6 cross-validation diagnostics (`VW-05`, `VW-06`) recover the source path from the caller canonical name `<file>::<qname>` via the `_path_from_canonical` helper. See `technical_docs/IMPLEMENTATION.md` (pitfalls) Pitfall P-41 and bug report `diagnostics_file_null_for_p4_p6.md` for the production incident this invariant addresses.
 - **There is no internal structured-logging channel.** Chopper has exactly two output surfaces for the operator: the `DiagnosticSink` (user-facing outcomes) and the `ProgressSink` (phase transitions and progress events). Library modules do not carry a logger handle and do not emit `log.info` / `log.debug` events. Every observation worth surfacing to a user is a diagnostic; every observation worth surfacing to downstream tooling is an audit artifact. Crash traces for programmer errors are written to `.chopper/internal-error.log` by the runner's final `except` block (Sec.8.3, exit code 3).
@@ -3330,7 +3366,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-35 | Accept a project JSON (`--project`) as an alternative to `--base`/`--features`, resolving base and feature paths from it and recording project metadata in audit artifacts. |
 | FR-36 | `--project` is mutually exclusive with `--base` and `--features`; providing both emits `VE-11` (`conflicting-cli-options`, exit code 2). |
 | FR-37 | Equivalent resolved selections must produce identical compilation and trim results regardless of whether they came from direct CLI arguments or a project JSON. |
-| FR-38 | All library-layer operations return typed result objects (frozen dataclasses) -- never bare prints -- so a future GUI or alternate front-end can consume the same service surface the CLI uses. |
+| FR-38 | All library-layer operations, including the `chopper.app` use cases front ends call (Sec.5.11.2), return typed result objects (frozen dataclasses) -- never bare prints -- so a future GUI or alternate front-end can consume the same surface the CLI uses. |
 | FR-39 | All public result objects are JSON-serializable via a single canonical serializer; round-trip (serialize -> deserialize -> compare) produces structurally equivalent values. |
 | FR-40 | Progress and log events are emitted through a `ProgressSink` protocol; the CLI attaches a renderer, but library code never binds to a concrete sink. (There is no internal structured-logging channel; see Sec.5.12.4.) |
 | FR-41 | Diagnostic codes, severities, and exit semantics are stable within a major schema version so downstream consumers (GUI, CI, dashboards) can rely on them. |
@@ -3442,14 +3478,14 @@ post_read_constraints.tcl
 
 The GUI-readiness surface is defined in Sec.5.11 above. At the architecture level the relevant invariants are:
 
-- **Service layer first.** Every CLI subcommand (`validate`, `trim`, `cleanup`) is a thin adapter over a callable service returning a typed result object. A future GUI invokes the same service without re-implementing logic.
-- **No `print()` in library code.** All user-visible output is emitted through a `ProgressSink` plus `DiagnosticSink` pipeline; the CLI attaches a text renderer, a GUI would attach a widget renderer.
+- **Application layer first.** Every CLI subcommand (`validate`, `trim`, `loc`, `cleanup`) is a thin adapter over a `chopper.app` use case returning a typed result. A future GUI (`FD-04`) calls the same use cases without re-implementing logic.
+- **No `print()` in library code.** All user-visible output is emitted through a `ProgressSink` plus `DiagnosticSink` pipeline; the CLI attaches a text renderer, a GUI would attach its own renderer.
 - **JSON-first artifacts.** Every textual report is a projection of a JSON artifact; GUIs consume the JSON form directly.
 - **Diagnostics are structured.** `(code, severity, message, location, hint)` tuples enable rich GUI surfaces (filterable lists, jump-to-source actions) without additional parsing.
 
 ### 8.4 Future Extensibility Hooks
 
-- **Alternate front-ends.** The typed service surface (FR-38-FR-40) is the extension point for a future GUI, language-server integration, or CI dashboard. No additional abstraction is required.
+- **Alternate front-ends.** The `chopper.app` use cases (Sec.5.11.2) are the extension point for a future GUI (`FD-04`), language-server integration, or CI dashboard. Phase implementations are swapped through the runner's provider bundle (Sec.5.2). No additional abstraction is required.
 - **Out-of-v1 roadmap.** Planned but non-v1 capabilities are tracked in [technical_docs/IMPLEMENTATION.md](IMPLEMENTATION.md) Future Considerations section. Nothing in this document commits v1 to those items.
 
 ### 8.5 Cross-Cutting References
@@ -3747,6 +3783,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-09-29 | **4.9.1 -- One options channel, one glob matcher, one domain walker (cleanup; one glob bug fix).** Four decisions. (1) *Options:* the base `options` object is frozen onto `CompiledManifest.options` (a `BaseOptions`) at P3, and P5/P6 read every switch there; this replaces two loose manifest bools (`generate_stack`, `insert_markers`) and two per-call keyword arguments (`TclIndentationService.run(enabled=)`, `validate_post(cross_validate=)`), so a new option is a schema field plus a `BaseOptions` field with no plumbing. Rejected: keeping per-option arguments, which gave four options four different routes. (2) *Glob bug:* Sec.6.3.1 says `*` and `?` never cross `/`, but P1, P1 validation, and P3 fell back to `fnmatch` for patterns without `**`, whose `*` does cross `/` -- `procs/*.tcl` also matched `procs/sub/file.tcl`, contradicting this document's own example table. All three now call one `core.globs.glob_match` built on the stdlib `PurePath.full_match`, which implements Sec.6.3.1 exactly and agreed with the old `**` translator on 56,000 pattern/path pairs. JSONs that relied on `*` reaching into subdirectories must use `**/`; no shipped example or fixture did. Rejected: keeping the hand-written translator and extending it to plain patterns (duplicates the stdlib). (3) *Walker:* P1 surface expansion, P1 glob validation, and the P2 parse each had their own BFS walk that skipped only a top-level `.chopper/`, while the LOC walk skipped it at every depth; all now share `core.fs_walk.iter_domain_files`, which skips `.chopper/` at every depth. (4) *Contract drift:* the feature schema omitted `standalone_stack` on `add_stage_*` and `replace_stage.with` although Sec.3.6 defines it as a `stageDefinition` field and the resolver honors it -- restored; `depends_on` text claiming prerequisites "must appear earlier" is corrected to the 4.6.1 contract (P1 topologically sorts, `VE-15`/`VE-22` are the only failures). Dead code removed: `DomainState.hand_edited` (always `False`; a leftover of the retired hand-edit detector, ENGINEERING.md Sec.16 Q2), the never-raised `ProgrammerError`, and an unused `simulate_trim_in_memory` / `build_loc_report` `loaded` parameter. The Sec.9.2 signature gate now also checks `validate_pre` / `validate_post` in both directions. No diagnostic or CLI change. |
 | 2026-09-29 | **4.9.2 -- `--project` runs record the project JSON in the audit bundle.** Sec.5.5.1, Sec.5.5.2, and Sec.5.5.10 require `input_project.json` and the `chopper_run.json` project fields on every `--project` run, but P7 never read `LoadedConfig.project`: the copy was never written, the project fields were empty stubs, and `compiled_manifest.json` `inputs.project` was always null. The audit writers now fill all three from the hydrated `ProjectJson`. Decision: P7 still reads each input from its path at audit time, and on a first live trim falls back to the same relative path under `<domain>_backup/` for an input stored inside the domain. P5 renamed the domain before P7, so an input outside `jsons/` (the shipped examples keep `project.json` at the domain root) exists only in the backup, with the bytes P1 read; the fallback applies to base and feature inputs too. A backup that existed before the run is never read -- it may be stale. Rejected: capturing input text at P1 on `BaseJson` / `FeatureJson` / `ProjectJson`, which would change the frozen config contract to serve one P7 copy. No diagnostic or CLI change. |
 | 2026-10-06 | **4.10.0 -- v2 schemas and generated feature vars/procs sourcing files.** New `base-v2` / `feature-v2` / `project-v2` schemas add optional `vars` and `procs` paths to base and feature (project unchanged), generating `<basename(domain_root)>_feature_vars.tcl` and `<basename(domain_root)>_feature_procs.tcl` (Sec.3.12, FR-57). Each feature pointer expands to three optional entries, prefixing only the basename with `tech_` / `project_`; base pointers are F1-only keeps because infrastructure already loads them. Existing files become layer-local whole-file includes under R1. Each output independently deduplicates first-wins and remains header-only without matching feature pointers. Infrastructure owns loading; flow names come from the domain root. Both files are declared as `I` inputs on every aggregate-stack record rather than re-sourced as stage steps (double-sourcing). Diagnostic references: `VE-40`, `VE-41`, `VE-42`, `VW-27`, `VW-28`, `VW-29`, `VW-30`, `VW-31`; see `technical_docs/DIAGNOSTIC_CODES.md`. Rejected: extending v1 in place (changes existing output), listing base files (double-sourcing), failing on absent optional files, mixing schema versions (ambiguous output), and proc-trimming pointer-selected libraries (the pointers explicitly select F1). |
+| 2026-11-02 | **4.11.0 -- Single composer, one source-root rule, and a front-end-neutral application layer (no behavior change).** Internal consolidation so modules can be enhanced and swapped one at a time without scattering. (1) *Composer:* `orchestrator/runner.py` is the only owner of phase order, gates, the exception boundary, and run bookkeeping (Sec.5.2). `default_providers()` is the single composition root that constructs every phase implementation; `ChopperRunner(providers=...)` swaps any of them by passing one typed callable. A private `RunLedger` records phase results as they land and projects to `RunResult` / `RunRecord`, replacing a ten-argument builder. `execute_output()` is the one P5a-P5d sequence, shared by live trim and the `chopper loc` projection, which previously kept its own copy of the order in `orchestrator/simulate.py`. (2) *Source root:* the backup-else-domain rule had six private copies across parser, validator, config, audit, LoC, and rendering; it is now `core/layout.source_root(ctx)` (Sec.2.8). (3) *Projection:* `orchestrator/simulate.py` and the accounting half of `cli/loc_report.py` merge into `orchestrator/projection.py` with one lenient text reader; `LocReport` / `TreatmentBucket` move to `core/models_audit.py`; LoC rendering moves to `cli/render.py`. (4) *Application layer:* `chopper.app` now owns domain resolution, catalog discovery, run-config building, run dispatch, trim-statistics rows, cleanup, and the pre-runner crash log (Sec.5.11.2); the CLI keeps argparse, rendering, and exit mapping, with one multi-domain dispatch loop instead of three. Layering `cli -> app -> orchestrator -> services -> adapters -> core` is enforced by import-linter, including a contract that the CLI imports only `app`, adapters, and core. (5) *GUI direction:* the future GUI is decided as a local browser front end (plain HTML/CSS/JS, standard-library HTTP server on loopback with a per-launch token) and recorded in `FD-04`; nothing is built, stubbed, or reserved. Equivalence was proven with a differential CLI capture (every fixture and example domain across `validate` / `trim` / `loc` / `cleanup`, `$ward` and error paths; exit codes, stdout, stderr, and every written file identical) plus the existing suite at 100% line and branch coverage. Rejected: runtime plugin discovery (closed decision), a separate bookkeeper service that services would call (adds coupling; bookkeeping stays inside the runner), and a GUI that shells out to the CLI (duplicates argv parsing and loses typed results). No schema, diagnostic, CLI, or artifact change. |
 
 ---
 

@@ -42,6 +42,7 @@ from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.fs_walk import iter_domain_files
 from chopper.core.globs import glob_match
+from chopper.core.layout import source_root
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph, StageSpec
 from chopper.core.models_config import FeatureJson, FilesSection, LoadedConfig
@@ -197,7 +198,7 @@ def _check_pattern(
 
     # Literal path.
     rel = Path(pattern)
-    target = _validation_source_root(ctx) / rel
+    target = source_root(ctx) / rel
     if not ctx.fs.exists(target):
         if is_include:
             ctx.diag.emit(
@@ -270,20 +271,8 @@ def _glob_has_matches(ctx: ChopperContext, pattern: str) -> bool:
     (:mod:`chopper.core.fs_walk`, :mod:`chopper.core.globs`); stops at the
     first match.
     """
-    root = _validation_source_root(ctx)
+    root = source_root(ctx)
     return any(glob_match(pattern, rel.as_posix()) for rel in iter_domain_files(ctx.fs, root))
-
-
-def _validation_source_root(ctx: ChopperContext) -> Path:
-    """Return the tree P1 should validate against.
-
-    First trims validate against ``domain_root``. Reruns validate against
-    ``backup_root`` because P5 rebuilds from that preserved source tree.
-    """
-
-    if ctx.fs.exists(ctx.config.backup_root):
-        return ctx.config.backup_root
-    return ctx.config.domain_root
 
 
 # ---------------------------------------------------------------------------

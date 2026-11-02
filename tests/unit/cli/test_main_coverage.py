@@ -57,7 +57,7 @@ def test_main_programmer_error_handler_returns_1() -> None:
     mock_internal.log_path = None
 
     with patch("chopper.cli.main.cmd_validate", side_effect=RuntimeError("boom")):
-        with patch("chopper.cli.main.write_internal_error_log", return_value=mock_internal):
+        with patch("chopper.app.session.write_internal_error_log", return_value=mock_internal):
             rc = main(["validate", "--base", "/fake/base.json"])
     assert rc == 1
 

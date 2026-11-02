@@ -1,10 +1,10 @@
-"""Unit tests for :mod:`chopper.cli.loc_report` -- report math + builder.
+"""Unit tests for :mod:`chopper.orchestrator.projection` -- report math + builder.
 
 End-to-end behaviour (writes nothing, table renders, exit codes) is
 covered by :mod:`tests.integration.test_cli_loc`. This module isolates
 the percent-reduction math and the per-treatment bucket attribution of
 :func:`build_loc_report`, which replays the real trim in memory (see
-:mod:`chopper.orchestrator.simulate`).
+:func:`chopper.orchestrator.projection.simulate_trim_in_memory`).
 """
 
 from __future__ import annotations
@@ -12,18 +12,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from chopper.adapters import InMemoryFS
-from chopper.cli.loc_report import (
-    LocReport,
-    TreatmentBucket,
-    build_loc_report,
-    render_loc_report,
-)
+from chopper.cli.render import render_loc_report
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
+from chopper.core.models_audit import LocReport, TreatmentBucket
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance
 from chopper.core.models_parser import ParseResult
 from chopper.core.models_trimmer import GeneratedArtifact
+from chopper.orchestrator.projection import build_loc_report
 
 # ---------------------------------------------------------------------------
 # LocReport percent-reduction math

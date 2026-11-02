@@ -23,19 +23,6 @@ from tests.unit._coverage_helpers import (  # noqa: F401
 )
 
 
-def test_config_source_root_returns_backup_when_state_says_backup_exists() -> None:
-    from chopper.config.service import _config_source_root
-    from chopper.core.models_common import DomainState
-
-    ctx = _ctx()
-    state_with_backup = DomainState(case=2, domain_exists=True, backup_exists=True)
-    assert _config_source_root(ctx, state_with_backup) == BACKUP
-
-    state_no_backup = DomainState(case=1, domain_exists=True, backup_exists=False)
-    assert _config_source_root(ctx, state_no_backup) == DOMAIN
-    assert _config_source_root(ctx, None) == DOMAIN
-
-
 def test_config_enumerate_handles_list_oserror() -> None:
     from chopper.config.service import _enumerate_domain_files
 

@@ -50,8 +50,8 @@ Before large delegated edits, test the proposed edit mechanism on one small targ
 The September helper used the following existing services; check their signatures in the installed version rather than copying assumptions into product code:
 
 - `ChopperRunner.run(ctx, command="loc")` with `dry_run=True` returns typed loaded, parsed, manifest, and graph data without a real output rebuild.
-- `simulate_trim_in_memory(ctx, loaded=..., parsed=..., manifest=...)` replays real P5 services; it does not run EDA tools.
-- `build_loc_report` requires `ctx=` as a keyword argument.
+- `chopper.orchestrator.projection.simulate_trim_in_memory(ctx, parsed=..., manifest=...)` replays the real P5 sequence (`execute_output`, gates off); it does not run EDA tools.
+- `chopper.orchestrator.projection.build_loc_report` requires `ctx=` as a keyword argument.
 - `validate_post` needs absolute rewritten paths in the simulated filesystem. Relative paths caused silent read skips and false confidence.
 - Cached full-domain parsing can make the feature matrix practical, but `parsed.files` has Tcl entries while `loaded.surface_files` also has CSV/stacks. Filter by actual parsed membership, retain the full index, and rerun configuration, compile, trace, build, and validation per case.
 - Never reuse that cache after editing source Tcl or changing parser version/options. Rebuild the initial full parse.

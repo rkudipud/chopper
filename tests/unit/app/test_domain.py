@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 import pytest
 
-from chopper.cli.domain_lookup import resolve_domain
+from chopper.app.domain import resolve_domain
 
 
 class _Error(NamedTuple):
@@ -205,7 +205,7 @@ class TestBareNameOSError:
         monkeypatch.setenv("ward", ward.as_posix())
 
         errors, emit = _collect_errors()
-        with patch("chopper.cli.domain_lookup.Path.iterdir", side_effect=OSError("perm denied")):
+        with patch("chopper.app.domain.Path.iterdir", side_effect=OSError("perm denied")):
             result = resolve_domain("fev_formality", emit)  # type: ignore[arg-type]
 
         assert result is None

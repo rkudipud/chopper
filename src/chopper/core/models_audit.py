@@ -14,7 +14,15 @@ from chopper.core.models_config import LoadedConfig
 from chopper.core.models_parser import ParseResult
 from chopper.core.models_trimmer import GeneratedArtifact, TrimReport
 
-__all__ = ["AuditArtifact", "AuditManifest", "InternalError", "RunRecord", "RunResult"]
+__all__ = [
+    "AuditArtifact",
+    "AuditManifest",
+    "InternalError",
+    "LocReport",
+    "RunRecord",
+    "RunResult",
+    "TreatmentBucket",
+]
 
 
 @dataclass(frozen=True)
@@ -122,3 +130,46 @@ class RunResult:
     def __post_init__(self) -> None:
         if self.exit_code not in (0, 1, 2, 3):
             raise ValueError(f"RunResult.exit_code must be 0/1/2/3, got {self.exit_code}")
+
+
+@dataclass(frozen=True)
+class TreatmentBucket:
+    """Per-treatment subtotal row in a :class:`LocReport`."""
+
+    treatment: str
+    files: int
+    lines_before: int
+    lines_after: int
+    sloc_before: int
+    sloc_after: int
+
+
+@dataclass(frozen=True)
+class LocReport:
+    """Before/after LoC comparison produced by the ``chopper loc`` projection."""
+
+    files_before: int
+    files_after: int
+    lines_before: int
+    lines_after: int
+    sloc_before: int
+    sloc_after: int
+    buckets: tuple[TreatmentBucket, ...]
+
+    @property
+    def files_pct_reduction(self) -> float:
+        if self.files_before == 0:
+            return 0.0
+        return (1.0 - self.files_after / self.files_before) * 100.0
+
+    @property
+    def lines_pct_reduction(self) -> float:
+        if self.lines_before == 0:
+            return 0.0
+        return (1.0 - self.lines_after / self.lines_before) * 100.0
+
+    @property
+    def sloc_pct_reduction(self) -> float:
+        if self.sloc_before == 0:
+            return 0.0
+        return (1.0 - self.sloc_after / self.sloc_before) * 100.0

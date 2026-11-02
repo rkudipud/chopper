@@ -47,8 +47,8 @@ make test
 
 These are the constraints that matter most during day-to-day implementation:
 
-1. Keep the public command surface to `validate`, `trim`, and `cleanup`.
-2. Preserve the layered structure: `cli -> orchestrator -> services -> core`.
+1. Keep the public command surface to `validate`, `trim`, `loc`, and `cleanup`.
+2. Preserve the layered structure: `cli -> app -> orchestrator -> services -> core` (enforced by `lint-imports`).
 3. Keep cross-service sharing in `src/chopper/core/`; avoid direct service-to-service imports.
 4. Route service I/O through the configured filesystem and diagnostic abstractions rather than ad hoc direct access.
 5. Register new diagnostic codes in [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) before using them.

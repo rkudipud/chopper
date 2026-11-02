@@ -64,9 +64,9 @@ def test_procs_generation_and_f1_preservation(tmp_path: Path, dry_run: bool) -> 
 
 def test_generated_sourcing_files_flow_to_p4_audit_and_loc(tmp_path: Path) -> None:
     from chopper.adapters import CollectingSink, LocalFS, SilentProgress
-    from chopper.cli.loc_report import build_loc_report
     from chopper.core.context import ChopperContext, RunConfig
     from chopper.orchestrator import ChopperRunner
+    from chopper.orchestrator.projection import build_loc_report
 
     domain = _procs_domain(tmp_path)
     # A previously submitted vars file is in the depot already; procs is new.

@@ -117,7 +117,7 @@ def test_main_pre_runner_exception_writes_internal_error(
         return InternalError(kind=type(exc).__name__, message=str(exc), log_path=Path(".chopper/internal-error.log"))
 
     monkeypatch.setattr(main_module, "cmd_cleanup", _boom)
-    monkeypatch.setattr(main_module, "write_internal_error_log", _fake_internal_error)
+    monkeypatch.setattr("chopper.app.session.write_internal_error_log", _fake_internal_error)
 
     assert main_module.main(["cleanup"]) == 1
     captured = capsys.readouterr()

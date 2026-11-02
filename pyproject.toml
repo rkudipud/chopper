@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "4.10.0"
+version = "4.11.0"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.13. ruff's `target-version` and
 # mypy's `python_version` below are both pinned to 3.13 so the lint /
@@ -104,13 +104,16 @@ disallow_untyped_defs = true
 #
 # Enforces the layered architecture defined in technical_docs/ENGINEERING.md Sec.3:
 #
-#     cli  ->  orchestrator  ->  services  ->  core
+#     cli  ->  app  ->  orchestrator  ->  services  ->  core
 #     adapters -> core (+ third-party libs only)
 #
-# Services (parser, config, compiler, trimmer, generators, validator, audit)
-# MUST NOT import each other. The core package MUST NOT import any sibling.
-# Adapters bridge ports to third-party libs; they may import core but no
-# sibling service.
+# The CLI is a thin adapter: it may import only `chopper.app`, adapters, and
+# core. `chopper.app` is the front-end-neutral application layer (domain
+# resolution, catalog, run session, typed read models) that a future GUI
+# would share. Services (parser, config, compiler, trimmer, generators,
+# validator, audit) MUST NOT import each other. The core package MUST NOT
+# import any sibling. Adapters bridge ports to third-party libs; they may
+# import core but no sibling service.
 #
 # Run via `lint-imports` (installed with the dev extra) and wired into
 # `make check`.
@@ -120,14 +123,14 @@ disallow_untyped_defs = true
 root_packages = ["chopper"]
 
 [[tool.importlinter.contracts]]
-name = "Layered architecture: cli -> orchestrator -> services -> core"
+name = "Layered architecture: cli -> app -> orchestrator -> services -> core"
 type = "layers"
-# All layers are populated (Stages 0-5 complete). The contract enforces
-# strict top-down imports: cli may depend on orchestrator, orchestrator on
+# Strict top-down imports: cli on app, app on orchestrator, orchestrator on
 # services, services on core, adapters on core. No upward or sibling
 # imports across service modules.
 layers = [
     "chopper.cli",
+    "chopper.app",
     "chopper.orchestrator",
     "chopper.parser | chopper.config | chopper.compiler | chopper.trimmer | chopper.generators | chopper.validator | chopper.audit",
     "chopper.adapters",
@@ -158,6 +161,7 @@ forbidden_modules = [
     "chopper.validator",
     "chopper.audit",
     "chopper.orchestrator",
+    "chopper.app",
     "chopper.cli",
     "chopper.adapters",
 ]
@@ -198,5 +202,26 @@ forbidden_modules = [
     "chopper.validator",
     "chopper.audit",
     "chopper.orchestrator",
+    "chopper.app",
     "chopper.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "CLI is a thin adapter over the application layer"
+type = "forbidden"
+# `chopper.cli` parses argv and renders typed results. Every use case goes
+# through `chopper.app`; the CLI never reaches the composer or a service
+# directly (architecture doc Sec.5.11.2). Transitive imports through
+# `chopper.app` are the intended path, so only direct imports are checked.
+source_modules = ["chopper.cli"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "chopper.orchestrator",
+    "chopper.parser",
+    "chopper.config",
+    "chopper.compiler",
+    "chopper.trimmer",
+    "chopper.generators",
+    "chopper.validator",
+    "chopper.audit",
 ]

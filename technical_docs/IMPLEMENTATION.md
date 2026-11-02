@@ -2436,9 +2436,17 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 
 ### CLI / UX
 
-**FD-03 -- Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred -- CLI-first is correct today; the service-layer + renderer-adapter architecture (`technical_docs/ARCHITECTURE.md` Sec.5.11) enables this with no engine changes.
+**FD-03 -- Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred -- CLI-first is correct today, and the browser GUI in `FD-04` covers the same need; the application layer (`technical_docs/ARCHITECTURE.md` Sec.5.11.2) enables this with no engine changes.
 
-**FD-04 -- GUI client.** Machine-readable stdio wire protocol documented in `technical_docs/ARCHITECTURE.md` Sec.5.11.3. The wire payload (conventionally "TrimRequest") deserializes into `RunConfig` + `PresentationConfig` consumed by `ChopperRunner.run(ctx) -> RunResult`. Progress events as JSON lines on stderr. GUI data surfaces (file/proc selection, dependency graph, trim stats, JSON view, diagnostics) are enumerated in Sec.1.5.11.5. Architecturally enabled by the service-layer + serialization + renderer-adapter contracts; no new data models needed.
+**FD-04 -- Local browser GUI (delivery form decided; not built).** A second front end, peer of the CLI over the same `chopper.app` use cases (`technical_docs/ARCHITECTURE.md` Sec.5.11.2). Decided form:
+
+- *Delivery:* a `chopper gui` subcommand starts a Python standard-library HTTP server (`http.server` + `json`) in the foreground, bound to `127.0.0.1` on a random free port, guarded by a per-launch token in the URL, and opens the default browser. Ctrl-C stops it. No daemon, no remote binding; remote use goes through `ssh -L`.
+- *Client:* static HTML, CSS, and vanilla JavaScript shipped as package data. No npm, no build step, no frontend framework, no new runtime dependency.
+- *API:* JSON over HTTP, one route per application use case; requests and responses are the use cases' typed inputs and results serialized through `core/serialization.py`. Every CLI action is reachable (domain resolution, catalog discovery, validate, dry-run, trim, LoC, trim statistics, cleanup), plus diagnostics and `.chopper/` artifact browsing.
+- *Authoring:* discovery and display of base / feature / project JSONs; selecting and ordering features; and create / read / update / delete / rename / duplicate of JSON files, validated against the bundled schemas, schema-version consistency (`VE-41`), `depends_on`, and `incompatible_with` before anything is written. These authoring use cases are added to `chopper.app` together with the GUI (the CLI does not need them today).
+- *Doc changes on adoption:* architecture Sec.5.11 (route table and authoring use cases), FR rows, a `chopper gui` entry in `technical_docs/CLI_REFERENCE.md`, and narrowing the networked-services closure (`technical_docs/ENGINEERING.md` Sec.16 and `.github/instructions/project.instructions.md` Sec.1) to permit exactly this loopback, token-guarded, foreground server.
+
+Until the owner approves building it, no GUI code, stub, route, static asset, or reserved seam exists.
 
 **FD-10 -- Machine-readable CLI output (`--json` / `--jsonl`).** Emit `RunResult` and progress events as structured lines on stdout. Post-v1 this is ~50 lines in `cli/render.py` plus a fixture -- `RunResult` already serialises via `core/serialization.py`. Deferred to keep v1's user surface minimal and let the table renderer bed in before freezing a machine-output contract.
 
@@ -2472,7 +2480,7 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 | FD-02 | Pipeline | Cross-domain dependency awareness |
 | FD-08 | Compiler | Feature mutual-incompatibility constraints (`incompatible_with`) -- ADOPTED in 4.6.0 |
 | FD-03 | CLI/UX | Interactive feature-selection TUI |
-| FD-04 | CLI/UX | GUI client over stdio JSON protocol |
+| FD-04 | CLI/UX | Local browser GUI (stdlib HTTP on loopback + vanilla HTML/CSS/JS) over the `chopper.app` use cases |
 | FD-05 | Docs | Quick-start guide |
 | FD-06 | Docs | Per-code example diagnostic messages |
 | FD-07 | Docs | Terminology glossary |

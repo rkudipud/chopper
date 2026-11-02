@@ -83,12 +83,13 @@ def _make_run_result(trim_report=None, generated_artifacts=()):
 def test_render_trim_stats_noop_when_no_trim_report() -> None:
     """render_trim_stats must silently do nothing when trim_report is None
     (e.g. dry-run aborted early).  No output should be written."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
 
     ctx = _ctx()
     result = _make_run_result(trim_report=None)
     buf = io.StringIO()
-    render_trim_stats(ctx, result, stream=buf)
+    render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     assert buf.getvalue() == ""
 
 
@@ -96,6 +97,7 @@ def test_render_trim_stats_remove_treatment_shows_zero_sloc_out(tmp_path: Path) 
     """Per ARCHITECTURE.md Sec.A7, REMOVE files have sloc_out=0 because the file
     is deleted from the rebuilt domain.  The table must not attempt to read the
     (non-existent) output file."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -117,7 +119,7 @@ def test_render_trim_stats_remove_treatment_shows_zero_sloc_out(tmp_path: Path) 
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
     buf = io.StringIO()
-    render_trim_stats(ctx, result, stream=buf)
+    render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     output = buf.getvalue()
     assert "Trim stats" in output
     assert "DROP" in output
@@ -126,6 +128,7 @@ def test_render_trim_stats_remove_treatment_shows_zero_sloc_out(tmp_path: Path) 
 def test_render_trim_stats_dry_run_reads_domain_for_sloc_in(tmp_path: Path) -> None:
     """Under dry-run no backup is taken; render_trim_stats must read sloc_in
     from domain_root when backup_root doesn't exist (ARCHITECTURE.md Sec.A7)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -149,7 +152,7 @@ def test_render_trim_stats_dry_run_reads_domain_for_sloc_in(tmp_path: Path) -> N
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
     buf = io.StringIO()
-    render_trim_stats(ctx, result, stream=buf)
+    render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     output = buf.getvalue()
     assert "Trim stats" in output
 
@@ -158,6 +161,7 @@ def test_render_trim_stats_emits_drop_rows_for_unrecorded_domain_files(tmp_path:
     """Full-domain coverage: files dropped under default-exclude (R2) never
     appear in ``report.outcomes``; render_trim_stats must still emit a DROP
     row for each, walking the pristine source tree (backup_root)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -188,7 +192,7 @@ def test_render_trim_stats_emits_drop_rows_for_unrecorded_domain_files(tmp_path:
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
     buf = io.StringIO()
-    render_trim_stats(ctx, result, stream=buf)
+    render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     output = buf.getvalue()
     # Both dropped files appear as DROP rows; the survivor is COPY.
     assert "dropped_a.tcl" in output
@@ -203,6 +207,7 @@ def test_render_trim_stats_skips_unreadable_dropped_file(tmp_path: Path, monkeyp
     (defensive guard against a file vanishing between walk and read)."""
     from pathlib import Path as _Path
 
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -240,7 +245,7 @@ def test_render_trim_stats_skips_unreadable_dropped_file(tmp_path: Path, monkeyp
     monkeypatch.setattr(_Path, "read_text", _raising_read_text)
 
     buf = io.StringIO()
-    render_trim_stats(ctx, result, stream=buf)
+    render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     output = buf.getvalue()
     # The unreadable file is silently dropped from the table.
     assert "vanished.tcl" not in output
@@ -250,6 +255,7 @@ def test_render_trim_stats_skips_unreadable_dropped_file(tmp_path: Path, monkeyp
 def test_render_trim_stats_long_path_is_truncated(tmp_path: Path) -> None:
     """A file path longer than the computed file_w must be left-truncated
     keeping the basename visible (the '...' ellipsis prefix pattern)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -276,7 +282,7 @@ def test_render_trim_stats_long_path_is_truncated(tmp_path: Path) -> None:
     buf = io.StringIO()
     # Force narrow terminal so truncation fires.
     with patch("shutil.get_terminal_size", return_value=MagicMock(columns=60)):
-        render_trim_stats(ctx, result, stream=buf)
+        render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     output = buf.getvalue()
     # Table was rendered if file is present; check no crash occurred.
     # (Long path truncation or no-rows is acceptable here.)
@@ -286,6 +292,7 @@ def test_render_trim_stats_long_path_is_truncated(tmp_path: Path) -> None:
 def test_render_trim_stats_with_generated_artifact(tmp_path: Path) -> None:
     """Generated artifacts (stage .tcl files) must appear in the stats table
     under the 'GEN ' treatment label per ARCHITECTURE.md Sec.5.6."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_trimmer import GeneratedArtifact
@@ -315,7 +322,7 @@ def test_render_trim_stats_with_generated_artifact(tmp_path: Path) -> None:
     )
     ctx = ChopperContext(config=cfg, fs=LocalFS(), diag=_Sink(), progress=_Progress())
     buf = io.StringIO()
-    render_trim_stats(ctx, result, stream=buf)
+    render_trim_stats(build_trim_stats(ctx, result), stream=buf)
     output = buf.getvalue()
     assert "GEN" in output
 
@@ -385,29 +392,24 @@ def test_render_cleanup_message_writes_to_stdout_by_default() -> None:
 
 def test_render_table_left_truncates_long_path() -> None:
     """_render_table must left-truncate paths longer than the file column width."""
+    from chopper.app.trim_stats import TrimStatRow, TrimStats
     from chopper.cli.render import _render_table
+    from chopper.core.models_common import FileTreatment
 
     long_path = "a" * 200 + "/very/long/path/to/file.tcl"
-    rows: list[dict[str, object]] = [
-        {
-            "path": long_path,
-            "treatment": "REMOVE",
-            "sloc_in": 100,
-            "sloc_out": None,
-            "kept": 0,
-            "removed": 5,
-        }
-    ]
-    totals: dict[str, object] = {
-        "path": "TOTAL",
-        "treatment": "",
-        "sloc_in": 100,
-        "sloc_out": None,
-        "kept": 0,
-        "removed": 5,
-    }
+    row = TrimStatRow(
+        path=long_path,
+        treatment=FileTreatment.REMOVE,
+        bytes_in=0,
+        bytes_out=0,
+        sloc_in=100,
+        sloc_out=None,
+        kept=0,
+        removed=5,
+    )
+    stats = TrimStats(rows=(row,), bytes_in=0, bytes_out=0, sloc_in=100, sloc_out=0, kept=0, removed=5)
     out = io.StringIO()
-    _render_table(out, rows, totals, width=80)
+    _render_table(out, stats, width=80)
     text = out.getvalue()
     # Truncation inserts the ellipsis characters.
     assert "..." in text
@@ -415,6 +417,7 @@ def test_render_table_left_truncates_long_path() -> None:
 
 def test_render_trim_stats_returns_early_when_no_trim_report() -> None:
     """render_trim_stats returns early when result.trim_report is None (line 119-120)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
 
     fs = InMemoryFS()
@@ -424,7 +427,7 @@ def test_render_trim_stats_returns_early_when_no_trim_report() -> None:
     # RunResult with no trim_report -> early return at line 119
     result = _make_run_result()
     out = io.StringIO()
-    render_trim_stats(ctx2, result, stream=out)
+    render_trim_stats(build_trim_stats(ctx2, result), stream=out)
     assert out.getvalue() == ""
 
 
@@ -446,6 +449,7 @@ def test_render_result_writes_summary_line() -> None:
 
 def test_render_trim_stats_returns_early_when_rows_empty() -> None:
     """render_trim_stats returns early at line 129 when outcomes=() and no artifacts."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_trimmer import TrimReport
 
@@ -462,13 +466,14 @@ def test_render_trim_stats_returns_early_when_rows_empty() -> None:
     )
     result = _make_run_result(trim_report=trim_report, generated_artifacts=())
     out = io.StringIO()
-    render_trim_stats(ctx2, result, stream=out)
+    render_trim_stats(build_trim_stats(ctx2, result), stream=out)
     # Empty rows -> early return, no table written
     assert out.getvalue() == ""
 
 
 def test_render_trim_stats_artifact_oserror_falls_back_to_content() -> None:
     """_collect_generated_rows falls back to artifact.content when target read fails (197-201)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -489,13 +494,14 @@ def test_render_trim_stats_artifact_oserror_falls_back_to_content() -> None:
     result = _make_run_result(trim_report=trim_report, generated_artifacts=(artifact,))
     out = io.StringIO()
     # Should not crash -- OSError is caught and falls back to artifact.content
-    render_trim_stats(ctx2, result, stream=out)
+    render_trim_stats(build_trim_stats(ctx2, result), stream=out)
     # Table is rendered (rows not empty)
     assert len(out.getvalue()) > 0
 
 
 def test_render_trim_stats_reads_backup_source_for_artifact(tmp_path) -> None:
     """_collect_generated_rows reads backup source when it exists (lines 215, 219-220)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_trimmer import GeneratedArtifact
 
@@ -534,13 +540,14 @@ def test_render_trim_stats_reads_backup_source_for_artifact(tmp_path) -> None:
     trim_report = _make_trim_report(outcome)
     result = _make_run_result(trim_report=trim_report, generated_artifacts=(artifact,))
     out = io.StringIO()
-    render_trim_stats(ctx2, result, stream=out)
+    render_trim_stats(build_trim_stats(ctx2, result), stream=out)
     # Should have rendered a table with the backup content
     assert len(out.getvalue()) > 0
 
 
 def test_render_trim_stats_excludes_json_outcome(tmp_path: Path) -> None:
     """render_trim_stats skips outcomes whose path is an excluded artifact (.json)."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
 
@@ -566,7 +573,7 @@ def test_render_trim_stats_excludes_json_outcome(tmp_path: Path) -> None:
     trim_report = _make_trim_report(json_outcome, tcl_outcome)
     result = _make_run_result(trim_report=trim_report)
     out = io.StringIO()
-    render_trim_stats(ctx2, result, stream=out)
+    render_trim_stats(build_trim_stats(ctx2, result), stream=out)
     # base.json should NOT appear in the output table
     assert "base.json" not in out.getvalue()
     assert "lib.tcl" in out.getvalue()
@@ -574,6 +581,7 @@ def test_render_trim_stats_excludes_json_outcome(tmp_path: Path) -> None:
 
 def test_render_trim_stats_excludes_generated_json_artifact(tmp_path: Path) -> None:
     """render_trim_stats skips generated artifacts whose path is excluded."""
+    from chopper.app.trim_stats import build_trim_stats
     from chopper.cli.render import render_trim_stats
     from chopper.core.models_common import FileTreatment
     from chopper.core.models_trimmer import GeneratedArtifact
@@ -599,6 +607,6 @@ def test_render_trim_stats_excludes_generated_json_artifact(tmp_path: Path) -> N
     trim_report = _make_trim_report(outcome)
     result = _make_run_result(trim_report=trim_report, generated_artifacts=(tcl_artifact, json_artifact))
     out = io.StringIO()
-    render_trim_stats(ctx2, result, stream=out)
+    render_trim_stats(build_trim_stats(ctx2, result), stream=out)
     # instructions.md artifact should NOT appear
     assert "instructions.md" not in out.getvalue()

@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-import uuid
 from collections.abc import Sequence
 
 from chopper import __version__
-from chopper.audit.internal_error import write_internal_error_log
+from chopper.app.session import record_crash
 from chopper.cli.commands import cmd_cleanup, cmd_loc, cmd_trim, cmd_validate
 
 __all__ = ["build_parser", "main"]
@@ -167,12 +166,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # argparse / explicit sys.exit -- propagate without rewriting.
         raise
     except Exception as exc:  # noqa: BLE001 -- last-resort guard
-        # Pre-runner programmer error. We have no ChopperContext, so
-        # the writer falls back to ``Path.cwd() / '.chopper'`` for the
-        # log location. Exit 1 (per IMPROVEMENTS.md D2) -- the failure
-        # is outside the runner's exit-3 contract.
-        run_id = uuid.uuid4().hex
-        internal = write_internal_error_log(None, run_id=run_id, exc=exc)
+        # Pre-runner programmer error. There is no ChopperContext, so the
+        # log lands under ``Path.cwd() / '.chopper'``. Exit 1 -- the
+        # failure is outside the runner's exit-3 contract.
+        internal = record_crash(exc)
         sys.stderr.write(
             f"[chopper] fatal: {internal.kind}: {internal.message}\n"
             f"[chopper] crash log: {internal.log_path if internal.log_path else '(could not write)'}\n"

@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`chopper.orchestrator.simulate`.
+"""Unit tests for :mod:`chopper.orchestrator.projection`.
 
 ``simulate_trim_in_memory`` replays the real P5 trim phases against an
 in-memory copy of the source tree so ``chopper loc`` can count the
@@ -16,7 +16,7 @@ from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, FileProvenance, ProcDecision
 from chopper.core.models_parser import ParsedFile, ParseResult, ProcEntry
-from chopper.orchestrator.simulate import SimulatedTrim, simulate_trim_in_memory
+from chopper.orchestrator.projection import SimulatedTrim, simulate_trim_in_memory
 
 
 class _Sink:
@@ -142,18 +142,6 @@ def test_simulate_rebuilds_domain_and_leaves_real_disk_untouched(tmp_path: Path)
     assert "proc drop" not in rebuilt
 
 
-def test_source_root_prefers_backup_when_present(tmp_path: Path) -> None:
-    """``_source_root`` returns ``backup_root`` once it exists on disk."""
-    from chopper.orchestrator.simulate import _source_root
-
-    ctx = _ctx(tmp_path)
-    # No backup yet -> falls back to the domain root.
-    assert _source_root(ctx) == ctx.config.domain_root
-    # Once the backup exists, it is preferred (the pristine source).
-    ctx.config.backup_root.mkdir()
-    assert _source_root(ctx) == ctx.config.backup_root
-
-
 class _FakeFS:
     """Minimal ``FileSystemPort`` stub exercising ``_read_text`` branches."""
 
@@ -180,7 +168,7 @@ def _fake_ctx(tmp_path: Path, behavior) -> ChopperContext:
 
 def test_read_text_latin1_fallback_succeeds(tmp_path: Path) -> None:
     """UTF-8 decode failure retries with latin-1 and returns the text."""
-    from chopper.orchestrator.simulate import _read_text
+    from chopper.orchestrator.projection import _read_text
 
     def behavior(_path: Path, encoding: str) -> str:
         if encoding == "utf-8":
@@ -193,7 +181,7 @@ def test_read_text_latin1_fallback_succeeds(tmp_path: Path) -> None:
 
 def test_read_text_latin1_fallback_oserror_returns_none(tmp_path: Path) -> None:
     """When the latin-1 retry also fails with OSError, the file is dropped."""
-    from chopper.orchestrator.simulate import _read_text
+    from chopper.orchestrator.projection import _read_text
 
     def behavior(_path: Path, encoding: str) -> str:
         if encoding == "utf-8":
@@ -206,7 +194,7 @@ def test_read_text_latin1_fallback_oserror_returns_none(tmp_path: Path) -> None:
 
 def test_read_text_oserror_returns_none(tmp_path: Path) -> None:
     """A plain OSError on the first read yields ``None`` (file skipped)."""
-    from chopper.orchestrator.simulate import _read_text
+    from chopper.orchestrator.projection import _read_text
 
     def behavior(_path: Path, _encoding: str) -> str:
         raise OSError("missing")
@@ -217,7 +205,7 @@ def test_read_text_oserror_returns_none(tmp_path: Path) -> None:
 
 def test_simulate_skips_unreadable_source_file(tmp_path: Path, monkeypatch) -> None:
     """Files whose text cannot be read are skipped during seeding (no crash)."""
-    import chopper.orchestrator.simulate as sim_mod
+    import chopper.orchestrator.projection as sim_mod
 
     ctx = _ctx(tmp_path)
     (ctx.config.domain_root / "unreadable.tcl").write_text("proc x {} {}\n", encoding="utf-8")
@@ -297,7 +285,7 @@ def test_simulate_skips_json_seed_when_file_missing_from_source_root(tmp_path: P
 def test_simulate_skips_json_seed_when_unreadable(tmp_path: Path, monkeypatch) -> None:
     """A ``.json`` path that exists but cannot be read (``_read_text`` returns
     ``None``) is skipped during seeding rather than crashing."""
-    import chopper.orchestrator.simulate as sim_mod
+    import chopper.orchestrator.projection as sim_mod
 
     ctx = _ctx(tmp_path)
     (ctx.config.domain_root / "jsons").mkdir()

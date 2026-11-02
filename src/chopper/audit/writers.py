@@ -18,6 +18,7 @@ from pathlib import Path
 
 from chopper import __version__
 from chopper.audit.sloc import count_raw, count_sloc_many
+from chopper.core import layout
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Severity
 from chopper.core.fs_walk import TEXT_LIKE_EXTENSIONS, walk_files
@@ -376,13 +377,8 @@ def _physical_source_root(ctx: ChopperContext) -> Path | None:
     Callers fall back to a manifest-only view in that case.
     """
 
-    backup = ctx.config.backup_root
-    domain = ctx.config.domain_root
-    if ctx.fs.exists(backup):
-        return backup
-    if ctx.fs.exists(domain):
-        return domain
-    return None
+    root = layout.source_root(ctx)
+    return root if ctx.fs.exists(root) else None
 
 
 def _walk_relative_files(ctx: ChopperContext, root: Path) -> list[Path]:
@@ -1042,16 +1038,11 @@ def _read_and_count(
 def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:
     """Return the root containing the pristine pre-trim source.
 
-    Mirrors :func:`chopper.parser.service.ParserService._source_root`
-    and :func:`chopper.cli.loc_report._source_root`: the backup tree is
-    the authoritative "before" whenever it exists on disk at P7 audit
-    time, otherwise the domain tree is the "before".
-
-    The check uses ``ctx.fs.exists`` rather than the P0
-    :class:`DomainState.backup_exists` flag because on a first live
-    trim (Case 1) P0 sees ``backup_exists == False``, but the live
-    trimmer creates ``<domain>_backup/`` during P5 before P7 audit
-    runs.  Using the stale P0 snapshot would point both "before" and
+    Uses :func:`chopper.core.layout.source_root` -- the live
+    ``ctx.fs.exists`` check, not the P0 :class:`DomainState.backup_exists`
+    flag. On a first live trim (Case 1) P0 sees ``backup_exists == False``,
+    but the live trimmer creates ``<domain>_backup/`` during P5 before P7
+    audit runs. Using the stale P0 snapshot would point both "before" and
     "after" at the rebuilt domain tree, collapsing the delta to zero
     (the symptom reported in production).  On ``--dry-run`` no backup
     is taken, so this function falls back to ``domain_root`` and the
@@ -1059,8 +1050,6 @@ def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:
     correct dry-run contract.
     """
 
-    if ctx.fs.exists(ctx.config.backup_root):
-        return ctx.config.backup_root
     if record.state is not None and record.state.backup_exists:
         # Defensive fallback: if the state recorded backup_exists but
         # the filesystem disagrees (manually removed between P0 and
@@ -1071,7 +1060,7 @@ def _before_root(ctx: ChopperContext, record: RunRecord) -> Path:
     # pre-trim source.  The "after" file list is derived from the
     # manifest in _compute_line_counts / render_trim_stats rather than
     # walking the live filesystem so the audit bundle shows projections.
-    return ctx.config.domain_root
+    return layout.source_root(ctx)
 
 
 def _enumerate_before_files(ctx: ChopperContext, record: RunRecord) -> list[Path]:

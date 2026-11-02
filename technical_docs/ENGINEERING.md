@@ -67,32 +67,35 @@ The user's ask was phrased as "service-oriented, context-aware." Taken literally
 
 ## 3. Repository and Module Layout
 
-Authoritative layout of `src/chopper/` as of v3.4.0. Every file below exists on disk; `__init__.py` and `__pycache__/` elided for brevity.
+Authoritative layout of `src/chopper/` as of v4.11.0. Every file below exists on disk; `__init__.py` and `__pycache__/` elided for brevity.
 
 ```
 src/chopper/
++-- __main__.py                  # `python -m chopper` -> cli.main
 +-- core/                        # Stage 0 -- no deps on sibling modules
 |   +-- models_common.py         # Shared primitives: FileTreatment, DomainState, FileStat
 |   +-- models_parser.py         # P2 parser records: ProcEntry, ParsedFile, ParseResult
 |   +-- models_config.py         # P1 JSON/config records: BaseJson, FeatureJson, LoadedConfig
 |   +-- models_compiler.py       # P3/P4 records: CompiledManifest, DependencyGraph, StageSpec, ...
 |   +-- models_trimmer.py        # P5 trimmer/generator records: TrimReport, GeneratedArtifact
-|   +-- models_audit.py          # P7/run records: RunRecord, RunResult, AuditManifest
+|   +-- models_audit.py          # P7/run records: RunRecord, RunResult, AuditManifest, LocReport
 |   +-- diagnostics.py           # Severity, Phase, Diagnostic, code registry guard
 |   +-- _diagnostic_registry.py  # Machine-generated band -> code mapping (mirrors DIAGNOSTIC_CODES.md)
 |   +-- errors.py                # Exception types (programmer errors only)
 |   +-- protocols.py             # Ports: FileSystemPort, DiagnosticSink, ProgressSink
 |   +-- context.py               # ChopperContext + RunConfig (service bundle, Sec.6.1)
+|   +-- layout.py                # source_root(ctx): the one backup-else-domain rule (architecture Sec.2.8)
 |   +-- serialization.py         # JSON encode/decode for all models
 |   +-- globs.py                 # glob_match: the one Sec.6.3.1 glob matcher (P1, P1 validation, P3)
 |   +-- tool_commands.py         # Vendor-tool command pool parser (TI-01)
 |   +-- file_perms.py            # Cross-phase permission helpers (ensure_executable, mirror_perms_plus_exec)
 |   +-- fs_walk.py               # Domain walk + copy helpers (iter_domain_files, walk_files, copy_tree)
 |   +-- header.py                # Intel-standard copyright header for generated files
+|   +-- provenance_markers.py    # Sec.3.11 marker text (F2 procs, F3 steps/stages)
 |
 +-- adapters/                    # Concrete implementations of ports (ctx.fs / ctx.diag / ctx.progress only)
 |   +-- fs_local.py              # LocalFS
-|   +-- fs_memory.py             # InMemoryFS (tests)
+|   +-- fs_memory.py             # InMemoryFS (tests, chopper loc projection)
 |   +-- sink_collecting.py       # CollectingSink (default)
 |   +-- progress_rich.py         # RichProgress
 |   +-- progress_silent.py       # SilentProgress
@@ -135,11 +138,13 @@ src/chopper/
 |   +-- indentation.py           # TclIndentationService -- P5c opt-in normaliser
 |   +-- companion_sync.py        # CompanionSyncService -- P5d companion-file sync
 |   +-- input_preserver.py       # P5a tail: mirror jsons/ + out-of-tree inputs into rebuilt domain
+|   +-- p4_checkout.py           # --p4 open-for-edit of the live domain before the rebuild
 |
 +-- generators/                  # Stage 3b -- Run-file emission (P5b)
 |   +-- service.py               # GeneratorService.run(...)
 |   +-- stage_emitter.py         # F3 <stage>.tcl writer
 |   +-- stack_emitter.py         # F3 <stage>.stack writer (N/J/L/D/I/O/R format)
+|   +-- vars_emitter.py          # v2 <flow>_feature_vars.tcl / <flow>_feature_procs.tcl writer
 |
 +-- audit/                       # Stage 3c -- .chopper/ writes (P7)
 |   +-- service.py               # AuditService.run(...)
@@ -154,31 +159,39 @@ src/chopper/
 +-- validator/                   # Stage 4 -- Pre+post validation (P1, P6)
 |   +-- functions.py             # validate_pre(ctx, loaded), validate_post(ctx, manifest, graph, rewritten)
 |
-+-- orchestrator/                # Composes the services; owns phase loop
-|   +-- runner.py                # ChopperRunner
++-- orchestrator/                # The single composer (architecture Sec.5.2)
+|   +-- runner.py                # ChopperRunner, Providers, default_providers(), RunLedger, execute_output()
+|   +-- projection.py            # chopper loc: in-memory P5 replay + LoC accounting
 |   +-- domain_state.py          # DomainStateService (P0)
 |   +-- gates.py                 # Phase-boundary gating logic
 |
-+-- cli/                         # Stage 5 -- thin CLI (no business logic)
++-- app/                         # Front-end-neutral use cases (architecture Sec.5.11.2); no print, no SystemExit, no argv
+|   +-- errors.py                # AppIssue / AppError -- typed use-case failures (code, message, hint, detail)
+|   +-- domain.py                # Domain resolution: path / $ward logical name (VE-32/33/34), _backup redirect, cwd fallback
+|   +-- catalog.py               # Base / project-config discovery, feature-name lookup (VE-36), feature-dir expansion
+|   +-- session.py               # RunConfig building (VE-35/36), VE-13 preflight, context factory, run, LoC, cleanup, crash log
+|   +-- trim_stats.py            # Per-file before/after rows for the post-trim statistics table
+|
++-- cli/                         # Stage 5 -- thin CLI (argparse, rendering, exit mapping only)
     +-- main.py                  # argparse entrypoint
-    +-- commands.py              # validate / trim / loc / cleanup handlers
-    +-- loc_report.py            # LOC report builder (chopper loc)
-    +-- render.py                # Rich-based output formatting
+    +-- commands.py              # validate / trim / loc / cleanup handlers + one multi-domain loop
+    +-- render.py                # Rich-based output formatting (diagnostics, tables, LoC report)
 ```
 
 **The dependency rule is strict and enforced at CI** (`import-linter`):
 
 ```
-cli -> orchestrator -> services -> core (ports + models)
-                                      ^
-adapters -----------------------------+
+cli -> app -> orchestrator -> services -> core (ports + models)
+                                             ^
+adapters ------------------------------------+
 ```
 
 - `core` imports nothing from siblings -- only stdlib.
 - Service packages (`parser`, `compiler`, `trimmer`, ...) import only from `core`.
 - `adapters` import from `core` and third-party libs.
-- `orchestrator` imports from `core` + every service + selects adapters.
-- `cli` imports from `core` + `orchestrator` only.
+- `orchestrator` imports from `core` + every service + selects adapters. `runner.default_providers()` is the only place phase implementations are constructed.
+- `app` imports from `core`, `adapters`, `orchestrator`, and the leaf helpers it reads (`audit.sloc` for SLOC counts, `audit.internal_error` for the crash log).
+- `cli` imports from `core`, `app`, and `adapters` only -- never a phase service, the orchestrator, or audit (import-linter contract "CLI is a thin adapter over the application layer").
 - **No `plugins/`, no `advisor/`, no `mcp/` directory exists or is planned.** These are not v1-deferred features -- they are permanently excluded (see Sec.16 Q1). Any PR that creates such a directory is rejected without review. The read-only stdio MCP server that briefly existed under `src/chopper/mcp/` (0.4.0-3.5.x) was **removed in 4.0.0**; MCP is a closed decision and `adapters/mcp_*.py` or any MCP surface remains forbidden.
 
 Circular imports, inter-service imports, and reverse imports (service importing orchestrator or cli) are all rejected at CI.
@@ -343,60 +356,70 @@ class ChopperContext:
 
 **Construction rules.**
 
-- Built exactly once per run -- by `cli/main.py` in production, by `make_test_context()` in tests.
+- Built exactly once per run -- by `app/session.py` in production (on behalf of whichever front end is running), by `make_test_context()` in tests.
 - Never mutated. Port *bindings* are fixed; port *state* may change via method calls.
 - Services receive `ctx` plus the typed inputs they declare -- nothing else. No module-level globals, no singletons, no thread-locals.
 - Services read only `ctx.config` (the `RunConfig`). `PresentationConfig` is CLI-local and never enters the service layer.
 
 ### 6.2 The runner
 
-`ChopperRunner.run()` is the only place phases are sequenced:
+`ChopperRunner.run()` is the only place phases are sequenced (architecture doc Sec.5.2, single composer). It reads phase implementations from a `Providers` bundle and records results in a private `RunLedger`:
 
 ```python
 # orchestrator/runner.py
-def run(ctx: ChopperContext) -> RunResult:
-    state = manif = graph = None
-    try:
-        state   = DomainStateService().run(ctx)                         # P0 -- no gate (never errors)
-        loaded  = ConfigService().run(ctx, state)                       # P1a
-        validate_pre(ctx, loaded)                                       # P1b -- plain function
-        if _has_errors(ctx, Phase.P1_CONFIG): return _abort(ctx, state, manif, graph)
-        parsed  = ParserService().run(ctx, loaded.surface_files)        # P2
-        if _has_errors(ctx, Phase.P2_PARSE):  return _abort(ctx, state, manif, graph)
-        manif   = CompilerService().run(ctx, loaded, parsed)            # P3
-        if _has_errors(ctx, Phase.P3_COMPILE): return _abort(ctx, state, manif, graph)
-        graph   = TracerService().run(ctx, manif, parsed)               # P4 -- no gate (reporting-only;
-                                                                        # TW-* are warnings by definition;
-                                                                        # internal invariant violations raise -> exit 3)
-        if not ctx.config.dry_run:
-            rewritten = TrimmerService().run(ctx, manif, parsed, state) # P5a -- writes directly via ctx.fs
-            if _has_errors(ctx, Phase.P5_TRIM): return _abort(ctx, state, manif, graph)
-            GeneratorService().run(ctx, manif)                          # P5b -- writes directly via ctx.fs;
-                                                                        # returns artifact records for audit only
-            validate_post(ctx, manif, graph, rewritten, trim_report=trim_report)  # P6 -- re-tokenizes PROC_TRIM files; also checks live output integrity
-            if _has_errors(ctx, Phase.P6_POSTVALIDATE): return _abort(ctx, state, manif, graph)
-        else:
-            # Dry-run P6: manifest-derivable checks only (VW-05, VW-06, VW-14..VW-17);
-            # filesystem re-read / output-integrity checks (VE-16, VW-10) are skipped because nothing was rewritten.
-            validate_post(ctx, manif, graph, rewritten=(), trim_report=None)
-        return _build_result(ctx, manif, graph, exit_code=0)
-    finally:
-        # P7 audit always runs -- even on exceptions, even on early return.
-        # AuditService tolerates `None` inputs: it writes chopper_run.json + diagnostics.json
-        # unconditionally, and the other artifacts only if their producing phase completed.
-        # chopper_run.json records `artifacts_present: string[]` listing which files were written.
+@dataclass(frozen=True)
+class Providers:                       # typed callables; one per phase implementation
+    domain_state, load_config, validate_pre, parse, compile, trace,
+    trim, generate, indent, sync_companions, preserve_inputs, validate_post, audit
+
+
+def default_providers() -> Providers:  # the single composition root
+    return Providers(domain_state=DomainStateService().run, load_config=ConfigService().run, ...)
+
+
+def execute_output(ctx, providers, ledger, *, manifest, parsed, state, gated) -> TrimReport | None:
+    """P5a trim -> P5b generate -> P5c indentation -> P5d companion sync.
+    Writes each result into the ledger as it lands. Returns None on a gated P5 error."""
+    ledger.trim_report = providers.trim(ctx, manifest, parsed, state)
+    if gated and has_errors(ctx, Phase.P5_TRIM): return None
+    ledger.artifacts = providers.generate(ctx, manifest)
+    ledger.trim_report, ledger.artifacts, ledger.rewritten = providers.indent(ctx, ...)
+    if gated and has_errors(ctx, Phase.P5_TRIM): return None
+    ledger.trim_report = providers.sync_companions(ctx, manifest, ledger.trim_report)
+    return ledger.trim_report
+
+
+class ChopperRunner:
+    def __init__(self, providers: Providers | None = None): ...
+
+    def run(self, ctx, *, command) -> RunResult:
+        p = self._providers or default_providers()
+        ledger = RunLedger()
         try:
-            AuditService().run(ctx, _build_record(ctx, manif, graph, ...))
+            ledger.state  = p.domain_state(ctx)                          # P0 -- case 4 -> exit 2
+            ledger.loaded = p.load_config(ctx, ledger.state)             # P1a
+            p.validate_pre(ctx, ledger.loaded)                           # P1b -- gate P1
+            ledger.parsed   = p.parse(ctx, ledger.loaded.surface_files, loaded=ledger.loaded)  # P2 -- gate
+            ledger.manifest = p.compile(ctx, ledger.loaded, ledger.parsed)                     # P3 -- gate
+            ledger.graph    = p.trace(ctx, ledger.manifest, ledger.parsed, ledger.loaded)      # P4 -- no gate
+            if not ctx.config.dry_run:
+                if execute_output(ctx, p, ledger, ..., gated=True) is None: return ledger.result(ctx, 1)
+                p.preserve_inputs(ctx, ledger.loaded)                    # P5a tail (jsons/ mirror)
+                p.validate_post(ctx, ..., ledger.rewritten, trim_report=ledger.trim_report)  # P6 -- gate
+            else:
+                ledger.artifacts = p.generate(ctx, ledger.manifest)      # in-memory only on dry-run
+                p.validate_post(ctx, ..., rewritten=(), generated_artifacts=ledger.artifacts, trim_report=None)
+            return ledger.result(ctx, 0 or 1 under --strict with warnings)
         except Exception:
-            # Audit itself failed (disk full, perms). Log to stderr only;
-            # never mask the primary failure. Exit code is unaffected.
-            pass
-
-
-def _abort(ctx, state, manif, graph) -> RunResult:
-    """Early-return on a gated ERROR. P7 still fires via the outer `finally`."""
-    return _build_result(ctx, manif, graph, exit_code=1)
+            ledger.exit_code = 3                                         # + internal-error.log
+        finally:
+            # P7 audit always runs (except `loc`) -- even on exceptions, even on early return --
+            # from whatever the ledger holds at that moment. Audit failure is reported on stderr
+            # and never masks the primary failure.
+            if command != "loc": p.audit(ctx, ledger.record(...))
 ```
+
+`chopper loc` calls the same `execute_output()` against an in-memory copy of the source tree with `gated=False` (`orchestrator/projection.py`), so the P5 order exists exactly once. Swapping a phase implementation means passing `ChopperRunner(providers=replace(default_providers(), trim=my_trim))`; nothing else changes.
 
 **Gate semantics (explicit).** `_has_errors(ctx, phase)` inspects `ctx.diag.snapshot()` and returns `True` iff any diagnostic with `severity == ERROR` and `phase == <phase>` is present. **Severity is never rewritten by the gate.** `--strict` does not affect gating -- see Sec.8.2 rule 4. On abort, the runner returns a `RunResult` with `exit_code=1`; the `finally` block guarantees `AuditService` runs so `.chopper/` gets whatever artifacts are reachable.
 
@@ -432,6 +455,8 @@ def _abort(ctx, state, manif, graph) -> RunResult:
 - Any PR that adds any of the above is rejected at review without further discussion.
 
 If a future release genuinely needs a plugin mechanism, it starts a fresh design doc and updates [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) first. It does not resurrect stubs from this plan.
+
+**The provider bundle is not a seam.** `ChopperRunner(providers=...)` (Sec.6.2) takes a typed, frozen bundle of callables as an ordinary constructor argument. There is no discovery, no registry, no entry-point loading, and no runtime insertion of phases; `default_providers()` is a plain function that names every implementation. It exists so one phase implementation can be replaced (by a test or by a later in-tree rewrite) without touching the others.
 
 ---
 
@@ -691,7 +716,7 @@ class AuditManifest:
 ### 9.4 What this buys
 
 - **Services are testable in isolation with minimal setup.** A shared `make_test_context()` helper (see Sec.10.2) constructs a fresh `ChopperContext` with stub adapters (`InMemoryFS`, `CollectingSink`, `SilentProgress`) in one call. Simple services test in a handful of lines; services with richer input (Parser, Compiler) need fixture data but still no boilerplate for the port layer. The goal is **stateless test setup**, not a literal line count.
-- **Swap any service without touching the others.** Its contract is its signature plus its result dataclass.
+- **Swap any service without touching the others.** Its contract is its signature plus its result dataclass; the runner receives it through one `Providers` field (Sec.6.2).
 - **Audit artifacts are free.** Every result already has a JSON shape via `core.serialization.dump_model()`; `AuditService` dumps them without custom formatters.
 
 ---
@@ -711,8 +736,9 @@ To make every feature "individually and isolatedly developable/enhanceable" (you
    **Permitted exception:** P6 validator imports P2 parser for post-trim validation accuracy. The validator's `validate_post` function calls `parse_file()` from the parser to re-parse trimmed `.tcl` outputs and verify that the proc set matches the `TrimReport` promise (VW-10 check). This is the **only** permitted cross-stage import; all other stage boundaries remain sealed. See [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) Sec.5.12.9 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Sec.1.1 for the full rationale: re-parsing is the cleanest way to catch real bugs (incorrect proc drops), and the parser is a lower-level service that does not import validator, so there is no bidirectional coupling.
 
 6. **Adapters are swappable in tests.** Unit tests inject `InMemoryFS`, `CollectingSink`, `SilentProgress` -- they never touch the real filesystem. Time is controlled via `freezegun` / `monkeypatch` on `datetime.now`; there is no ClockPort.
-7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (Sec.6.2) -- no plugin registry, no dynamic phase insertion. Adding a new phase means editing `runner.py`. That is deliberate: v1 has seven phases, period.
+7. **New features that span services** go through the orchestrator, never via new inter-service imports. The orchestrator is a single hand-wired pipeline (Sec.6.2) -- no plugin registry, no dynamic phase insertion. Adding a new phase means editing `Providers`, `default_providers()`, and `run()` in `runner.py`; adding a P5 step means editing `execute_output()` once, which live trim and `chopper loc` both call. That is deliberate.
 8. **`ctx` bindings are stable; port state is not.** A service must not try to swap or reassign ports on `ctx`. Local scratch data stays local and is returned as part of the typed result.
+9. **Front ends go through `app/`.** A user action that a front end exposes is one `chopper.app` use case returning a typed result. The CLI (and a future GUI, `FD-04`) only translates input and renders output; discovery, ordering, config building, and dispatch live in `app/` once.
 
 ### 10.2 The shared test helper
 

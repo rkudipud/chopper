@@ -17,18 +17,18 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
 
-from chopper.audit.sloc import count_sloc
-from chopper.core.context import ChopperContext
+from chopper.app.errors import AppError
+from chopper.app.trim_stats import TrimStats
 from chopper.core.diagnostics import Diagnostic, Severity
-from chopper.core.fs_walk import EXCLUDED_FILENAMES, EXCLUDED_SUFFIXES, TEXT_LIKE_EXTENSIONS, walk_files
-from chopper.core.models_audit import RunResult
+from chopper.core.models_audit import LocReport, RunResult
 from chopper.core.models_common import DomainRunResult, FileTreatment
-from chopper.core.models_trimmer import TrimReport
 
 __all__ = [
+    "render_app_error",
     "render_audit_bundle_locations",
     "render_cleanup_message",
     "render_diagnostics",
+    "render_loc_report",
     "render_p4_branch_analysis",
     "render_p4_checkout_enabled_notice",
     "render_p4_checkout_notice",
@@ -89,6 +89,22 @@ def render_result(
     out.write(f"Summary: {s.errors} error(s), {s.warnings} warning(s), {s.infos} info(s); exit {result.exit_code}\n")
 
 
+def render_app_error(error: AppError, stream: TextIO | None = None) -> None:
+    """Write each :class:`AppError` issue as a ``[chopper] error`` block.
+
+    ``[chopper] error (<code>): <message>``, an optional detail line, then
+    ``  hint: <hint>``. Code-less issues are rendered by the caller as a
+    fatal exit instead.
+    """
+
+    out = stream if stream is not None else sys.stderr
+    for issue in error.issues:
+        out.write(f"[chopper] error ({issue.code}): {issue.message}\n")
+        if issue.detail is not None:
+            out.write(f"  {issue.detail}\n")
+        out.write(f"  hint: {issue.hint}\n")
+
+
 def render_cleanup_message(message: str, stream: TextIO | None = None) -> None:
     """Write a user-facing ``chopper cleanup`` status line to ``stdout``.
 
@@ -108,235 +124,18 @@ def render_cleanup_message(message: str, stream: TextIO | None = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-def render_trim_stats(
-    ctx: ChopperContext,
-    result: RunResult,
-    stream: TextIO | None = None,
-) -> None:
+def render_trim_stats(stats: TrimStats | None, stream: TextIO | None = None) -> None:
     """Render a console-width-aware before/after stats table.
 
-    No-op when ``result.trim_report`` is absent (dry-run, validate-only,
-    early abort) or when the rebuilt domain has not been written to disk
-    yet. SLOC is computed by reading the backup (before) and domain
-    (after) files via the local filesystem; failures fall back to ``-``.
+    No-op when ``stats`` is ``None`` (dry-run, validate-only, early
+    abort) or has no rows.
     """
 
-    report = result.trim_report
-    if report is None or not report.outcomes:
+    if stats is None or not stats.rows:
         return
-
     out = stream if stream is not None else sys.stderr
     width = max(60, _shutil.get_terminal_size(fallback=(100, 24)).columns)
-
-    rows = _collect_rows(ctx, report)
-    rows.extend(_collect_generated_rows(ctx, result.generated_artifacts))
-    rows.extend(_collect_dropped_rows(ctx, report, result.generated_artifacts))
-    rows.sort(key=lambda r: str(r["path"]))
-    if not rows:  # pragma: no cover - unreachable: outcomes non-empty => _collect_rows yields >=1 row
-        return
-
-    totals = _totals_row(rows)
-    _render_table(out, rows, totals, width=width)
-
-
-def _is_excluded_artifact(rel: Path) -> bool:
-    """Return ``True`` when ``rel`` is an authoring artifact, not a domain file.
-
-    Mirrors :mod:`chopper.core.fs_walk` so the live console table, the
-    LOC reporter, and the audit ``trim_stats.json`` agree on the set
-    of files that contribute to before/after deltas.  See
-    ARCHITECTURE.md \u00a75.5.13.
-    """
-
-    return rel.name in EXCLUDED_FILENAMES or rel.suffix.lower() in EXCLUDED_SUFFIXES
-
-
-def _collect_rows(ctx: ChopperContext, report: TrimReport) -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    backup_root: Path = ctx.config.backup_root
-    domain_root: Path = ctx.config.domain_root
-    dry_run = ctx.config.dry_run
-
-    for outcome in report.outcomes:
-        if _is_excluded_artifact(outcome.path):
-            continue
-        # In dry-run no backup is taken; the pre-trim source still
-        # lives at ``domain_root`` (the trimmer never wrote). Prefer
-        # the backup when present so both modes report the same
-        # baseline (A7).
-        sloc_in = _safe_sloc(backup_root / outcome.path, outcome.path)
-        if sloc_in is None and dry_run:
-            sloc_in = _safe_sloc(domain_root / outcome.path, outcome.path)
-        if outcome.treatment is FileTreatment.REMOVE:
-            sloc_out: int | None = 0
-        else:
-            sloc_out = _safe_sloc(domain_root / outcome.path, outcome.path)
-
-        rows.append(
-            {
-                "path": outcome.path.as_posix(),
-                "treatment": _treatment_label(outcome.treatment),
-                "bytes_in": outcome.bytes_in,
-                "bytes_out": outcome.bytes_out,
-                "sloc_in": sloc_in,
-                "sloc_out": sloc_out,
-                "kept": len(outcome.procs_kept),
-                "removed": len(outcome.procs_removed),
-            }
-        )
-
-    return rows
-
-
-def _collect_generated_rows(
-    ctx: ChopperContext,
-    artifacts: Sequence,
-) -> list[dict[str, object]]:
-    """Build rows for GENERATED artifacts (stage tcl / stack / csv).
-
-    Under dry-run the rebuilt domain does not exist on disk, so the
-    ``out`` side comes from :attr:`GeneratedArtifact.content` directly.
-    Under live trim the on-disk file is read (it has already passed
-    through the optional P5c indentation pass). If the same path
-    existed in the source domain (now under ``backup_root``) its bytes
-    are captured as the ``in`` baseline so the regenerate-in-place
-    case shows a real before->after delta.
-    """
-
-    rows: list[dict[str, object]] = []
-    domain_root: Path = ctx.config.domain_root
-    backup_root: Path = ctx.config.backup_root
-    dry_run = ctx.config.dry_run
-
-    for artifact in artifacts:
-        rel: Path = artifact.path
-        if _is_excluded_artifact(rel):
-            continue
-        if dry_run:
-            # No filesystem write happened -- the artifact content is
-            # the authoritative "after" payload.
-            text = artifact.content
-        else:
-            target = domain_root / rel
-            try:
-                text = target.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                text = artifact.content
-        bytes_out = len(text.encode("utf-8"))
-        sloc_out = count_sloc(rel, text)
-
-        # Pre-existing source for this generated path?  Under live trim
-        # it lives at ``backup_root``; under dry-run it is still at
-        # ``domain_root`` (the trimmer never wrote, so backup was never
-        # taken).  Try both, preferring backup when present.
-        bytes_in = 0
-        sloc_in: int | None = 0
-        src_text: str | None = None
-        for candidate in (backup_root / rel, domain_root / rel) if dry_run else (backup_root / rel,):
-            try:
-                src_text = candidate.read_text(encoding="utf-8", errors="replace")
-                break
-            except OSError:
-                continue
-        if src_text is not None:
-            bytes_in = len(src_text.encode("utf-8"))
-            sloc_in = count_sloc(rel, src_text)
-
-        rows.append(
-            {
-                "path": rel.as_posix(),
-                "treatment": "GEN ",
-                "bytes_in": bytes_in,
-                "bytes_out": bytes_out,
-                "sloc_in": sloc_in,
-                "sloc_out": sloc_out,
-                "kept": 0,
-                "removed": 0,
-            }
-        )
-
-    return rows
-
-
-def _collect_dropped_rows(
-    ctx: ChopperContext,
-    report: TrimReport,
-    artifacts: Sequence,
-) -> list[dict[str, object]]:
-    """Add DROP rows for domain files the trim removed entirely.
-
-    The trimmer records outcomes only for files it rewrote or copied;
-    files dropped under default-exclude (R2) never appear in
-    ``report.outcomes``. To make the live console table cover the whole
-    domain -- matching ``chopper loc`` and the audit
-    ``trim_stats.json`` -- walk the pristine source tree
-    (``backup_root`` when present, else ``domain_root``) and emit a
-    DROP row for every source file not already accounted for as a
-    rewrite, copy, or generated artifact.
-    """
-
-    source_root: Path = ctx.config.backup_root if ctx.fs.exists(ctx.config.backup_root) else ctx.config.domain_root
-    accounted = {o.path.as_posix() for o in report.outcomes}
-    accounted |= {a.path.as_posix() for a in artifacts}
-
-    rows: list[dict[str, object]] = []
-    for rel in walk_files(ctx.fs, source_root):
-        # ``walk_files`` already hard-excludes authoring artifacts
-        # (``.json`` / ``instructions.md``) and the ``.chopper/`` tree,
-        # so no further artifact filtering is needed here.
-        if rel.as_posix() in accounted:
-            continue
-        try:
-            raw = (source_root / rel).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        bytes_in = len(raw.encode("utf-8"))
-        sloc_in: int | None = count_sloc(rel, raw) if rel.suffix.lower() in TEXT_LIKE_EXTENSIONS else 0
-        rows.append(
-            {
-                "path": rel.as_posix(),
-                "treatment": "DROP",
-                "bytes_in": bytes_in,
-                "bytes_out": 0,
-                "sloc_in": sloc_in,
-                "sloc_out": 0,
-                "kept": 0,
-                "removed": 0,
-            }
-        )
-
-    return rows
-
-
-def _totals_row(rows: Sequence[dict[str, object]]) -> dict[str, object]:
-    """Aggregate row across every file in the domain.
-
-    The row sums all files the trim touched: rewrites (COPY/TRIM),
-    generated artifacts (GEN), and files dropped entirely (DROP). The
-    full-domain coverage means these totals match ``chopper loc`` and
-    the audit bundle's ``trim_stats.json`` byte-for-byte. The label and
-    the values are intentionally identical between live and dry-run
-    modes so the two tables can be diffed byte-for-byte (A7).
-    """
-
-    def _isum(key: str) -> int:
-        total = 0
-        for r in rows:
-            v = r[key]
-            if isinstance(v, int):
-                total += v
-        return total
-
-    return {
-        "path": "TOTAL",
-        "treatment": f"{len(rows)} files",
-        "bytes_in": _isum("bytes_in"),
-        "bytes_out": _isum("bytes_out"),
-        "sloc_in": _isum("sloc_in"),
-        "sloc_out": _isum("sloc_out"),
-        "kept": _isum("kept"),
-        "removed": _isum("removed"),
-    }
+    _render_table(out, stats, width=width)
 
 
 _TREATMENT_LABELS = {
@@ -345,18 +144,6 @@ _TREATMENT_LABELS = {
     FileTreatment.REMOVE: "DROP",
     FileTreatment.GENERATED: "GEN ",
 }
-
-
-def _treatment_label(treatment: FileTreatment) -> str:
-    return _TREATMENT_LABELS.get(treatment, str(treatment))
-
-
-def _safe_sloc(path: Path, rel: Path) -> int | None:
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    return count_sloc(rel, text)
 
 
 def _fmt_int(n: int | None) -> str:
@@ -375,31 +162,19 @@ def _fmt_pair(before: int | None, after: int | None) -> str:
     return f"{b} -> {a} ({sign}{delta:,})"
 
 
-def _render_table(
-    out: TextIO,
-    rows: Sequence[dict[str, object]],
-    totals: dict[str, object],
-    *,
-    width: int,
-) -> None:
+def _render_table(out: TextIO, stats: TrimStats, *, width: int) -> None:
     headers = ["File", "Op", "SLOC (in -> out)", "Procs (kept/dropped)"]
 
-    body: list[list[str]] = []
-    for r in rows:
-        body.append(
-            [
-                str(r["path"]),
-                str(r["treatment"]),
-                _fmt_pair(r["sloc_in"], r["sloc_out"]),  # type: ignore[arg-type]
-                f"{r['kept']}/{r['removed']}",
-            ]
-        )
+    body: list[list[str]] = [
+        [r.path, _TREATMENT_LABELS[r.treatment], _fmt_pair(r.sloc_in, r.sloc_out), f"{r.kept}/{r.removed}"]
+        for r in stats.rows
+    ]
     body.append(
         [
-            str(totals["path"]),
-            str(totals["treatment"]),
-            _fmt_pair(totals["sloc_in"], totals["sloc_out"]),  # type: ignore[arg-type]
-            f"{totals['kept']}/{totals['removed']}",
+            "TOTAL",
+            f"{len(stats.rows)} files",
+            _fmt_pair(stats.sloc_in, stats.sloc_out),
+            f"{stats.kept}/{stats.removed}",
         ]
     )
 
@@ -441,6 +216,50 @@ def _render_table(
     out.write(rule + "\n")  # body / total separator
     _emit(body[-1])  # TOTAL row
     out.write(rule + "\n")  # bottom border (footer)
+
+
+# ---------------------------------------------------------------------------
+# chopper loc report (one ``key: value`` line per metric)
+# ---------------------------------------------------------------------------
+
+
+def _fmt_pct(value: float) -> str:
+    return f"{value:.2f}%"
+
+
+def render_loc_report(report: LocReport) -> None:
+    """Print the LOC report as one ``key: value`` line per metric.
+
+    Line-oriented on purpose (no tables, no alignment) so pipes, ``grep``,
+    and harness captures parse it deterministically. Per-treatment subtotals
+    are namespaced ``treatment.<NAME>.<field>``.
+    """
+    out = sys.stdout
+    write = out.write
+
+    write("chopper loc: read-only LOC report\n")
+    write(f"files.before: {report.files_before}\n")
+    write(f"files.after: {report.files_after}\n")
+    write(f"files.delta: {report.files_after - report.files_before:+d}\n")
+    write(f"files.reduction_pct: {_fmt_pct(report.files_pct_reduction)}\n")
+    write(f"lines.before: {report.lines_before}\n")
+    write(f"lines.after: {report.lines_after}\n")
+    write(f"lines.delta: {report.lines_after - report.lines_before:+d}\n")
+    write(f"lines.reduction_pct: {_fmt_pct(report.lines_pct_reduction)}\n")
+    write(f"sloc.before: {report.sloc_before}\n")
+    write(f"sloc.after: {report.sloc_after}\n")
+    write(f"sloc.delta: {report.sloc_after - report.sloc_before:+d}\n")
+    write(f"sloc.reduction_pct: {_fmt_pct(report.sloc_pct_reduction)}\n")
+    for bucket in report.buckets:
+        prefix = f"treatment.{bucket.treatment}"
+        write(f"{prefix}.files: {bucket.files}\n")
+        write(f"{prefix}.lines_before: {bucket.lines_before}\n")
+        write(f"{prefix}.lines_after: {bucket.lines_after}\n")
+        write(f"{prefix}.sloc_before: {bucket.sloc_before}\n")
+        write(f"{prefix}.sloc_after: {bucket.sloc_after}\n")
+    if report.lines_before == 0:
+        write("note: no countable source files in domain\n")
+    out.flush()
 
 
 # ---------------------------------------------------------------------------

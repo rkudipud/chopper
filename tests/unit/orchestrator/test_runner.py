@@ -72,6 +72,30 @@ def test_runner_case4_exits_with_code_2() -> None:
     assert result.state.case == 4
 
 
+def test_runner_uses_injected_providers() -> None:
+    """Swapping one provider replaces exactly that phase; the rest stay default."""
+
+    from dataclasses import replace
+
+    from chopper.orchestrator.runner import default_providers
+
+    calls: list[str] = []
+    defaults = default_providers()
+
+    def _trace(ctx, manifest, parsed, loaded):  # noqa: ANN001, ANN202
+        calls.append("trace")
+        return defaults.trace(ctx, manifest, parsed, loaded)
+
+    fs = InMemoryFS()
+    _seed_good_domain(fs)
+    ctx, _sink = _make_ctx(fs)
+    result = ChopperRunner(providers=replace(defaults, trace=_trace)).run(ctx, command="validate")
+
+    assert result.exit_code == 0
+    assert calls == ["trace"]
+    assert result.graph is not None
+
+
 def test_runner_returns_run_result_with_summary() -> None:
     fs = InMemoryFS()
     ctx, _ = _make_ctx(fs, dry_run=False, base_path=None)

@@ -1,15 +1,28 @@
-"""The single phase-sequencing driver.
+"""The single composer (architecture doc Sec.5.2).
 
-:class:`ChopperRunner` is the only place Chopper phases are ordered.
-Every service runs through its ``run()`` method; every gate decision
-routes through :func:`chopper.orchestrator.gates.has_errors`.
+This module is the only owner of phase order, gates, the exception
+boundary, and run bookkeeping:
+
+* :class:`Providers` -- frozen bundle of typed callables, one per phase
+  implementation. :func:`default_providers` is the single composition root.
+* :class:`RunLedger` -- private, mutable record of each phase result as it
+  lands, projected to the frozen :class:`RunResult` / :class:`RunRecord`.
+* :func:`execute_output` -- the one P5 sequence (trim -> generate ->
+  indentation -> companion sync), shared by live trim and the
+  ``chopper loc`` in-memory projection.
+* :class:`ChopperRunner` -- sequences P0 -> P7 for a single invocation.
+
+Every gate decision routes through :func:`chopper.orchestrator.gates.has_errors`.
 """
 
 from __future__ import annotations
 
 import sys
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Literal
 
 from chopper.audit.internal_error import write_internal_error_log
@@ -19,8 +32,7 @@ from chopper.compiler.trace_service import TracerService
 from chopper.config.service import ConfigService
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Phase
-from chopper.core.errors import ChopperError
-from chopper.core.models_audit import InternalError, RunRecord, RunResult
+from chopper.core.models_audit import AuditManifest, InternalError, RunRecord, RunResult
 from chopper.core.models_common import DomainState
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph
 from chopper.core.models_config import LoadedConfig
@@ -35,16 +47,161 @@ from chopper.trimmer.indentation import TclIndentationService
 from chopper.trimmer.service import TrimmerService
 from chopper.validator import validate_post, validate_pre
 
-__all__ = ["ChopperRunner"]
+__all__ = ["ChopperRunner", "Providers", "RunLedger", "default_providers", "execute_output"]
+
+Artifacts = tuple[GeneratedArtifact, ...]
+
+
+@dataclass(frozen=True)
+class Providers:
+    """One typed callable per phase implementation.
+
+    Swap one implementation with
+    ``ChopperRunner(providers=replace(default_providers(), trim=my_trim))``.
+    """
+
+    domain_state: Callable[[ChopperContext], DomainState]
+    load_config: Callable[[ChopperContext, DomainState], LoadedConfig]
+    validate_pre: Callable[[ChopperContext, LoadedConfig], None]
+    parse: Callable[..., ParseResult]
+    compile: Callable[[ChopperContext, LoadedConfig, ParseResult], CompiledManifest]
+    trace: Callable[[ChopperContext, CompiledManifest, ParseResult, LoadedConfig], DependencyGraph]
+    trim: Callable[[ChopperContext, CompiledManifest, ParseResult, DomainState], TrimReport]
+    generate: Callable[[ChopperContext, CompiledManifest], Artifacts]
+    indent: Callable[
+        [ChopperContext, CompiledManifest, TrimReport, Artifacts],
+        tuple[TrimReport, Artifacts, tuple[Path, ...]],
+    ]
+    sync_companions: Callable[[ChopperContext, CompiledManifest, TrimReport], TrimReport]
+    preserve_inputs: Callable[[ChopperContext, LoadedConfig], int]
+    validate_post: Callable[..., None]
+    audit: Callable[[ChopperContext, RunRecord], AuditManifest]
+
+
+def _preserve_inputs(ctx: ChopperContext, loaded: LoadedConfig) -> int:
+    # Imported at call time so the function stays patchable at its home module.
+    from chopper.trimmer.input_preserver import preserve_input_sources
+
+    return preserve_input_sources(ctx, loaded)
+
+
+def default_providers() -> Providers:
+    """The single composition root.
+
+    Each callable resolves its service from this module at call time and
+    constructs it exactly when its phase runs.
+    """
+
+    return Providers(
+        domain_state=lambda ctx: DomainStateService().run(ctx),
+        load_config=lambda ctx, state: ConfigService().run(ctx, state),
+        validate_pre=lambda ctx, loaded: validate_pre(ctx, loaded),
+        parse=lambda ctx, files, *, loaded=None: ParserService().run(ctx, files, loaded=loaded),
+        compile=lambda ctx, loaded, parsed: CompilerService().run(ctx, loaded, parsed),
+        trace=lambda ctx, manifest, parsed, loaded: TracerService().run(ctx, manifest, parsed, loaded),
+        trim=lambda ctx, manifest, parsed, state: TrimmerService().run(ctx, manifest, parsed, state),
+        generate=lambda ctx, manifest: GeneratorService().run(ctx, manifest),
+        indent=lambda ctx, manifest, report, arts: TclIndentationService().run(ctx, manifest, report, arts),
+        sync_companions=lambda ctx, manifest, report: CompanionSyncService().run(ctx, manifest, report),
+        preserve_inputs=_preserve_inputs,
+        validate_post=lambda *args, **kwargs: validate_post(*args, **kwargs),
+        audit=lambda ctx, record: AuditService().run(ctx, record),
+    )
+
+
+@dataclass
+class RunLedger:
+    """Mutable per-run bookkeeping; services never receive it."""
+
+    state: DomainState | None = None
+    loaded: LoadedConfig | None = None
+    parsed: ParseResult | None = None
+    manifest: CompiledManifest | None = None
+    graph: DependencyGraph | None = None
+    trim_report: TrimReport | None = None
+    artifacts: Artifacts = ()
+    rewritten: tuple[Path, ...] = ()
+    exit_code: int = 0
+    internal_error: InternalError | None = None
+
+    def result(self, ctx: ChopperContext, exit_code: int) -> RunResult:
+        self.exit_code = exit_code
+        return RunResult(
+            exit_code=exit_code,
+            summary=ctx.diag.finalize(),
+            state=self.state,
+            loaded=self.loaded,
+            parsed=self.parsed,
+            manifest=self.manifest,
+            graph=self.graph,
+            trim_report=self.trim_report,
+            generated_artifacts=self.artifacts,
+            internal_error=self.internal_error,
+        )
+
+    def record(
+        self,
+        *,
+        run_id: str,
+        command: Literal["validate", "trim", "cleanup", "loc"],
+        started_at: datetime,
+    ) -> RunRecord:
+        ended_at = datetime.now(UTC)
+        return RunRecord(
+            run_id=run_id,
+            command=command,
+            started_at=started_at,
+            ended_at=ended_at if ended_at >= started_at else started_at,
+            exit_code=self.exit_code,
+            state=self.state,
+            loaded=self.loaded,
+            parsed=self.parsed,
+            manifest=self.manifest,
+            graph=self.graph,
+            trim_report=self.trim_report,
+            generated_artifacts=self.artifacts,
+            internal_error=self.internal_error,
+        )
+
+
+def execute_output(
+    ctx: ChopperContext,
+    providers: Providers,
+    ledger: RunLedger,
+    *,
+    manifest: CompiledManifest,
+    parsed: ParseResult,
+    state: DomainState,
+    gated: bool,
+) -> TrimReport | None:
+    """Run P5a trim -> P5b generate -> P5c indentation -> P5d companion sync.
+
+    Each result lands in ``ledger`` as soon as it is produced, so a failure
+    mid-sequence still audits the partial run. Returns the final
+    :class:`TrimReport`, or ``None`` when ``gated`` and a P5 error stopped
+    the sequence. Emits no progress events; the caller brackets P5.
+    """
+
+    ledger.trim_report = providers.trim(ctx, manifest, parsed, state)
+    if gated and has_errors(ctx, Phase.P5_TRIM):
+        return None
+    ledger.artifacts = providers.generate(ctx, manifest)
+    # P5c is a pass-through unless ``options.indent`` is set, but it always
+    # returns the rewritten-path set so P6 brace-checks every final .tcl.
+    ledger.trim_report, ledger.artifacts, ledger.rewritten = providers.indent(
+        ctx, manifest, ledger.trim_report, ledger.artifacts
+    )
+    if gated and has_errors(ctx, Phase.P5_TRIM):
+        return None
+    ledger.trim_report = providers.sync_companions(ctx, manifest, ledger.trim_report)
+    return ledger.trim_report
 
 
 class ChopperRunner:
-    """Sequence P0 -> P7 for a single invocation.
+    """Sequence P0 -> P7 for a single invocation."""
 
-    The runner constructs no state of its own beyond what lives inside
-    ``ctx``; every per-phase value is a local, so gate aborts are plain
-    early returns.
-    """
+    def __init__(self, providers: Providers | None = None) -> None:
+        self._providers = providers
 
     def run(
         self,
@@ -54,226 +211,98 @@ class ChopperRunner:
     ) -> RunResult:
         started_at = datetime.now(UTC)
         run_id = uuid.uuid4().hex
-
-        state: DomainState | None = None
-        loaded: LoadedConfig | None = None
-        parsed: ParseResult | None = None
-        manifest: CompiledManifest | None = None
-        graph: DependencyGraph | None = None
-        trim_report: TrimReport | None = None
-        artifacts: tuple[GeneratedArtifact, ...] = ()
-        exit_code = 0
-        internal_error: InternalError | None = None
+        p = self._providers or default_providers()
+        ledger = RunLedger()
 
         try:
-            # P0 -- Domain state.
             ctx.progress.phase_started(Phase.P0_STATE)
-            state = DomainStateService().run(ctx)
+            state = ledger.state = p.domain_state(ctx)
             ctx.progress.phase_done(Phase.P0_STATE)
             if state.case == 4:
-                exit_code = 2
-                return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+                return ledger.result(ctx, 2)
 
-            # P1a -- Config load.
             ctx.progress.phase_started(Phase.P1_CONFIG)
-            loaded = ConfigService().run(ctx, state)
-            # P1b -- Pre-validation.
-            validate_pre(ctx, loaded)
+            loaded = ledger.loaded = p.load_config(ctx, state)
+            p.validate_pre(ctx, loaded)
             ctx.progress.phase_done(Phase.P1_CONFIG)
             if has_errors(ctx, Phase.P1_CONFIG):
-                exit_code = 1
-                return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+                return ledger.result(ctx, 1)
 
-            # P2 -- Parse.
             ctx.progress.phase_started(Phase.P2_PARSE)
-            # Paths are domain-relative throughout the pipeline; the
-            # parser resolves against ``domain_root`` at the I/O
-            # boundary (see ``ParserService._resolve_for_read``).
-            # Pass ``loaded`` for O1 domain-file-cache optimization.
-            parsed = ParserService().run(ctx, loaded.surface_files, loaded=loaded)
+            # Paths stay domain-relative; ``loaded`` enables the domain-file cache.
+            parsed = ledger.parsed = p.parse(ctx, loaded.surface_files, loaded=loaded)
             ctx.progress.phase_done(Phase.P2_PARSE)
             if has_errors(ctx, Phase.P2_PARSE):
-                exit_code = 1
-                return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+                return ledger.result(ctx, 1)
 
-            # P3 -- Compile.
             ctx.progress.phase_started(Phase.P3_COMPILE)
-            manifest = CompilerService().run(ctx, loaded, parsed)
+            manifest = ledger.manifest = p.compile(ctx, loaded, parsed)
             ctx.progress.phase_done(Phase.P3_COMPILE)
             if has_errors(ctx, Phase.P3_COMPILE):
-                exit_code = 1
-                return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+                return ledger.result(ctx, 1)
 
-            # P4 -- Trace (reporting-only; no gate).
+            # P4 is reporting-only: no gate.
             ctx.progress.phase_started(Phase.P4_TRACE)
-            graph = TracerService().run(ctx, manifest, parsed, loaded)
+            graph = ledger.graph = p.trace(ctx, manifest, parsed, loaded)
             ctx.progress.phase_done(Phase.P4_TRACE)
 
             if not ctx.config.dry_run:
-                # P5a -- Trim.
                 ctx.progress.phase_started(Phase.P5_TRIM)
-                trim_report = TrimmerService().run(ctx, manifest, parsed, state)
-                if has_errors(ctx, Phase.P5_TRIM):
+                trim_report = execute_output(ctx, p, ledger, manifest=manifest, parsed=parsed, state=state, gated=True)
+                if trim_report is None:
                     ctx.progress.phase_done(Phase.P5_TRIM)
-                    exit_code = 1
-                    return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
-                # P5b -- Generators.
-                artifacts = GeneratorService().run(ctx, manifest)
-                # P5c -- Tcl indentation normalization. Off by default; opt
-                # in via ``base.options.indent: true`` (read from
-                # ``manifest.options``). When disabled, the service is a
-                # no-op pass-through but still returns the rewritten-path
-                # set so P6's brace-balance check covers every PROC_TRIM
-                # and GENERATED ``.tcl`` output.
-                trim_report, artifacts, rewritten = TclIndentationService().run(
-                    ctx,
-                    manifest,
-                    trim_report,
-                    artifacts,
-                )
-                if has_errors(ctx, Phase.P5_TRIM):
-                    ctx.progress.phase_done(Phase.P5_TRIM)
-                    exit_code = 1
-                    return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
-                # P5d -- Companion-file sync (FD-15 / ARCHITECTURE.md Sec.5.5 P5d).
-                # Filters default_config.<sfx>.csv and default_milestone.<sfx>.tcl
-                # for every PROC_TRIM default_rules.<sfx>.tcl file.
-                trim_report = CompanionSyncService().run(ctx, manifest, trim_report)
-                # P5a tail -- preserve selected JSON inputs in the rebuilt
-                # domain (ARCHITECTURE.md Sec.5.6). Best-effort; OSError ->
-                # VW-20, run continues.
-                from dataclasses import replace as _replace
-
-                from chopper.trimmer.input_preserver import preserve_input_sources
-
-                preserved_count = preserve_input_sources(ctx, loaded)
-                if preserved_count:
-                    trim_report = _replace(trim_report, inputs_preserved=preserved_count)
+                    return ledger.result(ctx, 1)
+                # P5a tail: mirror jsons/ into the rebuilt domain (Sec.5.6).
+                preserved = p.preserve_inputs(ctx, loaded)
+                if preserved:
+                    trim_report = ledger.trim_report = replace(trim_report, inputs_preserved=preserved)
                 ctx.progress.phase_done(Phase.P5_TRIM)
 
-                # P6 -- Post-validate final Tcl outputs rewritten during P5.
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
-                validate_post(
+                p.validate_post(
                     ctx,
                     manifest,
                     graph,
-                    rewritten,
+                    ledger.rewritten,
                     trim_report=trim_report,
                     tool_command_pool=loaded.tool_command_pool,
                 )
-                ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
-                if has_errors(ctx, Phase.P6_POSTVALIDATE):
-                    exit_code = 1
-                    return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
             else:
-                # Dry-run P5b/P6: no domain writes. Validate generated
-                # Tcl from the in-memory artifacts alongside the
-                # manifest-derived checks.
-                #
-                # The generator respects ``dry_run`` and performs no
-                # filesystem writes.
-                artifacts = GeneratorService().run(ctx, manifest)
+                # Dry run: generators respect ``dry_run`` and write nothing;
+                # P6 validates the in-memory artifacts.
+                ledger.artifacts = p.generate(ctx, manifest)
                 ctx.progress.phase_started(Phase.P6_POSTVALIDATE)
-                validate_post(
+                p.validate_post(
                     ctx,
                     manifest,
                     graph,
                     rewritten=(),
-                    generated_artifacts=artifacts,
+                    generated_artifacts=ledger.artifacts,
                     trim_report=None,
                     tool_command_pool=loaded.tool_command_pool,
                 )
-                ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
-                if has_errors(ctx, Phase.P6_POSTVALIDATE):
-                    exit_code = 1
-                    return self._build(ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts)
+            ctx.progress.phase_done(Phase.P6_POSTVALIDATE)
+            if has_errors(ctx, Phase.P6_POSTVALIDATE):
+                return ledger.result(ctx, 1)
 
-            # Strict-mode warning escalation (exit policy only).
+            # --strict is exit-code policy only; severities are never rewritten.
             summary = ctx.diag.finalize()
-            if ctx.config.strict and summary.has_warning:
-                exit_code = 1
-
-            return self._build(
-                ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
-            )
-        except ChopperError as exc:
-            # Internal programmer error explicitly raised by a service -- exit 3.
-            exit_code = 3
-            internal_error = write_internal_error_log(ctx, run_id=run_id, exc=exc)
-            return self._build(
-                ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
-            )
+            return ledger.result(ctx, 1 if ctx.config.strict and summary.has_warning else 0)
         except Exception as exc:
-            # Any other unhandled exception escaping a service is also a
-            # programmer error per architecture doc Sec.5.12.5 -- exit 3 +
-            # internal-error.log so users have a deterministic recovery
-            # artifact instead of a raw Python traceback.
-            exit_code = 3
-            internal_error = write_internal_error_log(ctx, run_id=run_id, exc=exc)
-            return self._build(
-                ctx, exit_code, state, loaded, parsed, manifest, graph, trim_report, artifacts, internal_error
-            )
+            # ChopperError and any other escaping exception are programmer
+            # errors (Sec.5.12.5): exit 3 plus a deterministic internal-error.log.
+            ledger.exit_code = 3
+            ledger.internal_error = write_internal_error_log(ctx, run_id=run_id, exc=exc)
+            return ledger.result(ctx, 3)
         finally:
-            # Audit always runs, even on failure -- except for
-            # `chopper loc`, which is a stdout-only read-only report
-            # and writes nothing to the filesystem (no `.chopper/`
-            # bundle). See ARCHITECTURE.md Sec.5.7 and FR-46.
-            #
-            # Note: we deliberately do NOT `return` from this finally
-            # block -- a bare `return` would clobber the RunResult that
-            # the `try` body already produced, replacing it with
-            # ``None``. Instead, gate the audit work behind a check
-            # and let the prior return value propagate normally.
+            # P7 audit always runs from whatever the ledger holds -- except for
+            # read-only ``chopper loc`` (Sec.5.7). No ``return`` here: it would
+            # clobber the result produced above.
             if command != "loc":
                 try:
-                    ended_at = datetime.now(UTC)
-                    record = RunRecord(
-                        run_id=run_id,
-                        command=command,
-                        started_at=started_at,
-                        ended_at=ended_at if ended_at >= started_at else started_at,
-                        exit_code=exit_code,
-                        state=state,
-                        loaded=loaded,
-                        parsed=parsed,
-                        manifest=manifest,
-                        graph=graph,
-                        trim_report=trim_report,
-                        generated_artifacts=artifacts,
-                        internal_error=internal_error,
-                    )
-                    AuditService().run(ctx, record)
+                    p.audit(ctx, ledger.record(run_id=run_id, command=command, started_at=started_at))
                 except Exception as audit_exc:
-                    # Audit must never mask the primary failure. Best-effort:
-                    # surface the bug to stderr so test harnesses see it
-                    # instead of a silent swallow.
+                    # Audit must never mask the primary failure.
                     sys.stderr.write(
                         f"[chopper] internal: audit bundle failed to write: {type(audit_exc).__name__}: {audit_exc}\n"
                     )
-
-    def _build(
-        self,
-        ctx: ChopperContext,
-        exit_code: int,
-        state: DomainState | None,
-        loaded: LoadedConfig | None,
-        parsed: ParseResult | None,
-        manifest: CompiledManifest | None,
-        graph: DependencyGraph | None,
-        trim_report: TrimReport | None,
-        artifacts: tuple[GeneratedArtifact, ...],
-        internal_error: InternalError | None = None,
-    ) -> RunResult:
-        summary = ctx.diag.finalize()
-        return RunResult(
-            exit_code=exit_code,
-            summary=summary,
-            state=state,
-            loaded=loaded,
-            parsed=parsed,
-            manifest=manifest,
-            graph=graph,
-            trim_report=trim_report,
-            generated_artifacts=artifacts,
-            internal_error=internal_error,
-        )
