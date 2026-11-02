@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from chopper.adapters.fs_memory import InMemoryFS
 from chopper.core.context import ChopperContext, RunConfig
 from chopper.core.diagnostics import Diagnostic, DiagnosticSummary, Phase, Severity
@@ -824,6 +826,16 @@ def test_validate_post_accepts_source_cmd_existing_target() -> None:
         files={Path("lib/present.tcl"): FileTreatment.FULL_COPY},
         stages=(_stage(steps=("source lib/present.tcl",)),),
     )
+    ctx = _ctx()
+
+    validate_post(ctx, manifest, _empty_graph(), rewritten=())
+
+    assert "VW-16" not in _codes(ctx)
+
+
+@pytest.mark.parametrize("target", ["$script", "[get_script]", r"lib/\$script.tcl"])
+def test_validate_post_does_not_infer_missing_file_from_dynamic_source(target: str) -> None:
+    manifest = _make_manifest(stages=(_stage(steps=(f"source {target}",)),))
     ctx = _ctx()
 
     validate_post(ctx, manifest, _empty_graph(), rewritten=())

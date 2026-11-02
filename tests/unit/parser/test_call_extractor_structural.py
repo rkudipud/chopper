@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from chopper.parser.call_extractor_structural import (
     classify_and_handle,
+    is_array_set,
     is_string_match,
     mark_opaque_arg_braces,
     mark_switch_pattern_words,
@@ -76,3 +77,9 @@ def test_is_string_match_returns_false_without_words() -> None:
     tokens = (_tok(TokenKind.NEWLINE, "\n"),)
 
     assert is_string_match(tokens, 0, len(tokens)) is False
+
+
+def test_is_array_set_returns_false_without_words() -> None:
+    tokens = (_tok(TokenKind.NEWLINE, "\n"),)
+
+    assert is_array_set(tokens, 0, len(tokens)) is False

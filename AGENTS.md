@@ -259,7 +259,7 @@ Validate: schema script → **`chopper validate --project ...`** → **`trim --d
 
 ## JSON authoring checklist
 
-- `"$schema": "base-v1" | "feature-v1" | "project-v1"` on every file.
+- `"$schema": "base-v1" | "feature-v1" | "project-v1"` on every file, or all v2 (`base-v2` / `feature-v2` / `project-v2`) when using `vars` / `procs` and the generated `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl` (never mix versions: `VE-41`).
 - Forward slashes; no `..`; no empty arrays (omit optional keys).
 - Feature **`name`** unique; **`domain`** matches base when set.
 - Stage **`reference`** / step anchors **byte-exact** (including `\n` in anchor comments).

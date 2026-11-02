@@ -63,6 +63,11 @@ DiagnosticEmitter = Callable[[Diagnostic], None]
 # ---------------------------------------------------------------------------
 
 
+def _schema_version(raw: dict[str, Any]) -> int:
+    """Return ``2`` for a ``*-v2`` ``$schema`` and ``1`` otherwise."""
+    return 2 if str(raw.get("$schema", "")).endswith("-v2") else 1
+
+
 def _load_files_section(raw: dict[str, Any]) -> FilesSection:
     """Hydrate a ``files`` object from raw JSON."""
     return FilesSection(
@@ -240,6 +245,9 @@ def load_base(
         files=files,
         procedures=procs,
         stages=stages,
+        schema_version=_schema_version(raw),
+        vars=raw.get("vars"),
+        procs=raw.get("procs"),
     )
 
 
@@ -273,6 +281,9 @@ def load_feature(
         files=files,
         procedures=procs,
         flow_actions=actions,
+        schema_version=_schema_version(raw),
+        vars=raw.get("vars"),
+        procs=raw.get("procs"),
     )
 
 
@@ -292,6 +303,7 @@ def load_project(raw: dict[str, Any], source_path: Path) -> ProjectJson:
         release_branch=raw.get("release_branch"),
         features=tuple(raw.get("features") or []),
         notes=tuple(raw.get("notes") or []),
+        schema_version=_schema_version(raw),
     )
 
 

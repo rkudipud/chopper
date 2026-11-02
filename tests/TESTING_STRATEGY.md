@@ -21,17 +21,13 @@ A scenario tagged with a stage must pass before that module is declared complete
 
 | Module | Target | CI gate |
 | --- | --- | --- |
-| `parser/` | >= 85% branch | [OK] enforced via `--cov-fail-under` |
-| `compiler/` | >= 80% branch | [OK] |
-| `trimmer/` | >= 80% branch | [OK] |
-| `validator/` | >= 75% branch | [OK] |
-| `core/` | >= 80% branch | [OK] |
-| `config/` | >= 85% branch | [OK] |
-| `cli/` | >= 70% line | [OK] |
+| All runtime modules | 100% line + branch under the full suite | Aggregate coverage gate below; no separate lower per-module thresholds |
 | **Full suite (`make ci`)** | **100% line + branch** | [OK] `--cov-fail-under=100` on the aggregate `test` target |
 | **Fast unit-only gate (`make check`)** | **>= 99.8% line** | [OK] `--cov-fail-under=99.8` (pyproject default) |
 
-Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
+Coverage is run with `--cov-branch` (configured in `pyproject.toml`). Do not lower
+the threshold, exclude reachable lines, or skip a failing test to make the gate
+green. Platform skips must explain the unavailable host capability.
 
 ---
 
@@ -51,8 +47,28 @@ Coverage is run with `--cov-branch` (configured in `pyproject.toml`).
 
 ### 2.3 Property Tests (`tests/property/`)
 
-- Use `hypothesis` (configured in `pyproject.toml` with `max_examples=200`).
+- Use Hypothesis with executable settings; the sourcing properties explicitly
+  run 500 examples each. A `[tool.hypothesis]` TOML entry alone does not configure
+  Hypothesis at runtime.
 - See Sec.6 for property definitions.
+
+### 2.4 V2 sourcing regression matrix
+
+| Contract | Executable check |
+|---|---|
+| All 16 combinations of `cross_validate`, `generate_stack`, `indent`, `insert_markers`, in v1/v2, dry/live, Tcl/standalone modes (128 cases) | `integration/test_feature_sourcing_options.py` |
+| No features, single features, both orders; base pointers never listed; optional variants | `integration/test_feature_sourcing_options.py`, `integration/test_feature_vars.py`, `integration/test_feature_procs.py` |
+| Every project/base/feature version combination; mixed versions rejected | `integration/test_feature_sourcing_options.py` |
+| Missing pointers under strict/non-strict policy without severity rewriting | `integration/test_feature_sourcing_options.py` |
+| Whole-file keeps, R1 overrides, dependency order, duplicates, collisions, and pristine re-trim | `unit/config/test_service_feature_vars.py`, `unit/config/test_service_feature_procs.py`, `integration/test_feature_procs.py` |
+| p4 add/edit, audit lists, LoC GENERATED bucket, and aggregate input deduplication | `integration/test_feature_procs.py`, `unit/generators/test_stack_emitter.py` |
+| Every shipped v1/v2 JSON, v2 field compatibility, and validator CLI schema discovery | `unit/config/test_schema.py`, `unit/test_validate_jsons_script.py` |
+| Runnable example through validate, loc, dry-run, live trim, re-trim, cleanup | `integration/test_feature_sourcing_options.py` |
+| Pointer expansion and vars/procs emission, 500 generated examples each | `property/test_feature_sourcing.py` |
+
+This matrix exhausts the listed switch combinations, not every possible Tcl
+program or feature permutation. Full coverage is a regression gate, not proof
+of EDA runtime equivalence. Vendor-tool execution remains domain-owner testing.
 
 ---
 
@@ -253,91 +269,40 @@ Scenario numbering is stable within this document; each scenario below names the
 
 ## 6. Property-Based Tests (Hypothesis)
 
-Configure in `pyproject.toml`:
+Use an explicit test decorator (as in `property/test_feature_sourcing.py`) or
+an explicitly registered and loaded Hypothesis profile:
 
-```toml
-[tool.hypothesis]
-max_examples = 500
-print_blob = true
+```python
+from hypothesis import settings
+
+@settings(max_examples=500, print_blob=True)
+@given(...)
+def test_property(...):
+    ...
 ```
 
 The `.hypothesis/examples/` database is listed in `.gitignore`. Commit specific shrunk examples to `tests/fixtures/hypothesis_saved/` when they reveal regressions.
 
 ### 6.1 Parser Properties
 
-```python
-from hypothesis import given, strategies as st
-from chopper.parser.tcl_parser import parse_file  # type: ignore
-
-
-@given(st.builds(...))  # strategy: random proc definitions in valid Tcl
-def test_parser_span_consistency(proc_entries):
-    """Span invariant: start_line <= body_start_line <= body_end_line <= end_line."""
-    for entry in proc_entries:
-        assert entry.start_line <= entry.body_start_line
-        assert entry.body_start_line <= entry.body_end_line
-        assert entry.body_end_line <= entry.end_line
-
-
-@given(...)
-def test_parser_no_overlapping_spans(proc_entries):
-    """No two ProcEntry spans in the same file overlap."""
-    sorted_entries = sorted(proc_entries, key=lambda e: e.start_line)
-    for i in range(len(sorted_entries) - 1):
-        assert sorted_entries[i].end_line < sorted_entries[i + 1].start_line
-
-
-@given(...)
-def test_parser_canonical_name_uniqueness(proc_entries):
-    """All canonical_name values are unique within one parse result."""
-    names = [e.canonical_name for e in proc_entries]
-    assert len(names) == len(set(names))
-```
+Parser span, brace, namespace, and literal-body behavior is tested in
+`unit/parser/` and fixture integration tests. Do not describe illustrative
+pseudocode as an implemented Hypothesis suite. Actual property modules are
+listed below.
 
 ### 6.2 Compiler Properties
 
-```python
-@given(...)
-def test_compiler_determinism(base_json, feature_jsons, domain):
-    """Same selection -> identical CompiledManifest (excluding timestamps)."""
-    manifest1 = compile(base_json, feature_jsons, domain)
-    manifest2 = compile(base_json, feature_jsons, domain)
-    assert manifest1.files == manifest2.files
-    assert manifest1.procs == manifest2.procs
-
-
-@given(...)
-def test_compiler_include_wins(base_json_with_explicit_includes, feature_json_with_excludes, domain):
-    """PI+ is always a superset of PI (explicit includes are never dropped)."""
-    manifest = compile(base_json_with_explicit_includes, [feature_json_with_excludes], domain)
-    explicit_procs = {e.canonical_name for e in base_json_with_explicit_includes.procedures.include}
-    surviving_procs = {d.canonical_name for d in manifest.procs}
-    assert explicit_procs.issubset(surviving_procs), (
-        f"Explicit includes were dropped: {explicit_procs - surviving_procs}"
-    )
-```
+`property/test_determinism.py` checks serializer stability and a pure BFS model;
+the real tracer is covered by compiler unit tests and golden/integration tests.
+`property/test_smoke.py` checks POSIX-shaped paths.
+`property/test_feature_sourcing.py` exercises the production expansion and
+emission helpers with explicit 500-example settings.
 
 ### 6.3 R1 Merge Order-Independence
 
-**Contract:** For any set of feature JSONs whose `depends_on` graph permits reordering (i.e., no ordering constraint exists between them), `CompilerService.run()` must produce an identical `CompiledManifest` regardless of the order features appear in `LoadedConfig.features`. This applies to F1 (file decisions) and F2 (proc decisions) only. F3 `flow_actions` sequencing is explicitly order-dependent and is excluded from this invariant.
-
-```python
-from hypothesis import given, strategies as st
-from itertools import permutations
-
-@given(st.sampled_from(list(permutations(["feat_a", "feat_b", "feat_c"]))))
-def test_compiler_f1_f2_order_independence(feature_order):
-    """F1/F2 manifest is identical for any permutation of features with no ordering dependency."""
-    # Load mini_domain or tracing_domain fixtures; features have no depends_on constraints.
-    base = load_base("tests/fixtures/mini_domain/base.json")
-    features = [load_feature(f"tests/fixtures/mini_domain/{f}.json") for f in feature_order]
-    manifest = CompilerService().run(make_test_ctx(), LoadedConfig(base=base, features=tuple(features), ...), parsed)
-    assert manifest.file_decisions == reference_manifest.file_decisions, (
-        f"F1 decisions differ for order {feature_order}: {manifest.file_decisions}"
-    )
-    assert manifest.proc_decisions == reference_manifest.proc_decisions, (
-        f"F2 decisions differ for order {feature_order}: {manifest.proc_decisions}"
-    )
-```
-
-Parametrize over all permutations of 2-4 independent features drawn from `tracing_domain` or `mini_domain` fixtures. The reference manifest is produced by the canonical topo-sort order.
+**No global order-independence invariant exists.** R1 is last-layer-wins for
+F1/F2 as well as F3. Features may have no `depends_on` relationship and still
+conflict over a file, proc, or step. Tests must preserve the selected order
+and assert its result; commuting overlays may be compared only when their
+contributions are genuinely disjoint. The v2 selection tests check both
+orders explicitly because source-block order is observable.

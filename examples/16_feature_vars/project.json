@@ -1,0 +1,11 @@
+{
+  "$schema": "project-v2",
+  "project": "APR_FC_FDR_DOP",
+  "domain": "apr_fc",
+  "base": "jsons/apr_fc.json",
+  "features": [
+    "jsons/features/fdr.feature.json",
+    "jsons/features/dop.feature.json"
+  ],
+  "notes": ["Feature order sets block order independently in both sourcing files: fdr first, then dop."]
+}

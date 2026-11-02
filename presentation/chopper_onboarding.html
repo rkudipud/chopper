@@ -8,48 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Theme: "Aurora" — Space Grotesk (display) + JetBrains Mono (code). -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
-<!-- Tailwind CSS Play CDN (single-file, no build step) -->
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  // Tailwind config: "Aurora" theme — midnight background with electric cyan,
-  // violet and emerald accents. The whole deck renders into a fixed 1440x900
-  // design canvas and is uniformly scaled by JS (see fitDeck()), so browser
-  // zoom doesn't break the layout.
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          // Aurora palette — kept under the `intel` key only because the rest
-          // of the stylesheet still references those token names; the values
-          // are the new theme's.
-          intel: {
-            classic: '#3b82f6',  // electric blue
-            energy:  '#22d3ee',  // cyan (primary accent)
-            deep:    '#1e3a8a',  // deep cobalt
-            geode:   '#a78bfa',  // violet
-            coral:   '#fb7185',  // rose
-            moss:    '#34d399',  // emerald
-            rust:    '#f59e0b',  // amber
-            carbon:  '#0a0e1a',  // near-black
-          },
-          ink:     { DEFAULT:'#f8fafc', dim:'#cbd5e1', mute:'#94a3b8' },
-          surface: { 0:'#0a0e1a', 1:'#0f172a', 2:'#1e293b' },
-        },
-        fontFamily: {
-          display: ['"Space Grotesk"','Inter','"Segoe UI"','system-ui','-apple-system','sans-serif'],
-          mono:    ['"JetBrains Mono"','"SF Mono"','Consolas','"Cascadia Mono"','monospace'],
-        },
-      }
-    }
-  };
-</script>
-<style type="text/tailwindcss">
+<style>
 /* ============================================================
    Chopper Onboarding Presentation — "Aurora" theme
    (midnight background · cyan / violet / emerald accents)
-   - Tailwind utilities for layout/spacing/colors
-   - Custom @layer components for repeated UI primitives
-   - Plain CSS for animations, fixed-canvas scaling, and stateful
+   - Native CSS for layout, animations, fixed-canvas scaling, and stateful
      UI machines (file-trim scanner, proc-trim diff, pipeline)
    - Single source of truth for fonts and the typography scale
      via CSS custom properties (zoom-stable inside the scaled canvas).
@@ -725,7 +688,7 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
 }
 </style>
 </head>
-<body class="font-display antialiased text-white bg-surface-0 overflow-hidden">
+<body>
 <div class="bgGrid"></div>
 
 <div class="stage" id="stage">
@@ -755,8 +718,8 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
     <div class="kpis">
       <div class="kpi"><div class="v grad">3</div><div class="l">Capabilities &mdash; F1 &middot; F2 &middot; F3</div></div>
       <div class="kpi"><div class="v grad">8</div><div class="l">Pipeline phases P0&ndash;P7</div></div>
-      <div class="kpi"><div class="v grad">5</div><div class="l">CLI subcommands</div></div>
-      <div class="kpi"><div class="v grad">2026.06</div><div class="l">CTH global beta release</div></div>
+      <div class="kpi"><div class="v grad">4</div><div class="l">CLI subcommands</div></div>
+      <div class="kpi"><div class="v grad">4.10</div><div class="l">v2 vars / procs sourcing</div></div>
     </div>
   </div>
   <div class="foot"><span>chopper &middot; onboarding brochure &middot; Rajesh Kudipudi (FEV Global &mdash; PESG/DDI)</span><span>press &rarr; to begin</span></div>
@@ -1207,8 +1170,8 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
   <div class="slideHead"><h1><span class="tag f3">F3</span> &nbsp; Run-file generation &amp; tool-command injection</h1><span class="pg">09</span></div>
 
   <p>F3 generates <code>&lt;stage&gt;.tcl</code> run scripts directly from JSON stage definitions —
-    eliminating manually authored run files. Optional: also emit <code>&lt;stage&gt;.stack</code>
-    files for the scheduler.</p>
+    eliminating manually authored run files. With <code>options.generate_stack: true</code>,
+    also emit one aggregate <code>&lt;domain&gt;.stack</code> for the scheduler.</p>
 
   <div class="cards c2">
     <div>
@@ -1240,20 +1203,20 @@ body.fs.fs-show .nav, body.fs .nav:hover{opacity:1;transform:translateY(0);backg
 ]</pre>
       <div class="callout good">
         The stage <code>command</code> field is the <strong>scheduler-side tool launcher</strong> —
-        emitted verbatim into <code>&lt;stage&gt;.stack</code> as the <code>J</code> line.
+        emitted verbatim into its aggregate <code>&lt;domain&gt;.stack</code> record as the <code>J</code> line.
         Vendor / tool agnostic: <code>pt_shell</code>, <code>fc_shell</code>, <code>fm_shell</code>,
         <code>innovus -nowin</code>, <code>tempus</code>, <code>calibre</code> — Chopper does not interpret it.
       </div>
       <div class="callout warn" style="margin-top:8px">
         <strong>Different injection point:</strong> the <code>--tool-commands FILE</code> CLI flag
-        feeds the <em>parser/trace</em> tool-command pool. Listed names emit <code>TI-01 known-tool-command</code>
-        instead of <code>TW-02 unresolved-proc-call</code>, keeping the dependency graph clean for
+        feeds the <em>parser/trace</em> tool-command pool (<code>TI-01</code> / <code>TW-02</code>;
+        see <code>technical_docs/DIAGNOSTIC_CODES.md</code>), keeping the dependency graph clean for
         vendor builtins like <code>read_db</code>, <code>create_clock</code>, <code>setup_design</code>.
       </div>
       <div class="callout" style="margin-top:8px">
         <strong>Cross-feature stage injection:</strong> when a feature injects steps into a stage created by <em>another</em> optional feature,
-        add <code>"skip_if_no_stage": true</code> to the flow_action. If the target stage is absent, Chopper emits
-        <code>VI-05</code> (info, exit&nbsp;0) and skips — no hard error. See <code>examples/14_cross_feature_skip_if_no_stage/</code>.
+        add <code>"skip_if_no_stage": true</code> to the flow_action. If the target stage is absent, Chopper skips the action
+        (<code>VI-05</code>; see the diagnostic registry). See <code>examples/14_cross_feature_skip_if_no_stage/</code>.
       </div>
     </div>
 
@@ -1267,13 +1230,16 @@ load_design
 verify_netlist
 report_summary</div>
 
-      <h3>Generated <code>main.stack</code> &nbsp;<span class="tag warn">opt-in</span></h3>
+      <h3>Record in <code>apr_fc.stack</code> &nbsp;<span class="tag warn">v2 + opt-in</span></h3>
       <div class="tcl mono"># Chopper-generated stack: main
 N main
 J -xt vw Imy_shell -B BLOCK -T main
 L 0 3
-D setup
-R serial</div>
+I apr_fc_feature_vars.tcl
+I apr_fc_feature_procs.tcl
+D setup</div>
+      <p style="font-size:15px;color:var(--ink-dim)">Serial is implicit. Each record declares both v2 sourcing
+        files as inputs; it does not source them. Standalone stacks remain verbatim.</p>
 
       <h3>Vendor &amp; tool agnostic</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1676,7 +1642,7 @@ R serial</div>
       <h3>Optional switches that work everywhere</h3>
       <ul>
         <li><code>options.cross_validate</code> — F3 step targets must exist in surviving F1/F2 set (warn, not fail)</li>
-        <li><code>options.generate_stack</code> — emit <code>&lt;stage&gt;.stack</code> alongside <code>&lt;stage&gt;.tcl</code></li>
+        <li><code>options.generate_stack</code> — emit one aggregate <code>&lt;domain&gt;.stack</code> for all stages</li>
         <li><code>--dry-run</code> — full trim simulation, zero disk writes</li>
         <li><code>--strict</code> — exit non-zero on any warning (CI gate)</li>
       </ul>
@@ -1703,19 +1669,19 @@ R serial</div>
 
   <table class="tbl">
     <tr><th>JSON</th><th>Where it lives</th><th>Required?</th><th>Purpose</th></tr>
-    <tr><td><code>base.json</code></td><td><code>&lt;domain&gt;/jsons/base.json</code></td><td><span class="tag good">YES</span></td><td>Universal files / procs / stages every project in this domain needs</td></tr>
+    <tr><td>Base</td><td><code>jsons/base.json</code> (v1), <code>jsons/&lt;flow&gt;.json</code> (v2)</td><td><span class="tag good">YES</span></td><td>Universal files / procs / stages every project in this domain needs</td></tr>
     <tr><td><code>*.feature.json</code></td><td><code>&lt;domain&gt;/jsons/features/&lt;name&gt;.feature.json</code></td><td><span class="tag warn">optional</span></td><td>Adds files / procs / stage modifications for one optional capability</td></tr>
     <tr><td><code>project.json</code></td><td>Anywhere — committed recipe</td><td><span class="tag warn">optional</span></td><td>Names one base + ordered list of features → single <code>--project</code> flag</td></tr>
   </table>
 
   <div class="cards c3" style="margin-top:14px">
     <div class="card f1">
-      <h3>base.json (skeleton)</h3>
+      <h3>apr_fc.json (v2 skeleton)</h3>
 <pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">base-v1</span>",
-  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
-  "<span class="k">vendor</span>": "<span class="s">synopsys</span>",
-  "<span class="k">tool</span>":   "<span class="s">primetime</span>",
+  "<span class="k">$schema</span>":"<span class="s">base-v2</span>",
+  "<span class="k">domain</span>": "<span class="s">apr_fc</span>",
+  "<span class="k">vars</span>":   "<span class="s">vars.tcl</span>",
+  "<span class="k">procs</span>":  "<span class="s">procs/core.tcl</span>",
   "<span class="k">files</span>":      { ... },
   "<span class="k">procedures</span>": { ... },
   "<span class="k">stages</span>":     [ ... ]
@@ -1724,9 +1690,10 @@ R serial</div>
     <div class="card f2">
       <h3>feature.json</h3>
 <pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">feature-v1</span>",
-  "<span class="k">name</span>":   "<span class="s">dft</span>",
-  "<span class="k">depends_on</span>":[],
+  "<span class="k">$schema</span>":"<span class="s">feature-v2</span>",
+  "<span class="k">name</span>":   "<span class="s">fdr</span>",
+  "<span class="k">vars</span>":   "<span class="s">fdr_vars.tcl</span>",
+  "<span class="k">procs</span>":  "<span class="s">fdr_procs.tcl</span>",
   "<span class="k">files</span>":         { ... },
   "<span class="k">procedures</span>":    { ... },
   "<span class="k">flow_actions</span>":  [
@@ -1738,21 +1705,23 @@ R serial</div>
     <div class="card f3">
       <h3>project.json</h3>
 <pre class="code mono">{
-  "<span class="k">$schema</span>":"<span class="s">project-v1</span>",
+  "<span class="k">$schema</span>":"<span class="s">project-v2</span>",
   "<span class="k">project</span>":"<span class="s">PROJECT_ABC</span>",
-  "<span class="k">domain</span>": "<span class="s">my_domain</span>",
-  "<span class="k">base</span>":   "<span class="s">jsons/base.json</span>",
+  "<span class="k">domain</span>": "<span class="s">apr_fc</span>",
+  "<span class="k">base</span>":   "<span class="s">jsons/apr_fc.json</span>",
   "<span class="k">features</span>":[
-    "<span class="s">jsons/features/dft.feature.json</span>",
-    "<span class="s">jsons/features/power.feature.json</span>"
+    "<span class="s">jsons/features/fdr.feature.json</span>",
+    "<span class="s">jsons/features/dop.feature.json</span>"
   ]
 }</pre>
     </div>
   </div>
 
   <div class="callout">
-    <strong>You do not need a project JSON.</strong> Pass <code>--base</code> and <code>--features</code>
-    directly. The project JSON is just a committed, named recipe.
+    <strong>v2 outputs:</strong> <code>apr_fc_feature_vars.tcl</code> and <code>apr_fc_feature_procs.tcl</code>.
+    Each feature pointer adds authored / <code>tech_</code> / <code>project_</code> optional entries.
+    Base pointers are F1-only; infrastructure owns loading. One version per run.
+    Both files reach p4, audit, LoC, P6, and aggregate-stack inputs. See <code>examples/16_feature_vars/</code>.
   </div>
 
   <div class="foot"><span>chopper &middot; JSON structure</span><span>12 / 17</span></div>
@@ -1897,7 +1866,7 @@ R serial</div>
   <div class="cards c2">
     <div>
       <h3>Four subcommands</h3>
-<pre class="code mono" style="font-size:13px;line-height:1.5"><span class="c"># validate — read-only; never touches disk</span>
+<pre class="code mono" style="font-size:13px;line-height:1.5"><span class="c"># validate — preserves domain source; writes .chopper/ audit</span>
 <span class="p">$</span> chopper validate --project project.json
 
 <span class="c"># trim — backs up &amp; rebuilds &lt;domain&gt;/ (--dry-run to simulate)</span>
@@ -1913,22 +1882,23 @@ R serial</div>
       <table class="tbl" style="margin-top:4px;font-size:13px">
         <tr><td><code>--base / --features</code></td><td>bypass <code>project.json</code></td></tr>
         <tr><td><code>--project</code></td><td>committed recipe (exclusive w/ above)</td></tr>
-        <tr><td><code>--strict</code></td><td>non-zero exit on any warning (CI gate)</td></tr>
+        <tr><td><code>--strict</code></td><td>global flag before subcommand; exit policy only</td></tr>
         <tr><td><code>--dry-run</code></td><td>authoring iteration loop</td></tr>
         <tr><td><code>--tool-commands FILE</code></td><td>vendor builtins → <code>TI-01</code> not <code>TW-02</code></td></tr>
-        <tr><td><code>--no-color</code></td><td>plain-text output for logs</td></tr>
+        <tr><td><code>--plain</code></td><td>global plain-text renderer; <code>NO_COLOR</code> also supported</td></tr>
       </table>
     </div>
 
     <div>
-      <h3>Every run writes <code>.chopper/</code></h3>
+      <h3>Every command except <code>loc</code> writes <code>.chopper/</code></h3>
 <pre class="code mono" style="font-size:13px;line-height:1.5">&lt;domain&gt;/.chopper/
 ├── compiled_manifest.json   <span class="c"># every file's fate</span>
 ├── dependency_graph.json    <span class="c"># BFS proc call tree</span>
 ├── trim_report.txt / .json  <span class="c"># human + machine summary</span>
 ├── diagnostics.json         <span class="c"># every VE/VW/PE/PW/TW</span>
-├── run_result.json          <span class="c"># exit code, durations</span>
-└── inputs/                  <span class="c"># exact base + features</span></pre>
+├── chopper_run.json         <span class="c"># exit code, run metadata</span>
+├── p4_commands.txt          <span class="c"># add/edit + exclusion plan, not execution</span>
+└── input_base.json / input_features/ <span class="c"># exact authoring inputs</span></pre>
 
       <h3>Backup-and-rebuild safety</h3>
       <ul style="margin-top:4px">
@@ -2043,7 +2013,7 @@ treatment.GENERATED.files: 0</pre>
 
     <div class="card f2" style="padding:18px 20px">
       <h3 style="color:var(--f2);margin:0 0 6px">Two operating modes</h3>
-      <div class="grid grid-cols-2 gap-2 mt-1">
+      <div class="cards c2" style="gap:8px;margin-top:4px">
         <div class="modeBox">
           <div class="lbl energy">ANALYZE-ONLY</div>
           <p style="font-size:15px;margin:2px 0 0;line-height:1.4">JSON authoring &amp; review.<br/><strong>No CLI calls</strong>, no disk writes.</p>

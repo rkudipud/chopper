@@ -157,6 +157,7 @@ The project JSON can also sit outside the domain -- in a separate `configs/` dir
 | `10_chained_features_depends_on/` | Features with `depends_on` ordering |
 | `11_project_base_only/` | Project file referencing base only (no features) |
 | `14_cross_feature_skip_if_no_stage/` | Cross-cutting feature injecting steps into stages other features create, using `skip_if_no_stage` |
+| [16_feature_vars/](examples/16_feature_vars/) | Runnable all-v2 vars/procs sourcing files, implicit F1 keeps, aggregate-stack inputs, and p4/LoC outputs |
 
 Copy the nearest example into your domain root, replace every placeholder, then validate with `python schemas/scripts/validate_jsons.py <domain_root>/`. Full field reference is in [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md).
 
@@ -468,6 +469,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 ## Changelog
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
+
+### 4.10.0 -- 2026-10-06
+
+- **New: v2 schemas and feature vars/procs sourcing files.** `base-v2` and `feature-v2` add optional `vars` and `procs` pointers; `project-v2` selects the same schema generation. All-v2 runs generate `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root. Each feature pointer contributes three `iproc_source -file ... -optional` lines: the entry and its `tech_` / `project_` basename variants, in resolved feature order. Base pointers are kept but not listed. Existing files are kept whole by F1 without extra `files.include` entries. Infrastructure owns sourcing both outputs. Both flow into `.chopper/p4_commands.txt` (`p4 add`/`p4 edit`), the audit kept list, and the `chopper loc` GENERATED bucket; with `options.generate_stack: true` every `<flow>.stack` record lists both as `I` inputs. v1 runs are unchanged. Diagnostic references: `VE-40`, `VE-41`, `VE-42`, `VW-27`, `VW-28`, `VW-29`, `VW-30`, `VW-31`; see [DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md). See [ARCHITECTURE.md Sec.3.12](technical_docs/ARCHITECTURE.md), [JSON_AUTHORING_GUIDE.md Sec.2.4](technical_docs/JSON_AUTHORING_GUIDE.md), and [example 16](examples/16_feature_vars/).
 
 ### 4.9.2 -- 2026-09-29
 

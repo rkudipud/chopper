@@ -163,6 +163,17 @@ def test_emit_flow_stack_inputs_emit_one_line_per_entry() -> None:
     assert "\nI a.v\nI b.v\n" in art.content
 
 
+def test_emit_flow_stack_extra_inputs_follow_authored_inputs_on_every_record() -> None:
+    extra = ("dom_feature_vars.tcl", "dom_feature_procs.tcl")
+    stages = (
+        StageSpec(name="a", steps=("x",), inputs=("a.v", "dom_feature_procs.tcl")),
+        StageSpec(name="b", steps=("x",), outputs=("b.rpt",)),
+    )
+    art = emit_flow_stack(stages, "dom", extra_inputs=extra)
+    assert "N a\nI a.v\nI dom_feature_procs.tcl\nI dom_feature_vars.tcl\nD\n" in art.content
+    assert "N b\nI dom_feature_vars.tcl\nI dom_feature_procs.tcl\nO b.rpt\nD\n" in art.content
+
+
 def test_emit_flow_stack_outputs_emit_one_line_per_entry() -> None:
     stage = StageSpec(name="run", steps=("x",), outputs=("r.rpt", "s.rpt"))
     art = emit_flow_stack((stage,), "dom")

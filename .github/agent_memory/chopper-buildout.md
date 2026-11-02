@@ -1,7 +1,17 @@
 # Chopper Buildout Memory
 
 ## Current Focus
-- 2026-09-29: issue #30 (4.8.1) and issue #31 (4.9.0, `options.insert_markers`) done, both uncommitted in the working tree.
+- 4.10.0 v2 feature vars/procs sourcing, comprehensive regression coverage, documentation/presentation refresh, and Graphify refresh are verified and uncommitted. Preserve the existing worktree and presentation-sidecar deletions.
+
+## V2 Feature Sourcing Verification
+- All-v2 runs generate both `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl`; base pointers are F1-only, while feature pointers expand into authored/tech_/project_ optional entries. Both paths participate in audit, filesystem-based p4 planning, LoC, P6, and every aggregate-stack record's I inputs. Infrastructure owns sourcing; standalone bodies remain verbatim.
+- Added 128 option/version/dry-live/stage-mode combinations, feature order/subsets, all schema-version mixes, strict warning policy, two 500-example properties, and a real-CLI lifecycle for the runnable example 16.
+- Fixed default schema-validator discovery, Windows quoting assertions, literal Tcl source-argument escaping, and v2 pointer rejection of directory/dot/drive paths, including invalid components after newlines. Tcl argument cases execute through a real interpreter.
+- Final strict suite: 2168 passed, 10 skipped, 100.00% line and branch coverage. Skips: unavailable cloc backend (3), shell fixtures on Windows (2), POSIX mode semantics (5). No Linux/tcsh or vendor-tool runtime certification is implied.
+- Ruff lint/format, mypy (83 source files), four import contracts, diagnostic registry, service signatures, and all 35 example JSON validations passed. Onboarding and runtime presentations passed offline Edge checks at 1440x900 and 2048x1320; replaced the onboarding deck's unnecessary Tailwind dependency with its existing native CSS.
+- Graphify incremental refresh: 394 files, 7110 nodes, 16362 edges, 360 communities; graph JSON, HTML, and report regenerated. Validated endpoints, hyperedges, zero pending corpus changes, preservation of 5734 unchanged repository nodes and 13884 unchanged edge directions/relations. Schema reference IDs were source-qualified in refresh orchestration to avoid extractor collisions; no global package edits.
+- Graphify 0.9.100 reports skill 0.8.41 mismatch; do not silently update global skills. Semantic-agent token usage is unavailable and recorded as unknown, not zero. The retrieval benchmark is heuristic, not measured LLM savings.
+- The configured review agent could not start because its model was unavailable. GitNexus remains stale and cannot resolve new symbols; do not interpret UNKNOWN/no-callers results as safety proof.
 
 ## Issue #31 (4.9.0, FD-17 adopted)
 - Owner approved a base-JSON key `insert_markers` (under `options`, default false) as the master switch for all Sec.3.11 markers (F2 + F3); scope delegated to me -> one switch, standalone stacks never marked.

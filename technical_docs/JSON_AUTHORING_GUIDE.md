@@ -25,9 +25,11 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 
 | JSON Type | Schema `$id` | Purpose |
 |-----------|-------------|---------|
-| **Base** | `base-v1` | Defines the minimal viable flow for a domain. Every project needs exactly one base. |
-| **Feature** | `feature-v1` | Extends or removes elements of the base via file/proc/stage selections. Zero or more features per project. |
-| **Project** | `project-v1` | Selects and orders one base and zero or more features for a specific trim run. |
+| **Base** | `base-v1` or `base-v2` | Defines the minimal viable flow for a domain. Every project needs exactly one base. |
+| **Feature** | `feature-v1` or `feature-v2` | Extends or removes elements of the base via file/proc/stage selections. Zero or more features per project. |
+| **Project** | `project-v1` or `project-v2` | Selects and orders one base and zero or more features for a specific trim run. |
+
+The v2 schemas are v1 plus optional `vars` and `procs` keys on base and feature (Sec.2.4); project-v2 is identical to project-v1 apart from its id. One run uses one version: mixing v1 and v2 JSONs fails with `VE-41`.
 
 **Relationship:**
 
@@ -57,6 +59,7 @@ Use the example folders as templates, not as production-ready inputs. Pick the c
 | Aggregate + per-stage standalone stack | `examples/13_base_with_standalone_stack/` |
 | Cross-feature `skip_if_no_stage` injection | `examples/14_cross_feature_skip_if_no_stage/` |
 | Stage steps sourced from a file (`reference_file`) | `examples/15_stage_reference_file/` |
+| Feature vars sourcing file (v2 `vars`) | `examples/16_feature_vars/` |
 
 Recommended sequence:
 
@@ -249,6 +252,48 @@ Chopper resolves this stage exactly as if you had authored:
 - **The referenced file is not automatically kept in the trimmed output.** Reading it for its content does not add it to `files.include` -- default-exclude still applies. If you want the source `.steps` file itself to survive trimming (not just its content baked into the generated `<stage>.tcl`), add it to `files.include` explicitly. If you forget, Chopper emits advisory `VW-26 stage-reference-file-not-preserved` (gated by `options.cross_validate`, same as VW-14/15/16) so the gap does not go unnoticed.
 - **Provenance only, not a new data path.** The resolved `steps` are indistinguishable downstream from inline authoring -- same generated `<stage>.tcl`, same `flow_actions` targeting, same cross-validation. `reference_file` is retained on the compiled stage purely so `compiled_manifest.json` can explain where a stage's steps came from.
 
+### 2.4 Feature vars and procs sourcing files (v2 only)
+
+A v2 base or feature may declare optional `vars` and `procs` pointers (domain-relative file paths, no globs, trailing slashes, dot components, or Windows drive prefixes). Every all-v2 run generates both `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl`, where `<flow>` is the domain directory name. Infrastructure loads base vars/procs first, then the matching generated file; Chopper does not add loader calls to stage steps. Spaces and Tcl metacharacters in a pointer are escaped so each source command receives one literal filename.
+
+```json
+{
+  "$schema": "feature-v2",
+  "name": "fdr",
+  "vars": "fdr_vars.tcl",
+  "procs": "procs/fdr_procs.tcl"
+}
+```
+
+With features `fdr` and `dop` selected for the `apr_fc` flow, `apr_fc_feature_vars.tcl` contains (after the Intel header):
+
+```tcl
+# Feature vars.tcl sourcing file for apr_fc
+
+iproc_source -file fdr_vars.tcl -optional
+iproc_source -file tech_fdr_vars.tcl -optional
+iproc_source -file project_fdr_vars.tcl -optional
+
+iproc_source -file dop_vars.tcl -optional
+iproc_source -file tech_dop_vars.tcl -optional
+iproc_source -file project_dop_vars.tcl -optional
+```
+
+**Rules:**
+
+- **Three lines per pointer.** Expand the authored path, then `tech_` and `project_` basename variants. Thus `procs/fdr_procs.tcl` contributes three entries under `procs/` to the procs output, independently of the vars output. Every line is `-optional`.
+- **Base pointers are F1-only.** They are kept but never listed, avoiding double-loading.
+- **Feature order and deduplication.** After dependency sorting, first occurrence wins independently in each output; fully duplicated blocks are omitted. An output without feature pointers still has its header and title.
+- **Whole-file preservation (F1).** Existing base pointers and expanded feature entries are automatic layer-local whole-file includes; no duplicate `files.include` is needed. Normal R1 layering can still remove them later (`VW-21`).
+- **Optional files and diagnostics.** Missing authored pointers and duplicate entries emit `VW-27`, `VW-29`, `VW-30`, or `VW-31`; absent variants do not warn. Code meanings and recovery instructions are owned by [DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
+- **Name the base JSON after the flow** (`jsons/apr_fc.json` for `apr_fc`). Any other name warns `VW-28`.
+- **Generated names are reserved.** Do not include either output in `files.*` or define a colliding stage (`VE-40`, `VE-42`).
+- **One version per run.** Project, base, and features must all use v1 or all use v2 (`VE-41`). v1 rejects both pointer keys and emits neither sourcing file.
+- **Downstream services.** Both outputs appear in `files_kept.txt`, count in the `loc` GENERATED bucket, and get add/edit commands in `.chopper/p4_commands.txt` based on the pristine filesystem baseline, not a depot query. Dry-run checks them in memory; it does not write them into the domain.
+- **Scheduler inputs, not sourcing steps.** With `options.generate_stack: true` and resolved stages, every aggregate-stack record lists both sourcing files as `I` inputs after authored inputs, without repeating matches. Standalone stack bodies remain verbatim. `indent` affects formatting only; `insert_markers` does not annotate these lists.
+
+See ARCHITECTURE.md Sec.3.12 and `examples/16_feature_vars/`.
+
 ---
 
 ## 3. Base JSON
@@ -274,7 +319,7 @@ Chopper resolves this stage exactly as if you had authored:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | `"base-v1"` | Yes | Schema identifier (literal string) |
+| `$schema` | `"base-v1"` or `"base-v2"` | Yes | Schema identifier (literal string) |
 | `domain` | string | Yes | Domain directory name (e.g., `my_domain`) |
 | `owner` | string | No | Team responsible for this base |
 | `vendor` | string | No | Vendor (e.g., `synopsys`, `cadence`) |
@@ -289,6 +334,8 @@ Chopper resolves this stage exactly as if you had authored:
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
 | `procedures.exclude` | procEntry[] | No | Proc-level excludes |
 | `stages` | stageDefinition[] | No* | Ordered stage definitions |
+| `vars` | string | No (v2 only) | Domain-relative path to the flow's vars file. Kept as F1; never written into `<flow>_feature_vars.tcl` (Sec.2.4) |
+| `procs` | string | No (v2 only) | Domain-relative path to the flow's procs file. Kept as F1; never written into `<flow>_feature_procs.tcl` (Sec.2.4) |
 
 *At least one of `files`, `procedures`, or `stages` required.
 
@@ -367,7 +414,7 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | `"feature-v1"` | Yes | Schema identifier |
+| `$schema` | `"feature-v1"` or `"feature-v2"` | Yes | Schema identifier |
 | `name` | string | Yes | Feature identifier -- referenced by `depends_on` and project `features` list |
 | `domain` | string | No | Target domain. If set, Chopper warns if mismatched with selected base |
 | `description` | string | No | Human-readable summary |
@@ -379,6 +426,8 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 | `procedures.include` | procEntry[] | No | Additional proc-level includes |
 | `procedures.exclude` | procEntry[] | No | Proc-level excludes |
 | `flow_actions` | flowAction[] | No | Stage modifications (add/remove/replace steps or stages) |
+| `vars` | string | No (v2 only) | Domain-relative path to this feature's vars file. Expands to three `-optional` lines in `<flow>_feature_vars.tcl` (Sec.2.4) |
+| `procs` | string | No (v2 only) | Domain-relative path to this feature's procs file. Expands to three `-optional` lines in `<flow>_feature_procs.tcl` (Sec.2.4) |
 
 ### `metadata` example
 
@@ -413,7 +462,7 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `$schema` | `"project-v1"` | Yes | Schema identifier |
+| `$schema` | `"project-v1"` or `"project-v2"` | Yes | Schema identifier. Must match the version of the base and features it selects (`VE-41`) |
 | `project` | string | Yes | Project identifier (e.g., `PROJECT_ABC`) |
 | `domain` | string | Yes | Domain identifier -- must match base `domain` field |
 | `base` | string | Yes | Domain-relative path to the base JSON |

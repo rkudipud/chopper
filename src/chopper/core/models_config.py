@@ -185,7 +185,12 @@ class BaseOptions:
 
 @dataclass(frozen=True)
 class BaseJson:
-    """Hydrated ``base-v1`` JSON."""
+    """Hydrated ``base-v1`` / ``base-v2`` JSON.
+
+    ``vars`` and ``procs`` are authored v2 paths (ARCHITECTURE Sec.3.12);
+    ``vars_keep`` / ``procs_keep`` are filled by P1 with files that exist in the
+    domain and become implicit ``files.include`` literals of this layer.
+    """
 
     source_path: Path
     domain: str
@@ -197,6 +202,11 @@ class BaseJson:
     files: FilesSection = field(default_factory=FilesSection)
     procedures: ProceduresSection = field(default_factory=ProceduresSection)
     stages: tuple[StageDefinition, ...] = ()
+    schema_version: int = 1
+    vars: str | None = None
+    vars_keep: tuple[Path, ...] = ()
+    procs: str | None = None
+    procs_keep: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -212,7 +222,11 @@ class FeatureMetadata:
 
 @dataclass(frozen=True)
 class FeatureJson:
-    """Hydrated ``feature-v1`` JSON."""
+    """Hydrated ``feature-v1`` / ``feature-v2`` JSON.
+
+    ``vars`` / ``procs`` follow :class:`BaseJson`; for a feature,
+    their keep tuples cover all three expanded entries that exist.
+    """
 
     source_path: Path
     name: str
@@ -224,11 +238,16 @@ class FeatureJson:
     files: FilesSection = field(default_factory=FilesSection)
     procedures: ProceduresSection = field(default_factory=ProceduresSection)
     flow_actions: tuple[FlowAction, ...] = ()
+    schema_version: int = 1
+    vars: str | None = None
+    vars_keep: tuple[Path, ...] = ()
+    procs: str | None = None
+    procs_keep: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
 class ProjectJson:
-    """Hydrated ``project-v1`` JSON."""
+    """Hydrated ``project-v1`` / ``project-v2`` JSON."""
 
     source_path: Path
     project: str
@@ -238,11 +257,18 @@ class ProjectJson:
     release_branch: str | None = None
     features: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
+    schema_version: int = 1
 
 
 @dataclass(frozen=True)
 class LoadedConfig:
-    """Aggregate returned by :class:`ConfigService`."""
+    """Aggregate returned by :class:`ConfigService`.
+
+    ``feature_vars`` holds the ``<flow>_feature_vars.tcl`` blocks (one
+    tuple of deduplicated entries per feature that declares ``vars``, in
+    resolved feature order). ``None`` on a v1 run -- no file is generated.
+    ``feature_procs`` holds the equivalent blocks for procs.
+    """
 
     base: BaseJson
     features: tuple[FeatureJson, ...] = ()
@@ -250,6 +276,8 @@ class LoadedConfig:
     surface_files: tuple[Path, ...] = ()
     tool_command_pool: frozenset[str] = frozenset()
     domain_file_cache: tuple[tuple[Path, str], ...] = ()
+    feature_vars: tuple[tuple[str, ...], ...] | None = None
+    feature_procs: tuple[tuple[str, ...], ...] | None = None
 
     def __post_init__(self) -> None:
         names = [f.name for f in self.features]

@@ -5,8 +5,24 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "files": 344
+    },
+    {
+      "date": "2026-11-02T18:59:30.755622+00:00",
+      "input_tokens": 650,
+      "output_tokens": 1500,
+      "files": 383
+    },
+    {
+      "date": "2026-11-02T20:33:17.792466+00:00",
+      "input_tokens": null,
+      "output_tokens": null,
+      "token_accounting": "unavailable: host agent does not expose usage",
+      "files": 47,
+      "semantic_agent_turns": 2
     }
   ],
-  "total_input_tokens": 0,
-  "total_output_tokens": 0
+  "total_input_tokens": 650,
+  "total_output_tokens": 1500,
+  "cumulative_totals_complete": false,
+  "accounting_note": "Historical numeric totals are retained, not revalidated; this run has unknown token usage."
 }

@@ -198,13 +198,17 @@ the "before" totals nor count as REMOVE candidates.
 
 | Counted | Extensions | SLOC rule |
 |---|---|---|
-| yes | `.tcl`, `.py`, `.pl`, `.pm`, `.sh`, `.bash`, `.csh`, `.tcsh`, `.zsh`, `.ksh` | non-blank, non-full-`#`-line; shell `#!` shebang on line 1 counts |
-| yes | `.json` | every non-blank line |
+| yes | `.tcl`, `.py`, `.pl`, `.pm`, `.sh`, `.bash`, `.csh`, `.tcsh`, `.zsh`, `.ksh` | language-aware cloc when available; hash-comment fallback otherwise |
 | yes | `.csv` | every line that contains a non-comma, non-whitespace token |
-| no | everything else (`.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, `.md`, `.txt`, binaries, ...) | silently skipped |
+| yes | `.md`, `.rst`, `.txt`, `.xml`, `.yml`, `.yaml` | language-aware cloc when available; non-blank fallback otherwise |
+| no | `.json`, `instructions.md`, and files under `.chopper/` | authoring/audit artifacts excluded from all LoC accounting |
+| no | other extensions (`.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, binaries, ...) | skipped by the source-domain walk |
 
 Generated stage artifacts are language-detected the same way -- a generated
-`<stage>.tcl` follows the hash-comment SLOC rule.
+`<stage>.tcl` and the v2 `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl`
+are measured as Tcl and appear in the GENERATED bucket, including when their
+contents are replayed in memory. Pointer-selected libraries are separate F1
+files; they are not counted as contents of the generated source list.
 
 ### Caveats
 

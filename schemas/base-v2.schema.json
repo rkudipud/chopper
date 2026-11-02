@@ -1,0 +1,240 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "base-v2",
+  "title": "Chopper Base JSON",
+  "description": "Bare-minimum flow definition for a tool domain. Defines the files, procs, and stages that constitute the minimal viable flow. At least one of files, procedures, or stages must be present. When stages are used, Chopper generates run scripts, and the same stage fields can be reused when manually authoring stack-file entries such as N (name), J (command), L (legal exit codes), D (dependency graph), I (inputs), and O (outputs).",
+  "type": "object",
+  "required": ["$schema", "domain"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "base-v2"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Domain directory name (e.g., my_domain, sta_pt, power)"
+    },
+    "owner": {
+      "type": "string",
+      "description": "Domain deployment owner or team responsible for this base configuration"
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Vendor classification (e.g., cdns/cnps/intel, synopsys, cadence)"
+    },
+    "tool": {
+      "type": "string",
+      "description": "Tool name (e.g., formality, primetime, innovus)"
+    },
+    "procs": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.\\.)(?!/)(?![A-Za-z]:)(?![\\s\\S]*\\.\\./)(?![\\s\\S]*//)(?![\\s\\S]*(?:^|/)\\.\\.?(/|$))(?![\\s\\S]*/$)[^\\\\*?\\[]*$",
+      "description": "Domain-relative path of the flow's procs file. Preserved by F1 when present, but not listed in the generated feature procs sourcing file because infrastructure loads it separately. Same path constraints as vars."
+    },
+    "vars": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.\\.)(?!/)(?![A-Za-z]:)(?![\\s\\S]*\\.\\./)(?![\\s\\S]*//)(?![\\s\\S]*(?:^|/)\\.\\.?(/|$))(?![\\s\\S]*/$)[^\\\\*?\\[]*$",
+      "description": "Domain-relative path of the flow's own vars file (e.g. 'vars.tcl'). Infrastructure sources it before the generated <flow>_feature_vars.tcl, so it is never written into that file; when present in the domain it is kept by F1 as an implicit files.include. No globs, no '..', no absolute paths."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this base flow covers"
+    },
+    "options": {
+      "type": "object",
+      "description": "Domain-level options for this base configuration",
+      "properties": {
+        "cross_validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether post-trim validation emits the documented F3 cross-validation warnings (VW-14, VW-15, VW-16)."
+        },
+        "generate_stack": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and the base declares at least one stage, Chopper emits one aggregate scheduler stack file at the domain root named <basename(domain_root)>.stack (filename sourced from the runtime domain-root basename; there is no JSON field for it). The file contains a single Intel header followed by one record per resolved stage in topological order of the stage dependency graph (dependencies plus load_from edges, authored position as tiebreaker), with records separated by a single blank line. Per-record line order is N -> J -> L -> I -> O -> D -> (R parallel). The R line is emitted only when run_mode == 'parallel'; serial is implicit. Orthogonal to per-stage standalone_stack. See the JSON authoring guide and ARCHITECTURE.md Sec.3.6 for details. No effect when stages is empty."
+        },
+        "indent": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, P5c re-indents every PROC_TRIM and GENERATED .tcl output before P6 validation runs. Default false: Chopper writes PROC_TRIM and GENERATED outputs verbatim and skips the indentation pass entirely. The current implementation has known limitations (no quote/comment awareness, no line-continuation handling); leave this off unless you have explicitly verified the formatter on your domain."
+        },
+        "insert_markers": {
+          "type": "boolean",
+          "default": false,
+          "description": "Master switch for the '## CHOPPER: BEGIN/END' provenance comment markers (ARCHITECTURE.md Sec.3.11): around every proc in PROC_TRIM files and around every step or stage a flow_action touched in generated <stage>.tcl files. Default false: no file receives a marker. When true, markers are standalone comment lines placed only where Tcl reads them as comments, so they never change what a script does."
+        }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "minItems": 1,
+          "description": "Files or glob patterns to include (domain-relative, forward slashes, no '..', no '//', no absolute paths). Glob patterns: '*' (any chars except /), '?' (one char except /), '**' (any dirs/subdirs). Examples: 'procs/*.tcl', 'rules/**/*.fm.tcl', 'setup.tcl'. Literal paths take precedence over excludes. MUST NOT be empty if files.include is present."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$"
+          },
+          "minItems": 1,
+          "description": "Files or glob patterns to exclude (domain-relative, forward slashes). Supports same glob patterns as include: '*' (any chars except /), '?' (one char except /), '**' (any dirs/subdirs). Excludes prune only the wildcard-expanded include candidates; literal include paths survive even if they match exclude patterns. MUST NOT be empty if files.exclude is present."
+        }
+      }
+    },
+    "procedures": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "minItems": 1,
+          "description": "Proc-level includes: file + proc name pairs. MUST NOT be empty if procedures.include is present."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/procEntry"
+          },
+          "minItems": 1,
+          "description": "Proc-level excludes. Prunes procs inside PROC_TRIM files (keep-set = all_procs(file) - PE). Does not remove explicit procedures.include entries from any source and does not remove whole-file includes. Does not filter trace-expanded callees -- trace is reporting-only and never auto-copies procs. MUST NOT be empty if procedures.exclude is present."
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stageDefinition"
+      },
+      "minItems": 1,
+      "description": "Optional ordered list of stage definitions for F3 run-file generation. Stages are optional; users who want to generate `<stage>.tcl` run scripts from JSON can define stages here. Each stage produces one run script file where `name` becomes the script filename (`<stage>.stack` instead when the stage sets `standalone_stack`). Set `options.generate_stack` to also emit one aggregate stack file; otherwise stack files stay hand-authored. For users not using stages, omit this section; Chopper will still perform F1 (file trimming) and F2 (proc trimming). MUST NOT be empty if stages is present."
+    }
+  },
+  "anyOf": [
+    { "required": ["files"] },
+    { "required": ["procedures"] },
+    { "required": ["stages"] }
+  ],
+  "$defs": {
+    "procEntry": {
+      "type": "object",
+      "required": ["file", "procs"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative Tcl file path. Must not contain '..' traversal or double slashes."
+        },
+        "procs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "Proc names to include/exclude from this file. MUST NOT be empty -- use files.include for whole-file inclusion."
+        }
+      }
+    },
+    "stageDefinition": {
+      "type": "object",
+      "required": ["name", "load_from"],
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["steps"], "not": { "required": ["reference_file"] } },
+        { "required": ["reference_file"], "not": { "required": ["steps"] } }
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique stage name. Becomes the filename of the generated `<stage>.tcl` run script and optionally `N <name>` in the aggregate stack (options.generate_stack) or a hand-authored stack file."
+        },
+        "load_from": {
+          "type": "string",
+          "description": "Predecessor stage for data loading inside the generated `<stage>.tcl` script, typically via ivar(src_task). This is separate from the optional stack-file `D` dependency graph line."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional parent task names for the optional stack dependency graph. Become the `D` line in the aggregate stack (options.generate_stack) or a hand-authored stack file."
+        },
+        "exit_codes": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 1,
+          "description": "Optional legal exit codes for the stage. Becomes the `L` line in the aggregate stack (options.generate_stack) or a hand-authored stack file (for example `L 0 3 5`)."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional execution command for the stage. Becomes the `J` line in the aggregate stack (options.generate_stack) or a hand-authored stack file (for example `J -xt vw Ifev_fm_shell -B BLOCK -T fev_fm_lite`)."
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional input artifact markers. Become one or more `I` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Optional output artifact markers. Become one or more `O` lines in the aggregate stack (options.generate_stack) or a hand-authored stack file."
+        },
+        "run_mode": {
+          "type": "string",
+          "enum": ["serial", "parallel"],
+          "default": "serial",
+          "description": "Optional execution mode (serial or parallel). The aggregate stack (options.generate_stack) emits an `R parallel` line only when set to parallel; serial is implicit."
+        },
+        "language": {
+          "type": "string",
+          "enum": ["tcl", "python"],
+          "default": "tcl",
+          "description": "Language of the stage. Set to 'python' if the stage uses Python. Default is tcl."
+        },
+        "standalone_stack": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, F3 emits <stage>.stack whose body is the Intel header followed by the authored steps verbatim (no N/J/L/D record derivation; command, exit_codes, dependencies, inputs, outputs, load_from, and run_mode are ignored for body construction) instead of <stage>.tcl: the standalone stack is the stage's sole driver. When options.generate_stack is true the stage is still included as a derived record in the aggregate <domain>.stack. Default: false. See ARCHITECTURE.md Sec.3.6 and the JSON authoring guide Sec.2.2."
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Ordered list of step strings that Chopper writes into the generated `<stage>.tcl` script. These are not stack-file lines themselves; they define the body executed by the stage command."
+        },
+        "reference_file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.)(?!/)(?!.*\\.\\./)(?!.*//)[^\\\\]*$",
+          "description": "Domain-relative path read at P1 and split into one step per physical line, used in place of `steps`. Mutually exclusive with `steps`. See ARCHITECTURE.md Sec.3.6 'Sourcing steps from a file'."
+        }
+      }
+    }
+  }
+}

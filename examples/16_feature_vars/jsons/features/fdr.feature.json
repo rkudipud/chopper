@@ -1,0 +1,7 @@
+{
+  "$schema": "feature-v2",
+  "name": "fdr",
+  "description": "FDR variable and procedure libraries. Pointer-selected files are automatically kept whole.",
+  "vars": "fdr_vars.tcl",
+  "procs": "procs/fdr_procs.tcl"
+}

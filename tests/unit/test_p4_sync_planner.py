@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from shlex import quote
 
 SCRIPT = Path(__file__).parents[2] / "scripts" / "plan_p4_sync.py"
 
@@ -33,8 +34,8 @@ def test_planner_emits_edit_and_add_for_changed_and_new_source_files(tmp_path: P
 
     assert result.returncode == 0, result.stderr
     assert [line for line in result.stdout.splitlines() if line.startswith("p4 ")] == [
-        f"p4 edit -t text+x {target / 'changed.tcl'}",
-        f"p4 add -t text+x {target / 'jsons' / 'added.json'}",
+        f"p4 edit -t text+x {quote(str(target / 'changed.tcl'))}",
+        f"p4 add -t text+x {quote(str(target / 'jsons' / 'added.json'))}",
     ]
     assert "# target-only.tcl" in result.stdout
 
@@ -69,5 +70,5 @@ def test_planner_filters_to_requested_file_glob_and_filetype(tmp_path: Path) -> 
 
     assert result.returncode == 0, result.stderr
     assert [line for line in result.stdout.splitlines() if line.startswith("p4 ")] == [
-        f"p4 edit -t text {target / 'base.json'}"
+        f"p4 edit -t text {quote(str(target / 'base.json'))}"
     ]

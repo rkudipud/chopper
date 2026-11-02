@@ -145,6 +145,12 @@ class CompiledManifest:
     """The base JSON ``options`` block, frozen at P3. The single channel through
     which P5 (``insert_markers``, ``generate_stack``, ``indent``) and P6
     (``cross_validate``) read run-wide switches."""
+    feature_vars: tuple[tuple[str, ...], ...] | None = None
+    """Blocks of the v2 ``<flow>_feature_vars.tcl`` (Sec.3.12), copied from
+    :attr:`LoadedConfig.feature_vars`; ``None`` on a v1 run (no file)."""
+
+    feature_procs: tuple[tuple[str, ...], ...] | None = None
+    """Procs sourcing blocks, with the same v1/v2 semantics as ``feature_vars``."""
 
     def __post_init__(self) -> None:
         fd_keys = [p.as_posix() for p in self.file_decisions]

@@ -16,7 +16,10 @@ Responsibilities:
 4. Hydrate raw dicts into typed dataclasses via
    :mod:`chopper.config.loaders`.
 5. Apply topo-sort on features (``VE-14``, ``VE-15``, ``VE-22``).
-6. Build ``surface_files`` -- the union of every domain-relative path
+6. Enforce one schema version per run (``VE-41``); for an all-v2 run,
+   expand feature ``vars`` / ``procs`` entries into sourcing blocks
+   and auto-keep existing files (ARCHITECTURE Sec.3.12).
+7. Build ``surface_files`` -- the union of every domain-relative path
    contributed by any JSON source (lex-sorted POSIX form), ready for
    :class:`~chopper.parser.service.ParserService`.
 
@@ -42,16 +45,16 @@ service returns.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePosixPath
+from typing import Any, Literal
 
 from chopper.core.context import ChopperContext
 from chopper.core.diagnostics import Diagnostic, Phase
 from chopper.core.fs_walk import iter_domain_files
 from chopper.core.globs import glob_match
 from chopper.core.models_common import DomainState
-from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
+from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig, ProjectJson
 
 from .loaders import load_base, load_feature, load_project, topo_sort_features
 from .schema import validate_json
@@ -137,6 +140,18 @@ class ConfigService:
         provenance = cfg.project_path or base_path
         sorted_features = topo_sort_features(features, provenance, ctx.diag.emit)
 
+        # --- v2 feature vars (ARCHITECTURE Sec.3.12) ---
+        feature_vars: tuple[tuple[str, ...], ...] | None = None
+        feature_procs: tuple[tuple[str, ...], ...] | None = None
+        if _schema_versions_agree(ctx, project_json, base_json, sorted_features, provenance):
+            if base_json.schema_version == 2:
+                base_json, sorted_features, feature_vars = _resolve_feature_vars(
+                    ctx, base_path, source_root, base_json, sorted_features
+                )
+                base_json, sorted_features, feature_procs = _resolve_feature_vars(
+                    ctx, base_path, source_root, base_json, sorted_features, kind="procs"
+                )
+
         # --- surface_files: union of literal file refs from all sources ---
         # Also capture domain_file_cache for O1 optimization (P2 reuse).
         surface, domain_file_cache = _collect_surface_files(base_json, sorted_features, ctx, state=state)
@@ -159,6 +174,8 @@ class ConfigService:
             surface_files=surface_sorted,
             tool_command_pool=pool,
             domain_file_cache=tuple(domain_file_cache),
+            feature_vars=feature_vars,
+            feature_procs=feature_procs,
         )
 
     # ------------------------------------------------------------------
@@ -495,5 +512,113 @@ def _collect_surface_files(
             paths.add(ref.file)
         for ref in src.procedures.exclude:
             paths.add(ref.file)
+        paths.update(src.vars_keep)
+        paths.update(src.procs_keep)
 
     return paths, domain_files
+
+
+def expand_vars_entry(entry: str) -> tuple[str, str, str]:
+    """Return ``(entry, <dir>/tech_<name>, <dir>/project_<name>)`` for a feature ``vars`` path."""
+    pure = PurePosixPath(entry)
+    return entry, str(pure.with_name(f"tech_{pure.name}")), str(pure.with_name(f"project_{pure.name}"))
+
+
+def _schema_versions_agree(
+    ctx: ChopperContext,
+    project: ProjectJson | None,
+    base: BaseJson,
+    features: list[FeatureJson],
+    provenance: Path,
+) -> bool:
+    """Emit ``VE-41`` and return ``False`` when the run mixes v1 and v2 JSONs."""
+    layers: list[ProjectJson | BaseJson | FeatureJson] = [base, *features]
+    if project is not None:
+        layers.insert(0, project)
+    if len({layer.schema_version for layer in layers}) == 1:
+        return True
+    listing = ", ".join(f"{layer.source_path.as_posix()} (v{layer.schema_version})" for layer in layers)
+    ctx.diag.emit(
+        Diagnostic.build(
+            "VE-41",
+            phase=Phase.P1_CONFIG,
+            message=f"Selected JSONs mix schema versions: {listing}",
+            path=provenance,
+            hint="Use the same schema version (-v1 or -v2) for project, base, and every feature",
+        )
+    )
+    return False
+
+
+def _resolve_feature_vars(
+    ctx: ChopperContext,
+    base_path: Path,
+    source_root: Path,
+    base: BaseJson,
+    features: list[FeatureJson],
+    *,
+    kind: Literal["vars", "procs"] = "vars",
+) -> tuple[BaseJson, list[FeatureJson], tuple[tuple[str, ...], ...]]:
+    """Resolve v2 vars/procs pointers into layer-local F1 keeps and deduplicated source blocks."""
+    domain_name = ctx.config.domain_root.name
+    if kind == "vars" and base_path.stem.casefold() != domain_name.casefold():
+        ctx.diag.emit(
+            Diagnostic.build(
+                "VW-28",
+                phase=Phase.P1_CONFIG,
+                message=f"base-v2 JSON {base_path.name!r} is not named after the domain {domain_name!r}",
+                path=base_path,
+                hint=f"Rename the base JSON to jsons/{domain_name}.json",
+            )
+        )
+
+    def _existing(entries: tuple[str, ...], owner: BaseJson | FeatureJson) -> tuple[Path, ...]:
+        if not ctx.fs.exists(source_root / entries[0]):
+            ctx.diag.emit(
+                Diagnostic.build(
+                    "VW-27" if kind == "vars" else "VW-30",
+                    phase=Phase.P1_CONFIG,
+                    message=f"{kind} file {entries[0]!r} does not exist in the domain",
+                    path=owner.source_path,
+                    hint=f"Fix the {kind} path, add the file, or remove the {kind} key",
+                )
+            )
+        return tuple(Path(e) for e in entries if ctx.fs.exists(source_root / e))
+
+    base_entry = base.vars if kind == "vars" else base.procs
+    if base_entry is not None:
+        keep = _existing((base_entry,), base)
+        base = replace(base, vars_keep=keep) if kind == "vars" else replace(base, procs_keep=keep)
+
+    blocks: list[tuple[str, ...]] = []
+    seen: dict[str, str] = {}
+    resolved: list[FeatureJson] = []
+    for feat in features:
+        pointer = feat.vars if kind == "vars" else feat.procs
+        if pointer is None:
+            resolved.append(feat)
+            continue
+        entries = expand_vars_entry(pointer)
+        keep = _existing(entries, feat)
+        resolved.append(replace(feat, vars_keep=keep) if kind == "vars" else replace(feat, procs_keep=keep))
+        block: list[str] = []
+        for entry in entries:
+            if entry in seen:
+                ctx.diag.emit(
+                    Diagnostic.build(
+                        "VW-29" if kind == "vars" else "VW-31",
+                        phase=Phase.P1_CONFIG,
+                        message=(
+                            f"{kind} entry {entry!r} from feature {feat.name!r} already sourced by "
+                            f"feature {seen[entry]!r}; dropped"
+                        ),
+                        path=feat.source_path,
+                        hint=f"Remove the duplicate {kind} key from one of the features",
+                    )
+                )
+                continue
+            seen[entry] = feat.name
+            block.append(entry)
+        if block:
+            blocks.append(tuple(block))
+    return base, resolved, tuple(blocks)

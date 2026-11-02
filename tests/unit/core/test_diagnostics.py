@@ -14,8 +14,8 @@ from chopper.core.errors import UnknownDiagnosticCodeError
 
 class TestRegistry:
     def test_count_matches_spec(self) -> None:
-        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 91 active +
-        # 3 retired (VW-18, VW-19, PE-04) = 94 registered entries.
+        # Per technical_docs/DIAGNOSTIC_CODES.md Code Space Summary: 99 active +
+        # 3 retired (VW-18, VW-19, PE-04) = 102 registered entries.
         # 4.1.0 added VE-32..VE-36 (ward-env-not-set, domain-not-found,
         # ambiguous-domain-name, base-autodiscovery-failed, feature-name-not-found).
         # VW-25 (exclude-target-absent) added to downgrade missing files.exclude
@@ -27,8 +27,9 @@ class TestRegistry:
         # and VW-26 (stage-reference-file-not-preserved) added for stage
         # `reference_file` (issue #28); VE-39's slug broadened in 4.8.0 when
         # `reference_file` was extended to `add_step_before`/`add_step_after`
-        # `items` -- same code, no new slot consumed.
-        assert len(all_codes()) == 94
+        # `items` -- same code, no new slot consumed. 4.10.0 added VE-40,
+        # VE-41, VW-27..VW-29 for the v2 feature vars sourcing file.
+        assert len(all_codes()) == 102
 
     def test_lookup_known_code(self) -> None:
         entry = lookup("VE-06")

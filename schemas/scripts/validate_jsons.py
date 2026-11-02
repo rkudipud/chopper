@@ -26,6 +26,9 @@ SCHEMA_IDS = {
     "base-v1": "base-v1.schema.json",
     "feature-v1": "feature-v1.schema.json",
     "project-v1": "project-v1.schema.json",
+    "base-v2": "base-v2.schema.json",
+    "feature-v2": "feature-v2.schema.json",
+    "project-v2": "project-v2.schema.json",
 }
 
 
@@ -81,8 +84,7 @@ def validate_file(json_file: Path, schemas: dict[str, dict]) -> tuple[str, str]:
 
 
 def parse_args() -> argparse.Namespace:
-    repo_root = Path(__file__).resolve().parent.parent
-    default_schema_dir = repo_root / "schemas"
+    default_schema_dir = Path(__file__).resolve().parents[1]
 
     parser = argparse.ArgumentParser(description="Validate Chopper JSON files against schemas")
     parser.add_argument(

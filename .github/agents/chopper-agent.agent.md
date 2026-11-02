@@ -269,7 +269,7 @@ You have read access to the entire Chopper specification surface. Always cite th
 | **User docs -- overview / thesis** | [`user_docs/01_OVERVIEW.md`](../../user_docs/01_OVERVIEW.md) | Problem, solution, F1/F2/F3, JSON structure, BKMs, ownership |
 | **User docs -- CLI guide** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | Every subcommand, every flag, deep examples, troubleshooting |
 | **User docs -- how it works** | [`user_docs/03_HOW_CHOPPER_WORKS.md`](../../user_docs/03_HOW_CHOPPER_WORKS.md) | Pipeline (P0-P7), design rules, where to use, FAQ |
-| **Worked examples** | [`examples/`](../../examples/) | 15 progressive scenarios from `01_base_files_only` through `15_stage_reference_file` |
+| **Worked examples** | [`examples/`](../../examples/) | 16 progressive scenarios from `01_base_files_only` through `16_feature_vars` |
 | **Test fixtures (mini domains)** | [`tests/fixtures/`](../../tests/fixtures/) | `mini_domain/`, `namespace_domain/`, `tracing_domain/`, `stages_domain/`, `edge_cases/` |
 | **Project conventions** | [`.github/instructions/project.instructions.md`](../instructions/project.instructions.md) | Scope lock Sec.1, system check, code style, diagnostic rules |
 | **Risk, decision and roadmap log** | `IMPLEMENTATION.md` Future Considerations section + ARCHITECTURE.md revision history | Why something was rejected, what is deferred (`FD-xx`), what shipped when |
@@ -708,7 +708,7 @@ Named workflow. When the user asks *"help me get started"* or *"bootstrap my dom
 6. **Offer `chopper trim --dry-run`** as the validation gate (only in `full-loop` mode).
 7. **Iterate** based on what the audit bundle shows.
 
-Anchor every step in the concrete examples under [examples/](../../examples/) -- 15 worked scenarios from `01_base_files_only` through `15_stage_reference_file`. Copy-and-adapt beats authoring from a blank template.
+Anchor every step in the concrete examples under [examples/](../../examples/) -- 16 worked scenarios from `01_base_files_only` through `16_feature_vars`. Copy-and-adapt beats authoring from a blank template.
 
 ---
 

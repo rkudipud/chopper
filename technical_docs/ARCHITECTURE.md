@@ -57,18 +57,18 @@ Build **Chopper** -- a per-domain trimming tool that lets each domain deployment
 
 ### 1.4 Current Product Status
 
-Chopper is currently in a **docs-first architecture phase**.
+Chopper is an implemented **docs-first, spec-driven CLI**. This document defines its behavior; it is not a scaffold proposal.
 
 | Status Item | Current State |
 | --- | --- |
-| **Product maturity** | Early framework / scaffold stage |
-| **Implementation state** | Core trim engine is not yet production-implemented |
-| **Repository reality** | The repo currently contains package/framework scaffolding plus architecture and analysis docs |
+| **Product maturity** | Implemented F1/F2/F3 pipeline with unit, integration, golden, and property tests |
+| **Implementation state** | P0-P7 services and `validate`, `trim`, `loc`, `cleanup` commands are implemented |
+| **Repository reality** | Python package, bundled v1/v2 schemas, worked examples, documentation, and HTML presentations |
 | **Primary source of truth** | This architecture document |
-| **Supporting document** | per component spec docs are available |
-| **Implication** | Design clarity must come before feature implementation |
+| **Supporting documents** | Engineering contracts, implementation guidance, JSON authoring guide, and diagnostic registry |
+| **Implication** | New capabilities require approval and an architecture edit before implementation |
 
-This document therefore describes the **intended architecture**, the **resolved design decisions**, the **current open questions**, and the **implementation work queue** required to turn the framework into a working product.
+This document records the runtime contracts, resolved design decisions, and operational questions. Historical implementation milestones remain in Sec.13; release changes are in the README changelog.
 
 ---
 
@@ -286,12 +286,12 @@ This includes:
 
 ## 3. Core Concepts and Capability Model
 
-> **Canonical JSON reference:** All schemas live in `schemas/`, 14 progressive examples in `examples/`, and the full authoring guide in [`technical_docs/JSON_AUTHORING_GUIDE.md`](JSON_AUTHORING_GUIDE.md). The examples below are sourced from that set.
+> **Canonical JSON reference:** All v1/v2 schemas live in `schemas/`, worked examples in `examples/`, and the full authoring guide in [`technical_docs/JSON_AUTHORING_GUIDE.md`](JSON_AUTHORING_GUIDE.md). Example 16 demonstrates both v2 sourcing files and aggregate-stack inputs; earlier examples remain valid v1 references.
 
 ### 3.1 Base JSON
 
 The **Base JSON** defines the minimum viable flow for a domain.
-Schema: `schemas/base-v1.schema.json`
+Schema: `schemas/base-v1.schema.json` or `schemas/base-v2.schema.json` (v2 = v1 plus `vars` and `procs`, Sec.3.12)
 It may contain any subset of the F1, F2, and F3 sections. Omitted capability blocks are treated as empty.
 
 By default, the curated base JSON is stored at `jsons/base.json` under the selected domain.
@@ -361,8 +361,10 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `$schema` | Yes | Must be `"base-v1"` |
+| `$schema` | Yes | `"base-v1"` or `"base-v2"`; every JSON in one run must share the version (`VE-41`) |
 | `domain` | Yes | Domain directory name (e.g., `my_domain`) |
+| `vars` | No | **v2 only.** Domain-relative path of the flow's own vars file. Kept by F1 when present (Sec.3.12); never written into the generated feature vars file |
+| `procs` | No | **v2 only.** Domain-relative path of the flow's own procs file. Kept by F1 when present; never written into the generated feature procs file (Sec.3.12) |
 | `owner` | No | Team responsible for this base |
 | `vendor` | No | Vendor (e.g., `synopsys`, `cadence`) |
 | `tool` | No | Tool name (e.g., `primetime`, `innovus`) |
@@ -382,7 +384,7 @@ By default, the curated base JSON is stored at `jsons/base.json` under the selec
 ### 3.2 Feature JSON
 
 The **Feature JSON** expresses optional behavior layered on top of the base.
-Schema: `schemas/feature-v1.schema.json`
+Schema: `schemas/feature-v1.schema.json` or `schemas/feature-v2.schema.json` (v2 = v1 plus `vars` and `procs`, Sec.3.12)
 It may contain any subset of the F1, F2, and F3 sections. Omitted capability blocks are treated as empty.
 
 By default, curated feature JSONs are stored under `jsons/features/` under the selected domain.
@@ -426,14 +428,16 @@ By default, curated feature JSONs are stored under `jsons/features/` under the s
 **Rules:**
 - `$schema` and `name` are required. Everything else is optional.
 - `name` must be unique across all features in a project.
-- At least one of `files`, `procedures`, or `flow_actions` should be present (otherwise the feature does nothing).
+- At least one of `files`, `procedures`, `flow_actions`, or (v2) `vars` should be present (otherwise the feature does nothing).
 
 **Key fields:**
 
 | Field | Required | Description |
 |-------|----------|--------------|
-| `$schema` | Yes | Must be `"feature-v1"` |
+| `$schema` | Yes | `"feature-v1"` or `"feature-v2"`; every JSON in one run must share the version (`VE-41`) |
 | `name` | Yes | Feature identifier -- referenced by `depends_on` and project `features` list |
+| `vars` | No | **v2 only.** Domain-relative path of the feature's vars file; expands to three `iproc_source -optional` lines in `<flow>_feature_vars.tcl` and is kept by F1 when present (Sec.3.12) |
+| `procs` | No | **v2 only.** Domain-relative path of the feature's procs file; expands to three `iproc_source -optional` lines in `<flow>_feature_procs.tcl`; existing files are kept whole by F1 (Sec.3.12) |
 | `domain` | No | Target domain. Chopper warns if mismatched with selected base |
 | `description` | No | Human-readable summary |
 | `depends_on` | No | Prerequisite feature names; each must be selected in the same run (`VE-15`). P1 topologically sorts the selection so prerequisites are applied first |
@@ -470,7 +474,7 @@ Optional companion to `depends_on`, expressing a *negative* constraint: two feat
 ### 3.3 Project JSON
 
 The **Project JSON** is the reproducible project-specific selection file.
-Schema: `schemas/project-v1.schema.json`
+Schema: `schemas/project-v1.schema.json` or `schemas/project-v2.schema.json`. The two are field-identical; `project-v1` selects v1 base/feature JSONs and `project-v2` selects v2 ones (`VE-41` on a mix).
 
 **Example** (from `examples/08_base_plus_one_feature/project.json`, with `jsons/base.json` and `jsons/features/dft.feature.json` as siblings):
 
@@ -500,7 +504,7 @@ Schema: `schemas/project-v1.schema.json`
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `$schema` | Yes | Must be `"project-v1"` |
+| `$schema` | Yes | `"project-v1"` or `"project-v2"`; must match the version of the selected base and features (`VE-41`) |
 | `project` | Yes | Project identifier (e.g., `PROJECT_ABC`) |
 | `domain` | Yes | Domain identifier -- must match the basename of the current working directory |
 | `base` | Yes | Domain-relative path to the base JSON file |
@@ -642,6 +646,8 @@ N <stage1.name>
 J <stage1.command>     (omitted when command is empty)
 L <c1> <c2> ...        (omitted when exit_codes is empty)
 I <input>              (one line per entry; omitted when empty)
+I <flow>_feature_vars.tcl   (v2 runs only; Sec.3.12)
+I <flow>_feature_procs.tcl  (v2 runs only; Sec.3.12)
 O <output>             (one line per entry; omitted when empty)
 D <dependency>         (always; see derivation below)
 R parallel             (only when run_mode == "parallel"; omitted for serial)
@@ -650,7 +656,7 @@ R parallel             (only when run_mode == "parallel"; omitted for serial)
 ...
 ```
 
-Per-record line order is fixed: `N` -> `J` -> `L` -> `I` -> `O` -> `D` -> (optional `R parallel`). The `D` line is derived in this order: (1) if `dependencies` is non-empty, emit one `D <dep>` line per entry in authored order; (2) else if `load_from` is non-empty, emit `D <load_from>`; (3) else emit a bare `D` line.
+Per-record line order is fixed: `N` -> `J` -> `L` -> `I` -> `O` -> `D` -> (optional `R parallel`). On a v2 run (Sec.3.12) every record appends `I <basename(domain_root)>_feature_vars.tcl` then `I <basename(domain_root)>_feature_procs.tcl` after the authored `inputs`, skipping either when the record already authors it, so the scheduler sees the generated sourcing files as inputs of every stage; v1 runs add nothing. The `D` line is derived in this order: (1) if `dependencies` is non-empty, emit one `D <dep>` line per entry in authored order; (2) else if `load_from` is non-empty, emit `D <load_from>`; (3) else emit a bare `D` line.
 
 A `# Chopper-generated stack: <stage.name>` provenance banner precedes every record (matching the historical per-stage emitter's banner style) so audit consumers can correlate records to their authoring stage without opening `compiled_manifest.json`.
 
@@ -841,6 +847,47 @@ Both marker lines are inert to every downstream check: P6 brace-balance validati
 - The aggregate `<domain>.stack` (Sec.3.6 N/J/L/D/I/O/R metadata records) is never marked -- it has no step content. A `standalone_stack: true` stage is never marked either -- its documented contract is that authored `steps` are written verbatim with "no further interpretation" (Sec.3.6), so no marker is ever inserted into its steps.
 
 `options.insert_markers` was adopted from issue #31 (`FD-17`): 4.5.0 shipped markers always-on, and real stage files broke where markers landed inside data words or carried unescaped braces into script bodies.
+
+### 3.12 Feature Vars and Procs Sourcing Files -- 4.10.0+
+
+All-v2 runs (`base-v2`, `feature-v2`, and, when selected, `project-v2`) generate two sourcing files at the domain root. Here `<flow>` always means `basename(domain_root)`, not a JSON metadata value.
+
+| Pointer on base or feature | Generated artifact | Title after Intel header |
+|---|---|---|
+| `vars` | `<flow>_feature_vars.tcl` | `# Feature vars.tcl sourcing file for <flow>` |
+| `procs` | `<flow>_feature_procs.tcl` | `# Feature procs.tcl sourcing file for <flow>` |
+
+Both pointers are optional, non-empty domain-relative file paths without globs; the common path constraints are in Sec.6.3.1. Directory-only paths, trailing slashes, `.` / `..` path components, and Windows drive paths are rejected by the v2 pointer schemas. `project-v2` only changes the schema ID, not the recipe fields. v1 rejects both pointer keys and emits neither sourcing file.
+
+**Ownership and output.** Infrastructure loads the base vars/procs and then the corresponding generated file; Chopper does not insert loader calls into stages. Base pointers are F1 keeps only and never appear in the generated source list, avoiding double-loading. Both outputs are emitted on every v2 run, even without stages or pointers; an empty selection produces only the Intel header and title.
+
+**Expansion.** A feature pointer contributes the authored path followed by `tech_` and `project_` basename variants. For example, `dir/fdr_vars.tcl` expands to `dir/fdr_vars.tcl`, `dir/tech_fdr_vars.tcl`, and `dir/project_fdr_vars.tcl`; `procs` follows the identical rule. Each entry is emitted as `iproc_source -file <entry> -optional`, even when absent. The path is one literal Tcl word: spaces, substitutions, separators, and other Tcl metacharacters are backslash-escaped, not evaluated. Ordinary filenames remain byte-identical. Example vars output (procs uses the same layout):
+
+```tcl
+<Intel header>
+
+# Feature vars.tcl sourcing file for apr_fc
+
+iproc_source -file fdr_vars.tcl -optional
+iproc_source -file tech_fdr_vars.tcl -optional
+iproc_source -file project_fdr_vars.tcl -optional
+
+iproc_source -file dop_vars.tcl -optional
+iproc_source -file tech_dop_vars.tcl -optional
+iproc_source -file project_dop_vars.tcl -optional
+```
+
+**Rules:**
+
+- **Order and deduplication:** features contribute in resolved order after P1 dependency sorting; blocks are separated by one blank line. Identical entry strings are first-wins independently within each output. Empty blocks are omitted. Emit `VW-29` for dropped vars entries or `VW-31` for dropped procs entries.
+- **Existence:** use the pristine source root on re-trim. A missing authored base/feature pointer emits `VW-27` for vars or `VW-30` for procs; absent optional variants do not warn. `--strict` changes the exit policy, never diagnostic severity.
+- **F1 auto-keep:** every existing base pointer and expanded feature entry becomes a layer-local implicit `files.include` literal. It selects a whole library, not named F2 procs. Normal R1 applies, including later exclusions (`VW-21`); source-list generation does not override those exclusions.
+- **Collision:** a generated path that collides with an existing file decision or stage aborts P3 with `VE-40` for vars or `VE-42` for procs.
+- **Base JSON name:** v2 expects the base JSON at `jsons/<basename(domain_root)>.json` (already the second auto-discovery candidate, Sec.5.1.0). A v2 base JSON whose file stem differs from the domain root basename emits `VW-28`; the flow name is always taken from the domain root, never from the JSON.
+- **One schema version per run:** project, base, and features must all be v1 or all be v2; mixing emits `VE-41` in P1.
+- **Downstream services:** both are `GENERATED` in `compiled_manifest.json`, listed in `files_kept.txt`, counted by `loc`, and brace-checked in P6 (including in-memory dry-run checks). Their generated source lines are not parsed or traced, so they do not produce P4/P6 source-reference warnings. P5c indentation follows `options.indent`; provenance markers are not injected into these source lists.
+- **Perforce plan:** `.chopper/p4_commands.txt` emits `p4 add -t text+x` for generated files absent from the pristine source and `p4 edit -t text+x` for generated files present there. This is a filesystem-based plan, not a depot query or automatic P4 execution. Re-trims use the backup, so a newly generated file remains an add until the source baseline changes.
+- **Stack:** with `options.generate_stack: true` and resolved stages, every aggregate-stack record lists both sourcing files as `I` inputs after authored inputs, without repeating authored matches (Sec.3.6). They are not stage steps. Standalone stack bodies remain verbatim; with no stages, no aggregate stack is emitted.
 
 ---
 
@@ -2677,6 +2724,8 @@ Every Chopper JSON carries a schema version.
 { "$schema": "base-v1", ... }
 ```
 
+Two versions are accepted side by side: `v1` (`base-v1`, `feature-v1`, `project-v1`) and `v2` (`base-v2`, `feature-v2`, `project-v2`). `v2` is `v1` plus optional `vars` and `procs` fields on base and feature JSONs, with generated feature vars/procs sourcing files (Sec.3.12); `project-v2` adds no fields. All JSONs in one run (project, base, features) must share one version; a mix emits `VE-41` in P1. `v1` is not deprecated.
+
 ### 6.3.1 Path and Glob Semantics
 
 **Paths in JSON are domain-relative and use forward slashes.** All paths resolve relative to the current working directory (domain root) where Chopper is invoked.
@@ -3300,6 +3349,7 @@ These artifacts are part of Chopper's public data contract. Their documented str
 | FR-54 | A feature may declare `incompatible_with: [<name>, ...]` naming other feature `name` values that must never be selected together with it in the same run. The check is symmetric (either side declaring it is sufficient) and order-independent, and runs in P1 alongside the `depends_on` topological sort. Selecting two mutually incompatible features emits `VE-38 incompatible-features-selected` (exit 1). A name that is not part of the current selection is not an error. See Sec.3.2.1. |
 | FR-55 | A stage definition (base `stages[]`, feature `add_stage_before` / `add_stage_after` / `replace_stage`), or an `add_step_before` / `add_step_after` flow_action, may specify `reference_file` (domain-relative path) instead of `steps` / `items`; mutually exclusive per object (schema `oneOf` -- both or neither fails schema validation, `VE-02`/`VE-12`). Chopper reads the file in P1 against the correct source root (`domain_root`, or `backup_root` on a `DomainState.case == 2` re-trim), decodes as UTF-8 tolerating a leading BOM, and splits it into one entry per physical line on any of `\r\n` / `\r` / `\n` -- blank and comment lines preserved verbatim, no per-line trimming beyond the line ending itself. Resolution failure fails with `VE-39 reference-file-invalid` (exit 1), one code across every authoring surface. Stage-level `reference_file` is retained as provenance metadata (`StageDefinition.reference_file` / `StageSpec.reference_file`); step-level `reference_file` is provenance only up to P1 load (`AddStepAction.reference_file`) and is not distinguishable after P3 splice. The referenced file itself is not implicitly added to `files.include`; if a stage's `reference_file` is not otherwise preserved in the compiled manifest, Chopper emits advisory `VW-26 stage-reference-file-not-preserved` (gated by `options.cross_validate`, matching VW-14/15/16). See Sec.3.6, Sec.6.7. |
 | FR-56 | `options.insert_markers` (base JSON, default `false`) is the single switch for every Sec.3.11 provenance comment marker, F2 and F3 alike. When `false`, no marker is written anywhere. When `true`, markers are standalone comment lines written only where Tcl reads them as comments: F3 marker pairs that do not sit at a top-level command boundary move outward to the nearest one, and are dropped when none exists. Toggling the switch changes comment lines only, never code. Standalone-stack and aggregate-stack files are never marked. See Sec.3.11. |
+| FR-57 | All-v2 runs generate `<basename(domain_root)>_feature_vars.tcl` and `<basename(domain_root)>_feature_procs.tcl`. Each feature `vars` / `procs` pointer expands to three optional source entries (authored, `tech_`, `project_` basename variants), in resolved feature order, independently deduplicated first-wins. Empty selections yield header-and-title-only outputs. Base pointers are only F1 keeps and never listed. Existing referenced files are implicit whole-file includes of their declaring layer under normal R1. Both files flow through p4 commands, audit, LoC, and P6 as `GENERATED` artifacts, and are added as `I` inputs on every aggregate-stack record (Sec.3.6). Diagnostics: `VW-27`, `VW-28`, `VW-29`, `VW-30`, `VW-31`, `VE-40`, `VE-41`, `VE-42`; see `technical_docs/DIAGNOSTIC_CODES.md`. See Sec.3.12. |
 
 ### 7.2 Non-Functional Requirements
 
@@ -3611,22 +3661,21 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 
 ## 13. Implementation Work Queue
 
-### 13.1 Priority Work Items
+### 13.1 Implemented Milestones
 
-| ID | Action | Priority |
+These original work items are implemented. Their IDs are retained for historical cross-references, not as a second roadmap. Runtime contracts remain in Sec.3-Sec.6; test policy is in `tests/TESTING_STRATEGY.md`.
+
+| IDs | Delivered capability | Owning modules |
 |---|---|---|
-| **AI-01** | Build and validate the Tcl parser / lexer prototype, proc index, and brace-aware structure checker against real domain files | **P0** |
-| **AI-02** | Implement dry-run reporting: compiled manifest, dependency graph, and trim report emission without domain file writes | **P0** |
-| **AI-03** | Implement compiler logic for FI / FE / PI / PE, ordered feature application, and R1 conflict resolution | **P0** |
-| **AI-04** | Implement F2 copy-and-delete trimming engine plus direct-write backup-and-rebuild recovery flow | **P0** |
-| **AI-05** | Implement audit trail generation under `.chopper/` with the artifact contracts in Section 5.4 | **P1** |
-| **AI-06** | Ship JSON Schema files and semantic validators for base, feature, and project JSONs | **P1** |
-| **AI-07** | Implement validation (Phase 1 + Phase 2), diagnostics, exit codes, and standalone `chopper validate` command | **P0** |
-| **AI-08** | Implement F3 generation behind a narrow generator interface using only the documented stage and flow-action model | **P1** |
-| **AI-09** | Implement dry-run mode (full pipeline simulation without file writes) | **P0** |
-| **AI-10** | Build fixture, golden, integration, and property-based tests for tracing, trimming, and retrim flows | **P0** |
-| **AI-11** | Implement `chopper cleanup` and the explicit last-day backup removal workflow | **P1** |
-| **AI-12** | Implement CLI logging setup and module-scoped diagnostic plumbing | **P1** |
+| **AI-01** | Tcl parser, proc index, structure checks | `parser/`, `validator/` |
+| **AI-02**, **AI-09** | Dry-run planning, in-memory output validation, audit reports | `orchestrator/`, `audit/` |
+| **AI-03** | Ordered R1 file/proc overlays | `compiler/` |
+| **AI-04** | F2 trimming and backup/rebuild lifecycle | `trimmer/`, `orchestrator/` |
+| **AI-05**, **AI-12** | Audit artifacts, CLI rendering, diagnostic plumbing | `audit/`, `cli/`, `adapters/` |
+| **AI-06**, **AI-07** | Bundled schemas, P1/P6 validation, exit policy | `config/`, `validator/`, `cli/` |
+| **AI-08** | Stage and stack generation, v2 sourcing files | `generators/` |
+| **AI-10** | Unit, integration, golden, and property suites | `tests/` |
+| **AI-11** | Explicit backup cleanup command | `cli/`, `orchestrator/` |
 
 ### 13.2 Operational Follow-Ups
 
@@ -3636,22 +3685,24 @@ Yes. The document is intentionally explicit about boundaries, defaults, resolved
 | **OP-02** | Approve operational ownership and timing for executing `chopper cleanup` on the last day | **P1** | Open |
 | **OP-03** | Establish domain-owner feature catalog conventions: naming standard, central registry, and review expectations | **P2** | Open |
 
-### 13.3 Near-Term Business Priorities (1-Week Horizon)
+### 13.3 Adoption Review
 
 | ID | Item | Description |
 |---|---|---|
-| **BP-01** | Define architecture-to-implementation gate criteria | What triggers the transition from docs-first to implementation-first |
-| **BP-02** | Resolve OQ-03 (proving-ground domain) | Unblocks AI-10 (real-domain test fixtures) |
-| **BP-03** | Complete adoption risk assessment | Authoring overhead and learning-curve during 2-week window |
-| **BP-04** | Define feature catalog convention | Naming standard, central registry, and review expectations |
+| **BP-01** | Maintain implementation gates | Existing quality gates are defined by the Makefile and testing strategy |
+| **BP-02** | Domain-owner acceptance | Fixture tests do not substitute for execution in the intended EDA environment |
+| **BP-03** | Adoption risk assessment | Authoring overhead and learning curve during the trim window |
+| **BP-04** | Feature catalog convention | Same operational decision as OP-03; do not maintain a separate convention here |
 
-### 13.4 Deferred Until Spec Finalization
+### 13.4 Reference Ownership
 
-| ID | Item | Rationale |
+The original documentation deferrals are resolved by linking to the documents that own the topic, rather than duplicating their content here. New unadopted ideas belong in `technical_docs/IMPLEMENTATION.md` Future Considerations.
+
+| ID | Topic | Canonical location |
 |---|---|---|
-| **DF-01** | Add quick-start section to architecture doc | Deferred until spec is final |
-| **DF-02** | Add example error/warning messages to doc | Deferred until spec is final |
-| **DF-03** | Add terminology note distinguishing "capability" from "feature JSON" | Deferred until spec is final |
+| **DF-01** | Quick start | `README.md`, `technical_docs/CLI_REFERENCE.md` |
+| **DF-02** | Diagnostic meanings and recovery | `technical_docs/DIAGNOSTIC_CODES.md` only |
+| **DF-03** | Capability vs feature JSON | Sec.2.1, Sec.3, and the glossary |
 
 ---
 
@@ -3695,6 +3746,7 @@ This log records the conscious **architectural** decisions that shaped the curre
 | 2026-09-29 | **4.9.0 -- Provenance markers opt-in (`options.insert_markers`, FR-56) and Tcl-safe (issue #31).** Real stage files broke on Sec.3.11 markers in two ways: an `add_step_after` into the option list of `::parseOpt::cmdSpec` put marker lines inside a braced data word, where Tcl reads `#` lines as list elements; and `replace_step` on `if {$ready} {` left an END marker with an unmatched `{` inside the new `if` body, which Tcl counts when matching the body's close. P6 passed both files, because its brace counter skips comment lines. Three changes. Markers are opt-in: `options.insert_markers` (default `false`) is one master switch for F2 and F3 alike, reversing the 4.5.0 always-on decision on the owner's approval of `FD-17`; with it off, flow actions place bare content at the same positions and F2 deletes removed procs outright. Marker text escapes `\`, `"`, `{`, and `}` as well as CR/LF, in `<name>` and `<source>`. F3 marker pairs sit only at top-level command boundaries (brace depth 0, outside a quoted word, not after a continuation line, never above a line-1 shebang); a pair landing anywhere else moves outward to wrap the enclosing top-level command, and is dropped if the content leaves no boundary -- this subsumes the 4.8.1 shebang rule. Standalone-stack stages, which Sec.3.11 always excluded but the resolver still marked, now get no markers. Rejected alternatives: suppressing markers inside braces (loses them wherever a stage uses `if` or `proc` blocks), and recognizing script-taking commands to keep markers inside their bodies (heuristic -- unknown commands such as `::parseOpt::cmdSpec` take data). No diagnostic or CLI change; `base-v1` gains one optional boolean. |
 | 2026-09-29 | **4.9.1 -- One options channel, one glob matcher, one domain walker (cleanup; one glob bug fix).** Four decisions. (1) *Options:* the base `options` object is frozen onto `CompiledManifest.options` (a `BaseOptions`) at P3, and P5/P6 read every switch there; this replaces two loose manifest bools (`generate_stack`, `insert_markers`) and two per-call keyword arguments (`TclIndentationService.run(enabled=)`, `validate_post(cross_validate=)`), so a new option is a schema field plus a `BaseOptions` field with no plumbing. Rejected: keeping per-option arguments, which gave four options four different routes. (2) *Glob bug:* Sec.6.3.1 says `*` and `?` never cross `/`, but P1, P1 validation, and P3 fell back to `fnmatch` for patterns without `**`, whose `*` does cross `/` -- `procs/*.tcl` also matched `procs/sub/file.tcl`, contradicting this document's own example table. All three now call one `core.globs.glob_match` built on the stdlib `PurePath.full_match`, which implements Sec.6.3.1 exactly and agreed with the old `**` translator on 56,000 pattern/path pairs. JSONs that relied on `*` reaching into subdirectories must use `**/`; no shipped example or fixture did. Rejected: keeping the hand-written translator and extending it to plain patterns (duplicates the stdlib). (3) *Walker:* P1 surface expansion, P1 glob validation, and the P2 parse each had their own BFS walk that skipped only a top-level `.chopper/`, while the LOC walk skipped it at every depth; all now share `core.fs_walk.iter_domain_files`, which skips `.chopper/` at every depth. (4) *Contract drift:* the feature schema omitted `standalone_stack` on `add_stage_*` and `replace_stage.with` although Sec.3.6 defines it as a `stageDefinition` field and the resolver honors it -- restored; `depends_on` text claiming prerequisites "must appear earlier" is corrected to the 4.6.1 contract (P1 topologically sorts, `VE-15`/`VE-22` are the only failures). Dead code removed: `DomainState.hand_edited` (always `False`; a leftover of the retired hand-edit detector, ENGINEERING.md Sec.16 Q2), the never-raised `ProgrammerError`, and an unused `simulate_trim_in_memory` / `build_loc_report` `loaded` parameter. The Sec.9.2 signature gate now also checks `validate_pre` / `validate_post` in both directions. No diagnostic or CLI change. |
 | 2026-09-29 | **4.9.2 -- `--project` runs record the project JSON in the audit bundle.** Sec.5.5.1, Sec.5.5.2, and Sec.5.5.10 require `input_project.json` and the `chopper_run.json` project fields on every `--project` run, but P7 never read `LoadedConfig.project`: the copy was never written, the project fields were empty stubs, and `compiled_manifest.json` `inputs.project` was always null. The audit writers now fill all three from the hydrated `ProjectJson`. Decision: P7 still reads each input from its path at audit time, and on a first live trim falls back to the same relative path under `<domain>_backup/` for an input stored inside the domain. P5 renamed the domain before P7, so an input outside `jsons/` (the shipped examples keep `project.json` at the domain root) exists only in the backup, with the bytes P1 read; the fallback applies to base and feature inputs too. A backup that existed before the run is never read -- it may be stale. Rejected: capturing input text at P1 on `BaseJson` / `FeatureJson` / `ProjectJson`, which would change the frozen config contract to serve one P7 copy. No diagnostic or CLI change. |
+| 2026-10-06 | **4.10.0 -- v2 schemas and generated feature vars/procs sourcing files.** New `base-v2` / `feature-v2` / `project-v2` schemas add optional `vars` and `procs` paths to base and feature (project unchanged), generating `<basename(domain_root)>_feature_vars.tcl` and `<basename(domain_root)>_feature_procs.tcl` (Sec.3.12, FR-57). Each feature pointer expands to three optional entries, prefixing only the basename with `tech_` / `project_`; base pointers are F1-only keeps because infrastructure already loads them. Existing files become layer-local whole-file includes under R1. Each output independently deduplicates first-wins and remains header-only without matching feature pointers. Infrastructure owns loading; flow names come from the domain root. Both files are declared as `I` inputs on every aggregate-stack record rather than re-sourced as stage steps (double-sourcing). Diagnostic references: `VE-40`, `VE-41`, `VE-42`, `VW-27`, `VW-28`, `VW-29`, `VW-30`, `VW-31`; see `technical_docs/DIAGNOSTIC_CODES.md`. Rejected: extending v1 in place (changes existing output), listing base files (double-sourcing), failing on absent optional files, mixing schema versions (ambiguous output), and proc-trimming pointer-selected libraries (the pointers explicitly select F1). |
 
 ---
 
@@ -3703,9 +3755,10 @@ This log records the conscious **architectural** decisions that shaped the curre
 | Term | Definition |
 |---|---|
 | **Domain** | A single EDA tool / flow-stage subtree under `global/<vendor>/<domain>/`. The unit of trimming. |
-| **Base JSON** | Required domain baseline JSON (schema `base-v1`). Declares minimum viable F1/F2/F3 content for the domain. |
-| **Feature JSON** | Optional overlay JSON (schema `feature-v1`) layered on top of base to add or remove files, procs, or stages. |
-| **Project JSON** | Reproducible selection manifest (schema `project-v1`) bundling a base plus ordered feature list for a specific project branch. |
+| **Base JSON** | Required domain baseline JSON (schema `base-v1` or `base-v2`). Declares minimum viable F1/F2/F3 content for the domain. |
+| **Feature JSON** | Optional overlay JSON (schema `feature-v1` or `feature-v2`) layered on top of base to add or remove files, procs, or stages. |
+| **Project JSON** | Reproducible selection manifest (schema `project-v1` or `project-v2`) bundling a base plus ordered feature list for a specific project branch. |
+| **Feature vars/procs sourcing files** | Generated `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` (v2 runs only) that `iproc_source -optional` each selected feature's corresponding files. See Sec.3.12. |
 | **F1** | File-level capability: whole-file include/exclude via `files.include` / `files.exclude`. |
 | **F2** | Proc-level capability: per-proc include/exclude inside Tcl files via `procedures.include` / `procedures.exclude`. |
 | **F3** | Stage-level capability: generated `<stage>.tcl` run files driven by the `stages` array and `flow_actions`. |

@@ -11,6 +11,7 @@ schema files are:
 * ``schemas/base-v1.schema.json``     -> ``$schema: base-v1``
 * ``schemas/feature-v1.schema.json``  -> ``$schema: feature-v1``
 * ``schemas/project-v1.schema.json``  -> ``$schema: project-v1``
+* ``schemas/<kind>-v2.schema.json``   -> ``$schema: <kind>-v2`` (v1 plus ``vars``)
 
 Diagnostic mapping:
 
@@ -43,18 +44,14 @@ __all__ = ["validate_json"]
 # Known schema $id values.
 # ---------------------------------------------------------------------------
 
-_SCHEMA_ID_BASE = "base-v1"
-_SCHEMA_ID_FEATURE = "feature-v1"
-_SCHEMA_ID_PROJECT = "project-v1"
-
-_KNOWN_SCHEMAS: frozenset[str] = frozenset([_SCHEMA_ID_BASE, _SCHEMA_ID_FEATURE, _SCHEMA_ID_PROJECT])
-
 # Maps $schema value -> the filename under schemas/.
 _SCHEMA_FILE: dict[str, str] = {
-    _SCHEMA_ID_BASE: "base-v1.schema.json",
-    _SCHEMA_ID_FEATURE: "feature-v1.schema.json",
-    _SCHEMA_ID_PROJECT: "project-v1.schema.json",
+    f"{kind}-v{version}": f"{kind}-v{version}.schema.json"
+    for kind in ("base", "feature", "project")
+    for version in (1, 2)
 }
+
+_KNOWN_SCHEMAS: frozenset[str] = frozenset(_SCHEMA_FILE)
 
 
 # ---------------------------------------------------------------------------
@@ -126,14 +123,14 @@ def validate_json(
     """
     schema_id: str | None = raw.get("$schema") if isinstance(raw, dict) else None
 
-    if schema_id not in _KNOWN_SCHEMAS:
+    if not isinstance(schema_id, str) or schema_id not in _KNOWN_SCHEMAS:
         on_diagnostic(
             Diagnostic.build(
                 "VE-01",
                 phase=Phase.P1_CONFIG,
                 message=(f"Unknown or missing $schema: {schema_id!r}. Expected one of: {sorted(_KNOWN_SCHEMAS)}"),
                 path=source_path,
-                hint='Add "$schema": "base-v1" (or feature-v1 / project-v1 variant)',
+                hint='Add "$schema": "base-v1" (or feature-v1 / project-v1, or the -v2 variants)',
             )
         )
         return False
@@ -145,7 +142,7 @@ def validate_json(
         return True
 
     first = errors[0]
-    code = "VE-12" if schema_id == _SCHEMA_ID_PROJECT else "VE-02"
+    code = "VE-12" if schema_id.startswith("project-") else "VE-02"
 
     # Build a concise human-readable message from the jsonschema error.
     path_str = " -> ".join(str(p) for p in first.absolute_path) if first.absolute_path else "(root)"

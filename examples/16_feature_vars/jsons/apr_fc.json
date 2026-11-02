@@ -1,0 +1,18 @@
+{
+  "$schema": "base-v2",
+  "domain": "apr_fc",
+  "description": "Runnable v2 sourcing example. Base pointers are F1 keeps only; infrastructure owns loading the generated feature lists.",
+  "vars": "vars.tcl",
+  "procs": "procs/core_procs.tcl",
+  "options": {
+    "generate_stack": true
+  },
+  "stages": [
+    {
+      "name": "main",
+      "load_from": "",
+      "command": "tclsh main.tcl",
+      "steps": ["set ::apr_fc_example_ready 1"]
+    }
+  ]
+}

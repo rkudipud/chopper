@@ -1,0 +1,7 @@
+{
+  "$schema": "feature-v2",
+  "name": "dop",
+  "description": "DOP variable and procedure libraries, independent of FDR.",
+  "vars": "dop_vars.tcl",
+  "procs": "dop_procs.tcl"
+}

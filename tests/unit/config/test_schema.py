@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from chopper.config.schema import validate_json
 from chopper.core.diagnostics import Diagnostic
 
@@ -466,7 +468,7 @@ class TestUnknownSchema:
 # ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_CHOPPER_SCHEMAS = {"base-v1", "feature-v1", "project-v1"}
+_CHOPPER_SCHEMAS = {f"{kind}-v{version}" for kind in ("base", "feature", "project") for version in (1, 2)}
 
 
 def _shipped_chopper_jsons() -> list[Path]:
@@ -491,3 +493,27 @@ def test_every_shipped_chopper_json_is_schema_valid() -> None:
         for path in corpus
     }
     assert {k: v for k, v in failures.items() if v} == {}
+
+
+@pytest.mark.parametrize("kind", ["base", "feature", "project"])
+def test_v2_preserves_every_v1_schema_field_except_version_and_pointers(kind: str) -> None:
+    schemas = _REPO_ROOT / "schemas"
+    v1 = json.loads((schemas / f"{kind}-v1.schema.json").read_text(encoding="utf-8"))
+    v2 = json.loads((schemas / f"{kind}-v2.schema.json").read_text(encoding="utf-8"))
+    v1["$id"] = v2["$id"]
+    v1["properties"]["$schema"] = v2["properties"]["$schema"]
+    for pointer in ("vars", "procs"):
+        if kind != "project":
+            assert pointer in v2["properties"]
+        v2["properties"].pop(pointer, None)
+    assert v1 == v2
+
+
+def test_shipped_json_validation_includes_v2_examples() -> None:
+    corpus = _shipped_chopper_jsons()
+    v2 = [path for path in corpus if json.loads(path.read_text(encoding="utf-8"))["$schema"].endswith("-v2")]
+    assert len(v2) >= 4
+    for path in corpus:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw["$schema"] = raw["$schema"].replace("-v1", "-v2")
+        assert _collect(raw, path) == [], path

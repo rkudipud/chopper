@@ -22,6 +22,7 @@ Per-record line order in the aggregate is fixed::
     J <command>          (omitted when command is empty)
     L <code1> <code2>    (omitted when exit_codes is empty)
     I <input>            (one line per entry; omitted when empty)
+    I <sourcing file>    (v2 generated sourcing files; Sec.3.12)
     O <output>           (one line per entry; omitted when empty)
     D <dependency>       (always; see derivation below)
     R parallel           (only when run_mode == "parallel"; serial implicit)
@@ -62,7 +63,7 @@ def standalone_stack_path(stage: StageSpec) -> Path:
     return Path(f"{stage.name}.stack")
 
 
-def _render_record(stage: StageSpec) -> list[str]:
+def _render_record(stage: StageSpec, extra_inputs: tuple[str, ...] = ()) -> list[str]:
     """Render one aggregate-stack record (no header). See module docstring for line order."""
 
     lines: list[str] = []
@@ -78,6 +79,10 @@ def _render_record(stage: StageSpec) -> list[str]:
 
     for value in stage.inputs:
         lines.append(f"I {value}")
+
+    for value in extra_inputs:
+        if value not in stage.inputs:
+            lines.append(f"I {value}")
 
     for value in stage.outputs:
         lines.append(f"O {value}")
@@ -102,6 +107,8 @@ def emit_flow_stack(
     stages: tuple[StageSpec, ...],
     domain_name: str,
     stack_order: tuple[str, ...] = (),
+    *,
+    extra_inputs: tuple[str, ...] = (),
 ) -> GeneratedArtifact:
     """Render the aggregate ``<domain_name>.stack`` for all stages.
 
@@ -110,6 +117,10 @@ def emit_flow_stack(
     ``{s.name for s in stages}`` (typically the topological order
     computed by :func:`chopper.compiler.stack_graph.compute_stack_order`)
     and records are emitted by name lookup in that order.
+
+    ``extra_inputs`` (the v2 generated sourcing files, ARCHITECTURE.md
+    Sec.3.12) are appended as ``I`` lines to every record after its
+    authored inputs, skipping any the record already authors.
 
     ``stages`` must be non-empty; the aggregate stack is only requested
     when at least one stage is in scope, and the caller is responsible
@@ -124,7 +135,7 @@ def emit_flow_stack(
 
     # Records are Chopper-authored (no user body), so the header is unconditional.
     parts: list[str] = ["\n".join(intel_header_lines())]
-    parts.extend("\n".join(_render_record(stage)) for stage in ordered_stages)
+    parts.extend("\n".join(_render_record(stage, extra_inputs)) for stage in ordered_stages)
     content = "\n\n".join(parts) + "\n"
 
     return GeneratedArtifact(

@@ -17,7 +17,10 @@ containing one record per stage. Record order is
 :func:`compute_stack_order`), or ``manifest.stages`` order when
 ``stack_order`` is empty. The aggregate is appended *after* the
 per-stage loop so its artifact slot is last and predictable for audit
-consumers.
+consumers. On a v2 run the ``<domain>_feature_vars.tcl`` and
+``<domain>_feature_procs.tcl`` sourcing files (ARCHITECTURE.md Sec.3.12)
+are emitted after the per-stage files and before the aggregate stack,
+and every aggregate record lists them as ``I`` inputs.
 
 Stateless and deterministic: same manifest, same artifact tuple in the
 same order.
@@ -46,6 +49,7 @@ from chopper.core.models_compiler import CompiledManifest
 from chopper.core.models_trimmer import GeneratedArtifact
 from chopper.generators.stack_emitter import emit_flow_stack, emit_standalone_stack
 from chopper.generators.stage_emitter import emit_stage_tcl
+from chopper.generators.vars_emitter import emit_feature_vars
 
 __all__ = ["GeneratorService"]
 
@@ -66,11 +70,23 @@ class GeneratorService:
             self._write(ctx, artifact)
             artifacts.append(artifact)
 
+        sourcing: list[GeneratedArtifact] = []
+        if manifest.feature_vars is not None:
+            sourcing.append(emit_feature_vars(ctx.config.domain_root.name, manifest.feature_vars))
+
+        if manifest.feature_procs is not None:
+            sourcing.append(emit_feature_vars(ctx.config.domain_root.name, manifest.feature_procs, procs=True))
+
+        for artifact in sourcing:
+            self._write(ctx, artifact)
+            artifacts.append(artifact)
+
         if manifest.options.generate_stack and manifest.stages:
             aggregate = emit_flow_stack(
                 manifest.stages,
                 ctx.config.domain_root.name,
                 manifest.stack_order,
+                extra_inputs=tuple(a.path.as_posix() for a in sourcing),
             )
             self._write(ctx, aggregate)
             artifacts.append(aggregate)
