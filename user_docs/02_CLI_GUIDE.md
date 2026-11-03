@@ -506,6 +506,10 @@ chopper --plain --strict validate --project project.json 2>&1 | tee chopper.log
 
 ### Example E -- quiesce a tool-command-heavy domain
 
+Each `--tool-commands` argument must name an existing regular file. P1 checks
+these paths before loading the pool and emits `VE-43` for invalid inputs (see
+[technical_docs/DIAGNOSTIC_CODES.md](../technical_docs/DIAGNOSTIC_CODES.md)).
+
 ```text
 # Six vendor pools bundled (PrimeTime, PrimePower, PrimeECO, PrimeSim, Formality, PrimeClosure).
 # For site-local or additional tool pools, pass extra:

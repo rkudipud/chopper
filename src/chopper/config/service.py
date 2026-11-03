@@ -166,6 +166,19 @@ class ConfigService:
         # paths from ``RunConfig.tool_command_paths`` extend the set.
         from chopper.core.tool_commands import load_pool as _load_pool
 
+        for path in ctx.config.tool_command_paths:
+            if not path.is_file():
+                ctx.diag.emit(
+                    Diagnostic.build(
+                        "VE-43",
+                        phase=Phase.P1_CONFIG,
+                        message=f"--tool-commands path is not an existing regular file: {path}",
+                        path=path,
+                        hint="Point --tool-commands at an existing plain-text command-list file",
+                    )
+                )
+                return _empty_config()
+
         pool = _load_pool(ctx.config.tool_command_paths)
 
         return LoadedConfig(

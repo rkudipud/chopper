@@ -97,7 +97,7 @@ Every flag, invocation mode, audit artifact, and exit code is in [user_docs/02_C
 
 ### Worked examples
 
-Copy the nearest folder under [examples/](examples/) into your domain and adapt it. The schemas in [schemas/](schemas/) enforce correctness.
+Copy the nearest folder under [examples/](examples/) into your domain and adapt it. These are JSON templates, not standalone Tcl domains: supply the referenced Tcl files in your domain before running Chopper. The schemas in [schemas/](schemas/) check JSON structure; `chopper validate` also checks the referenced files.
 
 | Example | What it shows |
 | --- | --- |
@@ -357,6 +357,11 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.11.2 -- 2026-11-02
+
+- **Fixed: missing input files no longer cause internal errors.** P1 checks literal procedure file references in base and feature layers against the pristine source, and validates `--tool-commands` paths before loading them. Missing procedure files use `VE-06`; invalid tool-command paths use `VE-43` (see [DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md)). Regression tests cover both failures across the relevant commands, layers, and backup states. JSON examples are documented as templates rather than standalone Tcl domains.
+- **History and contribution hygiene.** Release dates and ordering now follow git evidence, including the still-active #26 enhancement. One intermittent filesystem test is skipped only on Windows. The PR template and contribution guide require descriptive, issue-linked squash-merge titles.
+
 ### 4.11.1 -- 2026-11-02
 
 - **Docs, agent, and CI consolidation (no behavior change).** The CLI reference now lives only in [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md); three test-planning documents were retired into [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md) and [tests/FIXTURE_CATALOG.md](tests/FIXTURE_CATALOG.md). The contributor buildout agent was removed and its rules folded into the project instructions. The Chopper agent knows the v2 generated files and every `.chopper/` artifact, and a new [migrate-v1-to-v2 skill](.github/skills/migrate-v1-to-v2/SKILL.md) interviews you, migrates base, feature, and project JSONs one proven dry-run at a time, and suggests v2 improvements. A GitHub Actions workflow now runs the `make ci` gates, and regression tests pin issues #35, #37, and #39. See the 4.11.1 row in [ARCHITECTURE.md Sec.13](technical_docs/ARCHITECTURE.md).
@@ -498,7 +503,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 - **Stack-file emission corrected to one aggregate per flow.** `options.generate_stack: true` now emits exactly one aggregate `<basename(domain_root)>.stack` at the domain root, containing one N/J/L/I/O/D record per resolved stage (R line added only for `run_mode: "parallel"`). Pre-3.3 emitted one `<stage>.stack` per stage, which contradicted the production artifact contract in `2025.06_json_exp/fev_formality/`. New `standalone_stack: boolean` flag on each stage definition is orthogonal and additive: when set, that stage additionally emits a per-stage `<stage>.stack` whose body is the Intel header + verbatim `steps` (no record-style derivation), intended for verbatim shell stacks such as `eco_apply_patch`. Three new diagnostics in the registry: `VE-28 aggregate-stack-collision`, `VE-29 standalone-stack-collision`, `VW-23 stack-stage-empty-command`. No backward-compatibility shim -- legacy `emit_stage_stack` / `stack_output_path` symbols removed. New examples [examples/12_base_with_aggregate_stack/](examples/12_base_with_aggregate_stack/) and [examples/13_base_with_standalone_stack/](examples/13_base_with_standalone_stack/) demonstrate the two modes. Full gate green: 1448 passed, total coverage 99.99%. Version bumped 3.2.1 -> 3.3.0.
 
-### 3.2.1 -- 2026-05-20
+### 3.2.1 -- 2026-05-21
 
 - **New `VW-22 proc-trim-no-drop` diagnostic (issue #26).** Chopper now emits a warning when a `PROC_TRIM` file's backup contains zero procs to remove -- i.e. every proc found in `<domain>_backup/` already belongs to the keep set. The built file is byte-identical to the backup. The canonical cause is a stale backup that holds a prior run's post-trim output: `chopper cleanup --confirm` removed the real backup; a subsequent Case 1 run promoted the already-trimmed domain to backup; the second trim has nothing more to do. `VW-22` surfaces this in `diagnostics.json` so regression pipelines can distinguish a genuine "no change needed" trim from a "backup was already trimmed" silent no-op. Recovery: restore the original pre-trim source from version control, delete `<domain>_backup/`, and re-run. Version bumped 3.2.0 -> 3.2.1.
 

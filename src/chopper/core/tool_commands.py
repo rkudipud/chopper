@@ -80,8 +80,9 @@ def load_pool(user_paths: tuple[Path, ...] = ()) -> frozenset[str]:
     :class:`OSError` because those resources ship with the wheel and
     their absence is a packaging bug. File read failures on
     **user** paths propagate as :class:`FileNotFoundError` with the
-    offending path in the message -- the CLI layer translates those
-    into a user-friendly error before the pipeline starts.
+    offending path in the message. The configuration service checks
+    user paths before calling this loader (``VE-43``; see
+    ``technical_docs/DIAGNOSTIC_CODES.md``).
     """
     tokens: set[str] = set()
 

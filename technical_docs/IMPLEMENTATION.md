@@ -2438,7 +2438,7 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 
 **FD-03 -- Interactive feature-selection TUI.** Browse features, preview effects, compose project JSON. Deferred -- CLI-first is correct today, and the browser GUI in `FD-04` covers the same need; the application layer (`technical_docs/ARCHITECTURE.md` Sec.5.11.2) enables this with no engine changes.
 
-**FD-04 -- Local browser GUI (delivery form decided; not built).** A second front end, peer of the CLI over the same `chopper.app` use cases (`technical_docs/ARCHITECTURE.md` Sec.5.11.2). Decided form:
+**FD-04 -- Local browser GUI (delivery form decided; not built).** A second front end, peer of the CLI over the same `chopper.app` use cases (`technical_docs/ARCHITECTURE.md` Sec.5.11.2). [Enhancement #47](https://github.com/rkudipud/chopper/issues/47) tracks the interaction design and optional-package evaluation; those alternatives require approval and do not replace the decided form below:
 
 - *Delivery:* a `chopper gui` subcommand starts a Python standard-library HTTP server (`http.server` + `json`) in the foreground, bound to `127.0.0.1` on a random free port, guarded by a per-launch token in the URL, and opens the default browser. Ctrl-C stops it. No daemon, no remote binding; remote use goes through `ssh -L`.
 - *Client:* static HTML, CSS, and vanilla JavaScript shipped as package data. No npm, no build step, no frontend framework, no new runtime dependency.

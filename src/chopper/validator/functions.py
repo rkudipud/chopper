@@ -5,8 +5,8 @@ and returns ``None``.
 
 ``validate_pre(ctx, loaded)`` -- runs before P2. Emits:
 
-* ``VE-06`` -- literal path in ``files.include`` not present under
-  :attr:`RunConfig.domain_root`.
+* ``VE-06`` -- literal paths in file includes and procedure rules are checked
+  against the source root (see ``technical_docs/DIAGNOSTIC_CODES.md``).
 * ``VW-25`` -- literal path in ``files.exclude`` already absent under
   :attr:`RunConfig.domain_root`; the exclusion is a no-op (the file the
   author wanted dropped is already gone) so the trim proceeds.
@@ -45,7 +45,7 @@ from chopper.core.globs import glob_match
 from chopper.core.layout import source_root
 from chopper.core.models_common import FileTreatment
 from chopper.core.models_compiler import CompiledManifest, DependencyGraph, StageSpec
-from chopper.core.models_config import FeatureJson, FilesSection, LoadedConfig
+from chopper.core.models_config import BaseJson, FeatureJson, LoadedConfig
 from chopper.core.models_trimmer import GeneratedArtifact, TrimReport
 from chopper.parser.service import parse_file
 
@@ -68,9 +68,9 @@ def validate_pre(ctx: ChopperContext, loaded: LoadedConfig) -> None:
     _check_empty_base(ctx, loaded)
     _check_project_level(ctx, loaded)
     _check_feature_domain(ctx, loaded)
-    _check_paths(ctx, loaded.base.domain, "base", loaded.base.files)
+    _check_paths(ctx, "base", loaded.base)
     for feature in loaded.features:
-        _check_paths(ctx, loaded.base.domain, feature.name, feature.files)
+        _check_paths(ctx, feature.name, feature)
 
 
 def _check_empty_base(ctx: ChopperContext, loaded: LoadedConfig) -> None:
@@ -142,9 +142,8 @@ def _check_feature_domain(ctx: ChopperContext, loaded: LoadedConfig) -> None:
 
 def _check_paths(
     ctx: ChopperContext,
-    base_domain: str,
     source_key: str,
-    files: FilesSection,
+    source: BaseJson | FeatureJson,
 ) -> None:
     """Walk include/exclude patterns for one source and emit path diagnostics.
 
@@ -154,16 +153,15 @@ def _check_paths(
     """
 
     # FI includes.
-    for pattern in files.include:
+    for pattern in source.files.include:
         _check_pattern(ctx, pattern, source_key=source_key, field="files.include")
 
-    # FE excludes -- same rules apply (literal must exist; glob must be
-    # well-formed). ``VW-03 glob-matches-nothing`` does not fire for
-    # excludes; a zero-match exclude is harmless.
-    for pattern in files.exclude:
+    for pattern in source.files.exclude:
         _check_pattern(ctx, pattern, source_key=source_key, field="files.exclude", is_include=False)
 
-    _ = base_domain  # reserved for future feature-vs-base domain diffs.
+    for field, refs in (("include", source.procedures.include), ("exclude", source.procedures.exclude)):
+        for ref in refs:
+            _check_literal_path(ctx, ref.file.as_posix(), source_key=source_key, field=f"procedures.{field}")
 
 
 def _check_pattern(
@@ -196,7 +194,17 @@ def _check_pattern(
             )
         return
 
-    # Literal path.
+    _check_literal_path(ctx, pattern, source_key=source_key, field=field, is_include=is_include)
+
+
+def _check_literal_path(
+    ctx: ChopperContext,
+    pattern: str,
+    *,
+    source_key: str,
+    field: str,
+    is_include: bool = True,
+) -> None:
     rel = Path(pattern)
     target = source_root(ctx) / rel
     if not ctx.fs.exists(target):

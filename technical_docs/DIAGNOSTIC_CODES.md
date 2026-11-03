@@ -24,7 +24,7 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 
 | Family+Severity | Range | Active | Reserved | Total | When emitted |
 | --- | --- | --- | --- | --- | --- |
-| `VE` Validation Errors | VE-01-VE-50 | 42 | 8 | 50 | Schema, path, action, ordering, filesystem failures -- block output |
+| `VE` Validation Errors | VE-01-VE-50 | 43 | 7 | 50 | Schema, path, action, ordering, filesystem failures -- block output |
 | `VW` Validation Warnings | VW-01-VW-40 | 29 | 9 | 40 | Soft mismatches, overlaps, stale globs, ordered-overlay layer-shadow audit, F3 cross-validate, audit write failures, zero-drop PROC_TRIM guard, stack-record empty-command warning, companion-file missing, already-absent exclude-literal target, stage-reference-file provenance, feature vars/procs sourcing files (2 retired slots: VW-18, VW-19) |
 | `VI` Validation Info | VI-01-VI-05 | 5 | 0 | 5 | Advisory notices; no action required |
 | `TW` Trace Warnings | TW-01-TW-10 | 4 | 6 | 10 | Proc call graph ambiguities (Phase 4) |
@@ -32,7 +32,7 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | `PE` Parse Errors | PE-01-PE-10 | 3 | 6 | 10 | Fatal parse failures; file skipped or partial (1 retired slot: PE-04) |
 | `PW` Parse Warnings | PW-01-PW-20 | 11 | 9 | 20 | Unresolvable or dynamic Tcl constructs |
 | `PI` Parse Info | PI-01-PI-10 | 4 | 6 | 10 | Structural observations; fully handled |
-| **Total** | | **99** | **48** | **150** | |
+| **Total** | | **100** | **47** | **150** | |
 
 ---
 
@@ -47,7 +47,7 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | VE-03 | `empty-procs-array` | 1 | compiler | 1 | Any `procEntry` (in `procedures.include` or `procedures.exclude`) has empty `procs` array (`"procs": []`). An entry with no procs is an authoring error; if you want whole-file inclusion use `files.include`, if you have nothing to exclude omit the entry. | For include: move the file to `files.include` for whole-file inclusion. For exclude: remove the entry (nothing to exclude). |
 | VE-04 | `unsupported-flow-action` | 1 | compiler | 1 | `flow_actions` entry uses an unsupported `action` value | Use one of: `add_step_before`, `add_step_after`, `add_stage_before`, `add_stage_after`, `remove_step`, `remove_stage`, `load_from`, `replace_step`, `replace_stage` |
 | VE-05 | `missing-action-target` | 1 | compiler | 1 | `add_*`, `replace_*`, or `remove_*` references a target that does not exist | Check that the `reference` stage/step exists prior to this action in compilation order |
-| VE-06 | `file-not-in-domain` | 1 | validator | 1 | File in `files.include` does not exist in domain (or `_backup`). A missing literal in `files.exclude` is **not** this code -- it emits `VW-25` (no-op exclusion) and the trim proceeds. | Verify file paths are domain-relative and the file exists |
+| VE-06 | `file-not-in-domain` | 1 | validator | 1 | File in `files.include`, `procedures.include`, or `procedures.exclude` does not exist in the active source root (`_backup` when present, otherwise domain). Procedure file paths are always literal. A missing literal in `files.exclude` is **not** this code -- it emits `VW-25` (no-op exclusion) and the trim proceeds. | Verify file paths are domain-relative and the file exists in the pristine source |
 | VE-07 | `proc-not-in-file` | 1 | validator | 1 | Proc in `procedures.include` not found in the referenced file | Verify proc name matches a `proc` definition in the file |
 | VE-08 | `duplicate-stage-names` | 1 | compiler | 1 | Duplicate stage names after all stage actions are applied | Rename one of the conflicting stages |
 | VE-09 | `malformed-glob` | 1 | validator | 1 | Malformed glob pattern in file rules | Fix the glob syntax; supported: `*`, `?`, `**` |
@@ -84,7 +84,8 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | VE-40 | `feature-vars-collision` | 3 | compiler | 1 | On a v2 run the generated feature vars sourcing file path `<basename(domain_root)>_feature_vars.tcl` (ARCHITECTURE Sec.3.12) is also a `files.include` / `files.exclude` / `procedures.*` decision, so P3 cannot assign it both a source treatment and `GENERATED`. | Remove the path from `files.*` / `procedures.*`, or rename the hand-written file -- Chopper owns that path on v2 runs |
 | VE-41 | `mixed-schema-versions` | 1 | schema | 1 | The JSONs selected for one run do not share one schema version: project, base, and every feature must all be `-v1` or all be `-v2`. The message lists each JSON with its `$schema`. | Move every selected JSON to the same version (`-v2` to use `vars`) |
 | VE-42 | `feature-procs-collision` | 3 | compiler | 1 | The generated `<flow>_feature_procs.tcl` path collides with an existing file decision or generated stage. | Remove the conflicting file/procedure selection or rename the hand-written file or stage. |
-| -- | -- | -- | -- | -- | **VE-43 through VE-50 reserved** | -- |
+| VE-43 | `tool-commands-file-invalid` | 1 | config | 1 | A user-supplied `--tool-commands` path is missing or is not a regular file. Configuration loading stops before parsing or output generation; built-in resource failures are not mapped to this code. | Point --tool-commands at an existing plain-text command-list file |
+| -- | -- | -- | -- | -- | **VE-44 through VE-50 reserved** | -- |
 
 ---
 
