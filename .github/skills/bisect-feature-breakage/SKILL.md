@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: bisect-feature-breakage
+description: bisect-feature-breakage
+disable-model-invocation: true
 ---
-
 # Bisect the feature that broke trim
 
 Invoke the **Chopper Agent** in `full-loop` mode.

@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: validate-my-jsons
+description: validate-my-jsons
+disable-model-invocation: true
 ---
-
 # Validate my Chopper JSONs
 
 Invoke the **Chopper Agent** in `analyze-only` mode (no CLI calls to `chopper`).

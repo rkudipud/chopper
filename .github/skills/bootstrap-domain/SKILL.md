@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: bootstrap-domain
+description: bootstrap-domain
+disable-model-invocation: true
 ---
-
 # Bootstrap a new Chopper domain
 
 Invoke the **Chopper Agent** in `full-loop` mode.

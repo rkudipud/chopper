@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: package-bug-artifacts
+description: package-bug-artifacts
+disable-model-invocation: true
 ---
-
 # Package Chopper bug artifacts from Unix paths
 
 Invoke the **Chopper Agent**.

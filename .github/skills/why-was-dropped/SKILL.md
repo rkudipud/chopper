@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: why-was-dropped
+description: why-was-dropped
+disable-model-invocation: true
 ---
-
 # Why was `<name>` dropped (or kept)?
 
 Invoke the **Chopper Agent**.

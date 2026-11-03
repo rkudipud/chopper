@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: report-chopper-bug
+description: report-chopper-bug
+disable-model-invocation: true
 ---
-
 # File a Chopper bug report automatically
 
 Invoke the **Chopper Agent**.

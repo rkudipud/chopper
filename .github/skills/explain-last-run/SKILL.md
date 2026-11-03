@@ -1,7 +1,8 @@
 ---
-mode: agent
+name: explain-last-run
+description: explain-last-run
+disable-model-invocation: true
 ---
-
 # Explain my last Chopper run
 
 Invoke the **Chopper Agent**.
