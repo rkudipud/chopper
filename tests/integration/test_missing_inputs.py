@@ -43,6 +43,35 @@ def test_missing_proc_file_is_a_p1_error(tmp_path: Path, layer: str, direction: 
     assert not (domain / ".chopper" / "internal-error.log").exists()
 
 
+@pytest.mark.parametrize("layer", ["base", "feature"])
+@pytest.mark.parametrize("backup", [False, True])
+def test_absent_tcl_exclude_target_is_a_no_op_warning(tmp_path: Path, layer: str, backup: bool) -> None:
+    domain = tmp_path / "domain"
+    domain.mkdir()
+    source = tmp_path / "domain_backup" if backup else domain
+    source.mkdir(exist_ok=True)
+    (source / "core.tcl").write_text("proc core {} { return 1 }\n", encoding="utf-8")
+    base = tmp_path / "base.json"
+    base_data: dict[str, object] = {"$schema": "base-v1", "domain": "domain", "files": {"include": ["core.tcl"]}}
+    args = ["--plain", "trim", "--dry-run", "--domain", str(domain), "--base", str(base)]
+    if layer == "base":
+        base_data["files"] = {"include": ["core.tcl"], "exclude": ["old/gone.tcl"]}
+    else:
+        feature = tmp_path / "extra.feature.json"
+        feature.write_text(
+            json.dumps({"$schema": "feature-v1", "name": "extra", "files": {"exclude": ["old/gone.tcl"]}}),
+            encoding="utf-8",
+        )
+        args.extend(["--features", str(feature)])
+    base.write_text(json.dumps(base_data), encoding="utf-8")
+
+    assert main(args) == 0
+    diagnostics = json.loads((domain / ".chopper" / "diagnostics.json").read_text(encoding="utf-8"))["diagnostics"]
+    assert [diag["code"] for diag in diagnostics] == ["VW-25"]
+    assert not (domain / ".chopper" / "internal-error.log").exists()
+    assert "core.tcl\t" in (domain / ".chopper" / "files_kept.txt").read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("backup", [False, True])
 def test_proc_paths_are_literal_and_use_pristine_source(tmp_path: Path, backup: bool) -> None:
     domain = tmp_path / "domain"

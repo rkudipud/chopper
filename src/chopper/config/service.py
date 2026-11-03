@@ -481,7 +481,9 @@ def _collect_surface_files(
     filesystem so that files reachable only via a glob -- never named
     literally -- are included in the P2 parse universe.  Glob patterns in
     ``files.exclude`` are intentionally not expanded here (the compiler
-    applies them against ``parsed_paths`` in P3).
+    applies them against ``parsed_paths`` in P3).  Literal ``files.exclude``
+    paths join the surface only when they exist under the source root: an
+    absent target is the ``VW-25`` no-op and must never reach the parser.
 
     ``procedures.include`` / ``procedures.exclude`` always use exact file
     paths, so those are added directly.
@@ -499,9 +501,10 @@ def _collect_surface_files(
           This cache can be reused by P2 for full-domain harvest (O1 opt).
     """
     paths: set[Path] = set()
+    source_root = layout.source_root(ctx)
 
     def _add_literal(s: str) -> None:
-        if not _is_glob_pattern(s):
+        if not _is_glob_pattern(s) and ctx.fs.exists(source_root / s):
             paths.add(Path(s))
 
     sources: tuple[BaseJson | FeatureJson, ...] = (base, *features)

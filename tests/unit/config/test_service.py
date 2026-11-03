@@ -586,7 +586,8 @@ class TestDeterminism:
 def test_config_service_collects_surface_files_from_all_sections() -> None:
     """Cover all four harvest paths in ``_collect_surface_files``: each
     section (files.include, files.exclude, procedures.include,
-    procedures.exclude) populated on at least one source."""
+    procedures.exclude) populated on at least one source. A literal
+    ``files.exclude`` target joins the surface only when it exists."""
     from chopper.config.service import _collect_surface_files
     from chopper.core.models_config import BaseJson, FeatureJson, FilesSection, ProceduresSection, ProcEntryRef
 
@@ -601,7 +602,7 @@ def test_config_service_collects_surface_files_from_all_sections() -> None:
         name="extra",
         files=FilesSection(
             include=("extra.tcl",),
-            exclude=("unwanted.tcl", "skip/*.tcl"),
+            exclude=("unwanted.tcl", "gone.tcl", "skip/*.tcl"),
         ),
         procedures=ProceduresSection(
             include=(ProcEntryRef(file=Path("extra.tcl"), procs=("good",)),),
@@ -609,15 +610,21 @@ def test_config_service_collects_surface_files_from_all_sections() -> None:
         ),
     )
     # Build a minimal ctx so _collect_surface_files can attempt disk expansion.
-    # _InMemoryFS.exists() returns False for the domain root, so glob
-    # expansion gracefully returns empty and only literals are surfaced.
-    ctx, _ = _make_ctx({Path("/dom/base.json"): ""}, base_path=Path("/dom/base.json"), domain_root=Path("/dom"))
+    # _InMemoryFS.list() returns nothing, so glob expansion gracefully
+    # returns empty and only literals are surfaced.
+    ctx, _ = _make_ctx(
+        {Path("/dom/base.json"): "", Path("/dom/unwanted.tcl"): ""},
+        base_path=Path("/dom/base.json"),
+        domain_root=Path("/dom"),
+    )
     surface, _domain_cache = _collect_surface_files(base, [feat], ctx)
     posix = {p.as_posix() for p in surface}
     # Literal include + exclude from both sources captured.
     assert "main.tcl" in posix
     assert "extra.tcl" in posix
     assert "unwanted.tcl" in posix
+    # An absent exclude target is the VW-25 no-op; parsing it would crash P2.
+    assert "gone.tcl" not in posix
     # Glob entries not present as raw strings (expansion returned empty with InMemoryFS).
     assert "lib/*.tcl" not in posix
     assert "skip/*.tcl" not in posix

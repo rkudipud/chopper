@@ -220,9 +220,9 @@ def _check_literal_path(
         else:
             # A literal ``files.exclude`` target that is already absent is a
             # no-op: the file the author wanted dropped is gone. Warn
-            # (VW-25) and let the pipeline proceed -- the missing literal is
-            # harmlessly filtered at P3 (merge_service ``_distill_facts``),
-            # so no VE-27 follows.
+            # (VW-25) and let the pipeline proceed -- P1 surface collection
+            # (config ``_collect_surface_files``) keeps the missing literal
+            # out of the P2 parse universe, so no VE-27 or read failure follows.
             ctx.diag.emit(
                 Diagnostic.build(
                     "VW-25",

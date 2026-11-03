@@ -357,6 +357,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.11.3 -- 2026-11-03
+
+- **Fixed: excluding a file that is already gone no longer crashes.** A literal `files.exclude` path that does not exist now only warns with `VW-25` and the trim continues, as documented; before, the missing file reached the parser and the run ended with an internal error (exit 3). Regression tests cover base and feature layers, with and without a backup.
+
 ### 4.11.2 -- 2026-11-02
 
 - **Fixed: missing input files no longer cause internal errors.** P1 checks literal procedure file references in base and feature layers against the pristine source, and validates `--tool-commands` paths before loading them. Missing procedure files use `VE-06`; invalid tool-command paths use `VE-43` (see [DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md)). Regression tests cover both failures across the relevant commands, layers, and backup states. JSON examples are documented as templates rather than standalone Tcl domains.
