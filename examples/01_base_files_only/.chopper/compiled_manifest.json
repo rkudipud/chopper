@@ -1,0 +1,18 @@
+{
+  "chopper_version": "4.11.0",
+  "domain": "",
+  "files": [],
+  "flow_actions": [],
+  "inputs": {
+    "base": "",
+    "features": [],
+    "project": null
+  },
+  "interaction_warnings": [],
+  "procedures": {
+    "excluded": [],
+    "surviving": [],
+    "traced": []
+  },
+  "run_id": "9e547c5316b24a3a916d694dc3f99b62"
+}

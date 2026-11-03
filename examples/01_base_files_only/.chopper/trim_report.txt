@@ -1,0 +1,10 @@
+Chopper Trim Report
+========================================
+Run ID:   9e547c5316b24a3a916d694dc3f99b62
+Domain:   01_base_files_only
+Mode:     dry-run
+Started:  2026-11-03T01:40:05Z
+Ended:    2026-11-03T01:40:05Z
+Exit:     3
+
+(no files were modified)

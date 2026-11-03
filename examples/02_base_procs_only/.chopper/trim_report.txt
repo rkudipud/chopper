@@ -1,0 +1,10 @@
+Chopper Trim Report
+========================================
+Run ID:   18fd9d54a2db43519f8d9f21a248da15
+Domain:   02_base_procs_only
+Mode:     dry-run
+Started:  2026-11-03T01:39:34Z
+Ended:    2026-11-03T01:39:35Z
+Exit:     3
+
+(no files were modified)

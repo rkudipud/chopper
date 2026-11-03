@@ -1,0 +1,19 @@
+{
+  "chopper_version": "4.11.0",
+  "domain": "01_base_files_only",
+  "files_after": 0,
+  "files_before": 0,
+  "files_skipped_decode": 0,
+  "procs_after": 0,
+  "procs_before": 0,
+  "raw_lines_after": 0,
+  "raw_lines_before": 0,
+  "run_id": "9e547c5316b24a3a916d694dc3f99b62",
+  "sloc_after": 0,
+  "sloc_before": 0,
+  "sloc_removed": 0,
+  "timestamp": "2026-11-03T01:40:05Z",
+  "trim_ratio_files": 0.0,
+  "trim_ratio_procs": 0.0,
+  "trim_ratio_sloc": 0.0
+}

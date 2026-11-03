@@ -1,0 +1,6 @@
+# p4_commands.txt -- Perforce commands corresponding to this Chopper trim.
+# Review each section, then run `p4 submit` yourself; Chopper does NOT submit.
+# Paths are domain-relative; run these from the rebuilt domain root.
+# `-t text+x` declares Perforce filetype `text` with the executable bit set.
+
+# (no Perforce commands -- nothing to submit)

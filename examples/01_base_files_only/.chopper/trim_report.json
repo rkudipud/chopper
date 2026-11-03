@@ -1,0 +1,27 @@
+{
+  "chopper_version": "4.11.0",
+  "diagnostics": [],
+  "file_report": [],
+  "mode": "dry-run",
+  "proc_report": [],
+  "run_id": "9e547c5316b24a3a916d694dc3f99b62",
+  "summary": {
+    "files_removed": 0,
+    "files_skipped_decode": 0,
+    "files_surviving": 0,
+    "procs_removed": 0,
+    "procs_surviving": 0,
+    "procs_traced": 0,
+    "raw_lines_after": 0,
+    "raw_lines_before": 0,
+    "sloc_after": 0,
+    "sloc_before": 0,
+    "sloc_removed": 0,
+    "total_domain_files": 0,
+    "total_domain_procs": 0
+  },
+  "validation_results": {
+    "phase1": "pass",
+    "phase2": "pass"
+  }
+}

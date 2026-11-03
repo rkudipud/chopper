@@ -1,0 +1,40 @@
+{
+  "artifacts_present": [
+    "chopper_run.json",
+    "compiled_manifest.json",
+    "dependency_graph.json",
+    "diagnostics.json",
+    "files_exclude_p4.txt",
+    "files_kept.txt",
+    "files_removed.txt",
+    "p4_commands.txt",
+    "run_id",
+    "trim_report.json",
+    "trim_report.txt",
+    "trim_stats.json"
+  ],
+  "backup_path": "C:/personal/projects/chopper/examples/01_base_files_only_backup",
+  "base_json": "",
+  "chopper_version": "4.11.0",
+  "command": "validate",
+  "diagnostics_summary": {
+    "errors": 0,
+    "info": 0,
+    "warnings": 0
+  },
+  "domain": "01_base_files_only",
+  "domain_path": "C:/personal/projects/chopper/examples/01_base_files_only",
+  "duration_seconds": 0.567823,
+  "exit_code": 3,
+  "feature_jsons": [],
+  "mode": "dry-run",
+  "project_json": null,
+  "project_name": "",
+  "project_notes": [],
+  "project_owner": "",
+  "release_branch": "",
+  "run_id": "9e547c5316b24a3a916d694dc3f99b62",
+  "timestamp_end": "2026-11-03T01:40:05Z",
+  "timestamp_start": "2026-11-03T01:40:05Z",
+  "trim_state": "first-trim"
+}

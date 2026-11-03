@@ -12,6 +12,7 @@ real path.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -210,6 +211,10 @@ class TestTrimSubcommand:
             "backup's .chopper/ contents must never be copied into the rebuilt domain"
         )
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows intermittently denies the domain-to-backup rename (WinError 5); covered on Linux CI",
+    )
     def test_glob_expansion_never_matches_chopper_audit_directory(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
