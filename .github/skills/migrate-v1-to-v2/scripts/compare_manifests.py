@@ -55,19 +55,25 @@ def _facts(root: Path) -> dict[str, dict[str, object]]:
     }
 
 
-def main(before: str, after: str) -> None:
-    old, new = _facts(Path(before)), _facts(Path(after))
+def diff(old: dict[str, dict[str, object]], new: dict[str, dict[str, object]]):
+    """Yield ``(sign, section, key, before, after)`` for every fact that differs."""
     for section in old:
         a, b = old[section], new[section]
         for key in sorted(a.keys() | b.keys()):
             if a.get(key) == b.get(key):
                 continue
-            if key not in a:
-                print(f"+ {section:5} {key}  {b[key]}")
-            elif key not in b:
-                print(f"- {section:5} {key}  {a[key]}")
-            else:
-                print(f"~ {section:5} {key}  {a[key]} -> {b[key]}")
+            sign = "+" if key not in a else "-" if key not in b else "~"
+            yield sign, section, key, a.get(key), b.get(key)
+
+
+def render(sign: str, section: str, key: str, before: object, after: object) -> str:
+    value = after if sign == "+" else before if sign == "-" else f"{before} -> {after}"
+    return f"{sign} {section:5} {key}  {value}"
+
+
+def main(before: str, after: str) -> None:
+    for row in diff(_facts(Path(before)), _facts(Path(after))):
+        print(render(*row))
 
 
 if __name__ == "__main__":

@@ -685,7 +685,9 @@ v2 is v1 plus two optional, non-glob, domain-relative pointers. `project-v2` dif
 
 On every all-v2 run Chopper generates `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root (`<flow>` = the domain directory name). The flow infrastructure sources them right after its own `vars.tcl` / procs load, so the base pointer is only a whole-file keep (F1). Each feature pointer adds a three-line block -- the file plus its `tech_` and `project_` variants -- as `iproc_source -file <name> -optional`. Expect `VW-28` until the base is named `jsons/<flow>.json`.
 
-Before suggesting v2, check two load-order traps: (1) a stage step that re-sources a vars file after startup silently overrides the feature values -- offer to remove it; (2) moving a feature's vars from a late stage step to startup changes when they apply -- ask. To migrate an existing v1 set, use the [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) skill: it interviews the user, migrates one layer per dry-run, and proves each step with a manifest diff. Field reference: [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md); worked example: [examples/16_feature_vars](../../examples/16_feature_vars/).
+Before suggesting v2, check two load-order traps: (1) a stage step that re-sources a vars file after startup silently overrides the feature values -- offer to remove it; (2) moving a feature's vars from a late stage step to startup changes when they apply -- ask. To migrate an existing v1 set, use the [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) skill: it interviews the user, migrates one layer per dry-run, and proves each step deterministically with `scripts/check_v2.py`. Field reference: [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md); worked example: [examples/16_feature_vars](../../examples/16_feature_vars/).
+
+**Deterministic v2 check.** `python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <copy of .chopper/> [--baseline <v1 copy>] [--require-adoption] [--json]` reads one audit folder and the domain source. It prints a pass/fail gate, the adoption level (`none` / `schema-only` / `partial` / `full` / `not-applicable`), a preview of both generated files, a classified diff against the baseline (`expected` / `review` / `unexpected`), and ranked suggestions (`fix` / `improve` / `review`), each with an exact JSON edit. Use it on any dry-run, v1 or v2, whenever the user asks whether their JSONs are right or could produce a better trim. Present its suggestions in order, apply only what the user approves, and re-run it. Never call a migration done on `schema-only`. Never dismiss `VW-15` on `iproc_source -file ...` as expected (that's `step-source-form`). The checker is skill tooling, not a Chopper command: Chopper's diagnostics stay authoritative. Reference: [check_v2.md](../skills/migrate-v1-to-v2/references/check_v2.md).
 ---
 
 ## Schema Error -> Fix Mapping
@@ -968,7 +970,7 @@ Skills live under `.github/skills/<name>/SKILL.md` and are loaded on demand. Rea
 | Map / document an unfamiliar codebase | `.github/skills/acquire-codebase-knowledge/SKILL.md` |
 | Plan a context map before a multi-file change | `.github/skills/context-map/SKILL.md` |
 | Refresh FEV JSONs against a newer production release | [refresh-fev-release](../skills/refresh-fev-release/SKILL.md) |
-| Migrate a v1 JSON set to v2 (`vars` / `procs` pointers, generated feature sourcing files) | [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) |
+| Migrate a v1 JSON set to v2 (`vars` / `procs` pointers, generated feature sourcing files), check whether a v2 migration is done, or review v1/v2 JSONs for a better trim | [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) (`scripts/check_v2.py`) |
 
 Always read the skill file for the actual checklist before starting. Use local search/read/usages tools for exploration, impact mapping, and scope verification.
 
@@ -1135,6 +1137,7 @@ When a user starts a new conversation without a specific task already stated, re
 > | A `.chopper/` audit bundle I need to read | *"walk me through my audit bundle"* |
 > | A surprising trim result (proc X dropped or kept unexpectedly) | *"why was `proc_name` dropped / kept?"* |
 > | v1 JSONs and you want per-feature `vars.tcl` / `procs.tcl` sourcing | *"migrate my JSONs to v2"* |
+> | v2 JSONs and you're not sure they use v2 well | *"check my v2 migration"* or *"review my JSONs"* |
 > | A suspected Chopper bug | *"I found a bug"* -- I will file the GitHub issue automatically |
 >
 > **Tier 2 \u2014 Full capability list.** I can also:

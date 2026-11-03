@@ -17,6 +17,7 @@
 - Project-mode validates physical basename: project domain fields in final are cdns/snps, while base/feature domain labels remain fev_conformal/fev_formality. This correction was tested through actual CLI validation.
 
 ## Next Actions
+- v1->v2 work (migrate, "is my migration done?", "review my JSONs"): load .github/skills/migrate-v1-to-v2/SKILL.md and grade a whole-folder copy of `.chopper/` with its scripts/check_v2.py. A migration is done only when `--require-adoption` passes; `schema-only` (v2 `$schema` without pointers) is not done. `VW-15` on `iproc_source -file ...` steps is a validator false positive (`_SOURCE_CMD_RE` only accepts one argument), not "expected".
 - Future release refreshes: load .github/skills/refresh-fev-release/SKILL.md and .github/instructions/fev-release-refresh.instructions.md. Detailed workflow, gotchas, historical baseline, and pressure scenarios are linked there; final/verification/NEXT_RELEASE.md is the release-area entry point.
 - Final verification complete: 44 Conformal JSONs and 26 Formality JSONs valid; base SLOC 4858/4398; 42+23 individual and 42+23 omission cases passed; both final audits record trim/dry-run/exit 0 and input_base.json is byte-identical to the current published base.
 - No verification process remained running at close-out. Active deliverables, metadata, reports, and rerun helper are under final; temporary experiments are not used by the delivery.

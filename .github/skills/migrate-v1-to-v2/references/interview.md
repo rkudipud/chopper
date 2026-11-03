@@ -1,6 +1,16 @@
 # v1 → v2 interview question bank
 
-Ask with the ask-user tool. Use one form per round, with the fields in the order listed. Pre-fill defaults from the Phase 0 inventory, so the user confirms instead of typing.
+Ask with the ask-user tool. Use one form per round, with the fields in the order listed. Pre-fill defaults from the Phase 0 inventory and the baseline `check_v2.py` report, so the user confirms instead of typing:
+
+| Field | Pre-fill from |
+| --- | --- |
+| Round 1 Q3/Q4, feature rows 1/2 | `pointer-candidate` rows (their `edit` names the pointer value; "Nothing references it today" means ask how that file loads now) |
+| Round 1 Q5 | `base-name` |
+| Feature row 3 | `procs-pointer-proc-trim`, or a procs file that is `proc-trim` in the manifest |
+| Feature row 4 | `redundant-pointer-include`, `manual-variant-include` |
+| Feature row 5 | `double-sourcing-step` |
+| Feature row 6 | `dormant-variant`, `newly-sourced` |
+| Round 3 | the remaining `improve` and `review` rows (for example `traced-callee-dropped`, `project-outside-jsons`, `orphan-json`, `stale-exclude`) |
 
 ## Round 1 — scope and infrastructure (before any edit)
 
@@ -36,4 +46,4 @@ Ask with the ask-user tool. Use one form per round, with the fields in the order
 
 ## Round 3 — opportunities (after the migration is green)
 
-A multi-select over the applicable items in the SKILL "Opportunities to pitch" list, where each label states the benefit. Only act on what's selected, and run the Phase 4 loop for each one.
+A multi-select over the applicable items in the SKILL "Opportunities to pitch" list plus the checker's remaining `improve`/`review` suggestions, where each label states the benefit. Only act on what's selected, and run the Phase 4 loop for each one.
