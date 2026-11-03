@@ -8,8 +8,6 @@ Store agent memory files in `.github/agent_memory/`.
 
 Recommended filenames:
 
-- `chopper-buildout.md`
-- `chopper-stage-builder.md`
 - `chopper-agent.md`
 
 ## Lifecycle

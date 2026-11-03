@@ -173,54 +173,21 @@ No bare `print()` in library code. No bare `except:`. Every error path is typed.
 
 ---
 
-## 9. Module map
+## 9. Code layout and ports
 
-```text
-src/chopper/
-+-- core/         Shared frozen dataclasses, diagnostics, protocols, errors, serialization,
-|              filesystem helpers (fs_walk, file_perms, globs, header, tool_commands)
-+-- config/       JSON loading, schema validation, depends_on topo-sort       (P1)
-+-- parser/       Tcl tokenizer, proc + call extractors, namespace tracker    (P2)
-+-- compiler/     R1 merge algorithm, BFS trace, F3 flow-actions, stack graph  (P3, P4)
-+-- trimmer/      File copier, proc dropper, indentation normaliser,
-|              companion-file sync, JSON input preservation                  (P5a, P5c, P5d)
-+-- generators/   F3 stage + stack file emitter                               (P5b)
-+-- validator/    Pre- and post-trim validation                               (P1, P6)
-+-- audit/        .chopper/ writers, SLOC counter (cloc + fallback), hashing,
-|              internal-error log                                            (P7)
-+-- data/         Bundled tool-command pools (PrimeTime, Formality, etc.)      (P4)
-+-- orchestrator/ ChopperRunner, phase-gate logic, domain-state detection     (all)
-+-- adapters/     LocalFS, InMemoryFS, CollectingSink, RichProgress, SilentProgress
-+-- cli/          argparse, render helpers, four subcommand handlers           (user)
-```
+The source tree has three layers, and calls only go downward:
 
-Each service depends only on `core/` and its own submodules. The lone permitted exception is the validator importing the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`) -- documented in `technical_docs/ARCHITECTURE.md` Sec.5.12.9.
+- **Front ends** -- `cli/` parses arguments and renders results. It holds no business logic.
+- **Application** -- `app/` is the single entry point that front ends call: domain resolution, the JSON catalog, and the `validate` / `trim` / `loc` / `cleanup` use cases.
+- **Engine** -- `orchestrator/` composes the P0-P7 phase services (`config/`, `parser/`, `compiler/`, `trimmer/`, `generators/`, `validator/`, `audit/`) over shared models in `core/`; `adapters/` implements the filesystem, diagnostic, and progress ports.
+
+Each phase service depends only on `core/`. The one permitted exception is the validator calling the parser's `parse_file` for post-trim proc-set reconciliation (`VW-10`, `technical_docs/ARCHITECTURE.md` Sec.5.12.9). An import-linter gate enforces these boundaries.
+
+The ports are deliberately few: the filesystem, the diagnostic sink, and progress reporting. Clocks, serialization, JSON schema checks, and CLI rendering are direct calls. For the module-by-module layout see [`technical_docs/ENGINEERING.md`](../technical_docs/ENGINEERING.md) Sec.3; for the port contracts see Sec.5.
 
 ---
 
-## 10. Ports -- what is and isn't abstracted
-
-Three protocol surfaces in `src/chopper/core/protocols.py`:
-
-| Port | Purpose | Adapters |
-|---|---|---|
-| `FileSystemPort` | Read/write files | `LocalFS` (production), `InMemoryFS` (tests) |
-| `DiagnosticSink` | Collect `Diagnostic` records | `CollectingSink` |
-| `ProgressSink` | User-facing progress | `RichProgress` (production), `SilentProgress` (tests / `--quiet`) |
-
-What is **not** a port (deliberately direct calls):
-
-- Clock / time
-- Serialization
-- Audit storage (writers use `ctx.fs` directly)
-- CLI rendering (`rich` is CLI-local)
-- JSON schema (`jsonschema` is called directly)
-
-Narrow port surface keeps the architecture useful without speculative abstractions.
-
----
-
-## 11. Frequently asked questions
+## 10. Frequently asked questions
 
 ### Why did my feature's `files.exclude` do nothing?
 
@@ -312,7 +279,7 @@ Because your base JSON sets `"options": {"insert_markers": true}`. Remove it (or
 
 ---
 
-## 12. Where to go next
+## 11. Where to go next
 
 | Resource | Purpose |
 |---|---|

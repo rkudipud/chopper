@@ -4,7 +4,7 @@ Use cases raise :class:`AppError` for user-visible input failures that
 stop a request before the pipeline runs (domain lookup, base discovery,
 feature-name lookup). Each front end maps the issues to its own
 presentation; the CLI maps them to the stderr text and exit codes in
-``technical_docs/CLI_REFERENCE.md``. See ``technical_docs/ARCHITECTURE.md``
+``user_docs/02_CLI_GUIDE.md``. See ``technical_docs/ARCHITECTURE.md``
 Sec.5.11.2.
 """
 

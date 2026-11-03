@@ -696,6 +696,20 @@ class TestMissingBuiltins:
         for name in ("lassign", "subst", "apply", "throw", "lmap", "lrepeat", "lreverse"):
             assert name in TCL_BUILTINS, f"{name!r} missing from TCL_BUILTINS"
 
+    def test_qualified_mathfunc_is_builtin_but_bare_max_stays_a_call(self) -> None:
+        # Issue #35: qualified tcl::mathfunc commands are builtins; bare or user-namespaced names stay calls.
+        src = (
+            "proc foo {a b} {\n"
+            "    set x [tcl::mathfunc::max $a $b]\n"
+            "    ::tcl::mathfunc::min $a $b\n"
+            "    set y [max $a $b]\n"
+            "    util::max $a $b\n"
+            "}\n"
+        )
+        calls = set(_calls(src))
+        assert not {c for c in calls if c.startswith("tcl::mathfunc::")}
+        assert {"max", "util::max"} <= calls
+
 
 def test_py_eval_braced_python_payload_is_opaque() -> None:
     from pathlib import Path

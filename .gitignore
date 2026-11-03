@@ -227,3 +227,6 @@ pnpm-lock.yaml
 test_out.txt
 test_run.txt
 dom/
+
+# graphify extraction cache (regenerated on every rebuild)
+graphify-out/cache/

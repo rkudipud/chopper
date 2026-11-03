@@ -1,0 +1,19 @@
+# Store text with LF in the repository; check out with the platform default.
+* text=auto
+
+# Scripts that must keep one line ending on every platform.
+*.sh   text eol=lf
+*.csh  text eol=lf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Binary assets.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.pptx binary
+*.zip  binary
+*.gz   binary

@@ -1,4 +1,4 @@
-"""Unit tests for domain_lookup.resolve_domain.
+"""Unit tests for chopper.app.domain.resolve_domain.
 
 Per architecture doc Sec.5.1.0 (Domain-name resolution).
 """

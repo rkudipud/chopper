@@ -2,9 +2,9 @@
 
 **Status in the doc tree.** This document is a **plan**, not a contract. The authoritative product spec is [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) ("the architecture doc"). This plan proposes *how* the spec is realized as independently developable modules. Where this plan disagrees with the architecture doc, the architecture doc wins and this plan is edited in place.
 
-**What this plan is for.** Chopper is a **local, single-process Python CLI** -- not a web app, not a cloud service, not a daemon, not a plugin host. It runs on a VLSI engineer's workstation (or a grid node), reads <=1 GB of Tcl / JSON from disk, writes a trimmed domain back to disk, and exits. The plan below describes how to decompose this CLI into **independently developable services** (in-process, ports-and-adapters) so individual features can be added, rewritten, or replaced in isolation. Chopper is **not** extensible through plugins, AI advisors, or MCP adapters -- those are not on the roadmap, not deferred, not planned. See Sec.16 for the scope-lock rationale.
+**What this plan is for.** Chopper is a **local, single-process Python CLI** -- not a web app, not a cloud service, not a daemon, not a plugin host. It runs on a VLSI engineer's workstation (or a grid node), reads <=1 GB of Tcl / JSON from disk, writes a trimmed domain back to disk, and exits. The plan below describes how to decompose this CLI into **independently developable services** (in-process, ports-and-adapters) so individual features can be added, rewritten, or replaced in isolation. Chopper is **not** extensible through plugins, AI advisors, or MCP adapters -- those are not on the roadmap, not deferred, not planned. See Sec.12 for the scope-lock rationale.
 
-**How to read this plan.** Sec.1-Sec.3 frame the shape. Sec.4-Sec.7 define the modules and their seams. Sec.8-Sec.10 pin down the contracts that make isolated feature work safe. Sec.11 covers determinism and performance. Sec.12-Sec.14 are pointers to the moved content (acceptance catalog, review, contributor playbook). Sec.15-Sec.16 are the roadmap pointer and closed decisions.
+**How to read this plan.** Sec.1-Sec.3 frame the shape. Sec.4-Sec.7 define the modules and their seams. Sec.8-Sec.10 pin down the contracts that make isolated feature work safe. Sec.11 covers determinism and performance. Sec.12 records the closed decisions. The acceptance-scenario catalog lives in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md) Sec.5 and the contributor playbook in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ---
 
@@ -21,11 +21,7 @@
 9. [Inter-Service Communication Contract](#9-inter-service-communication-contract)
 10. [Feature Work Isolation Rules](#10-feature-work-isolation-rules)
 11. [Determinism, Concurrency, and Performance Envelope](#11-determinism-concurrency-and-performance-envelope)
-12. [Corner-Case Simulation Catalog -- moved](#12-corner-case-simulation-catalog)
-13. [Multi-Expert Review Panel -- removed](#13-multi-expert-review-panel)
-14. [Contributor Playbook -- moved](#14-contributor-playbook)
-15. [Adoption Roadmap (Stage-Aligned) -- superseded](#15-adoption-roadmap-stage-aligned)
-16. [Closed Decisions](#16-closed-decisions)
+12. [Closed Decisions](#12-closed-decisions)
 
 ---
 
@@ -39,7 +35,7 @@ The user's ask was phrased as "service-oriented, context-aware." Taken literally
 | Modular / isolated feature work | One feature = one service module = one stage gate. Change it end-to-end without touching siblings. |
 | Context-aware | All cross-cutting state (paths, flags, clock, filesystem, sinks) lives on a single `ChopperContext` -- a service bundle plus run config with stable port bindings (Sec.6.1) -- passed explicitly. No globals, no singletons. |
 | Cloud / network services | **Not in scope.** Chopper is a desktop/grid CLI. No HTTP, no IPC, no message bus. |
-| Plugin host / MCP / AI advisors | **Not in scope, not deferred, not planned.** Chopper is a self-contained CLI. Any proposal to add a plugin loader, AI integration, or network surface is rejected on sight (Sec.16 Q1). |
+| Plugin host / MCP / AI advisors | **Not in scope, not deferred, not planned.** Chopper is a self-contained CLI. Any proposal to add a plugin loader, AI integration, or network surface is rejected on sight (Sec.12 Q1). |
 
 **Named pattern:** Hexagonal (ports-and-adapters) + Pipeline. This is the shape Ruff, mypy, Pylint, dbt-core, and Snakemake converge on -- all are local single-process tools with strong modularity and swappable backends.
 
@@ -192,7 +188,7 @@ adapters ------------------------------------+
 - `orchestrator` imports from `core` + every service + selects adapters. `runner.default_providers()` is the only place phase implementations are constructed.
 - `app` imports from `core`, `adapters`, `orchestrator`, and the leaf helpers it reads (`audit.sloc` for SLOC counts, `audit.internal_error` for the crash log).
 - `cli` imports from `core`, `app`, and `adapters` only -- never a phase service, the orchestrator, or audit (import-linter contract "CLI is a thin adapter over the application layer").
-- **No `plugins/`, no `advisor/`, no `mcp/` directory exists or is planned.** These are not v1-deferred features -- they are permanently excluded (see Sec.16 Q1). Any PR that creates such a directory is rejected without review. The read-only stdio MCP server that briefly existed under `src/chopper/mcp/` (0.4.0-3.5.x) was **removed in 4.0.0**; MCP is a closed decision and `adapters/mcp_*.py` or any MCP surface remains forbidden.
+- **No `plugins/`, no `advisor/`, no `mcp/` directory exists or is planned.** These are not v1-deferred features -- they are permanently excluded (see Sec.12 Q1). Any PR that creates such a directory is rejected without review. The read-only stdio MCP server that briefly existed under `src/chopper/mcp/` (0.4.0-3.5.x) was **removed in 4.0.0**; MCP is a closed decision and `adapters/mcp_*.py` or any MCP surface remains forbidden.
 
 Circular imports, inter-service imports, and reverse imports (service importing orchestrator or cli) are all rejected at CI.
 
@@ -344,7 +340,7 @@ class ChopperContext:
     # core.serialization.dump_model(), and ctx.fs directly.
 ```
 
-**Flag-to-adapter mapping (CLI responsibility; see [`technical_docs/CLI_REFERENCE.md`](CLI_REFERENCE.md) for flag definitions).**
+**Flag-to-adapter mapping (CLI responsibility; see [`user_docs/02_CLI_GUIDE.md`](../user_docs/02_CLI_GUIDE.md) for flag definitions).**
 
 | `PresentationConfig` field | Source flag | Effect |
 |---|---|---|
@@ -442,7 +438,7 @@ class ChopperRunner:
 
 ## 7. Extension Seams (Not Applicable)
 
-**Chopper has no general extension seams.** There is no plugin host, no plugin loader, no observer fan-out, no MCP server, no MCP client, no AI advisor, no `X*` diagnostic family, no `adapters/mcp_*.py`, no `mcp/` package, no `plugins/` package. These are not stubs, not reserved, not "architecturally enabled" for a later release -- they are **permanently out of scope** (see Sec.16 Q1). The read-only stdio MCP server introduced in 0.4.0 was removed in 4.0.0 and MCP is again a closed decision.
+**Chopper has no general extension seams.** There is no plugin host, no plugin loader, no observer fan-out, no MCP server, no MCP client, no AI advisor, no `X*` diagnostic family, no `adapters/mcp_*.py`, no `mcp/` package, no `plugins/` package. These are not stubs, not reserved, not "architecturally enabled" for a later release -- they are **permanently out of scope** (see Sec.12 Q1). The read-only stdio MCP server introduced in 0.4.0 was removed in 4.0.0 and MCP is again a closed decision.
 
 **Why this is stated explicitly.** Previous drafts reserved MCP/plugin seams "for future use." Experience showed that reservations drift into implementations: an agent reading "reserved" treats it as "TODO", a contributor fills in the TODO, and a feature the project never approved ships anyway. Scope-lock requires the absence of reservations, not a list of them.
 
@@ -451,7 +447,7 @@ class ChopperRunner:
 - No code path references `PluginHost`, `TeeSink`, `MCPProgressBridge`, `EntryPointPluginHost`, `advisor`, or similar identifiers.
 - No diagnostic code in the `XE-*` / `XW-*` / `XI-*` space is defined or reserved.
 - No `adapters/mcp_*.py`, `plugins/`, `mcp_server/`, or `advisor/` module exists in the tree (Sec.3).
-- No "post-v1" or "stage 6" roadmap row carries plugin or MCP content (Sec.15).
+- No "post-v1" or "stage 6" roadmap row carries plugin or MCP content.
 - Any PR that adds any of the above is rejected at review without further discussion.
 
 If a future release genuinely needs a plugin mechanism, it starts a fresh design doc and updates [`technical_docs/ARCHITECTURE.md`](ARCHITECTURE.md) first. It does not resurrect stubs from this plan.
@@ -514,7 +510,7 @@ class DiagnosticSink(Protocol):
 4. **`--strict` is an exit-code policy, not a severity rewrite.** Services always emit the nominal severity -- a `WARNING` stays a `WARNING` in the sink, in `diagnostics.json`, and in all rendered output, with or without `--strict`. Phase gates fire on nominal `ERROR` only (see Sec.6.2). At the very end of the run, the CLI computes the process exit code from `sink.finalize()`:
    - exit `0` -- no `ERROR`, and either `--strict` is off or no `WARNING` is present.
    - exit `1` -- any `ERROR`, **or** `--strict` is on and any `WARNING` is present. (No individual `VI-*` code is singled out; advisories do not affect the exit code.)
-   - exit `2` -- CLI / pre-pipeline fatal conditions the runner never even enters: `VE-11` conflicting CLI options, `VE-13` unresolvable `--project` paths (authoring error -- see Sec.12 scenario 19), `VE-21` missing domain + backup.
+   - exit `2` -- CLI / pre-pipeline fatal conditions the runner never even enters: `VE-11` conflicting CLI options, `VE-13` unresolvable `--project` paths (authoring error; no partial recovery), `VE-21` missing domain + backup.
    - exit `3` -- unhandled exception escaped a service (programmer error). The outer `try / finally` in Sec.6.2 catches it, logs a stack trace to `.chopper/internal-error.log` via `AuditService`, and exits `3`. This is deliberately distinct from exit `1` so CI systems can tell "pipeline found a problem" from "Chopper itself broke."
 
    `--strict` never changes what the pipeline *does*, only how the caller *interprets* the outcome. The stored diagnostic severity is the truth; `--strict` is a policy layer on top. **There is no warn-to-error promotion anywhere in the pipeline or in the sink -- only in the final exit-code computation.**
@@ -538,7 +534,7 @@ The CLI is the **only** layer that formats for humans. Libraries stay silent.
 
 ### 8.5 Retired code slots
 
-**There are no retired codes.** Chopper is still in its ideation phase; the registry in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) is compact with no historical gaps. If a code is ever removed post-release, its slot will be marked `RETIRED` there and never reused. There is no `X*` plugin family -- see Sec.7 and Sec.16 Q1.
+**Retired codes keep their slot.** A removed code is marked `RETIRED` in [`technical_docs/DIAGNOSTIC_CODES.md`](DIAGNOSTIC_CODES.md) and its slot is never reused (today: `VW-18`, `VW-19`, `PE-04`). There is no `X*` plugin family -- see Sec.7 and Sec.12 Q1.
 
 ---
 
@@ -786,74 +782,7 @@ def make_test_context(
 
 ---
 
-## 12. Corner-Case Simulation Catalog
-
-**Moved.** The 30-row acceptance scenario catalog now lives in [`tests/TESTING_STRATEGY.md`](../tests/TESTING_STRATEGY.md) Sec.5 ("Named Integration Scenarios"), alongside the scenario naming convention and the `ChopperSubprocess` harness that runs them. This keeps the architecture document focused on design and the testing document focused on verification. See also [`tests/FIXTURE_CATALOG.md`](../tests/FIXTURE_CATALOG.md) and [`tests/FIXTURE_AUDIT.md`](../tests/FIXTURE_AUDIT.md) for the fixture-level mapping that backs each scenario.
-
-<!-- Historical catalog removed; content merged into tests/TESTING_STRATEGY.md Sec.5. -->
-
-<details><summary>Archived catalog (for historical reference only; do not edit here -- edit the testing strategy)</summary>
-
-| # | Scenario | Expected Behavior | Owning Service | Diagnostic |
-|---|---|---|---|---|
-| 1 | Cyclic proc calls (A->B->A) | BFS visited-set terminates; cycle reported | `TracerService` | `TW-04` |
-| 2 | Dirty `.chopper/` from prior crash | Detected; stale artifacts overwritten; run proceeds | `AuditService` | -- (silent) |
-| 3 | Parser fails mid-domain (unbalanced braces) | Phase records error; orchestrator aborts before P5; backup untouched | `ParserService` -> `Runner` | `PE-02` |
-| 4 | Later layer's `FE` cancels an earlier layer's `FI` | Ordered overlay: later layer wins; file is removed; `VW-21` records the shadow | `CompilerService` | `VW-21` |
-| 5 | Later layer's `PE` removes a proc kept by an earlier layer | Ordered overlay: later layer wins; proc is dropped; `VW-21` records the shadow | `CompilerService` | `VW-21` |
-| 6 | Duplicate `proc foo {...}` in same file | Last definition wins; `PE-01` emitted; index reflects the last one | `ParserService` | `PE-01` |
-| 7 | Backslash line continuation across proc header | Lines are **not** physically merged; tokenizer carries state across newlines; line numbers in diagnostics point at the continuation start | `ParserService` | `PW-05` |
-| 8 | Comment line with open brace (`# { ...`) | Treated as a comment (to end of line); brace does **not** enter the brace-depth counter | `ParserService` | -- |
-| 9 | Pre-body quoted arg word (`proc foo "a b" { ... }`) | Discovered as a valid proc per strict Tcl word-parsing; indexed normally | `ParserService` | -- |
-| 10 | Very large domain (10k files, 500k LoC) | Single-threaded parse; 5-10 min runtime acceptable | `ParserService` | -- |
-| 11 | Latin-1 source file | UTF-8 decode fails; fall back to Latin-1; warn | `ParserService` | `PW-02` |
-| 12 | `feature.depends_on` cycle | Topological sort fails at load; reject before P2 | `ConfigService` | `VE-22` |
-| 13 | `feature.depends_on` prerequisite missing from project selection | After all feature JSONs are loaded, emit `VE-15` and abort P1. Order in `project.features` is **not** checked -- out-of-order is allowed. | `ConfigService` -> `ValidatorService.run_pre` | `VE-15` |
-| 14 | Computed proc name (`proc $n {...}`) | Skip + warn; never indexed | `ParserService` | `PW-01` |
-| 15 | User passes `--dry-run` | Domain-write portions of P5 are skipped; P6 runs only synthetic manifest-derivable checks; P0-P4 + P7 still produce audit artifacts; zero FS mutations to the domain tree | `Runner` | -- |
-| 16 | Backup present, domain missing (recovery) | Case 3 from architecture doc Sec.2.8: restore then re-trim | `DomainStateService` | -- |
-| 17 | Hand-edited `domain/` on re-trim | Discard hand edits; rebuild from `<domain>_backup/`. Chopper does not detect this at the diagnostic level; the CLI prints a fixed pre-flight warning every run (*"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."*). Operators commit or stash hand edits **before** running Chopper. | `DomainStateService` (silent) | -- |
-| 18 | Domain missing AND backup missing | Fatal; exit 2 | `DomainStateService` | `VE-21` |
-| 19 | `--project` points at stale / unresolvable feature paths | **Hard crash before the pipeline starts.** Emit `VE-13`, print the bad path(s), exit 2. Authoring error -- no partial recovery. | CLI / `ConfigService` pre-pass | `VE-13` |
-| 20 | CLI conflicts (`--project` with `--base`) | Pre-pipeline; emit `VE-11`; exit 2 | CLI | `VE-11` |
-| 21 | Trimmer writes a partially-invalid file (e.g. dangling proc) | P5a gate trips on `VE-2x` trimmer error; P5b (Generator) is **not** run; the partially rebuilt `domain/` is left in place and the next invocation rebuilds from `<domain>_backup/`; exit 1 | `TrimmerService` -> `Runner` | `VE-2x` (registry) |
-| 22 | Service raises unexpectedly | Outer `try/finally` in Sec.6.2 writes `.chopper/internal-error.log` + partial audit; exits `3` (programmer-error channel) | `Runner` | (internal error log) |
-| 23 | Identical diagnostic emitted twice | Deduplicated at sink by `(code, path, line_no, message)` | `CollectingSink` | -- |
-| 24 | JSON with trailing commas / BOM | Reject at load with a schema error; do not enter P2 | `ConfigService` | `VE-01` / schema |
-| 25 | `project.json` features ordering puts a feature with `PI` after a feature with `PE` | Last layer wins under R1 ordered overlay; the later `PI` re-adds the proc | `CompilerService` | `VW-21` (when the PI shadows a prior PE) |
-| 26 | Feature selects a proc that doesn't exist in any parsed file | Emit warning; dependency graph records miss; trim proceeds | `CompilerService` | `VW-11` |
-| 27 | File is included but referenced proc is in a different file | Whole-file include wins; other file unchanged | `CompilerService` | -- |
-| 28 | Trim interrupted by Ctrl-C mid-write | Next run detects inconsistent state via `DomainStateService` (architecture doc Sec.2.8 matrix); restore from backup proceeds normally. No lock file is inspected (there is no lock file). | `DomainStateService` | -- |
-| 29 | Read-only filesystem under `domain/` | Trimmer's `ctx.fs.rename`/`write_text` fails; emit `VE-23 filesystem-error-during-trim` with the offending path; audit writes to a best-effort path; exit 1. The recovery path is the next re-trim from `<domain>_backup/`. | `TrimmerService` | `VE-23` |
-| 30 | `--strict` with warnings present | Pipeline runs to completion unchanged; CLI exits 1 at the end because `finalize()` reports `WARNING > 0` and `--strict` is set. **No severity rewriting** -- the warnings remain warnings in `diagnostics.json` and in rendered output. | CLI exit-code layer | -- |
-
-**Every scenario has a test.** The catalog is the acceptance checklist for v1.
-
-</details>
-
----
-
-## 13. Multi-Expert Review Panel
-
-**Removed.** The Day-0 devil's-advocate review's action items were absorbed into this plan (via the A1-A9 cuts), the architecture doc, and the diagnostic registry; the review document itself was retired. The multi-reviewer panel served its purpose at planning time; perpetuating it here would only drift out of sync.
-
----
-
-## 14. Contributor Playbook
-
-**Moved.** The playbook for adding services, rewriting existing ones, registering diagnostic codes, and adding adapters now lives at [`CONTRIBUTING.md`](../CONTRIBUTING.md) at the repository root -- the conventional location for contributor-facing guidance. This keeps the architecture document about design and the contributor document about process.
-
----
-
-## 15. Adoption Roadmap (Stage-Aligned)
-
-**Retired.** The stage-by-stage build-out roadmap was completed and its document deleted; the stage boundaries remain recorded in `.github/instructions/project.instructions.md` (Implementation Stages), and the gates it defined live on as `make check` / `make ci`.
-
-**There is no Stage 6 and none is planned.** Plugin host, MCP, AI advisor: permanently out of scope (Sec.7, Sec.16 Q1).
-
----
-
-## 16. Closed Decisions
+## 12. Closed Decisions
 
 Questions raised during planning. All are resolved for v1.
 

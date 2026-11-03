@@ -27,7 +27,7 @@
 - All-on keeps both legacy and MUI ECO stacks; runtime must select the intended scheduler. Reader/task/ivar choices must match delivered features; arbitrary feature permutations are not interchangeable.
 
 ## Validation Notes
-- ARCHITECTURE.md Sec.5.7 excludes authoring JSON from SLOC; CLI_REFERENCE.md counted-file-types section is stale and incorrectly includes it.
+- ARCHITECTURE.md Sec.5.7 excludes authoring JSON from SLOC; `user_docs/02_CLI_GUIDE.md` (the canonical CLI reference since `technical_docs/CLI_REFERENCE.md` was merged into it) lists the correct counted file types from `core/fs_walk.py`.
 - Never run live trim on originals. Never use reserved *_backup names for user snapshots. Preserve user JSONs via reviewable patches, not recursive restoration copies.
 - User requested direct manual JSON patches instead of Python resynthesis. Publishing agents misused Add on existing files, creating duplicate JSON documents; delete/add in one patch also misbehaved. User explicitly approved a one-time exact-file copy recovery. All 70 final JSONs were repaired, byte-verified, and parsed afterward. Do not reuse resynthesis scripts or infer permission for future bulk rewrites.
 - Verification lessons: call chopper.orchestrator.projection.build_loc_report with ctx keyword (moved from cli/loc_report in 4.11.0); validate_post rewritten paths must be absolute or file reads silently skip. Project metadata must be exercised via project_path, not only extracting feature paths. Cached subset parse contains Tcl only, unlike surface_files which also contains CSV/stacks.

@@ -31,7 +31,7 @@
     "exit_code": {
       "type": "integer",
       "enum": [0, 1, 2, 3],
-      "description": "Process exit code per architecture doc Sec.5.9 / CLI_REFERENCE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case)."
+      "description": "Process exit code per architecture doc Sec.5.9 / user_docs/02_CLI_GUIDE.md. 0=success, 1=validation failures, 2=usage error, 3=internal/programmer error (an `.chopper/internal-error.log` is also written in this case)."
     },
     "started_at": {
       "type": "string",

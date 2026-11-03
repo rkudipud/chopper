@@ -1,6 +1,6 @@
 [project]
 name = "chopper"
-version = "4.11.0"
+version = "4.11.1"
 description = "EDA TFM trimming tool for Cheetah R2G flows"
 # Minimum supported runtime is Python 3.13. ruff's `target-version` and
 # mypy's `python_version` below are both pinned to 3.13 so the lint /
@@ -88,7 +88,7 @@ partial_branches_always = [
 [tool.hypothesis]
 # Per TESTING_STRATEGY.md and .github/instructions/project.instructions.md,
 # property tests run with max_examples=500. Originally started at 200 during
-# the Stage 0/1 buildout (FINAL_HANDOFF_REVIEW.md S-9); raised to the
+# the Stage 0/1 buildout; raised to the
 # strategy-document target once CI budget profiling confirmed headroom.
 max_examples = 500
 print_blob = true

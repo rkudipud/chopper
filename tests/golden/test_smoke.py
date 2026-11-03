@@ -1,4 +1,4 @@
-"""Baseline smoke checks that keep the documented golden-test target live."""
+"""Baseline smoke checks that keep the documented golden-test workflow live."""
 
 from __future__ import annotations
 
@@ -6,10 +6,18 @@ from pathlib import Path
 
 import chopper
 
+GOLDEN_DIR = Path("tests/golden/test_audit_artifacts_golden")
 
-def test_golden_guide_uses_current_paths() -> None:
-    guide_text = Path("tests/GOLDEN_FILE_GUIDE.md").read_text(encoding="utf-8")
+
+def test_golden_section_matches_layout() -> None:
+    strategy_text = Path("tests/TESTING_STRATEGY.md").read_text(encoding="utf-8")
 
     assert chopper.__version__
-    assert "tests/golden/<module>__<fixture_name>.json" in guide_text
-    assert "tests/fixtures/edge_cases/parser_basic_single_proc.tcl" in guide_text
+    assert "## 7. Golden Files" in strategy_text
+    assert "tests/golden/test_audit_artifacts_golden/<test_name>.yml" in strategy_text
+    assert sorted(p.stem for p in GOLDEN_DIR.glob("*.yml")) == [
+        "test_chopper_run_json_shape",
+        "test_compiled_manifest_json_shape",
+        "test_dependency_graph_json_shape",
+        "test_trim_report_json_shape",
+    ]

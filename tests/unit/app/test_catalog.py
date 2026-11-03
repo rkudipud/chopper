@@ -1,4 +1,4 @@
-"""Unit tests for feature_lookup.resolve_feature_names."""
+"""Unit tests for chopper.app.catalog.resolve_feature_names."""
 
 from __future__ import annotations
 

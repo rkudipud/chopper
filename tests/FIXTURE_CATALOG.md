@@ -1,38 +1,93 @@
-# Chopper -- Parser Test Fixture Catalog
+# Chopper -- Test Fixture Catalog
 
-> **Scope:** Stage 1 -- Parser (module `src/chopper/parser/`)
-
-This file enumerates all parser test fixtures required for Stage 1 acceptance. Each fixture maps to a pitfall reference and the TCL spec section it exercises. Every fixture must be implemented before the Parser module is declared complete and Stage 2 (Compiler) begins.
+The single index of every fixture under [`tests/fixtures/`](fixtures/): what each one feeds, which rule or diagnostic it pins, and which known gaps have no fixture yet. Section references of the form `Sec.N` in Sec.2 point at the Tcl parser rules in [`technical_docs/IMPLEMENTATION.md`](../technical_docs/IMPLEMENTATION.md) (parser section); pitfall IDs (`P-xx`) point at the same document. Integration scenarios that consume these fixtures are catalogued in [`TESTING_STRATEGY.md`](TESTING_STRATEGY.md) Sec.5.
 
 ---
 
-## Fixture Index
+## 1. Fixture Directories
 
-| # | Fixture File | Pitfall | TCL Spec Section | Expected Outcome |
+| Directory | Role | Consumers |
+|---|---|---|
+| [`fixtures/edge_cases/`](fixtures/edge_cases/) | Adversarial single-file Tcl inputs (`parser_*.tcl`, `indent_*.tcl`), two degenerate domains, and one non-Tcl stray-brace file | `tests/unit/parser/`, `tests/unit/trimmer/` -- see Sec.2 |
+| [`fixtures/tracing_domain/`](fixtures/tracing_domain/) | One file per P4 trace category | Trace unit and integration tests -- see Sec.3 |
+| [`fixtures/mini_domain/`](fixtures/mini_domain/) | Minimal valid multi-file domain with one feature | Smoke, first-trim and re-trim integration scenarios |
+| [`fixtures/namespace_domain/`](fixtures/namespace_domain/) | Namespace-heavy domain | Cross-file namespace resolution scenarios |
+| [`fixtures/stages_domain/`](fixtures/stages_domain/) | F3 domain: `base.json` only, `options.generate_stack: true`, stages `setup` -> `run_flow` -> `promote` chained via `load_from` / `dependencies` | `tests/integration/test_runner_localfs_e2e.py`: dry-run manifest shape; live trim emits one `<stage>.tcl` and one `<stage>.stack` per stage; generated stacks appear in the audit bundle |
+| [`fixtures/header_domain/`](fixtures/header_domain/) | Generated-file header vectors (issue #30, P-49): `sta_setup.tcl` (shebang bootstrap with its own Intel header) and `rtl2rtl.tcl` (Intel header, no shebang) regenerated in place via `reference_file`; header-less `scripts/plain.steps`; a `standalone_stack` stage; feature `post_check` adding a stage from shebang script `scripts/post_check.tcl` | `test_runner_localfs_header_domain_keeps_owned_headers_on_top`: owned headers stay verbatim, header-less bodies get the Intel header on line 1, a feature marker never displaces a shebang (`options.insert_markers: true`; ARCHITECTURE Sec.3.11, Sec.6.6.1), and a re-trim is byte-stable |
+| [`fixtures/overlay_replace/`](fixtures/overlay_replace/) | R1 ordered overlay: a feature excludes base `legacy.tcl` and includes `new.tcl` (`VW-21`) | Overlay integration tests |
+| [`fixtures/overlay_remove_only/`](fixtures/overlay_remove_only/) | R1 ordered overlay: a feature removes a base file with no replacement (`VW-21`) | Overlay integration tests |
+| [`fixtures/overlay_two_features_same_file/`](fixtures/overlay_two_features_same_file/) | R1 ordered overlay: `feature_a` proc-excludes a base whole file (WHOLE -> PROC_TRIM), `feature_b` re-includes -- last layer wins | Overlay integration tests |
+| [`fixtures/overlay_no_op_exclude/`](fixtures/overlay_no_op_exclude/) | R1 ordered overlay: typo-class exclude that matches nothing (`VE-27`) | Overlay integration tests |
+| [`fixtures/bug_reports/`](fixtures/bug_reports/) | Verbatim production snippets that reproduced filed bugs (`dpa_multiline.tcl`, `quoted_semicolon.tcl`, `regex_literals.tcl`, `switch_patterns.tcl`, `python_braces.py`); see the directory [`README.md`](fixtures/bug_reports/README.md) | `tests/unit/parser/test_bug_report_regressions.py` |
+
+Helpers at the root of `fixtures/`:
+
+- [`create_latin1_fixture.py`](fixtures/create_latin1_fixture.py) -- generates the Latin-1 encoded input for `PW-02` (fixture 15).
+- [`gen_large_domain.py`](fixtures/gen_large_domain.py) -- synthesizes a 10k-proc domain for performance observation (`FD-09`).
+
+---
+
+## 2. Edge-Case Fixtures (`fixtures/edge_cases/`)
+
+### 2.1 Parser fixture index
+
+Every `parser_*.tcl` file is round-tripped by [`unit/parser/test_edge_case_fixtures.py`](unit/parser/test_edge_case_fixtures.py) (no crash, no hang, sorted output); fixtures 1-17 also carry the detailed expectations in Sec.2.4.
+
+| # | Fixture File | Pitfall | Spec Sec. | Expected Outcome |
 |---|---|---|---|---|
 | 1 | `parser_basic_single_proc.tcl` | -- | Sec.4.1 | One `ProcEntry` with correct name, `start_line`, `end_line` |
 | 2 | `parser_basic_multiple_procs.tcl` | -- | Sec.4.1 | Two or more `ProcEntry` records; no overlapping spans |
-| 3 | `parser_empty_file.tcl` | P-06 | Sec.7.3 | Empty list -- no error, no warning |
+| 3 | `parser_empty_file.tcl` | -- | Sec.7.3 | Empty list -- no error, no warning |
 | 4 | `parser_brace_in_string_literal.tcl` | P-01 | Sec.3.1, Sec.7.1 | Parse error diagnostic -- unbalanced brace inside braced proc body |
 | 5 | `parser_backslash_line_continuation.tcl` | P-02 | Sec.3.2, Sec.7.2 | `ProcEntry` spans correct; original source line numbers preserved |
 | 6 | `parser_nested_namespace_accumulates.tcl` | P-03 | Sec.4.5 | `qualified_name` = `a::b::deep_proc`; `namespace_path` = `a::b` |
-| 7 | `parser_namespace_reset_after_block.tcl` | P-03, B-04 | Sec.4.5 | `p1.qualified_name = a::p1`, `p2.qualified_name = b::p2` after sequential blocks |
-| 8 | `parser_computed_proc_name_skipped.tcl` | P-04 | Sec.4.3 | No `ProcEntry` for dynamic name; WARNING diagnostic `PW-01 computed-proc-name` |
-| 9 | `parser_duplicate_proc_definition_error.tcl` | P-05 | Sec.6.1, Sec.7.10 | ERROR diagnostic `PE-01 duplicate-proc-definition`; proc index uses last definition's span |
-| 10 | `parser_comment_with_braces_ignored.tcl` | P-07 | Sec.3.4 | `ProcEntry` parsed correctly; brace in comment does not affect depth |
+| 7 | `parser_namespace_reset_after_block.tcl` | P-03 | Sec.4.5 | `p1.qualified_name = a::p1`, `p2.qualified_name = b::p2` after sequential blocks |
+| 8 | `parser_computed_proc_name_skipped.tcl` | P-04 | Sec.4.3 | No `ProcEntry` for dynamic name; WARNING `PW-01` |
+| 9 | `parser_duplicate_proc_definition_error.tcl` | -- | Sec.6.1, Sec.7.10 | ERROR `PE-01`; proc index uses last definition's span |
+| 10 | `parser_comment_with_braces_ignored.tcl` | -- | Sec.3.4 | `ProcEntry` parsed correctly; brace in comment does not affect depth |
 | 11 | `parser_proc_inside_if_block.tcl` | -- | Sec.4.4, Sec.7.8 | Proc inside `if` NOT indexed; debug log emitted |
 | 12 | `parser_namespace_absolute_override.tcl` | -- | Sec.4.3 | `proc ::abs::foo` inside `namespace eval ns` resolves as `abs::foo` |
-| 13 | `parser_empty_proc_body_forms.tcl` | B-02 | Sec.6.1 | Three fixtures: one-line, empty-multiline, whitespace-only; correct `body_start_line`/`body_end_line` for each |
-| 14 | `parser_call_extraction.tcl` | -- | Sec.5.1 | Call extraction returns both direct and bracketed proc call tokens |
-| 15 | `parser_encoding_latin1_fallback.tcl` | -- | Sec.2, Sec.7.7 | Parses successfully with WARNING for Latin-1 fallback |
+| 13 | `parser_empty_proc_body_forms.tcl` | -- | Sec.6.1 | One-line, empty-multiline and whitespace-only bodies; correct `body_start_line`/`body_end_line` for each |
+| 14 | `parser_call_extraction.tcl` | -- | Sec.5.1 | Call extraction returns direct, bracketed and namespace-qualified call tokens |
+| 15 | `parser_encoding_latin1_fallback.tcl` | -- | Sec.2, Sec.7.7 | Parses successfully with WARNING `PW-02` for Latin-1 fallback |
 | 16 | `parser_eda_complex_del_seq_rpt.tcl` | -- | Sec.3.1, Sec.3.2, Sec.4.4, Sec.4.6, Sec.4.7, Sec.7.14 | One `ProcEntry`; correct DPA + comment spans; no parse errors despite regexp `{pattern}` and multi-line `lappend` backslash continuation |
-| 17 | `parser_eda_complex_get_hier_summary.tcl` | -- | Sec.4.6, Sec.4.7, Sec.5.2, Sec.5.5 | One `ProcEntry`; `puts`/`echo`/EDA commands suppressed; `redirect -variable` string content not extracted; no parse errors |
+| 17 | `parser_eda_complex_get_hier_summary.tcl` | P-36 | Sec.4.6, Sec.4.7, Sec.5.2, Sec.5.5 | One `ProcEntry`; `puts`/`echo`/EDA commands suppressed; `redirect -variable` string content not extracted; no parse errors |
+| 18 | `parser_literal_quote_in_braced_word.tcl` | P-01a | Sec.1.3.3 | Literal `"` inside a brace word (`set q {"}`) stays literal; no false `PE-02` |
+| 19 | `parser_braced_word_multi_quote_pairs.tcl` | P-01a | Sec.1.3.3 | Brace word with several quote pairs (`string map {" " ""}`) stays literal |
+| 20 | `parser_braced_word_quote_space_quote.tcl` | P-01a | Sec.1.3.3 | Brace data word `{" "}` stays literal; lone `}` in a quoted word and `;`-in-quote (`TW-02`) regression guards |
+| 21 | `parser_escaped_bracket_in_string.tcl` | P-46 | Sec.3.2 | Escaped `\[` inside a double-quoted string is not a command substitution |
+| 22 | `parser_switch_brace_pattern.tcl` | P-47 | Sec.5.3 | Brace-delimited `switch` pattern containing `[...]` is opaque; no call candidates |
+| 23 | `parser_multi_procs_with_sequential_dpa.tcl` | -- | Sec.4.6 | Several procs each followed by its own `define_proc_attributes`; every DPA binds to the preceding proc |
 
----
+### 2.2 Formatter and non-parser fixtures
 
-## Fixture Detail
+| Fixture | Covers |
+|---|---|
+| `indent_backslash_continuation.tcl` | P5c formatter: backslash-continuation indent, multi-continuation runs, escaped `\\` not treated as continuation |
+| `indent_comment_braces.tcl` | P5c formatter: `#` comment lines with unmatched `{` / `}` and trailing `\` must not shift indent or propagate continuation |
+| `indent_quoted_braces.tcl` | P5c formatter: unmatched `{` inside `"..."` and nested braces in `set_vclp_setup_commands` arguments must not affect brace counting |
+| `domain_empty/` | Zero-`.tcl` domain: statistics render `files_out=0` / `procs_out=0` without division by zero |
+| `domain_single_empty_file/` | One comment-only `.tcl` file: P2 returns an empty `ProcEntry` list and `trim_stats` handles `procs_in=0` |
+| `non_tcl_python_stray_braces.py` | Issue #2 regression guard: non-Tcl files named in `files.include` / `procedures.*` are skipped by P2 (OOS-01, ARCHITECTURE Sec.1.3). The bytes would trigger a tokenizer `negative_depth` error if parsed; no `PE-02` may be emitted |
 
-### 1 -- `parser_basic_single_proc.tcl`
+### 2.3 Pitfall coverage
+
+| Pitfall | Behavior | Fixture(s) |
+|---|---|---|
+| P-01 | Quote context inside a braced body | 4 |
+| P-01a | Literal / adjacent quotes inside brace words | 18, 19, 20 |
+| P-02 | Backslash line continuation keeps source line numbers | 5 |
+| P-03 | Nested `namespace eval` composition and stack pop | 6, 7 |
+| P-04 | Computed proc name skipped with a warning | 8 |
+| P-36 | No proc indexed inside a `foreach_in_collection` body | 17 |
+| P-46 | Escaped `\[` is not a command substitution | 21 |
+| P-47 | Brace-delimited `switch` patterns with `[...]` | 22 |
+| P-48 | Standard Tcl builtins never reported as unresolved calls | inline -- `TestMissingBuiltins` in `unit/parser/test_call_extractor.py` |
+| P-49 | Generated files keep an owned shebang / header on top | `header_domain/` |
+
+### 2.4 Fixture detail (1-17)
+
+#### 1 -- `parser_basic_single_proc.tcl`
 
 ```tcl
 proc setup_tool {} {
@@ -45,7 +100,7 @@ proc setup_tool {} {
 
 ---
 
-### 2 -- `parser_basic_multiple_procs.tcl`
+#### 2 -- `parser_basic_multiple_procs.tcl`
 
 ```tcl
 proc proc_a {} { return "a" }
@@ -59,7 +114,7 @@ proc proc_b {x} {
 
 ---
 
-### 3 -- `parser_empty_file.tcl`
+#### 3 -- `parser_empty_file.tcl`
 
 ```tcl
 # This file has no proc definitions
@@ -70,7 +125,7 @@ set x 1
 
 ---
 
-### 4 -- `parser_brace_in_string_literal.tcl`
+#### 4 -- `parser_brace_in_string_literal.tcl`
 
 ```tcl
 proc tricky {args} {
@@ -83,7 +138,7 @@ proc tricky {args} {
 
 ---
 
-### 5 -- `parser_backslash_line_continuation.tcl`
+#### 5 -- `parser_backslash_line_continuation.tcl`
 
 ```tcl
 proc split_def \
@@ -97,7 +152,7 @@ proc split_def \
 
 ---
 
-### 6 -- `parser_nested_namespace_accumulates.tcl`
+#### 6 -- `parser_nested_namespace_accumulates.tcl`
 
 ```tcl
 namespace eval a {
@@ -111,7 +166,7 @@ namespace eval a {
 
 ---
 
-### 7 -- `parser_namespace_reset_after_block.tcl`
+#### 7 -- `parser_namespace_reset_after_block.tcl`
 
 ```tcl
 namespace eval a {
@@ -127,7 +182,7 @@ namespace eval b {
 
 ---
 
-### 8 -- `parser_computed_proc_name_skipped.tcl`
+#### 8 -- `parser_computed_proc_name_skipped.tcl`
 
 ```tcl
 proc ${prefix}_handler {} {
@@ -139,7 +194,7 @@ proc ${prefix}_handler {} {
 
 ---
 
-### 9 -- `parser_duplicate_proc_definition_error.tcl`
+#### 9 -- `parser_duplicate_proc_definition_error.tcl`
 
 ```tcl
 proc read_data {} {
@@ -155,7 +210,7 @@ proc read_data {} {
 
 ---
 
-### 10 -- `parser_comment_with_braces_ignored.tcl`
+#### 10 -- `parser_comment_with_braces_ignored.tcl`
 
 ```tcl
 proc tricky {args} {
@@ -168,7 +223,7 @@ proc tricky {args} {
 
 ---
 
-### 11 -- `parser_proc_inside_if_block.tcl`
+#### 11 -- `parser_proc_inside_if_block.tcl`
 
 ```tcl
 if {$feature_enabled} {
@@ -182,7 +237,7 @@ if {$feature_enabled} {
 
 ---
 
-### 12 -- `parser_namespace_absolute_override.tcl`
+#### 12 -- `parser_namespace_absolute_override.tcl`
 
 ```tcl
 namespace eval ns {
@@ -194,7 +249,7 @@ namespace eval ns {
 
 ---
 
-### 13 -- `parser_empty_proc_body_forms.tcl`
+#### 13 -- `parser_empty_proc_body_forms.tcl`
 
 Three proc forms in one file:
 ```tcl
@@ -215,7 +270,7 @@ proc whitespace_body {} {
 
 ---
 
-### 14 -- `parser_call_extraction.tcl`
+#### 14 -- `parser_call_extraction.tcl`
 
 ```tcl
 proc caller {} {
@@ -229,7 +284,7 @@ proc caller {} {
 
 ---
 
-### 15 -- `parser_encoding_latin1_fallback.tcl`
+#### 15 -- `parser_encoding_latin1_fallback.tcl`
 
 Binary file containing Latin-1 encoded content (create via `tests/fixtures/create_latin1_fixture.py`).
 
@@ -245,7 +300,7 @@ proc legacy_proc {} {
 
 ---
 
-### 16 -- `parser_eda_complex_del_seq_rpt.tcl`
+#### 16 -- `parser_eda_complex_del_seq_rpt.tcl`
 
 Representative Intel/Synopsys FEV-domain proc exercising the most challenging real-world patterns. Anchored on the production `del_seq_rpt` proc; additional real-world pathologies (CRLF + DPA backslash continuation, column-0 proc bodies) are exercised inline in [`tests/unit/parser/test_service.py::TestRealWorldScenarios`](unit/parser/test_service.py) and [`tests/unit/trimmer/test_proc_dropper.py`](unit/trimmer/test_proc_dropper.py) (structural-fidelity guarantee).
 
@@ -281,7 +336,7 @@ No diagnostics expected. `iproc_msg`, `find_cfm`, `get_attribute`, `foreach_in_c
 
 ---
 
-### 17 -- `parser_eda_complex_get_hier_summary.tcl`
+#### 17 -- `parser_eda_complex_get_hier_summary.tcl`
 
 Representative proc for `puts`/`echo`-heavy result reporting with Synopsys/Cadence EDA commands.
 
@@ -329,25 +384,53 @@ No proc defined inside a `foreach_in_collection` body (or any CONTROL_FLOW conte
 
 ---
 
-## Coverage Requirements
+## 3. Tracing-Domain Fixtures (`fixtures/tracing_domain/`)
 
-All parser fixtures under `tests/fixtures/edge_cases/parser_*.tcl` (currently 20) must pass before the Parser module (Stage 1) is declared complete and Stage 2 (Compiler) begins. Each fixture must be implemented as a parametrized test in `tests/unit/test_parser.py`. Golden output files live in `tests/golden/` as `parser__<fixture_name_without_parser_prefix>.json`.
+One file per P4 trace category, so each `TW-*` code has exactly one positive fixture:
 
-Parser fixture Tcl files live in `tests/fixtures/edge_cases/`. The binary Latin-1 fixture is generated into that directory by `tests/fixtures/create_latin1_fixture.py`.
+| Fixture | Scenario | Expected |
+|---|---|---|
+| `direct_call.tcl` | Bare `callee` inside a proc body | Resolved edge; positive baseline |
+| `bracketed_call.tcl` | `[callee ...]` command substitution | Resolved edge |
+| `namespace_qualified.tcl` | Absolute, relative and bare lookups of namespaced procs | All forms resolve to the same proc |
+| `diamond.tcl` | `a -> b; a -> c; b -> d; c -> d` | `d` reached twice; the BFS visited-set dedupes |
+| `cross_file.tcl` | Callee defined in a different file | Cross-file edge in `dependency_graph.json` |
+| `cycle.tcl` | Mutual and self recursion | Terminates via the visited-set; `TW-04` |
+| `ambiguous.tcl` | Same short name in two namespaces | `TW-01` |
+| `dynamic.tcl` | `$cmd`, `eval`, `uplevel` call forms | Not enqueued; `TW-03` |
+
+`TW-02` (unresolved call) and `VW-06` (sourced file removed) are asserted inline in the trace and validator unit tests rather than by a dedicated fixture file.
 
 ---
 
-## Real-World Fixtures
+## 4. Real-World Coverage (Inline)
 
-Real-world Tcl sources are kept alongside the fabricated parser fixtures so the integration suite (Stage 3+) can exercise the full pipeline end-to-end against content that matches production EDA domains.
+Production Synopsys Formality patterns are also exercised by small verbatim byte-literal snippets inside the unit tests, co-located with the code that enforces them:
 
-| Fixture Directory | Source | Purpose |
-|---|---|---|
-| `tests/fixtures/mini_domain/` | Fabricated minimal domain | Smoke + first-trim / re-trim integration scenarios. |
-| `tests/fixtures/namespace_domain/` | Fabricated namespace-heavy domain | Namespace resolution integration scenarios. |
-| `tests/fixtures/tracing_domain/` | Fabricated tracing-scenario domain covering the six canonical P4 categories -- `direct_call.tcl`, `bracketed_call.tcl`, `namespace_qualified.tcl`, `cycle.tcl`, `ambiguous.tcl`, `dynamic.tcl` plus the multi-file extras `diamond.tcl` and `cross_file.tcl` | Trace (P4) integration scenarios: BFS termination, frontier determinism, and one-fixture-per-diagnostic coverage -- `direct_call` is the positive baseline; `bracketed_call` exercises `[cmd ...]` substitution; `namespace_qualified` covers absolute / relative / bare lookup; `cycle` forces `TW-04`; `ambiguous` forces `TW-01`; `dynamic` forces `TW-03`. |
-| `tests/fixtures/stages_domain/` | Fabricated F3 stage-and-stack-file domain (`base.json` only, with `options.generate_stack: true` and three stages -- `setup`, `run_flow`, `promote` -- chained via `load_from`/`dependencies`) | F3 run-file generation integration scenarios in `tests/integration/test_runner_localfs_e2e.py`: dry-run manifest shape and live trim that emits one `<stage>.tcl` plus one `<stage>.stack` per stage, plus audit-bundle inclusion of the generated stack files. |
-| `tests/fixtures/header_domain/` | Fabricated generated-file header vectors (issue #30): `sta_setup.tcl` (`#!/bin/sh` -> `exec tclsh` bootstrap with its own Intel header) and `rtl2rtl.tcl` (Intel header, no shebang), both regenerated in place via `reference_file`; `scripts/plain.steps` (header-less body); a `standalone_stack` stage; and feature `post_check` adding a stage from shebang script `scripts/post_check.tcl` | `test_runner_localfs_header_domain_keeps_owned_headers_on_top` in `tests/integration/test_runner_localfs_e2e.py`: owned headers (shebang / copyright notice) are written verbatim, header-less bodies get the Intel header on line 1, a feature marker never displaces a shebang (the base sets `options.insert_markers: true`; ARCHITECTURE.md Sec.6.6.1, Sec.3.11), and a re-trim is byte-stable. |
-| `tests/fixtures/edge_cases/domain_empty/` | Zero-`.tcl` domain | Validates statistics rendering on `files_out=0` / `procs_out=0` without division-by-zero (HANDOFF_REVIEW S-7). |
-| `tests/fixtures/edge_cases/domain_single_empty_file/` | One `.tcl` file containing only a comment | Validates P2 empty `ProcEntry` list return and downstream trim_stats handling when `procs_in=0` (HANDOFF_REVIEW S-7). |
-| `tests/fixtures/edge_cases/non_tcl_python_stray_braces.py` | Python source with stray `}` inside string/regex literals | Regression guard for GitHub issue #2 -- non-Tcl files named in `files.include` / `procedures.*` must be skipped by P2 (OOS-01 in `technical_docs/ARCHITECTURE.md` Sec.1.3). Bytes intentionally trigger a Tcl `negative_depth` tokenizer error *if* the file is ever parsed; `ParserService.run` must skip it silently and emit no `PE-02`. |
+- [`unit/parser/test_service.py::TestRealWorldScenarios`](unit/parser/test_service.py) -- CRLF line endings plus the `define_proc_attributes` backslash-continuation regression (previously emitted spurious `PI-04` + `PW-11`); column-0 proc bodies.
+- [`unit/trimmer/test_proc_dropper.py`](unit/trimmer/test_proc_dropper.py) -- structural fidelity: after dropping one proc from a real multi-proc file, every kept proc (banner comment, blank lines, tab-indented or column-0 body) is byte-identical in the output.
+
+Tokenizer and parser structural regressions must **also** be added as a dedicated `edge_cases/parser_*.tcl` fixture (the real snippet as-is) and referenced by a unit test, so the shared corpus keeps every real-world pathology.
+
+---
+
+## 5. Diagnostic Coverage and Open Gaps
+
+Parser and trace codes with an emitter and a test: `PE-01`, `PE-02`, `PW-01`, `PW-02`, `PW-03` (inline in `unit/parser/test_proc_extractor.py`), `PW-04`, `PW-11`, `PI-04`, `TW-01`..`TW-04`, `VW-06`.
+
+**Open gap -- registered but never emitted.** `PE-03`, `PW-05`, `PW-06`, `PW-07`, `PW-08`, `PW-09`, `PW-10`, `PI-01`, `PI-02` and `PI-03` are registered in [`technical_docs/DIAGNOSTIC_CODES.md`](../technical_docs/DIAGNOSTIC_CODES.md) but no code path in `src/chopper/` emits them (the parser maps only the extractor kinds in `parser/service.py` `_DIAG_CODE_MAP`). A fixture for one of these codes is meaningful only after an architecture-backed emitter exists; until then, do not author fixtures that assert them.
+
+---
+
+## 6. Coverage Requirements
+
+- Every `edge_cases/parser_*.tcl` file is parametrized by [`unit/parser/test_edge_case_fixtures.py`](unit/parser/test_edge_case_fixtures.py), which also guards the corpus size (`>= 23`, the Sec.2.1 index) so an accidental deletion fails loudly. Fixtures 1-17 carry dedicated expectation tests under `tests/unit/parser/`.
+- Parser expectations are asserted directly in unit tests, not by golden files; golden files cover the `.chopper/` audit artifacts only (see [`TESTING_STRATEGY.md`](TESTING_STRATEGY.md) Sec.7).
+- The binary Latin-1 fixture is regenerated into `edge_cases/` by `fixtures/create_latin1_fixture.py`.
+
+### Adding a fixture
+
+1. Put the file in the directory that matches Sec.1 (adversarial parser input -> `edge_cases/parser_<behavior>.tcl`; trace category -> `tracing_domain/`; multi-file pipeline scenario -> a new `<scenario>_domain/`).
+2. Add a row to the matching table in this file, citing the pitfall (`P-xx`) or diagnostic code it pins.
+3. Add the unit or integration test that asserts both the returned objects and the emitted diagnostic set.
+4. If the fixture backs a named integration scenario, cross-reference it from [`TESTING_STRATEGY.md`](TESTING_STRATEGY.md) Sec.5.

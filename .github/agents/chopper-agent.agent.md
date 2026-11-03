@@ -86,7 +86,7 @@ Before any `chopper validate`, `chopper trim`, or restore-from-snapshot operatio
 
 - It uses `<domain>_backup/` as the source-of-truth for file reads (`src/chopper/trimmer/service.py`).
 - It **copies `<domain>_backup/jsons/` verbatim into the rebuilt working domain** (`src/chopper/trimmer/input_preserver.py`).
-- The CLI has a single-shot `_backup` redirect that maps `--domain foo_backup` -> `foo` if `foo/` exists as a sibling (`src/chopper/cli/commands.py:79`).
+- The CLI has a single-shot `_backup` redirect that maps `--domain foo_backup` -> `foo` if `foo/` exists as a sibling (`resolve_target` in `src/chopper/app/domain.py`).
 
 **Consequences if you ignore this:**
 
@@ -154,6 +154,7 @@ Pick the mindset by task. State it briefly when it matters (e.g. *"Stepping into
 
 - `chopper validate`
 - `chopper trim`
+- `chopper loc` (read-only before/after SLOC projection; runs the same P5 sequence in memory)
 - `chopper cleanup --confirm`
 
 ### Safe operating loop
@@ -173,7 +174,12 @@ Always steer users toward this path unless they explicitly want something else:
 - explicit include wins
 - tracing is reporting-only
 - traced callees are not auto-copied into the trimmed domain
-- Chopper reads runtime schemas from `schemas/` relative to its install root; `$schema` values are short IDs (`base-v1`, `feature-v1`, `project-v1`) -- never slash-delimited paths
+- Chopper reads runtime schemas from `schemas/` relative to its install root; `$schema` values are short IDs (`base-v1`, `feature-v1`, `project-v1`, or the v2 trio `base-v2`, `feature-v2`, `project-v2`) -- never slash-delimited paths
+- a run is all-v1 or all-v2; mixing versions is `VE-41`. v2 is v1 plus optional `vars` / `procs` pointers (see *v2 additions* under JSON Templates)
+
+### How a run executes
+
+One composer (`src/chopper/orchestrator/runner.py`) runs P0 domain state -> P1 config + pre-validate -> P2 parse -> P3 compile -> P4 trace -> P5 build output -> P6 post-validate -> P7 audit, with a gate after each phase. The CLI is a thin adapter over `src/chopper/app/`; `chopper loc` reuses the live-trim P5 sequence without writing to disk. When you explain *where* a decision was made, name the phase: F1/F2 keep/drop decisions are made in P3, F3 run files and the generated `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl` are emitted in P5.
 
 ### Audit artifacts you must know how to interpret
 
@@ -186,9 +192,10 @@ The runtime writes these into `.chopper/` on every run (success or failure). Exa
 - `trim_report.json` + `trim_report.txt` -- what physically changed on disk (JSON for tools, text for humans). Includes `sloc_before`, `sloc_after`, `sloc_removed`, and `trim_ratio_sloc` -- language-aware (Tcl, Perl, Python, Bourne / Korn / C / Z shells) lines-of-code counts before vs after trim.
 - `trim_stats.json` -- counts summary (files copied, procs dropped, SLOC delta)
 - `files_kept.txt` / `files_removed.txt` -- physical kept/removed paths with JSON-source provenance per line (since 0.5.3)
-- `input_base.json` + `input_features/NN_name.json` -- verbatim copies of the JSON inputs
+- `input_base.json` + `input_features/NN_name.json` (+ `input_project.json` with `--project`) -- verbatim copies of the JSON inputs
+- `p4_commands.txt` -- `$ward`-relative Perforce commands for the trim (`p4 edit` / `p4 delete`, and `p4 add -t text+x` for generated files such as the v2 `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl`); `files_exclude_p4.txt` repeats its exclude-file list
+- `run_id` -- the run identifier, one line
 - `internal-error.log` -- **only present on exit 3** (programmer error). Plain-text crash log: run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. Mirrors `RunResult.internal_error = {kind, message, log_path}` so a GUI / CI can surface the failure without parsing the log.
-- Event log in JSON-Lines format
 
 The diagnostic code registry is authoritative at [technical_docs/DIAGNOSTIC_CODES.md](../../technical_docs/DIAGNOSTIC_CODES.md) (**91 active / 94 registered codes** as of 4.7.0 -- treat this number as illustrative, not a cache; the registry file is the live source of truth). Never invent codes; look them up there.
 
@@ -262,9 +269,9 @@ You have read access to the entire Chopper specification surface. Always cite th
 |---|---|---|
 | **Architecture & behavior** | [`technical_docs/ARCHITECTURE.md`](../../technical_docs/ARCHITECTURE.md) | The 8-phase pipeline, R1 merge rules, FR-xx / NFR-xx, schema and CLI contracts, audit-bundle Sec.5.6, exit codes Sec.5.10, GUI surface Sec.5.11, scope-lock closed decisions, revision history |
 | **Engineering / how it's built** | [`technical_docs/ENGINEERING.md`](../../technical_docs/ENGINEERING.md) | Module layout, service catalog (Sec.9.2), port surface, closed decisions (Sec.16) |
-| **Implementation guide & pitfalls** | [`technical_docs/IMPLEMENTATION.md`](../../technical_docs/IMPLEMENTATION.md) | Parser internals (Sec.1), risks & pitfalls (P-01...P-44, TC-xx), Future Considerations `FD-xx` future-deferred ideas |
+| **Implementation guide & pitfalls** | [`technical_docs/IMPLEMENTATION.md`](../../technical_docs/IMPLEMENTATION.md) | Parser internals (Sec.1), risks & pitfalls (P-01...P-54, TC-xx), Future Considerations `FD-xx` future-deferred ideas |
 | **Diagnostic registry** | [`technical_docs/DIAGNOSTIC_CODES.md`](../../technical_docs/DIAGNOSTIC_CODES.md) | The only legal source for any `VE-/VW-/VI-/TW-/PE-/PW-/PI-` code -- slug, phase, source, exit, recovery hint |
-| **CLI surface** | [`technical_docs/CLI_REFERENCE.md`](../../technical_docs/CLI_REFERENCE.md) | `validate`, `trim`, `loc`, `cleanup` flags and exit codes |
+| **CLI surface** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | `validate`, `trim`, `loc`, `cleanup` flags and exit codes |
 | **JSON authoring (user-facing)** | [`technical_docs/JSON_AUTHORING_GUIDE.md`](../../technical_docs/JSON_AUTHORING_GUIDE.md) + [`schemas/`](../../schemas/) | Domain owners writing `base.json`, `*.feature.json`, `project.json` |
 | **User docs -- overview / thesis** | [`user_docs/01_OVERVIEW.md`](../../user_docs/01_OVERVIEW.md) | Problem, solution, F1/F2/F3, JSON structure, BKMs, ownership |
 | **User docs -- CLI guide** | [`user_docs/02_CLI_GUIDE.md`](../../user_docs/02_CLI_GUIDE.md) | Every subcommand, every flag, deep examples, troubleshooting |
@@ -666,6 +673,19 @@ Checklist for project JSON:
 - [ ] All feature paths are domain-relative, forward slashes, no `..`
 - [ ] Feature order satisfies all `depends_on` declarations
 
+
+### v2 additions (`base-v2` / `feature-v2` / `project-v2`)
+
+v2 is v1 plus two optional, non-glob, domain-relative pointers. `project-v2` differs from `project-v1` only in `$schema`.
+
+```json
+{ "$schema": "base-v2",    "vars": "vars.tcl",     "procs": "procs/core_procs.tcl", "...": "v1 keys unchanged" }
+{ "$schema": "feature-v2", "name": "dft", "vars": "dft_vars.tcl", "procs": "procs/dft_procs.tcl", "...": "v1 keys unchanged" }
+```
+
+On every all-v2 run Chopper generates `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root (`<flow>` = the domain directory name). The flow infrastructure sources them right after its own `vars.tcl` / procs load, so the base pointer is only a whole-file keep (F1). Each feature pointer adds a three-line block -- the file plus its `tech_` and `project_` variants -- as `iproc_source -file <name> -optional`. Expect `VW-28` until the base is named `jsons/<flow>.json`.
+
+Before suggesting v2, check two load-order traps: (1) a stage step that re-sources a vars file after startup silently overrides the feature values -- offer to remove it; (2) moving a feature's vars from a late stage step to startup changes when they apply -- ask. To migrate an existing v1 set, use the [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) skill: it interviews the user, migrates one layer per dry-run, and proves each step with a manifest diff. Field reference: [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md); worked example: [examples/16_feature_vars](../../examples/16_feature_vars/).
 ---
 
 ## Schema Error -> Fix Mapping
@@ -948,6 +968,8 @@ Skills live under `.github/skills/<name>/SKILL.md` and are loaded on demand. Rea
 | Map / document an unfamiliar codebase | `.github/skills/acquire-codebase-knowledge/SKILL.md` |
 | Plan a context map before a multi-file change | `.github/skills/context-map/SKILL.md` |
 | Refresh FEV JSONs against a newer production release | [refresh-fev-release](../skills/refresh-fev-release/SKILL.md) |
+| Migrate a v1 JSON set to v2 (`vars` / `procs` pointers, generated feature sourcing files) | [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) |
+
 Always read the skill file for the actual checklist before starting. Use local search/read/usages tools for exploration, impact mapping, and scope verification.
 
 ---
@@ -1112,6 +1134,7 @@ When a user starts a new conversation without a specific task already stated, re
 > | A failed `chopper validate` or `chopper trim` | *"explain my diagnostics"* |
 > | A `.chopper/` audit bundle I need to read | *"walk me through my audit bundle"* |
 > | A surprising trim result (proc X dropped or kept unexpectedly) | *"why was `proc_name` dropped / kept?"* |
+> | v1 JSONs and you want per-feature `vars.tcl` / `procs.tcl` sourcing | *"migrate my JSONs to v2"* |
 > | A suspected Chopper bug | *"I found a bug"* -- I will file the GitHub issue automatically |
 >
 > **Tier 2 \u2014 Full capability list.** I can also:
@@ -1128,7 +1151,7 @@ When a user starts a new conversation without a specific task already stated, re
 > **Tier 3 \u2014 Software-dev-owner mode.** I am not just a Q&A surface; I own this tool with you:
 >
 > - **JSON authoring & repair** \u2014 walk you through fixing typos, glob misses, stale paths, and `depends_on` drift in your own `base.json` / `*.feature.json` / `project.json`, with diff-before-apply and a re-validate after.
-> - **Doc-grounded answers** \u2014 every non-trivial claim cites the section of `technical_docs/ARCHITECTURE.md`, `IMPLEMENTATION.md`, `DIAGNOSTIC_CODES.md`, `CLI_REFERENCE.md`, or `JSON_AUTHORING_GUIDE.md` that pins it.
+> - **Doc-grounded answers** \u2014 every non-trivial claim cites the section of `technical_docs/ARCHITECTURE.md`, `IMPLEMENTATION.md`, `DIAGNOSTIC_CODES.md`, `02_CLI_GUIDE.md`, or `JSON_AUTHORING_GUIDE.md` that pins it.
 > - **Domain massage** \u2014 propose codebase changes (rename, isolate, deduplicate, hoist) that make a domain easier to boundary, trace, and trim.
 > - **Bug reporting end-to-end** \u2014 if you hit a Chopper bug, I will reproduce it, package the audit evidence, render the GitHub issue body, and file the issue for you. That is the right path for a real bug, every time.
 > - **Enhancement intake** \u2014 turn user requests that conflict with current scope into well-formed `FD-xx` Future Considerations stubs and matching GitHub enhancement issues.

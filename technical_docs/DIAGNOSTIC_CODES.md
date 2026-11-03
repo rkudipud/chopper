@@ -18,7 +18,7 @@ All codes follow the pattern **`<FAMILY><SEV>-<NN>`**:
 
 Each code also carries a **`slug`** -- a kebab-case label that provides a stable human-readable identifier alongside the numeric code. Verbose and human-facing output displays the slug; machine output, JSON, and the Python constants registry use the numeric code.
 
-Reserved rows (marked `--`) are intentionally blank -- fill them sequentially when new codes are needed; never renumber existing ones. The registry has **no retired codes**; if a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
+Reserved rows (marked `--`) are intentionally blank -- fill them sequentially when new codes are needed; never renumber existing ones. A removed code keeps its slot, marked `RETIRED`, and the slot is never reused (today: `VW-18`, `VW-19`, `PE-04`).
 
 ## Code Space Summary
 
@@ -141,7 +141,7 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 | VI-04 | `companion-sync-applied` | 5 | trimmer | 0 | P5d companion-file sync successfully filtered a companion file (`default_config.<sfx>.csv` or `default_milestone.<sfx>.tcl`) to match the surviving proc set of the paired `default_rules.<sfx>.tcl` file. Informational only; no action needed. | No action required. |
 | VI-05 | `flow-action-skipped-no-stage` | 3 | compiler | 0 | A `flow_actions` entry that declared `"skip_if_no_stage": true` named a stage that is not present in the compiled stage sequence (typically because the partial project composition did not load it). The action was skipped; the working stage sequence is unchanged. This is the **author-sanctioned** counterpart of `VE-05`: stage-not-found becomes advisory when (and only when) the action opts in. Step-level miss inside a present stage still emits `VE-05`. | No action required if the silent skip matches the author's intent. If the stage *should* be present, add the feature that introduces it (or fix the typo). To restore strict behaviour for this action, remove the `"skip_if_no_stage": true` field. |
 
-> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc Sec.2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* A `VI-03 domain-hand-edited` code was proposed and rejected during pre-1.0 design (see [`ENGINEERING.md`](ENGINEERING.md) Sec.16 closed decisions). The `VI-03` slot was later reused in 1.2.0 for `domain-suffix-strip-applied` (above) per the registry's lowest-available-slot convention.
+> **No hand-edit detection diagnostic.** Chopper does not compare `<domain>/` against a prior checkpoint. On every re-trim (Case 2 of architecture doc Sec.2.8), the CLI prints a fixed warning line: *"Re-trim rebuilds `<domain>/` from `<domain>_backup/`. Any manual edits in `<domain>/` will be discarded."* A `VI-03 domain-hand-edited` code was proposed and rejected during pre-1.0 design (see [`ENGINEERING.md`](ENGINEERING.md) Sec.12 closed decisions). The `VI-03` slot was later reused in 1.2.0 for `domain-suffix-strip-applied` (above) per the registry's lowest-available-slot convention.
 
 ---
 
@@ -225,8 +225,8 @@ Reserved rows (marked `--`) are intentionally blank -- fill them sequentially wh
 - **Exit 1** -- Validation or parse failure; output generation is blocked.
 - **Exit 2** -- CLI / pre-pipeline fatal: `VE-11` conflicting options, `VE-13` unresolvable `--project` paths, `VE-21` missing domain + backup.
 - **Exit 3** -- Unhandled exception inside a service (programmer error). Covered by the outer `try/finally` in [`ENGINEERING.md`](ENGINEERING.md) Sec.6.2; the audit writer still emits `.chopper/internal-error.log`. `VE-16` also exits 3 as an internal-consistency assertion.
-- **No retired codes.** The registry is compact. If a code ever needs to be removed post-release, its slot is marked `RETIRED` and never reused.
-- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope (see [`ENGINEERING.md`](ENGINEERING.md) Sec.16 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
+- **Retired slots are never reused.** `VW-18`, `VW-19` and `PE-04` are marked `RETIRED`; any future removal follows the same rule.
+- **No plugin / MCP / advisor code family exists or is reserved.** There is no `X*` band. Plugin host, MCP driver, and AI advisor are permanently out of scope (see [`ENGINEERING.md`](ENGINEERING.md) Sec.12 and [`.github/instructions/project.instructions.md`](../.github/instructions/project.instructions.md) Scope Lock).
 - Every code constant must be defined in `src/chopper/core/diagnostics.py` before use in implementation.
 - Every code carries a kebab-case **`slug`** for human-facing display. The numeric code is the canonical key in Python, JSON output, and log filtering; the slug is used only in rendered messages and verbose CLI output.
 - When adding a new code: pick the lowest available reserved slot in the correct `<FAMILY><SEV>` band, assign a slug, update the registry table and the summary above, then implement the constant.

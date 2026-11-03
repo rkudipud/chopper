@@ -2,7 +2,7 @@
 
 Closes Q-03 from the 2026-04-23 spec-conformance audit. The fixtures under
 ``tests/fixtures/edge_cases/`` are catalogued in
-`tests/FIXTURE_AUDIT.md` Sec.2 as the canonical adversarial parser input set
+`tests/FIXTURE_CATALOG.md` Sec.2 as the canonical adversarial parser input set
 (P-01 through P-04 pitfall coverage plus the namespace / EDA-complex
 vectors). Before this test existed, those ``.tcl`` files were only
 referenced as spec-review artifacts -- no production test exercised them,
@@ -22,7 +22,7 @@ This is deliberately a thin guard. Behavioural assertions (what
 specific diagnostic each fixture should emit, in which order) already
 live beside the relevant parser unit tests; duplicating them here would
 break the "regression guards co-located with the code" principle
-([tests/FIXTURE_AUDIT.md](../../FIXTURE_AUDIT.md) Sec.1).
+([tests/FIXTURE_CATALOG.md](../../FIXTURE_CATALOG.md) Sec.4).
 """
 
 from __future__ import annotations
@@ -69,12 +69,12 @@ def test_edge_case_fixture_parses_without_crashing(fixture: Path) -> None:
 
 
 def test_every_parser_fixture_is_covered() -> None:
-    """Guard: the glob above finds at least the count documented in FIXTURE_AUDIT.md Sec.2."""
+    """Guard: the glob above finds at least the count indexed in FIXTURE_CATALOG.md Sec.2.1."""
     fixtures = _parser_fixtures()
-    # FIXTURE_AUDIT.md Sec.2 enumerates 17 adversarial parser fixtures; the
+    # FIXTURE_CATALOG.md Sec.2.1 indexes 23 adversarial parser fixtures; the
     # guard tolerates additions but flags accidental deletions.
-    assert len(fixtures) >= 17, (
-        f"expected at least 17 parser_*.tcl fixtures under {FIXTURES_DIR.as_posix()}, "
+    assert len(fixtures) >= 23, (
+        f"expected at least 23 parser_*.tcl fixtures under {FIXTURES_DIR.as_posix()}, "
         f"found {len(fixtures)}. Has a fixture been deleted without updating "
-        f"tests/FIXTURE_AUDIT.md?"
+        f"tests/FIXTURE_CATALOG.md?"
     )

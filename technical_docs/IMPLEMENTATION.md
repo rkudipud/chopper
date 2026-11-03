@@ -5,7 +5,7 @@
 > **What changed in this consolidation.** This file replaces four previous docs that drifted apart over time:
 >
 > - The Tcl parser engineering spec
-> - The technical-risks and implementation-pitfalls ledger (P-01 ... P-48 + TC-01 ... TC-10)
+> - The technical-risks and implementation-pitfalls ledger (P-01 ... P-54 + TC-01 ... TC-10)
 > - The parser implementation decision log (D-1b-01 ... D-1e-03)
 > - The future-planned-developments ledger (OOS-01 ... OOS-04 + FD-01 ... FD-14)
 >
@@ -20,7 +20,7 @@
 5. [Audit & Diagnostics](#5-audit--diagnostics) -- Diagnostic emission and audit-bundle invariants (P-18, P-19)
 6. [Backup & Recovery](#6-backup--recovery) -- Re-trim semantics (P-20)
 7. [Configuration & Paths](#7-configuration--paths) -- Path normalization, config-file resolution (P-21, P-22)
-8. [CLI & Presentation](#8-cli--presentation) -- Dry-run, project JSON path resolution, mutually-exclusive flags, --strict, cleanup, domain name resolution (P-23, P-25, P-26, P-27, P-28, P-43 ... P-47)
+8. [CLI & Presentation](#8-cli--presentation) -- Dry-run, project JSON path resolution, mutually-exclusive flags, --strict, cleanup, domain name resolution (P-23, P-25, P-26, P-27, P-28, P-43, P-51 ... P-54)
 9. [Hook Files](#9-hook-files) -- `-use_hooks` discovery-only contract (P-29)
 10. [Project JSON](#10-project-json) -- Project-mode metadata flow and domain consistency (P-30, P-31)
 11. [Testing Strategy](#11-testing-strategy) -- Stage gating and edge-case timing (P-24)
@@ -2154,7 +2154,7 @@ rel = domain_root.resolve().relative_to(ward_root.resolve())
 
 ---
 
-### Pitfall P-44: Comma in Domain Name Is Not Supported in Multi-Domain CSV
+### Pitfall P-51: Comma in Domain Name Is Not Supported in Multi-Domain CSV
 
 **THE TRAP:**
 ```bash
@@ -2171,7 +2171,7 @@ chopper trim --domain "snps/fev,eco,trim"
 
 ---
 
-### Pitfall P-45: Double-Suffix `.feature.feature.json` Names Map to `foo.feature`
+### Pitfall P-52: Double-Suffix `.feature.feature.json` Names Map to `foo.feature`
 
 **THE TRAP:**
 ```python
@@ -2189,7 +2189,7 @@ chopper trim --domain "snps/fev,eco,trim"
 
 ---
 
-### Pitfall P-46: Mixed Ward/Path Modes in Multi-Domain Run -- Each Domain's RunConfig Is Independent
+### Pitfall P-53: Mixed Ward/Path Modes in Multi-Domain Run -- Each Domain's RunConfig Is Independent
 
 **THE TRAP:**
 ```bash
@@ -2205,7 +2205,7 @@ chopper trim --domain "fev_formality,/p/abs/other_domain"
 
 ---
 
-### Pitfall P-47: `difflib.get_close_matches` Cutoff=0.5 for VE-36 Suggestions
+### Pitfall P-54: `difflib.get_close_matches` Cutoff=0.5 for VE-36 Suggestions
 
 **THE TRAP:**
 ```python
@@ -2444,7 +2444,7 @@ Permanently-excluded items (former *Appendix A: Out of Scope*) are not maintaine
 - *Client:* static HTML, CSS, and vanilla JavaScript shipped as package data. No npm, no build step, no frontend framework, no new runtime dependency.
 - *API:* JSON over HTTP, one route per application use case; requests and responses are the use cases' typed inputs and results serialized through `core/serialization.py`. Every CLI action is reachable (domain resolution, catalog discovery, validate, dry-run, trim, LoC, trim statistics, cleanup), plus diagnostics and `.chopper/` artifact browsing.
 - *Authoring:* discovery and display of base / feature / project JSONs; selecting and ordering features; and create / read / update / delete / rename / duplicate of JSON files, validated against the bundled schemas, schema-version consistency (`VE-41`), `depends_on`, and `incompatible_with` before anything is written. These authoring use cases are added to `chopper.app` together with the GUI (the CLI does not need them today).
-- *Doc changes on adoption:* architecture Sec.5.11 (route table and authoring use cases), FR rows, a `chopper gui` entry in `technical_docs/CLI_REFERENCE.md`, and narrowing the networked-services closure (`technical_docs/ENGINEERING.md` Sec.16 and `.github/instructions/project.instructions.md` Sec.1) to permit exactly this loopback, token-guarded, foreground server.
+- *Doc changes on adoption:* architecture Sec.5.11 (route table and authoring use cases), FR rows, a `chopper gui` entry in `user_docs/02_CLI_GUIDE.md`, and narrowing the networked-services closure (`technical_docs/ENGINEERING.md` Sec.12 and `.github/instructions/project.instructions.md` Sec.1) to permit exactly this loopback, token-guarded, foreground server.
 
 Until the owner approves building it, no GUI code, stub, route, static asset, or reserved seam exists.
 
@@ -2470,7 +2470,7 @@ Until the owner approves building it, no GUI code, stub, route, static asset, or
 
 ### Documentation
 
-**FD-05, FD-06, FD-07** -- Quick-start guide, example diagnostic messages per code, and terminology glossary (capability F1/F2/F3 vs feature JSON). Deferred until spec is final. Source: `technical_docs/ARCHITECTURE.md` Sec.13.4 (DF-01 / DF-02 / DF-03).
+**FD-05, FD-06, FD-07** -- Quick-start guide, example diagnostic messages per code, and terminology glossary (capability F1/F2/F3 vs feature JSON). FD-05 and FD-07 are resolved by their owner documents: the quick start lives in `README.md` and `user_docs/02_CLI_GUIDE.md`, and the glossary is `technical_docs/ARCHITECTURE.md` Sec.14. FD-06 stays open: `technical_docs/DIAGNOSTIC_CODES.md` gives each code's meaning and recovery hint but no sample rendered message.
 
 ### Summary
 
@@ -2481,9 +2481,9 @@ Until the owner approves building it, no GUI code, stub, route, static asset, or
 | FD-08 | Compiler | Feature mutual-incompatibility constraints (`incompatible_with`) -- ADOPTED in 4.6.0 |
 | FD-03 | CLI/UX | Interactive feature-selection TUI |
 | FD-04 | CLI/UX | Local browser GUI (stdlib HTTP on loopback + vanilla HTML/CSS/JS) over the `chopper.app` use cases |
-| FD-05 | Docs | Quick-start guide |
+| FD-05 | Docs | Quick-start guide -- RESOLVED (`README.md`, `user_docs/02_CLI_GUIDE.md`) |
 | FD-06 | Docs | Per-code example diagnostic messages |
-| FD-07 | Docs | Terminology glossary |
+| FD-07 | Docs | Terminology glossary -- RESOLVED (`technical_docs/ARCHITECTURE.md` Sec.14) |
 | FD-09 | Performance | Benchmark harness + phase budgets |
 | FD-10 | CLI/UX | Machine-readable CLI output (`--json` / `--jsonl`) |
 | FD-11 | Platform | Multi-platform domain support |

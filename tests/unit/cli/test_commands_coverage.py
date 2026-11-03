@@ -156,7 +156,7 @@ def test_warn_if_cwd_will_be_renamed_silent_when_backup_exists(
 
 def test_cmd_cleanup_removes_backup_with_confirm(tmp_path: Path) -> None:
     """cmd_cleanup with --confirm must remove domain_backup/ using shutil.rmtree
-    (CLI_REFERENCE.md cleanup subcommand)."""
+    (02_CLI_GUIDE.md cleanup subcommand)."""
 
     from chopper.cli.commands import cmd_cleanup
 

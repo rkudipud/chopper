@@ -81,7 +81,7 @@ def test_nested_audit_dir_does_not_leak_into_classification() -> None:
 
 
 def test_domain_state_carries_no_hand_edit_detection() -> None:
-    """ENGINEERING.md Sec.16 Q2: hand-edit detection is closed -- the state has no such field."""
+    """ENGINEERING.md Sec.12 Q2: hand-edit detection is closed -- the state has no such field."""
     fs = InMemoryFS({DOMAIN / "x": "", BACKUP / "x": ""})
     ctx, _ = make_ctx(fs=fs)
     state = DomainStateService().run(ctx)

@@ -17,7 +17,7 @@ Instead of editing Tcl by hand and hoping you caught every dependency, you write
 
 ---
 
-## ? Meet the Companion
+## Meet the Companion
 
 You do not have to figure out domain boundaries or JSON structure by hand. A purpose-built agent ships in-repo for VS Code Copilot Chat.
 
@@ -46,216 +46,103 @@ The **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agents/ch
 
 ## What Chopper Does
 
-Chopper has three capabilities, all driven by JSON and all running through the same eight-phase pipeline:
+Chopper has three capabilities, all driven by JSON and all running through the same eight-phase pipeline (P0-P7):
 
 | Capability | What It Does |
 | --- | --- |
 | **F1 -- File trimming** | Copies or drops entire files based on `files.include` / `files.exclude` |
 | **F2 -- Proc trimming** | Surgically removes unwanted Tcl procedures inside a file, leaving the rest |
-| **F3 -- Run-file generation** | Emits `<stage>.tcl` run scripts from JSON stage definitions, replacing manual stack files |
+| **F3 -- Run-file generation** | Emits `<stage>.tcl` run scripts (and optional stack files) from JSON stage definitions |
 
-The three commands that operate on those capabilities:
+Four subcommands operate on those capabilities:
 
 ```text
-chopper validate    # Full read-only analysis -- checks schema, targets, Tcl, and call graph
-chopper trim        # Runs validation then rebuilds the trimmed domain on disk
-chopper cleanup     # Removes the backup directory after you have confirmed the trim
+chopper validate    # read-only analysis -- schema, targets, Tcl parse, call graph
+chopper trim        # rebuilds the trimmed domain on disk (--dry-run for a no-rewrite rehearsal)
+chopper loc         # read-only lines-of-code report for a planned trim (writes nothing)
+chopper cleanup     # removes <domain>_backup/ once you have confirmed the trim
 ```
 
-Every run -- validate or trim -- writes a `.chopper/` audit bundle with manifests, diagnostics, trace graphs, and reports so you can review and reproduce any result.
+Every `validate` and `trim` run -- including failures and dry-runs -- writes a `.chopper/` audit bundle with manifests, diagnostics, trace graphs, and reports so you can review and reproduce any result.
 
 ---
 
-## How to Use Chopper
+## Quickstart
 
-### Step 1 -- Set up the environment
+**1. Set up.** `source setup.csh` (tcsh, primary), `source setup.sh` (bash/zsh), `. .\setup.ps1` (PowerShell), or `setup.bat` (cmd.exe). Each creates `.venv`, activates it, and installs dependencies (Python 3.13+).
 
-| Platform | Command |
-| --- | --- |
-| Windows PowerShell | `. .\setup.ps1` |
-| Windows cmd.exe | `setup.bat` |
-| Unix tcsh/csh | `source setup.csh` |
-| Unix bash/zsh/sh | `source setup.sh` |
-
-The bootstrap scripts create `.venv`, activate it, and install dependencies.
-
-### Step 2 -- Author your JSON selections
-
-Chopper uses two or three JSON files. **Base and feature JSONs live inside your domain. The project JSON is optional and can live anywhere.**
+**2. Author JSON.** Base and feature JSONs live inside your domain; a project JSON is an optional named recipe that can live anywhere.
 
 | JSON | Where it lives | Required? | Purpose |
 | --- | --- | --- | --- |
-| **`base.json`** | `<domain>/jsons/base.json` | Yes | Universal files, procs, and stages every project in this domain needs |
-| **Feature JSON** (zero or more) | `<domain>/jsons/features/<name>.feature.json` | No | Adds files, procs, or stage modifications for one optional capability |
-| **`project.json`** | Anywhere -- inside the domain, in a shared configs dir, wherever | No | A named recipe: records one base path + an ordered list of feature paths so you can commit a specific combination and invoke it with a single `--project` flag |
+| Base | `<domain>/jsons/base.json` (or `jsons/<flow>.json`) | Yes | Universal files, procs, and stages every project needs |
+| Feature (zero or more) | `<domain>/jsons/features/<name>.feature.json` | No | Files, procs, or stage changes for one optional capability |
+| Project | anywhere | No | One base path plus an ordered feature list, invoked with `--project` |
 
-You **do not need a project JSON** to use features. Pass `--base` and `--features` directly on the command line. The project JSON is simply a way to commit a named combination.
+Pick one schema generation per run: v1 (`base-v1` / `feature-v1` / `project-v1`) or v2 (`base-v2` / `feature-v2` / `project-v2`), which adds per-layer `vars` / `procs` pointers and generates `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl`. Mixing generations is rejected (`VE-41`). Moving from v1? Ask the Chopper Agent to *"migrate my domain to v2"*.
 
-#### Invocation modes
-
-```text
-# Mode 1 -- Base only (most common starting point)
-chopper validate --base jsons/base.json
-
-# Mode 2 -- Base + features directly (no project file required)
-chopper validate --base jsons/base.json \
-    --features jsons/features/feature_a.feature.json,jsons/features/feature_b.feature.json
-
-# Mode 2b -- Validate every feature JSON in a directory at once
-# (validate only; trim/--project still require explicit per-file paths)
-chopper validate --base jsons/base.json --features jsons/features/
-
-# Mode 3 -- Project recipe (single flag for a committed base + feature combination)
-chopper validate --project project.json
-```
-
-#### Directory layout
-
-Base-only (simplest):
+**3. Run the safe loop.**
 
 ```text
-<domain_root>/
-+-- jsons/
-    +-- base.json                          <- universal files/procs/stages
-```
-
-Base + feature JSONs (Mode 2 -- no project file needed):
-
-```text
-<domain_root>/
-+-- jsons/
-    +-- base.json
-    +-- features/
-        +-- feature_a.feature.json         <- optional capability layer A
-        +-- feature_b.feature.json         <- optional capability layer B
-```
-
-Base + feature JSONs + project recipe (Mode 3):
-
-```text
-<domain_root>/
-+-- jsons/
-|   +-- base.json
-|   +-- features/
-|       +-- feature_a.feature.json
-|       +-- feature_b.feature.json
-+-- project.json                           <- optional recipe: names base + [feature_a, feature_b]
-```
-
-The project JSON can also sit outside the domain -- in a separate `configs/` directory or a team repository. It just holds paths to the base and feature JSONs.
-
-#### Worked examples in `examples/`
-
-| Example folder | What it shows |
-| --- | --- |
-| `01_base_files_only/` | Base with file trimming only |
-| `02_base_procs_only/` | Base with proc trimming only |
-| `03_base_stages_only/` | Base with stage JSON for run-file generation |
-| `07_base_full/` | Full base -- files, procs, and stages |
-| `08_base_plus_one_feature/` | Base + one feature JSON (includes a `project.json`) |
-| `09_base_plus_multiple_features/` | Base + two independent features |
-| `10_chained_features_depends_on/` | Features with `depends_on` ordering |
-| `11_project_base_only/` | Project file referencing base only (no features) |
-| `14_cross_feature_skip_if_no_stage/` | Cross-cutting feature injecting steps into stages other features create, using `skip_if_no_stage` |
-| [16_feature_vars/](examples/16_feature_vars/) | Runnable all-v2 vars/procs sourcing files, implicit F1 keeps, aggregate-stack inputs, and p4/LoC outputs |
-
-Copy the nearest example into your domain root, replace every placeholder, then validate with `python schemas/scripts/validate_jsons.py <domain_root>/`. Full field reference is in [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md).
-
-Use the **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agents/chopper-agent.agent.md)) to generate JSONs from your codebase, or adapt from the examples above. The schemas in `schemas/` enforce correctness.
-
-#### Include/exclude behavior quick-reference
-
-| Author intent | JSON shape | Result |
-| --- | --- | --- |
-| Keep only listed files | `files.include: ["a.tcl"]` | `a.tcl` survives; unnamed files are removed. |
-| Keep all files except a list | `files.include: ["**"]`, `files.exclude: [...]` | Chopper starts from every file under the domain, then removes paths matched by `files.exclude`. |
-| Exclude-only file list | `files.exclude: [...]` | No file-level keep signal exists; under default-exclude, live trim can rebuild an almost empty domain. Add `files.include: ["**"]` for a negative-list trim. |
-| Literal include plus matching exclude | `files.include: ["debug_old.tcl"]`, `files.exclude: ["debug*.tcl"]` | `debug_old.tcl` survives; literal include wins. |
-| Glob include plus matching exclude | `files.include: ["*.tcl"]`, `files.exclude: ["debug*.tcl"]` | The glob-expanded include list is pruned; `debug*.tcl` matches are removed from that list. |
-| Keep only certain procs | `procedures.include` | File becomes `PROC_TRIM`; only listed procs survive. |
-| Keep file minus some procs | `procedures.exclude` | File becomes `PROC_TRIM`; all parsed procs except excluded procs survive. |
-| File exclude plus proc exclude on the same file | `files.exclude` + `procedures.exclude` | Same-source contradiction; the source contributes nothing and emits `VW-11`. |
-| Feature tries to remove a base file | Base includes file, a later feature excludes file | Feature is the later layer under R1 ordered overlay; the file is removed and `VW-21 layer-shadowed` records the transition. |
-
-### Step 3 -- Validate first, always
-
-```text
-# Base only
-chopper validate --base jsons/base.json
-
-# Base + features (no project file required)
-chopper validate --base jsons/base.json \
-    --features jsons/features/feature_a.feature.json
-
-# Project recipe
-chopper validate --project project.json
-```
-
-Validation is fully read-only. It parses Tcl, compiles selections, runs trace, checks the call graph, and reports every issue -- without touching the domain on disk.
-
-### Step 4 -- Dry-run before you trim
-
-```text
-# Base only
-chopper trim --dry-run --base jsons/base.json
-
-# Base + features
-chopper trim --dry-run --base jsons/base.json \
-    --features jsons/features/feature_a.feature.json
-
-# Project recipe
-chopper trim --dry-run --project project.json
-```
-
-Dry-run produces the same analysis as validate but under the `trim` command surface, with trim-specific reporting in `.chopper/`. Review `.chopper/trim_report.txt` and `.chopper/dependency_graph.json` before committing to a live run.
-
-### Step 5 -- Trim live when dry-run matches intent
-
-```text
-chopper trim --project project.json
+chopper validate --project project.json          # or: --base jsons/base.json --features dft,power
+chopper trim --dry-run --project project.json    # full analysis, no rewrite; review .chopper/
+chopper trim --project project.json              # live: original kept as <domain>_backup/
+chopper cleanup --confirm                        # only when the trim window is closed
 ```
 
 > [!IMPORTANT]
-> Live trim renames your domain to `<domain>_backup/`, rebuilds a clean trimmed copy, and runs post-validation. Run live only after dry-run output matches intent.
+> `validate` and `trim --dry-run` are free and safe -- run them as often as you like. Live trim renames your domain to `<domain>_backup/` and rebuilds a clean trimmed copy; run it only after the dry-run's `.chopper/trim_report.txt`, `compiled_manifest.json`, and `diagnostics.json` match intent.
 
-### Step 6 -- Review the audit bundle
+Every flag, invocation mode, audit artifact, and exit code is in [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md).
 
-Open `.chopper/` after any run. All artifacts are JSON and plain text, readable in any editor:
+### Worked examples
 
-| Artifact | What to Look For |
+Copy the nearest folder under [examples/](examples/) into your domain and adapt it. The schemas in [schemas/](schemas/) enforce correctness.
+
+| Example | What it shows |
 | --- | --- |
-| `trim_report.txt` | Which files were kept, dropped, or proc-trimmed |
-| `dependency_graph.json` | Full trace of the call graph -- what calls what |
-| `compiled_manifest.json` | Final file, proc, and stage decisions before trim |
-| `diagnostics.json` | Every diagnostic code emitted (errors, warnings, info) |
-| `chopper_run.json` | Run metadata -- exit code, phase reached, timing |
-
----
-
-## The .chopper/ Audit Bundle
-
-Chopper writes `.chopper/` on every run, including failed runs and dry-runs. Nothing is discarded on a re-run -- the previous bundle is replaced. If you need to keep history, copy the folder before re-running.
-
-The bundle is designed to be machine-readable. The `run-result-v1.schema.json` and `diagnostic-v1.schema.json` schemas in `schemas/` document the format.
+| `01`-`07` | Base only: files (`01`), procs (`02`), stages (`03`), and each combination up to the full base (`07`) |
+| `08`, `09` | Base plus one feature (with `project.json`); base plus two independent features |
+| `10_chained_features_depends_on/` | Feature `depends_on` ordering |
+| `11_project_base_only/` | Project recipe with no features |
+| `12`, `13` | Aggregate `<flow>.stack` and per-stage standalone stacks |
+| `14_cross_feature_skip_if_no_stage/` | Cross-cutting feature using `skip_if_no_stage` |
+| `15_stage_reference_file/` | Stage body loaded from an existing script via `reference_file` |
+| [16_feature_vars/](examples/16_feature_vars/) | All-v2 `vars` / `procs` pointers, generated sourcing files, aggregate-stack inputs, and p4/LoC outputs |
 
 ---
 
 ## Documentation
 
-All end-user documentation lives under [user_docs/](user_docs/) -- a consolidated three-part guide designed to take you from the onboarding deck to a working trim in 60-90 minutes.
+### Reading order (60-90 minutes)
 
-| Who You Are | Where to Start |
+| # | Document | Read when | Time |
+| --- | --- | --- | --- |
+| 1 | [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md) | Right after the onboarding deck -- the problem, F1/F2/F3, JSON structure, stage fields and flow actions, overlay rules, options, BKMs | ~25 min |
+| 2 | [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md) | Before your first run -- the canonical CLI reference: every subcommand, flag, audit artifact, and exit code | ~20 min |
+| 3 | [user_docs/03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) | To understand the pipeline, decide where Chopper fits, or troubleshoot a result | ~25 min |
+
+Only have 10 minutes? Read the **TL;DR** at the top of [01_OVERVIEW.md](user_docs/01_OVERVIEW.md) and the **Quick start** of [02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md).
+
+### Reference
+
+| Resource | Use for |
 | --- | --- |
-| Anyone new to Chopper | [user_docs/](user_docs/) -- start here |
-| Just want the thesis | [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md) -- problem, solution, F1/F2/F3, JSON, BKMs, ownership |
-| About to run the CLI | [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md) -- every subcommand, every flag, deep examples |
-| Want to understand the pipeline | [user_docs/03_HOW_CHOPPER_WORKS.md](user_docs/03_HOW_CHOPPER_WORKS.md) -- P0-P7, design rules, where Chopper fits, FAQ |
-| JSON schemas and examples | [schemas/](schemas/) and [examples/](examples/) -- authoritative schemas and 14 worked examples; see [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) |
-| Authoritative specification | [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) |
-| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) -- workflow, quality gates, scope rules |
+| [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md) | Every base / feature / project JSON field, v1 and v2 |
+| [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) | Every diagnostic code |
+| [schemas/](schemas/) and [examples/](examples/) | Authoritative JSON schemas and 16 progressive examples |
+| [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) | The authoritative specification -- wins every disagreement |
+| [technical_docs/ENGINEERING.md](technical_docs/ENGINEERING.md) | Module, service, and port catalog for contributors |
+| [technical_docs/IMPLEMENTATION.md](technical_docs/IMPLEMENTATION.md) | Parser internals, pitfalls, and Future Considerations (`FD-xx`) |
+| [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md) | Test layers, scenarios, and golden-file workflow |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributor workflow, quality gates, scope rules |
+
+### Ownership and inspirations
+
+- **Bug reports:** see [Reporting Issues](#reporting-issues) below.
+- **Inspirations:** SNORT (Mike McCurdy) -- domain-state and trim lifecycle; FlowBuilder (Stelian Alupoaei) -- stage-driven flow modelling. Conceptually Chopper is closest to Flow Builder; the difference is scope -- Flow Builder targets file-based flows, while Chopper also trims procedure-heavy domains at proc level.
 
 ---
-
 ## Reporting Issues
 
 Found a bug? [Open a bug report](../../issues/new?template=bug_report.yml) on GitHub. The form guides you through providing everything needed to reproduce the problem quickly.
@@ -470,6 +357,10 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+### 4.11.1 -- 2026-11-02
+
+- **Docs, agent, and CI consolidation (no behavior change).** The CLI reference now lives only in [user_docs/02_CLI_GUIDE.md](user_docs/02_CLI_GUIDE.md); three test-planning documents were retired into [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md) and [tests/FIXTURE_CATALOG.md](tests/FIXTURE_CATALOG.md). The contributor buildout agent was removed and its rules folded into the project instructions. The Chopper agent knows the v2 generated files and every `.chopper/` artifact, and a new [migrate-v1-to-v2 skill](.github/skills/migrate-v1-to-v2/SKILL.md) interviews you, migrates base, feature, and project JSONs one proven dry-run at a time, and suggests v2 improvements. A GitHub Actions workflow now runs the `make ci` gates, and regression tests pin issues #35, #37, and #39. See the 4.11.1 row in [ARCHITECTURE.md Sec.13](technical_docs/ARCHITECTURE.md).
+
 ### 4.11.0 -- 2026-11-02
 
 - **Internal: one composer, one source-root rule, one application layer (no behavior change).** `orchestrator/runner.py` is now the single place that orders phases, gates them, and keeps run bookkeeping. `default_providers()` builds every phase implementation, and any one of them can be swapped through `ChopperRunner(providers=...)`. Live trim and `chopper loc` share one P5 sequence instead of two copies. The "read from `<domain>_backup/` if it exists" rule lives once in `core/layout.py` instead of six copies. Domain resolution, JSON discovery, run-config building, trim-statistics rows, and cleanup moved from the CLI into a new front-end-neutral `chopper.app` package, which the CLI now calls through one multi-domain loop. This prepares for a future local browser GUI (plain HTML/CSS/JS over a standard-library server; recorded in `FD-04`, nothing built yet). Every command, flag, diagnostic, exit code, output line, and written file is unchanged; a differential run over every fixture and example domain confirmed it. See [ARCHITECTURE.md Sec.5.2 and Sec.5.11](technical_docs/ARCHITECTURE.md) and the 4.11.0 revision row.
@@ -573,7 +464,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 3.5.1 -- 2026-05-23
 
 - **100% coverage enforced on the full-suite gate.** The aggregate `test` target (run by `make ci`) now passes `--cov-fail-under=100`, locking the codebase at 100% line + branch coverage across every module -- the full suite already reached every reachable line, so this prevents silent regressions. The fast unit-only gate (`make check`) keeps the pyproject default `--cov-fail-under=99`, since unit tests intentionally exercise only part of `src/` (integration/golden/property suites cover the rest). Stale Makefile comment (`78`) corrected. Coverage policy cascaded into [tests/TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md), [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) Sec.5.12.8, and the project instructions. No code or behavior change.
-- **User-facing docs synced to the 14th example.** Example maps and counts updated for `examples/14_cross_feature_skip_if_no_stage/` (the canonical `skip_if_no_stage` demo) across [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md), [user_docs/README.md](user_docs/README.md), [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), this README, and the Chopper Agent doc (stale "11 scenarios" -> 14). Full `src/` was reviewed against the technical docs: no drift, no scope-lock violations.
+- **User-facing docs synced to the 14th example.** Example maps and counts updated for `examples/14_cross_feature_skip_if_no_stage/` (the canonical `skip_if_no_stage` demo) across [user_docs/01_OVERVIEW.md](user_docs/01_OVERVIEW.md), `user_docs/README.md` (since folded into this README), [technical_docs/JSON_AUTHORING_GUIDE.md](technical_docs/JSON_AUTHORING_GUIDE.md), this README, and the Chopper Agent doc (stale "11 scenarios" -> 14). Full `src/` was reviewed against the technical docs: no drift, no scope-lock violations.
 - Version bumped 3.5.0 -> 3.5.1.
 
 ### 3.5.0 -- 2026-05-23
@@ -715,7 +606,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 ### 1.1.0 -- 2026-05-07
 
-- **`--domain` is now the highest-priority resolution input.** Per [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) Sec.5.1, when `--domain PATH` is supplied the operational domain root is always `Path(args.domain).resolve()`; cwd is consulted only as a fallback when `--domain` is omitted. The pre-1.1 "must resolve to cwd or exit 2" guard has been removed -- running `chopper trim --domain /elsewhere` from any cwd now succeeds. Cascaded into [technical_docs/CLI_REFERENCE.md](technical_docs/CLI_REFERENCE.md), [technical_docs/IMPLEMENTATION.md](technical_docs/IMPLEMENTATION.md) (P-25, P-31), and [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) (VE-17).
+- **`--domain` is now the highest-priority resolution input.** Per [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) Sec.5.1, when `--domain PATH` is supplied the operational domain root is always `Path(args.domain).resolve()`; cwd is consulted only as a fallback when `--domain` is omitted. The pre-1.1 "must resolve to cwd or exit 2" guard has been removed -- running `chopper trim --domain /elsewhere` from any cwd now succeeds. Cascaded into `technical_docs/CLI_REFERENCE.md` (since merged into `user_docs/02_CLI_GUIDE.md`), [technical_docs/IMPLEMENTATION.md](technical_docs/IMPLEMENTATION.md) (P-25, P-31), and [technical_docs/DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md) (VE-17).
 - **Selected JSON inputs are preserved in the rebuilt domain.** Per [technical_docs/ARCHITECTURE.md](technical_docs/ARCHITECTURE.md) Sec.5.6, after a successful live trim the project / base / selected-feature JSONs are copied into the rebuilt `<domain>/jsons/` so the output is self-contained. In-tree inputs land at their original domain-relative path; out-of-tree inputs land in `<domain>/jsons/_external/<NN>_<basename>` with a deterministic two-digit ordering prefix. New `TrimReport.inputs_preserved` field reports the count. Dry-run skips this step. I/O failures emit `VW-20 audit-write-failed` and the run continues.
 - **Tests.** Added two unit tests in [tests/unit/cli/test_commands.py](tests/unit/cli/test_commands.py) and one in [tests/unit/validator/test_validator.py](tests/unit/validator/test_validator.py) for the `--domain` priority lock; added five integration tests in [tests/integration/test_cli_e2e.py](tests/integration/test_cli_e2e.py) covering `--domain` from an unrelated cwd, in-tree preservation, out-of-tree `_external/` preservation, selective preservation (unselected features stay out), and dry-run no-op.
 

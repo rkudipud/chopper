@@ -735,3 +735,35 @@ def test_generated_stage_proc_definitions_not_reported_missing() -> None:
         ctx, stage=_M.stages[0], step="helper", surviving_files=frozenset(), surviving_proc_shorts=shorts
     )
     assert "VW-15" not in _codes(ctx)
+
+
+def test_stage_step_regressions_issues_37_and_39() -> None:
+    # Issue #37: unresolved variable/command substitutions in source targets are not missing files.
+    # Issue #39: absolute Tcl namespace commands are proc calls, not external paths.
+    from chopper.core.models_compiler import StageSpec
+    from chopper.validator.functions import _classify_and_emit
+
+    stage = StageSpec(name="s", load_from="", steps=("helper",))
+    cases = {
+        "source $script": [],
+        "source $env(ward)/helper.tcl": [],
+        "iproc_source [pwd]/helper.tcl": [],
+        "source helper.tcl": [],
+        "source gone.tcl": ["VW-16"],
+        "::example::helper -arg 1": [],
+        "x::helper": [],
+        "::example::gone": ["VW-15"],
+        "C:/x.tcl": ["VW-17"],
+        "/abs/x.tcl": ["VW-17"],
+        "../up.tcl": ["VW-17"],
+    }
+    for step, expected in cases.items():
+        ctx = _ctx()
+        _classify_and_emit(
+            ctx,
+            stage=stage,
+            step=step,
+            surviving_files=frozenset({Path("helper.tcl")}),
+            surviving_proc_shorts=frozenset({"helper"}),
+        )
+        assert _codes(ctx) == expected, step

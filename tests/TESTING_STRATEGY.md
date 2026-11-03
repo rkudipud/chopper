@@ -37,7 +37,7 @@ green. Platform skips must explain the unavailable host capability.
 
 - Fast, isolated, no filesystem side effects beyond `tmp_path`.
 - One test module per package module: `test_parser.py`, `test_compiler.py`, etc.
-- Use `pytest-regressions` golden files for output contracts (see `tests/GOLDEN_FILE_GUIDE.md`).
+- Audit-artifact output contracts are pinned with `pytest-regressions` golden files (Sec.7).
 
 ### 2.2 Integration Tests (`tests/integration/`)
 
@@ -306,3 +306,32 @@ conflict over a file, proc, or step. Tests must preserve the selected order
 and assert its result; commuting overlays may be compared only when their
 contributions are genuinely disjoint. The v2 selection tests check both
 orders explicitly because source-block order is observable.
+
+---
+
+## 7. Golden Files
+
+Golden files pin the **wire shape** of the four shipped `.chopper/` audit
+artifacts (`chopper_run.json`, `compiled_manifest.json`,
+`dependency_graph.json`, `trim_report.json`; architecture doc Sec.5.5.2-5.5.5)
+so NFR-03 (byte-identical output on every run) is enforced end to end.
+
+- **Location:** `tests/golden/test_audit_artifacts_golden.py` drives
+  `chopper validate` and `chopper trim --dry-run` against a seeded minimal
+  domain. Expected data lives beside it in
+  `tests/golden/test_audit_artifacts_golden/<test_name>.yml`.
+- **Mechanism:** `pytest-regressions` `data_regression.check()`. The first run
+  writes the file; later runs assert an exact match.
+- **Redaction:** strip legitimately variable fields before the check -- run ids,
+  wall-clock timestamps, durations, and absolute or `tmp_path` paths. Keep
+  every other field domain-relative and deterministic.
+- **Unit-level contracts:** parser, compiler, and trimmer outputs are pinned
+  by explicit assertions in `tests/unit/` against the fixtures in
+  [FIXTURE_CATALOG.md](FIXTURE_CATALOG.md), not by golden files.
+
+**Updating a golden.** Run `pytest tests/golden/ --force-regen` **only** when
+the artifact shape change is already specified in the architecture doc and
+cascaded per `.github/instructions/project.instructions.md` ("Cascading
+Updates"). Review `git diff tests/golden/` line by line before committing --
+a golden update asserts "this new output is correct". CI never regenerates;
+a mismatch without `--force-regen` fails the run.
