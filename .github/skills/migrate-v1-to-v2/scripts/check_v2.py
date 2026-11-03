@@ -608,7 +608,13 @@ def _gate(
         gates.append(row("baseline-delta", n == 0, f"{n} unexpected change(s)"))
     level = adoption["level"]
     if require:
-        gates.append(row("adoption", level not in ("none", "schema-only"), f"level {level}"))
+        gates.append(
+            row(
+                "adoption",
+                v2 and bool(b.pointers()),
+                f"level {level}; requires v2 with at least one vars/procs pointer",
+            )
+        )
     else:
         gates.append(row("adoption", None, f"level {level} (enforce with --require-adoption)"))
     return gates

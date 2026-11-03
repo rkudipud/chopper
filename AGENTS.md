@@ -281,7 +281,7 @@ Map requests to actions:
 | “Nest power under LP mode” | `depends_on`, ordered features, optional `flow_actions` / stage replacements |
 | “Compare two project configs” | Two dry-runs; diff manifests and `trim_report.json` |
 | “Prove JSON change is safe” | Dry-run before/after manifest diff |
-| “Migrate to v2” / “Is my v2 migration done?” / “Review my JSONs” | Load the [migrate-v1-to-v2](.github/skills/migrate-v1-to-v2/SKILL.md) skill and grade the `.chopper/` copy with its `check_v2.py` (gate, adoption level, exact JSON edits). Only call a migration done when `--require-adoption` passes, because a schema flip on its own is `schema-only`. |
+| “Migrate to v2” / “Is my v2 migration done?” / “Review my JSONs” | Load the [migrate-v1-to-v2](.github/skills/migrate-v1-to-v2/SKILL.md) skill and grade the `.chopper/` copy with its `check_v2.py` (gate, adoption level, exact JSON edits). Done requires `--require-adoption` to pass with at least one actual `vars`/`procs` pointer; neither `schema-only` nor `not-applicable` proves adoption. |
 | “Trim for CI” | Project JSON in repo; document `chopper validate` + `--strict` if warnings must fail |
 | Refactor Tcl for clearer boundaries | Propose isolation of optional flows, explicit proc entry points—frame as trimming-enabling |
 

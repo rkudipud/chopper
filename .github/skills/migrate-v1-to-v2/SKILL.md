@@ -63,7 +63,7 @@ Ask the questions in [interview.md](./references/interview.md), Round 1 then Rou
    ```text
    python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <scratch>/p2 --baseline <scratch>/v1
    ```
-   **Expected:** `RESULT: PASS`, adoption `schema-only`, and no `unexpected` delta. The `expected` rows are the two `generated` files (`<flow>_feature_vars.tcl`, `<flow>_feature_procs.tcl`) with their `kept` and `p4 add` lines; the only `review` row is `+ diag VW-28`, when the base JSON isn't named `jsons/<flow>.json`. With `generate_stack`, the two files also become `I` inputs. Anything else means the migration went wrong. Stop.
+   **Expected:** `RESULT: PASS`, adoption `schema-only` (or `not-applicable` when no candidates are detected), and no `unexpected` delta. Neither level proves v2 adoption. The `expected` rows are the two `generated` files (`<flow>_feature_vars.tcl`, `<flow>_feature_procs.tcl`) with their `kept` and `p4 add` lines; the only `review` row is `+ diag VW-28`, when the base JSON isn't named `jsons/<flow>.json`. With `generate_stack`, the two files also become `I` inputs. Anything else means the migration went wrong. Stop.
 
    For a raw diff between any two snapshots, `scripts/compare_manifests.py BEFORE AFTER` prints the same facts unclassified. Provenance labels (`contributed_by`, `selection_source`) are ignored on purpose: they move to whichever layer contributed last, without changing what is kept.
 3. If you see `VW-28`, offer the rename (Phase 3). It's optional.
@@ -113,7 +113,9 @@ The migration is done only when the final snapshot passes the strict gate:
 python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <scratch>/final --baseline <scratch>/v1 --require-adoption
 ```
 
-`RESULT: PASS` with adoption `full` (or `partial`, with each remaining candidate listed as a user decision) is the deterministic proof. `schema-only` fails here on purpose: the JSONs say v2, but nothing uses v2.
+`RESULT: PASS` with adoption `full` (or `partial`, with each remaining candidate listed as a user decision) is the deterministic proof. At least one actual base or feature `vars`/`procs` pointer is required. `none`, `schema-only` and `not-applicable` fail here on purpose: no v2 pointer adoption has been demonstrated.
+
+If no suitable pointer exists, report the JSONs as v2-compatible with adoption `not-applicable`, not as a completed adoption. An ordinary review without `--require-adoption` can still pass. Do not invent a pointer or a Tcl file just to satisfy the gate; ask whether the user wants a schema-only upgrade or a separately approved feature split.
 
 Give the user:
 - the checker's final report (gate, adoption, preview, delta)
@@ -156,7 +158,7 @@ Raise each one that applies, explain the benefit in one line, and ask before act
 | "The pointer covers `tech_dft_vars.tcl`, so I'll also list it to be safe." | It's redundant noise. Variants are automatic. |
 | "I'll put `<flow>_feature_vars.tcl` in `files.include` so it's kept." | It's reserved (`VE-40`), and it's always generated. |
 | "Only flip the features in this project." | Any v1 feature selected later fails with `VE-41`. Flip the whole `jsons/` set, or record which ones you left on v1. The checker's `orphan-json` row lists them. |
-| "All `$schema` values say v2 and validate passes, so the migration is done." | That's `schema-only`: same output as v1 plus two empty files. `--require-adoption` fails it. Done means pointers in use. |
+| "All `$schema` values say v2 and validate passes, so the migration is done." | Without pointers, that's `schema-only` or `not-applicable`: same output as v1 plus two empty files. `--require-adoption` fails both. Done means pointers in use. |
 | "I'll read the manifests by hand; the checker is overkill." | Hand reading took the baseline agents about five minutes per scenario, and they still disagreed. Run the checker first, then explain its rows. |
 | "`VW-15` on `iproc_source` is expected because the infrastructure provides it." | It's a false positive from the `-file` form (`step-source-form`), not something to ignore. Delete the step if the file becomes a pointer, or list `iproc_source` in a `--tool-commands` file. Never add a stub proc. |
 | "The gate passed, so every `review` row is fine." | `review` rows change behavior on purpose (procs brought back, variants now sourced). Explain each one and get a yes. |

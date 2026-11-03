@@ -228,6 +228,68 @@ def test_schema_only_flip_is_not_a_finished_migration(snaps: Callable[[str], Pat
     assert _gate(report)["adoption"] == "fail"
 
 
+@pytest.mark.parametrize(
+    ("version", "layer", "kind", "pointer", "level", "strict_rc"),
+    [
+        ("v1", None, None, None, "none", 1),
+        ("v2", None, None, None, "not-applicable", 1),
+        ("v2", "base", "vars", "vars.tcl", "full", 0),
+        ("v2", "base", "procs", "procs/core_procs.tcl", "full", 0),
+        ("v2", "fdr", "vars", "fdr_vars.tcl", "full", 0),
+        ("v2", "fdr", "procs", "procs/fdr_procs.tcl", "full", 0),
+    ],
+)
+def test_strict_adoption_requires_a_pointer_even_without_candidates(
+    tmp_path: Path,
+    version: str,
+    layer: str | None,
+    kind: str | None,
+    pointer: str | None,
+    level: str,
+    strict_rc: int,
+) -> None:
+    layers = _v1_layers(version)
+    for key in ("base", "fdr", "dop"):
+        layers[key] = {
+            "$schema": f"{'base' if key == 'base' else 'feature'}-{version}",
+            **({"domain": "apr_fc"} if key == "base" else {"name": key}),
+            "files": {"include": ["utils/report.tcl"]},
+        }
+    if layer is not None and kind is not None:
+        layers[layer][kind] = pointer
+    domain = _write_domain(tmp_path, layers)
+    assert _trim(domain) == 0
+
+    rc, report = _check(domain / ".chopper")
+    assert rc == 0, report
+    assert report["result"] == "pass"
+    assert report["adoption"]["level"] == level
+    assert report["adoption"]["candidates"] == []
+    assert len(report["adoption"]["pointers"]) == (0 if layer is None else 1)
+    assert _gate(report)["adoption"] == "skip"
+
+    rc, report = _check(domain / ".chopper", "--require-adoption")
+    assert rc == strict_rc, report
+    assert report["result"] == ("fail" if strict_rc else "pass")
+    assert _gate(report)["adoption"] == ("fail" if strict_rc else "pass")
+    assert {status for name, status in _gate(report).items() if name != "adoption"} <= {"pass", "skip"}
+
+
+def test_strict_adoption_accepts_a_pointer_with_remaining_candidates(tmp_path: Path) -> None:
+    layers = _v1_layers("v2")
+    layers["base"]["vars"] = "vars.tcl"
+    domain = _write_domain(tmp_path, layers)
+    assert _trim(domain) == 0
+
+    rc, report = _check(domain / ".chopper", "--require-adoption")
+    assert rc == 0, report
+    assert report["result"] == "pass"
+    assert report["adoption"]["level"] == "partial"
+    assert report["adoption"]["pointers"] == ["base vars vars.tcl"]
+    assert report["adoption"]["candidates"]
+    assert _gate(report)["adoption"] == "pass"
+
+
 def test_flawed_migration_fails_with_an_edit_for_every_mistake(snaps: Callable[[str], Path]) -> None:
     rc, report = _check(snaps("flawed"), "--baseline", str(snaps("v1")))
 

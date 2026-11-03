@@ -20,7 +20,7 @@ python .github/skills/migrate-v1-to-v2/scripts/check_v2.py AUDIT [--baseline V1_
 | `generated-files` | either generated file is not `generated` in the manifest, not in `files_kept.txt`, or has no `p4 add`/`p4 edit` line | v1 run, or the run stopped before compiling |
 | `generated-content` | after a live trim, a generated file's `iproc_source` lines differ from the preview | dry-run, v1, or a failed run |
 | `baseline-delta` | any change against `--baseline` is classed `unexpected` | no `--baseline` |
-| `adoption` | `--require-adoption` is set and the level is `none` or `schema-only` | flag not set (the level is still reported) |
+| `adoption` | `--require-adoption` is set and the run is not v2 or has no actual `vars`/`procs` pointer, regardless of candidates | flag not set (the level is still reported) |
 
 ## Adoption levels
 
@@ -30,7 +30,9 @@ python .github/skills/migrate-v1-to-v2/scripts/check_v2.py AUDIT [--baseline V1_
 | `schema-only` | v2, but no pointer is used even though candidates exist. **This is not a finished migration:** the output is the same as v1 plus two empty generated files. |
 | `partial` | At least one pointer is in use; candidates remain. |
 | `full` | Pointers are in use and no candidates remain. |
-| `not-applicable` | v2 with nothing a pointer could take over. |
+| `not-applicable` | v2 with no pointers and no candidates detected. Valid for an ordinary review, but fails `--require-adoption`. |
+
+Strict adoption requires at least one actual base or feature `vars`/`procs` pointer. Only `partial` and `full` can pass it; `none`, `schema-only` and `not-applicable` cannot. All other gates still apply, including pointer-target validation. If no suitable pointer exists, report schema compatibility without claiming v2 adoption; do not invent a pointer just to pass.
 
 A **candidate** is a vars/procs file that a pointer could take over **without changing the trim**:
 

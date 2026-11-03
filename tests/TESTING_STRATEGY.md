@@ -63,7 +63,7 @@ green. Platform skips must explain the unavailable host capability.
 | Whole-file keeps, R1 overrides, dependency order, duplicates, collisions, and pristine re-trim | `unit/config/test_service_feature_vars.py`, `unit/config/test_service_feature_procs.py`, `integration/test_feature_procs.py` |
 | p4 add/edit, audit lists, LoC GENERATED bucket, and aggregate input deduplication | `integration/test_feature_procs.py`, `unit/generators/test_stack_emitter.py` |
 | Every shipped v1/v2 JSON, v2 field compatibility, and validator CLI schema discovery | `unit/config/test_schema.py`, `unit/test_validate_jsons_script.py` |
-| Migration-skill checker: gate, adoption level, generated-file preview and on-disk match, baseline delta classes, JSON-edit suggestions | `integration/test_v2_check_script.py` |
+| Migration-skill checker: gate, adoption level, strict rejection without pointers even when no candidates exist, base/feature vars/procs adoption, generated-file preview and on-disk match, baseline delta classes, JSON-edit suggestions | `integration/test_v2_check_script.py` |
 | Runnable example through validate, loc, dry-run, live trim, re-trim, cleanup | `integration/test_feature_sourcing_options.py` |
 | Pointer expansion and vars/procs emission, 500 generated examples each | `property/test_feature_sourcing.py` |
 
