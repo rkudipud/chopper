@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 Invoke the **Chopper Agent**.
 
-Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), then file the bug report end to end when the required evidence is available:
+Read [.github/agents/chopper-agent.agent.md](../../agents/chopper-agent.agent.md), then file the bug report end to end when the required evidence is available:
 
 1. Ask me for the `.chopper/` bundle from the failing run (or the full command + terminal output if the run never produced one). If I only have Unix filesystem paths to a `.chopper/` directory, log, or markdown report, package them first with `python schemas/scripts/package_bug_report.py <paths...>`.
 2. Extract these facts from the bundle:
@@ -15,7 +15,7 @@ Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md), 
    - Exit code and failing phase
    - The top offending diagnostic codes (from `diagnostics.json`)
    - A minimal reproducible JSON input (trim down `input_base.json` to the smallest failing case)
-3. Classify the issue against [technical_docs/IMPLEMENTATION.md (pitfalls)](../../technical_docs/IMPLEMENTATION.md) -- is this a known pitfall, a new risk, or truly novel?
+3. Classify the issue against [technical_docs/IMPLEMENTATION.md (pitfalls)](../../../technical_docs/IMPLEMENTATION.md) -- is this a known pitfall, a new risk, or truly novel?
 4. Produce the final issue fields and write a payload JSON for `python schemas/scripts/file_bug_report.py --payload <payload> --create`. Include:
    - a short issue title
    - what happened (expected vs actual)

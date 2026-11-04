@@ -21,13 +21,7 @@
       "minLength": 1,
       "description": "Optional: domain this feature is intended for (e.g., my_domain). If present and the selected base declares a different domain, the validator emits `VW-04 feature-domain-mismatch` (warning; escalates to error in `--strict`). Features without this field are domain-agnostic and can be applied to any domain without a warning."
     },
-    "procs": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!\\.\\.)(?!/)(?![A-Za-z]:)(?![\\s\\S]*\\.\\./)(?![\\s\\S]*//)(?![\\s\\S]*(?:^|/)\\.\\.?(/|$))(?![\\s\\S]*/$)[^\\\\*?\\[]*$",
-      "description": "Domain-relative path of this feature's procs file. Expands to three optional source lines in <flow>_feature_procs.tcl: the path itself and tech_/project_ basename variants. Existing expanded files are preserved as whole files by F1. Same path constraints as vars."
-    },
-    "vars": {
+    "vars_file": {
       "type": "string",
       "minLength": 1,
       "pattern": "^(?!\\.\\.)(?!/)(?![A-Za-z]:)(?![\\s\\S]*\\.\\./)(?![\\s\\S]*//)(?![\\s\\S]*(?:^|/)\\.\\.?(/|$))(?![\\s\\S]*/$)[^\\\\*?\\[]*$",

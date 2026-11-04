@@ -1,4 +1,4 @@
-"""Unit tests for v2 ``vars`` resolution in :mod:`chopper.config.service` (ARCHITECTURE Sec.3.12, FR-57).
+"""Unit tests for v2 ``vars_file`` resolution in :mod:`chopper.config.service` (ARCHITECTURE Sec.3.12, FR-57).
 
 Covers the three-entry expansion, F1 auto-keep (``vars_keep`` + surface
 files), first-wins dedup (``VW-29``), missing authored entry (``VW-27``),
@@ -44,12 +44,12 @@ class TestExpandVarsEntry:
 class TestFeatureVarsResolution:
     def test_blocks_keep_and_surface(self) -> None:
         files = {
-            _BASE: _base(vars="vars.tcl"),
+            _BASE: _base(vars_file="vars.tcl"),
             _DOMAIN / "vars.tcl": "",
-            _fpath("fdr"): _feature("fdr", vars="fdr_vars.tcl"),
+            _fpath("fdr"): _feature("fdr", vars_file="fdr_vars.tcl"),
             _DOMAIN / "fdr_vars.tcl": "",
             _DOMAIN / "tech_fdr_vars.tcl": "",
-            _fpath("dop"): _feature("dop", vars="v/dop_vars.tcl"),
+            _fpath("dop"): _feature("dop", vars_file="v/dop_vars.tcl"),
             _DOMAIN / "v/dop_vars.tcl": "",
             _fpath("plain"): _feature("plain", files={"include": ["b.tcl"]}),
         }
@@ -86,8 +86,8 @@ class TestFeatureVarsResolution:
 
     def test_missing_entries_warn_vw27_and_still_emit_lines(self) -> None:
         files = {
-            _BASE: _base(vars="vars.tcl"),
-            _fpath("fdr"): _feature("fdr", vars="fdr_vars.tcl"),
+            _BASE: _base(vars_file="vars.tcl"),
+            _fpath("fdr"): _feature("fdr", vars_file="fdr_vars.tcl"),
         }
         ctx, sink = _make_ctx(files, base_path=_BASE, feature_paths=(_fpath("fdr"),))
         result = ConfigService().run(ctx, _default_state())
@@ -100,8 +100,8 @@ class TestFeatureVarsResolution:
     def test_duplicate_entries_warn_vw29_first_wins(self) -> None:
         files = {
             _BASE: _base(),
-            _fpath("a"): _feature("a", vars="x_vars.tcl"),
-            _fpath("b"): _feature("b", vars="x_vars.tcl"),
+            _fpath("a"): _feature("a", vars_file="x_vars.tcl"),
+            _fpath("b"): _feature("b", vars_file="x_vars.tcl"),
             _DOMAIN / "x_vars.tcl": "",
         }
         ctx, sink = _make_ctx(files, base_path=_BASE, feature_paths=(_fpath("a"), _fpath("b")))
@@ -115,8 +115,8 @@ class TestFeatureVarsResolution:
         # b's tech_/project_ variants collide with a's own entries only where the strings match.
         files = {
             _BASE: _base(),
-            _fpath("a"): _feature("a", vars="tech_x.tcl"),
-            _fpath("b"): _feature("b", vars="x.tcl"),
+            _fpath("a"): _feature("a", vars_file="tech_x.tcl"),
+            _fpath("b"): _feature("b", vars_file="x.tcl"),
             _DOMAIN / "tech_x.tcl": "",
             _DOMAIN / "x.tcl": "",
         }
@@ -145,7 +145,7 @@ class TestFeatureVarsResolution:
 
 class TestMixedSchemaVersions:
     def test_base_v2_feature_v1_fails_ve41(self) -> None:
-        files = {_BASE: _base(vars="vars.tcl"), _fpath("f"): _feature("f", version=1)}
+        files = {_BASE: _base(vars_file="vars.tcl"), _fpath("f"): _feature("f", version=1)}
         ctx, sink = _make_ctx(files, base_path=_BASE, feature_paths=(_fpath("f"),))
         result = ConfigService().run(ctx, _default_state())
         assert [d.code for d in sink.emissions] == ["VE-41"]
@@ -174,7 +174,7 @@ class TestMixedSchemaVersions:
                 "features": ["jsons/features/f.feature.json"],
             }
         )
-        files = {project_path: project, _BASE: _base(), _fpath("f"): _feature("f", vars="f_vars.tcl")}
+        files = {project_path: project, _BASE: _base(), _fpath("f"): _feature("f", vars_file="f_vars.tcl")}
         files[_DOMAIN / "f_vars.tcl"] = ""
         ctx, sink = _make_ctx(files, project_path=project_path)
         result = ConfigService().run(ctx, _default_state())

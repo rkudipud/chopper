@@ -57,15 +57,15 @@ green. Platform skips must explain the unavailable host capability.
 | Contract | Executable check |
 |---|---|
 | All 16 combinations of `cross_validate`, `generate_stack`, `indent`, `insert_markers`, in v1/v2, dry/live, Tcl/standalone modes (128 cases) | `integration/test_feature_sourcing_options.py` |
-| No features, single features, both orders; base pointers never listed; optional variants | `integration/test_feature_sourcing_options.py`, `integration/test_feature_vars.py`, `integration/test_feature_procs.py` |
+| No features, single features, both orders; base vars pointers never listed; optional variants | `integration/test_feature_sourcing_options.py`, `integration/test_feature_vars.py` |
 | Every project/base/feature version combination; mixed versions rejected | `integration/test_feature_sourcing_options.py` |
 | Missing pointers under strict/non-strict policy without severity rewriting | `integration/test_feature_sourcing_options.py` |
-| Whole-file keeps, R1 overrides, dependency order, duplicates, collisions, and pristine re-trim | `unit/config/test_service_feature_vars.py`, `unit/config/test_service_feature_procs.py`, `integration/test_feature_procs.py` |
-| p4 add/edit, audit lists, LoC GENERATED bucket, and aggregate input deduplication | `integration/test_feature_procs.py`, `unit/generators/test_stack_emitter.py` |
+| Whole-file keeps, base vars F2 trimming, R1 overrides, dependency order, duplicates, collisions, and pristine re-trim | `unit/config/test_service_feature_vars.py`, `integration/test_feature_vars.py` |
+| p4 add/edit, audit lists, LoC GENERATED bucket, and aggregate vars-wrapper input deduplication | `integration/test_feature_vars.py`, `unit/generators/test_stack_emitter.py` |
 | Every shipped v1/v2 JSON, v2 field compatibility, and validator CLI schema discovery | `unit/config/test_schema.py`, `unit/test_validate_jsons_script.py` |
-| Migration-skill checker: gate, adoption level, strict rejection without pointers even when no candidates exist, base/feature vars/procs adoption, generated-file preview and on-disk match, baseline delta classes, JSON-edit suggestions | `integration/test_v2_check_script.py` |
+| Migration-skill checker: gate, adoption level, strict rejection without `vars_file` pointers even when no candidates exist, base/feature vars adoption, generated-file preview and on-disk match, baseline delta classes, JSON-edit suggestions | `integration/test_v2_check_script.py` |
 | Runnable example through validate, loc, dry-run, live trim, re-trim, cleanup | `integration/test_feature_sourcing_options.py` |
-| Pointer expansion and vars/procs emission, 500 generated examples each | `property/test_feature_sourcing.py` |
+| Vars pointer expansion and wrapper emission, 500 generated examples | `property/test_feature_sourcing.py` |
 
 This matrix exhausts the listed switch combinations, not every possible Tcl
 program or feature permutation. Full coverage is a regression gate, not proof

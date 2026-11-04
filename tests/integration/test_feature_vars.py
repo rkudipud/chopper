@@ -21,15 +21,22 @@ def _domain(tmp_path: Path) -> Path:
     domain = tmp_path / "apr_fc"
     _write(
         domain / "jsons/apr_fc.json",
-        json.dumps({"$schema": "base-v2", "domain": "apr_fc", "vars": "vars.tcl", "files": {"include": ["main.tcl"]}}),
+        json.dumps(
+            {
+                "$schema": "base-v2",
+                "domain": "apr_fc",
+                "vars_file": "vars.tcl",
+                "files": {"include": ["main.tcl"]},
+            }
+        ),
     )
     _write(
         domain / "jsons/features/fdr.feature.json",
-        json.dumps({"$schema": "feature-v2", "name": "fdr", "vars": "fdr_vars.tcl"}),
+        json.dumps({"$schema": "feature-v2", "name": "fdr", "vars_file": "fdr_vars.tcl"}),
     )
     _write(
         domain / "jsons/features/dop.feature.json",
-        json.dumps({"$schema": "feature-v2", "name": "dop", "vars": "dop/dop_vars.tcl"}),
+        json.dumps({"$schema": "feature-v2", "name": "dop", "vars_file": "dop/dop_vars.tcl"}),
     )
     _write(
         domain / "project.json",
@@ -68,6 +75,7 @@ def test_dry_run_plans_file_without_writing(tmp_path: Path) -> None:
     assert result.exit_code == 0, [d.code for d in sink.snapshot()]
     decisions = result.manifest.file_decisions
     assert decisions[Path("apr_fc_feature_vars.tcl")] is FileTreatment.GENERATED
+    assert Path("apr_fc_feature_procs.tcl") not in decisions
     for kept in ("vars.tcl", "fdr_vars.tcl", "tech_fdr_vars.tcl", "dop/dop_vars.tcl"):
         assert decisions[Path(kept)] is FileTreatment.FULL_COPY
     assert not (domain / "apr_fc_feature_vars.tcl").exists()
@@ -89,6 +97,26 @@ def test_live_trim_writes_file_and_keeps_vars(tmp_path: Path) -> None:
         "iproc_source -file dop/project_dop_vars.tcl -optional\n"
     )
     assert "-file vars.tcl" not in text
+    assert not (domain / "apr_fc_feature_procs.tcl").exists()
     for kept in ("main.tcl", "vars.tcl", "fdr_vars.tcl", "tech_fdr_vars.tcl", "dop/dop_vars.tcl"):
         assert (domain / kept).is_file()
     assert not (domain / "unused.tcl").exists()
+
+
+def test_base_vars_file_procs_follow_the_f2_include_exclude_rules(tmp_path: Path) -> None:
+    domain = _domain(tmp_path)
+    _write(domain / "vars.tcl", "proc keep_base {} {\nreturn 1\n}\nproc drop_base {} { return 0 }\n")
+    base_path = domain / "jsons/apr_fc.json"
+    base = json.loads(base_path.read_text(encoding="utf-8"))
+    base["procedures"] = {"exclude": [{"file": "vars.tcl", "procs": ["drop_base"]}]}
+    _write(base_path, json.dumps(base))
+
+    sink, result = _run(domain, dry_run=False)
+
+    assert result.exit_code == 0, [(d.code, d.message) for d in sink.snapshot()]
+    assert result.manifest.file_decisions[Path("vars.tcl")] is FileTreatment.PROC_TRIM
+    trimmed = (domain / "vars.tcl").read_text(encoding="utf-8")
+    assert "proc keep_base" in trimmed
+    assert "proc drop_base" not in trimmed
+    wrapper = (domain / "apr_fc_feature_vars.tcl").read_text(encoding="utf-8")
+    assert "-file vars.tcl" not in wrapper

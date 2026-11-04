@@ -502,11 +502,29 @@ def test_v2_preserves_every_v1_schema_field_except_version_and_pointers(kind: st
     v2 = json.loads((schemas / f"{kind}-v2.schema.json").read_text(encoding="utf-8"))
     v1["$id"] = v2["$id"]
     v1["properties"]["$schema"] = v2["properties"]["$schema"]
-    for pointer in ("vars", "procs"):
+    if kind != "project":
+        assert "vars_file" in v2["properties"]
+    else:
+        assert "vars_file" not in v2["properties"]
+    for pointer in ("vars_file", "vars", "procs"):
         if kind != "project":
-            assert pointer in v2["properties"]
+            if pointer != "vars_file":
+                assert pointer not in v2["properties"]
         v2["properties"].pop(pointer, None)
     assert v1 == v2
+
+
+@pytest.mark.parametrize("kind", ["base", "feature"])
+def test_v2_accepts_vars_file_and_rejects_old_pointer_names(kind: str) -> None:
+    raw: dict[str, object] = {"$schema": f"{kind}-v2", "vars_file": "vars.tcl"}
+    if kind == "base":
+        raw.update(domain="d", files={"include": ["main.tcl"]})
+    else:
+        raw["name"] = "f"
+
+    assert _valid(raw)
+    assert not _valid({**raw, "vars": "vars.tcl"})
+    assert not _valid({**raw, "procs": "procs.tcl"})
 
 
 def test_shipped_json_validation_includes_v2_examples() -> None:

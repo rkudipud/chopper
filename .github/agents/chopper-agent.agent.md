@@ -56,7 +56,6 @@ Read `.github/agent_memory/chopper-agent.md` for accumulated session findings an
 | Explore Chopper internals / "How does X work?" | memory + `search/codebase` + `read/readFile` |
 | Debug diagnostics / "Why did X happen?" | memory + `search/textSearch` + `read/readFile` |
 | Tool/schema reference | Read architecture doc and local instruction files |
-| Refresh Conformal/Formality JSONs for December or another release | Read [refresh-fev-release](../skills/refresh-fev-release/SKILL.md) and its linked release instructions before editing |
 
 **4. Update memory file after milestones**
 After significant domain analysis or JSON authoring cycles, update `.github/agent_memory/chopper-agent.md` with confirmed domain facts, unresolved questions, and next steps.
@@ -175,11 +174,11 @@ Always steer users toward this path unless they explicitly want something else:
 - tracing is reporting-only
 - traced callees are not auto-copied into the trimmed domain
 - Chopper reads runtime schemas from `schemas/` relative to its install root; `$schema` values are short IDs (`base-v1`, `feature-v1`, `project-v1`, or the v2 trio `base-v2`, `feature-v2`, `project-v2`) -- never slash-delimited paths
-- a run is all-v1 or all-v2; mixing versions is `VE-41`. v2 is v1 plus optional `vars` / `procs` pointers (see *v2 additions* under JSON Templates)
+- a run is all-v1 or all-v2; mixing versions is `VE-41`. v2 adds optional `vars_file` to base and feature JSONs; procedure-hosting files remain F2 selections (see *v2 additions* under JSON Templates)
 
 ### How a run executes
 
-One composer (`src/chopper/orchestrator/runner.py`) runs P0 domain state -> P1 config + pre-validate -> P2 parse -> P3 compile -> P4 trace -> P5 build output -> P6 post-validate -> P7 audit, with a gate after each phase. The CLI is a thin adapter over `src/chopper/app/`; `chopper loc` reuses the live-trim P5 sequence without writing to disk. When you explain *where* a decision was made, name the phase: F1/F2 keep/drop decisions are made in P3, F3 run files and the generated `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl` are emitted in P5.
+One composer (`src/chopper/orchestrator/runner.py`) runs P0 domain state -> P1 config + pre-validate -> P2 parse -> P3 compile -> P4 trace -> P5 build output -> P6 post-validate -> P7 audit, with a gate after each phase. The CLI is a thin adapter over `src/chopper/app/`; `chopper loc` reuses the live-trim P5 sequence without writing to disk. When you explain *where* a decision was made, name the phase: F1/F2 keep/drop decisions are made in P3, F3 run files and the generated `<flow>_feature_vars.tcl` are emitted in P5.
 
 ### Audit artifacts you must know how to interpret
 
@@ -193,7 +192,7 @@ The runtime writes these into `.chopper/` on every run (success or failure). Exa
 - `trim_stats.json` -- counts summary (files copied, procs dropped, SLOC delta)
 - `files_kept.txt` / `files_removed.txt` -- physical kept/removed paths with JSON-source provenance per line (since 0.5.3)
 - `input_base.json` + `input_features/NN_name.json` (+ `input_project.json` with `--project`) -- verbatim copies of the JSON inputs
-- `p4_commands.txt` -- `$ward`-relative Perforce commands for the trim (`p4 edit` / `p4 delete`, and `p4 add -t text+x` for generated files such as the v2 `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl`); `files_exclude_p4.txt` repeats its exclude-file list
+- `p4_commands.txt` -- `$ward`-relative Perforce commands for the trim (`p4 edit` / `p4 delete`, and `p4 add -t text+x` for generated files such as the v2 `<flow>_feature_vars.tcl`); `files_exclude_p4.txt` repeats its exclude-file list
 - `run_id` -- the run identifier, one line
 - `internal-error.log` -- **only present on exit 3** (programmer error). Plain-text crash log: run_id, timestamp, version, platform, full traceback, diagnostic snapshot, RunConfig. Mirrors `RunResult.internal_error = {kind, message, log_path}` so a GUI / CI can surface the failure without parsing the log.
 
@@ -676,18 +675,25 @@ Checklist for project JSON:
 
 ### v2 additions (`base-v2` / `feature-v2` / `project-v2`)
 
-v2 is v1 plus two optional, non-glob, domain-relative pointers. `project-v2` differs from `project-v1` only in `$schema`.
+v2 is v1 plus the optional `vars_file` path on base and feature JSONs. `project-v2` differs from `project-v1` only in `$schema`.
 
 ```json
-{ "$schema": "base-v2",    "vars": "vars.tcl",     "procs": "procs/core_procs.tcl", "...": "v1 keys unchanged" }
-{ "$schema": "feature-v2", "name": "dft", "vars": "dft_vars.tcl", "procs": "procs/dft_procs.tcl", "...": "v1 keys unchanged" }
+{ "$schema": "base-v2", "vars_file": "vars.tcl", "...": "v1 keys unchanged" }
+{
+  "$schema": "feature-v2",
+  "name": "dft",
+  "vars_file": "dft_vars.tcl",
+  "procedures": {
+    "include": [{ "file": "procs/dft_procs.tcl", "procs": ["dft_setup", "dft_read_design"] }]
+  }
+}
 ```
 
-On every all-v2 run Chopper generates `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root (`<flow>` = the domain directory name). The flow infrastructure sources them right after its own `vars.tcl` / procs load, so the base pointer is only a whole-file keep (F1). Each feature pointer adds a three-line block -- the file plus its `tech_` and `project_` variants -- as `iproc_source -file <name> -optional`. Expect `VW-28` until the base is named `jsons/<flow>.json`.
+On every all-v2 run Chopper generates only `<flow>_feature_vars.tcl` at the domain root (`<flow>` = the domain directory name). The flow infrastructure loads the base vars file and then this wrapper. The base `vars_file` is a whole-file keep merged with normal R1/F2 decisions and is never listed in the wrapper. Each feature `vars_file` adds a three-line block -- the path plus its `tech_` and `project_` variants -- as `iproc_source -file <name> -optional`. Procedure-hosting files are selected with F2 `procedures.include` / `procedures.exclude`; no top-level proc pointer or generated feature-procs wrapper exists. Expect `VW-28` until the base is named `jsons/<flow>.json`.
 
 Before suggesting v2, check two load-order traps: (1) a stage step that re-sources a vars file after startup silently overrides the feature values -- offer to remove it; (2) moving a feature's vars from a late stage step to startup changes when they apply -- ask. To migrate an existing v1 set, use the [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) skill: it interviews the user, migrates one layer per dry-run, and proves each step deterministically with `scripts/check_v2.py`. Field reference: [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md); worked example: [examples/16_feature_vars](../../examples/16_feature_vars/).
 
-**Deterministic v2 check.** `python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <copy of .chopper/> [--baseline <v1 copy>] [--require-adoption] [--json]` reads one audit folder and the domain source. It prints a pass/fail gate, the adoption level (`none` / `schema-only` / `partial` / `full` / `not-applicable`), a preview of both generated files, a classified diff against the baseline (`expected` / `review` / `unexpected`), and ranked suggestions (`fix` / `improve` / `review`), each with an exact JSON edit. Use it on any dry-run, v1 or v2, whenever the user asks whether their JSONs are right or could produce a better trim. Present its suggestions in order, apply only what the user approves, and re-run it. Only call v2 adoption complete when `--require-adoption` passes with at least one actual base or feature `vars`/`procs` pointer. `none`, `schema-only` and `not-applicable` cannot pass that gate. With no suitable pointer, report schema compatibility only; do not invent a pointer to pass. Never dismiss `VW-15` on `iproc_source -file ...` as expected (that's `step-source-form`). The checker is skill tooling, not a Chopper command: Chopper's diagnostics stay authoritative. Reference: [check_v2.md](../skills/migrate-v1-to-v2/references/check_v2.md).
+**Deterministic v2 check.** `python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <copy of .chopper/> [--baseline <v1 copy>] [--require-adoption] [--json]` reads one audit folder and the domain source. It prints a pass/fail gate, the adoption level (`none` / `schema-only` / `partial` / `full` / `not-applicable`), a preview of the generated vars wrapper, a classified diff against the baseline (`expected` / `review` / `unexpected`), and ranked suggestions (`fix` / `improve` / `review`), each with an exact JSON edit. Use it on any dry-run, v1 or v2, whenever the user asks whether their JSONs are right or could produce a better trim. Present its suggestions in order, apply only what the user approves, and re-run it. Only call v2 adoption complete when `--require-adoption` passes with at least one actual base or feature `vars_file` pointer. `none`, `schema-only` and `not-applicable` cannot pass that gate. With no suitable pointer, report schema compatibility only; do not invent a pointer to pass. Never dismiss `VW-15` on `iproc_source -file ...` as expected (that's `step-source-form`). The checker is skill tooling, not a Chopper command: Chopper's diagnostics stay authoritative. Reference: [check_v2.md](../skills/migrate-v1-to-v2/references/check_v2.md).
 ---
 
 ## Schema Error -> Fix Mapping
@@ -969,8 +975,7 @@ Skills live under `.github/skills/<name>/SKILL.md` and are loaded on demand. Rea
 |------|-------|
 | Map / document an unfamiliar codebase | `.github/skills/acquire-codebase-knowledge/SKILL.md` |
 | Plan a context map before a multi-file change | `.github/skills/context-map/SKILL.md` |
-| Refresh FEV JSONs against a newer production release | [refresh-fev-release](../skills/refresh-fev-release/SKILL.md) |
-| Migrate a v1 JSON set to v2 (`vars` / `procs` pointers, generated feature sourcing files), check whether a v2 migration is done, or review v1/v2 JSONs for a better trim | [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) (`scripts/check_v2.py`) |
+| Migrate a v1 JSON set to v2 (`vars_file` pointers and F2 procedure selections), check whether a v2 migration is done, or review v1/v2 JSONs for a better trim | [migrate-v1-to-v2](../skills/migrate-v1-to-v2/SKILL.md) (`scripts/check_v2.py`) |
 
 Always read the skill file for the actual checklist before starting. Use local search/read/usages tools for exploration, impact mapping, and scope verification.
 

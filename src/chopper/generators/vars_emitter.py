@@ -1,4 +1,4 @@
-"""Shared emitter for v2 feature vars/procs sourcing files.
+"""Emitter for the v2 feature-vars sourcing file.
 
 Pure value function (no I/O). Layout (ARCHITECTURE.md Sec.3.12)::
 
@@ -34,16 +34,15 @@ _TCL_WORD_ESCAPES = str.maketrans(
 )
 
 
-def emit_feature_vars(flow_name: str, blocks: tuple[tuple[str, ...], ...], *, procs: bool = False) -> GeneratedArtifact:
-    """Render a feature vars/procs sourcing file from per-feature entry blocks."""
-    kind = "procs" if procs else "vars"
-    parts = ["\n".join(intel_header_lines()), f"# Feature {kind}.tcl sourcing file for {flow_name}"]
+def emit_feature_vars(flow_name: str, blocks: tuple[tuple[str, ...], ...]) -> GeneratedArtifact:
+    """Render the feature vars sourcing file from per-feature entry blocks."""
+    parts = ["\n".join(intel_header_lines()), f"# Feature vars.tcl sourcing file for {flow_name}"]
     parts.extend(
         "\n".join(f"iproc_source -file {entry.translate(_TCL_WORD_ESCAPES)} -optional" for entry in block)
         for block in blocks
     )
     return GeneratedArtifact(
-        path=Path(f"{flow_name}_feature_{kind}.tcl"),
+        path=Path(f"{flow_name}_feature_vars.tcl"),
         kind="tcl",
         content="\n\n".join(parts) + "\n",
         source_stage=flow_name,

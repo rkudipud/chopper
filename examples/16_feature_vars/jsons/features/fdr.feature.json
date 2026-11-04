@@ -1,7 +1,12 @@
 {
   "$schema": "feature-v2",
   "name": "fdr",
-  "description": "FDR variable and procedure libraries. Pointer-selected files are automatically kept whole.",
-  "vars": "fdr_vars.tcl",
-  "procs": "procs/fdr_procs.tcl"
+  "description": "FDR variable and procedure libraries.",
+  "vars_file": "fdr_vars.tcl",
+  "procedures": {
+    "include": [
+      { "file": "procs/fdr_procs.tcl", "procs": ["fdr_example_status"] },
+      { "file": "procs/tech_fdr_procs.tcl", "procs": ["fdr_example_technology"] }
+    ]
+  }
 }

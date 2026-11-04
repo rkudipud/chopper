@@ -11,7 +11,17 @@ from chopper.core.diagnostics import Diagnostic
 
 
 @pytest.mark.parametrize("kind", ["base", "feature"])
-@pytest.mark.parametrize("pointer", ["vars", "procs"])
+def test_vars_file_accepts_literal_file_path(kind: str) -> None:
+    raw: dict[str, object] = {"$schema": f"{kind}-v2", "vars_file": "dir/vars.tcl"}
+    if kind == "base":
+        raw.update(domain="d", files={"include": ["main.tcl"]})
+    else:
+        raw["name"] = "f"
+
+    assert validate_json(raw, Path("input.json"), lambda _: None) is True
+
+
+@pytest.mark.parametrize("kind", ["base", "feature"])
 @pytest.mark.parametrize(
     "entry",
     [
@@ -29,8 +39,8 @@ from chopper.core.diagnostics import Diagnostic
         "feature\n/",
     ],
 )
-def test_sourcing_pointers_reject_directory_and_drive_paths(kind: str, pointer: str, entry: str) -> None:
-    raw: dict[str, object] = {"$schema": f"{kind}-v2", pointer: entry}
+def test_vars_file_rejects_directory_and_drive_paths(kind: str, entry: str) -> None:
+    raw: dict[str, object] = {"$schema": f"{kind}-v2", "vars_file": entry}
     if kind == "base":
         raw.update(domain="d", files={"include": ["main.tcl"]})
     else:

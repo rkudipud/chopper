@@ -76,14 +76,14 @@ def _empty_parsed() -> ParseResult:
 class TestCompilerRegistration:
     def test_registers_generated_with_provenance(self) -> None:
         ctx, sink = make_ctx()
-        feat = replace(make_feature("fdr"), vars="fdr_vars.tcl", vars_keep=(Path("fdr_vars.tcl"),))
+        feat = replace(make_feature("fdr"), vars_file="fdr_vars.tcl", vars_keep=(Path("fdr_vars.tcl"),))
         loaded = replace(make_loaded(make_base(), make_feature("plain"), feat), feature_vars=(("fdr_vars.tcl",),))
         manifest = CompilerService().run(ctx, loaded, _empty_parsed())
 
         path = Path("my_domain_feature_vars.tcl")
         assert manifest.file_decisions[path] is FileTreatment.GENERATED
-        assert manifest.provenance[path].input_sources == ("base", "feature:fdr:vars")
-        assert manifest.provenance[path].contributed_by == "feature:fdr:vars"
+        assert manifest.provenance[path].input_sources == ("base", "feature:fdr:vars_file")
+        assert manifest.provenance[path].contributed_by == "feature:fdr:vars_file"
         assert manifest.feature_vars == (("fdr_vars.tcl",),)
         assert manifest.file_decisions[Path("fdr_vars.tcl")] is FileTreatment.FULL_COPY
         assert sink.codes() == []
@@ -96,7 +96,7 @@ class TestCompilerRegistration:
 
     def test_base_vars_keep_is_full_copy_and_later_exclude_wins(self) -> None:
         ctx, sink = make_ctx()
-        base = replace(make_base(), vars="vars.tcl", vars_keep=(Path("vars.tcl"),))
+        base = replace(make_base(), vars_file="vars.tcl", vars_keep=(Path("vars.tcl"),))
         dropper = make_feature("dropper", files=files_section(exclude=("vars.tcl",)))
         kept = CompilerService().run(ctx, replace(make_loaded(base), feature_vars=()), _empty_parsed())
         assert kept.file_decisions[Path("vars.tcl")] is FileTreatment.FULL_COPY
@@ -121,17 +121,17 @@ def _codes(raw: dict) -> list[str]:
 
 
 class TestV2Schemas:
-    def test_base_and_feature_v2_accept_vars(self) -> None:
-        base = {"$schema": "base-v2", "domain": "d", "vars": "vars.tcl", "files": {"include": ["a.tcl"]}}
+    def test_base_and_feature_v2_accept_vars_file(self) -> None:
+        base = {"$schema": "base-v2", "domain": "d", "vars_file": "vars.tcl", "files": {"include": ["a.tcl"]}}
         assert _codes(base) == []
-        assert _codes({"$schema": "feature-v2", "name": "f", "vars": "sub/f_vars.tcl"}) == []
+        assert _codes({"$schema": "feature-v2", "name": "f", "vars_file": "sub/f_vars.tcl"}) == []
 
-    def test_v1_rejects_vars(self) -> None:
-        assert _codes({"$schema": "feature-v1", "name": "f", "vars": "f_vars.tcl"}) == ["VE-02"]
+    def test_v1_rejects_vars_file(self) -> None:
+        assert _codes({"$schema": "feature-v1", "name": "f", "vars_file": "f_vars.tcl"}) == ["VE-02"]
 
     @pytest.mark.parametrize("bad", ["*.tcl", "a?.tcl", "[ab].tcl", "../x.tcl", "/abs.tcl", "a\\b.tcl", ""])
-    def test_vars_rejects_globs_and_unsafe_paths(self, bad: str) -> None:
-        assert _codes({"$schema": "feature-v2", "name": "f", "vars": bad}) == ["VE-02"]
+    def test_vars_file_rejects_globs_and_unsafe_paths(self, bad: str) -> None:
+        assert _codes({"$schema": "feature-v2", "name": "f", "vars_file": bad}) == ["VE-02"]
 
     def test_project_v2_schema_errors_use_ve12(self) -> None:
         assert _codes({"$schema": "project-v2", "project": "p", "domain": "d", "base": "b.json"}) == []
@@ -141,7 +141,6 @@ class TestV2Schemas:
         assert _codes({"$schema": ["base-v2"]}) == ["VE-01"]
 
 
-@pytest.mark.parametrize("procs", [False, True])
 @pytest.mark.parametrize(
     "entry",
     [
@@ -156,11 +155,11 @@ class TestV2Schemas:
         r"back\slash.tcl",
     ],
 )
-def test_source_paths_are_one_literal_tcl_argument(entry: str, procs: bool) -> None:
+def test_source_paths_are_one_literal_tcl_argument(entry: str) -> None:
     tkinter = pytest.importorskip("tkinter", reason="Tcl runtime unavailable")
     tcl = tkinter.Tcl()
     tcl.eval("set seen {}; proc iproc_source {args} {lappend ::seen $args}")
-    artifact = emit_feature_vars("flow", ((entry,),), procs=procs)
+    artifact = emit_feature_vars("flow", ((entry,),))
 
     tcl.eval(artifact.content)
 

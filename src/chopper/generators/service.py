@@ -17,10 +17,9 @@ containing one record per stage. Record order is
 :func:`compute_stack_order`), or ``manifest.stages`` order when
 ``stack_order`` is empty. The aggregate is appended *after* the
 per-stage loop so its artifact slot is last and predictable for audit
-consumers. On a v2 run the ``<domain>_feature_vars.tcl`` and
-``<domain>_feature_procs.tcl`` sourcing files (ARCHITECTURE.md Sec.3.12)
-are emitted after the per-stage files and before the aggregate stack,
-and every aggregate record lists them as ``I`` inputs.
+consumers. On a v2 run the ``<domain>_feature_vars.tcl`` sourcing file
+(ARCHITECTURE.md Sec.3.12) is emitted after the per-stage files and before
+the aggregate stack, and every aggregate record lists it as an ``I`` input.
 
 Stateless and deterministic: same manifest, same artifact tuple in the
 same order.
@@ -73,9 +72,6 @@ class GeneratorService:
         sourcing: list[GeneratedArtifact] = []
         if manifest.feature_vars is not None:
             sourcing.append(emit_feature_vars(ctx.config.domain_root.name, manifest.feature_vars))
-
-        if manifest.feature_procs is not None:
-            sourcing.append(emit_feature_vars(ctx.config.domain_root.name, manifest.feature_procs, procs=True))
 
         for artifact in sourcing:
             self._write(ctx, artifact)

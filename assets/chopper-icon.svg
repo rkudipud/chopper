@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Chopper icon</title>
+  <desc id="description">A glowing C on a microchip with a precisely trimmed corner.</desc>
+  <defs>
+    <linearGradient id="background" x1="44" y1="30" x2="461" y2="487" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#15243b"/>
+      <stop offset="0.55" stop-color="#0b1324"/>
+      <stop offset="1" stop-color="#080c19"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(143 107) rotate(44) scale(293 221)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22d3ee" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chip" x1="137" y1="131" x2="370" y2="383" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173a4d"/>
+      <stop offset=".54" stop-color="#12283d"/>
+      <stop offset="1" stop-color="#181d38"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="140" y1="124" x2="383" y2="389" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67e8f9"/>
+      <stop offset=".55" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="letter" x1="191" y1="190" x2="309" y2="326" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#a5f3fc"/>
+    </linearGradient>
+    <linearGradient id="offcut" x1="330" y1="321" x2="397" y2="396" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c6de3"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="16" y="16" width="480" height="480" rx="112"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#background)"/>
+    <rect x="16" y="16" width="480" height="480" fill="url(#glow)"/>
+  </g>
+  <rect x="17" y="17" width="478" height="478" rx="111" fill="none" stroke="#8ab5d0" stroke-opacity=".22" stroke-width="2"/>
+
+  <g fill="none" stroke="#8bdde7" stroke-opacity=".72" stroke-width="11" stroke-linecap="round">
+    <path d="M176 96v28m40-28v28m40-28v28m40-28v28m40-28v28"/>
+    <path d="M96 176h28m-28 40h28m-28 40h28m-28 40h28m-28 40h28"/>
+    <path d="M388 176h28m-28 40h28m-28 40h28"/>
+    <path d="M176 388v28m40-28v28m40-28v28"/>
+  </g>
+
+  <path d="M160 124h192c20 0 36 16 36 36v136l-92 92H160c-20 0-36-16-36-36V160c0-20 16-36 36-36Z" fill="url(#chip)" stroke="url(#edge)" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M308 203c-14-13-31-19-51-19-41 0-70 29-70 71s29 71 70 71c20 0 37-7 51-19" fill="none" stroke="url(#letter)" stroke-width="27" stroke-linecap="round"/>
+  <circle cx="323" cy="255" r="9" fill="#34d399"/>
+  <path d="M397 317l-80 80h37c24 0 43-19 43-43v-37Z" fill="url(#offcut)"/>
+</svg>

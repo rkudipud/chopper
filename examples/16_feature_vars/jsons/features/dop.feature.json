@@ -2,6 +2,10 @@
   "$schema": "feature-v2",
   "name": "dop",
   "description": "DOP variable and procedure libraries, independent of FDR.",
-  "vars": "dop_vars.tcl",
-  "procs": "dop_procs.tcl"
+  "vars_file": "dop_vars.tcl",
+  "procedures": {
+    "include": [
+      { "file": "dop_procs.tcl", "procs": ["dop_example_status"] }
+    ]
+  }
 }

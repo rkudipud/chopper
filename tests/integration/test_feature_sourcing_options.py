@@ -12,7 +12,7 @@ import pytest
 from chopper.cli.main import main
 from chopper.core.models_common import FileTreatment
 
-from .test_feature_procs import _procs_domain
+from .test_feature_vars import _domain as _vars_domain
 from .test_feature_vars import _run, _write
 
 _SWITCHES = ("cross_validate", "generate_stack", "indent", "insert_markers")
@@ -26,13 +26,12 @@ _OPTIONS = tuple(dict(zip(_SWITCHES, flags, strict=True)) for flags in itertools
 def test_sourcing_files_across_all_base_options(
     tmp_path: Path, version: int, dry_run: bool, standalone: bool, options: dict[str, bool]
 ) -> None:
-    domain = _procs_domain(tmp_path)
+    domain = _vars_domain(tmp_path)
     for path in (domain / "jsons").rglob("*.json"):
         data = json.loads(path.read_text(encoding="utf-8"))
         data["$schema"] = data["$schema"].replace("v2", f"v{version}")
         if version == 1:
-            data.pop("vars", None)
-            data.pop("procs", None)
+            data.pop("vars_file", None)
         if path.name == "apr_fc.json":
             data["options"] = options
             data["procedures"] = {"include": [{"file": "shared.tcl", "procs": ["keep"]}]}
@@ -65,7 +64,7 @@ def test_sourcing_files_across_all_base_options(
 
     assert result.exit_code == 0, [(d.code, d.message) for d in sink.snapshot()]
     assert result.manifest is not None
-    sourcing = {Path(f"apr_fc_feature_{kind}.tcl") for kind in ("vars", "procs")}
+    sourcing = {Path("apr_fc_feature_vars.tcl")}
     generated = {p for p, treatment in result.manifest.file_decisions.items() if treatment is FileTreatment.GENERATED}
     driver = Path("run.stack" if standalone else "run.tcl")
     expected = {driver}
@@ -93,17 +92,17 @@ def test_sourcing_files_across_all_base_options(
         assert "\nreturn 1\n" in trimmed
     if options["generate_stack"]:
         stack = (domain / "apr_fc.stack").read_text(encoding="utf-8")
-        for path in sourcing:
-            assert (f"I {path.as_posix()}\n" in stack) is (version == 2)
+        path = Path("apr_fc_feature_vars.tcl")
+        assert (f"I {path.as_posix()}\n" in stack) is (version == 2)
     else:
         assert not (domain / "apr_fc.stack").exists()
-    for path in sourcing:
-        assert (domain / path).exists() is (version == 2)
+    assert (domain / "apr_fc_feature_vars.tcl").exists() is (version == 2)
+    assert not (domain / "apr_fc_feature_procs.tcl").exists()
 
 
 @pytest.mark.parametrize("features", [(), ("fdr",), ("dop",), ("fdr", "dop"), ("dop", "fdr")])
 def test_only_selected_features_contribute_in_recipe_order(tmp_path: Path, features: tuple[str, ...]) -> None:
-    domain = _procs_domain(tmp_path)
+    domain = _vars_domain(tmp_path)
     project = domain / "project.json"
     data = json.loads(project.read_text(encoding="utf-8"))
     data["features"] = [f"jsons/features/{feature}.feature.json" for feature in features]
@@ -114,30 +113,27 @@ def test_only_selected_features_contribute_in_recipe_order(tmp_path: Path, featu
     sink, result = _run(domain, dry_run=False)
 
     assert result.exit_code == 0, [d.code for d in sink.snapshot()]
-    for kind in ("vars", "procs"):
-        text = (domain / f"apr_fc_feature_{kind}.tcl").read_text(encoding="utf-8")
-        lines = [line for line in text.splitlines() if line.startswith("iproc_source ")]
-        expected = []
-        for feature in features:
-            directory = "dop/" if feature == "dop" else ""
-            expected.extend(
-                f"iproc_source -file {directory}{prefix}{feature}_{kind}.tcl -optional"
-                for prefix in ("", "tech_", "project_")
-            )
-        assert lines == expected
+    text = (domain / "apr_fc_feature_vars.tcl").read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines() if line.startswith("iproc_source ")]
+    expected = []
+    for feature in features:
+        directory = "dop/" if feature == "dop" else ""
+        expected.extend(
+            f"iproc_source -file {directory}{prefix}{feature}_vars.tcl -optional"
+            for prefix in ("", "tech_", "project_")
+        )
+    assert lines == expected
+    assert not (domain / "apr_fc_feature_procs.tcl").exists()
 
 
-@pytest.mark.parametrize("kind,code", [("vars", "VW-27"), ("procs", "VW-30")])
 @pytest.mark.parametrize("strict", [False, True])
-def test_missing_pointer_strict_changes_exit_policy_not_diagnostics(
-    tmp_path: Path, kind: str, code: str, strict: bool
-) -> None:
-    domain = _procs_domain(tmp_path)
-    (domain / f"fdr_{kind}.tcl").unlink()
+def test_missing_pointer_strict_changes_exit_policy_not_diagnostics(tmp_path: Path, strict: bool) -> None:
+    domain = _vars_domain(tmp_path)
+    (domain / "fdr_vars.tcl").unlink()
 
     sink, result = _run(domain, dry_run=True, strict=strict)
 
-    matching = [d for d in sink.snapshot() if d.code == code]
+    matching = [d for d in sink.snapshot() if d.code == "VW-27"]
     assert len(matching) == 1
     assert matching[0].severity == "warning"
     assert result.exit_code == (1 if strict else 0)
@@ -145,7 +141,7 @@ def test_missing_pointer_strict_changes_exit_policy_not_diagnostics(
 
 @pytest.mark.parametrize("versions", list(itertools.product((1, 2), repeat=3)))
 def test_every_project_base_feature_version_combination(tmp_path: Path, versions: tuple[int, int, int]) -> None:
-    domain = _procs_domain(tmp_path)
+    domain = _vars_domain(tmp_path)
     project_version, base_version, feature_version = versions
     paths = [(domain / "project.json", project_version), (domain / "jsons/apr_fc.json", base_version)]
     paths.extend((path, feature_version) for path in (domain / "jsons/features").glob("*.json"))
@@ -153,8 +149,7 @@ def test_every_project_base_feature_version_combination(tmp_path: Path, versions
         raw = json.loads(path.read_text(encoding="utf-8"))
         raw["$schema"] = raw["$schema"].replace("v2", f"v{version}")
         if version == 1:
-            raw.pop("vars", None)
-            raw.pop("procs", None)
+            raw.pop("vars_file", None)
         _write(path, json.dumps(raw))
 
     sink, result = _run(domain, dry_run=True)
@@ -168,13 +163,12 @@ def test_every_project_base_feature_version_combination(tmp_path: Path, versions
 
 @pytest.mark.parametrize("version", [1, 2])
 def test_generate_stack_without_stages_is_noop(tmp_path: Path, version: int) -> None:
-    domain = _procs_domain(tmp_path)
+    domain = _vars_domain(tmp_path)
     for path in [domain / "project.json", *(domain / "jsons").rglob("*.json")]:
         data = json.loads(path.read_text(encoding="utf-8"))
         data["$schema"] = data["$schema"].replace("v2", f"v{version}")
         if version == 1:
-            data.pop("vars", None)
-            data.pop("procs", None)
+            data.pop("vars_file", None)
         if path.name == "apr_fc.json":
             data["options"] = {"generate_stack": True}
         _write(path, json.dumps(data))
@@ -202,26 +196,26 @@ def test_runnable_v2_example_through_all_four_cli_commands(tmp_path: Path, capsy
     assert not (domain / "apr_fc_feature_vars.tcl").exists()
     assert main(["--strict", "--plain", "trim", *selection]) == 0, capsys.readouterr()
 
-    generated = ("apr_fc_feature_vars.tcl", "apr_fc_feature_procs.tcl", "apr_fc.stack", "main.tcl")
+    generated = ("apr_fc_feature_vars.tcl", "apr_fc.stack", "main.tcl")
     p4 = (domain / ".chopper/p4_commands.txt").read_text(encoding="utf-8")
     for name in generated:
         assert (domain / name).is_file()
         assert f"p4 add -t text+x {name}" in p4
     stack = (domain / "apr_fc.stack").read_text(encoding="utf-8")
-    assert "I apr_fc_feature_vars.tcl\nI apr_fc_feature_procs.tcl\n" in stack
+    assert "I apr_fc_feature_vars.tcl\n" in stack
+    assert "feature_procs" not in stack
     _write(project, recipe)
     assert main(["--strict", "--plain", "trim", *selection]) == 0, capsys.readouterr()
     assert main(["--plain", "cleanup", "--domain", str(domain), "--confirm"]) == 0, capsys.readouterr()
     assert not domain.with_name("apr_fc_backup").exists()
 
 
-@pytest.mark.parametrize("kind", ["vars", "procs"])
-def test_literal_pointer_survives_f1_and_generated_p6_checks(tmp_path: Path, kind: str) -> None:
-    domain = _procs_domain(tmp_path)
-    pointer = f"feature dir/$name;f{{_{kind}.tcl"
+def test_literal_vars_file_pointer_survives_f1_and_generated_p6_checks(tmp_path: Path) -> None:
+    domain = _vars_domain(tmp_path)
+    pointer = "feature dir/$name;f{_vars.tcl"
     feature = domain / "jsons/features/fdr.feature.json"
     raw = json.loads(feature.read_text(encoding="utf-8"))
-    raw[kind] = pointer
+    raw["vars_file"] = pointer
     _write(feature, json.dumps(raw))
     _write(domain / pointer, "set example 1\n")
 
@@ -229,5 +223,5 @@ def test_literal_pointer_survives_f1_and_generated_p6_checks(tmp_path: Path, kin
 
     assert result.exit_code == 0, [(d.code, d.message) for d in sink.snapshot()]
     assert (domain / pointer).read_text(encoding="utf-8") == "set example 1\n"
-    text = (domain / f"apr_fc_feature_{kind}.tcl").read_text(encoding="utf-8")
-    assert f"feature\\ dir/\\$name\\;f\\{{_{kind}.tcl -optional" in text
+    text = (domain / "apr_fc_feature_vars.tcl").read_text(encoding="utf-8")
+    assert "feature\\ dir/\\$name\\;f\\{_vars.tcl -optional" in text

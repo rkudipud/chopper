@@ -140,7 +140,7 @@ src/chopper/
 |   +-- service.py               # GeneratorService.run(...)
 |   +-- stage_emitter.py         # F3 <stage>.tcl writer
 |   +-- stack_emitter.py         # F3 <stage>.stack writer (N/J/L/D/I/O/R format)
-|   +-- vars_emitter.py          # v2 <flow>_feature_vars.tcl / <flow>_feature_procs.tcl writer
+|   +-- vars_emitter.py          # v2 <flow>_feature_vars.tcl writer
 |
 +-- audit/                       # Stage 3c -- .chopper/ writes (P7)
 |   +-- service.py               # AuditService.run(...)

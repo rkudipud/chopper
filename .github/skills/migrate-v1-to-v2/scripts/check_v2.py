@@ -6,13 +6,13 @@ AUDIT and V1_AUDIT are ``.chopper/`` folders (or full copies of one) from
 ``chopper validate`` / ``chopper trim [--dry-run]``. The report has five parts:
 
 * ``gate``        -- pass/fail checks: run succeeded, one schema version, every
-                     vars/procs pointer exists, both generated sourcing files are
+                     vars_file pointer exists, the generated vars sourcing file is
                      emitted and kept with a p4 line, a live trim wrote exactly the
                      preview, no unexpected change against the baseline, and (with
-                     ``--require-adoption``) at least one pointer is in use.
+                     ``--require-adoption``) a vars_file pointer is in use.
 * ``adoption``    -- none (v1) / schema-only / partial / full / not-applicable.
-* ``preview``     -- the ``iproc_source`` lines of ``<flow>_feature_vars.tcl`` and
-                     ``<flow>_feature_procs.tcl``, built the way Chopper builds them.
+* ``preview``     -- the ``iproc_source`` lines of ``<flow>_feature_vars.tcl``,
+                     built the way Chopper builds it.
 * ``delta``       -- with ``--baseline``: every fact that changed (same facts as
                      ``compare_manifests.py``), classed expected / review / unexpected.
 * ``suggestions`` -- concrete JSON edits, each tied to evidence in the bundle.
@@ -38,7 +38,7 @@ _TCL_WORD_ESCAPES = str.maketrans(
 )
 # ponytail: line-anchored `proc NAME` regex, not a Tcl parser; misses computed names (fine for advice).
 _PROC_RE = re.compile(r"^\s*proc\s+(\S+)", re.MULTILINE)
-_KINDS = ("vars", "procs")
+_POINTER = "vars_file"
 _LEVELS = {"fix": 0, "improve": 1, "review": 2}
 _CLASSES = {"unexpected": 0, "review": 1, "expected": 2}
 
@@ -116,7 +116,7 @@ class Bundle:
         everything = [data for _, data in self.layers] + ([self.project] if self.project else [])
         self.versions = sorted({_version(d) for d in everything})
         self.schema = _version(base)
-        self.generated = {kind: f"{self.flow}_feature_{kind}.tcl" for kind in _KINDS}
+        self.generated = f"{self.flow}_feature_vars.tcl"
         self._defined: dict[str, set[str]] = {}
         self._files: list[str] | None = None
         self._texts: dict[str, str] | None = None
@@ -126,7 +126,7 @@ class Bundle:
         # ponytail: basename text match, not a Tcl source trace; a mention in a comment also counts.
         word = re.compile(rf"(?<![\w.-]){re.escape(PurePosixPath(rel).name)}(?![\w.-])")
         if self._texts is None:
-            skip = set(self.generated.values())
+            skip = {self.generated}
             self._texts = {
                 k: (self.root / k).read_text(encoding="utf-8", errors="replace")
                 for k in sorted(self.kept)
@@ -165,7 +165,7 @@ class Bundle:
         return [d for d in self.diags if d.get("code") == code]
 
     def pointers(self) -> list[tuple[str, str, str]]:
-        return [(key, kind, data[kind]) for key, data in self.layers for kind in _KINDS if data.get(kind)]
+        return [(key, _POINTER, data[_POINTER]) for key, data in self.layers if data.get(_POINTER)]
 
     def pointer_files(self) -> set[str]:
         return {e for key, _, p in self.pointers() for e in (_expand(p) if key != "base" else (p,))}
@@ -173,40 +173,36 @@ class Bundle:
     def preview(self) -> dict[str, list[str]]:
         if self.schema != "v2":
             return {}
-        out: dict[str, list[str]] = {}
-        for kind in _KINDS:
-            seen: set[str] = set()
-            lines: list[str] = []
-            for key, data in self.layers[1:]:
-                block = [e for e in _expand(data[kind]) if e not in seen] if data.get(kind) else []
-                seen.update(block)
-                if block:
-                    lines.extend([""] if lines else [])
-                    lines.extend(f"iproc_source -file {e.translate(_TCL_WORD_ESCAPES)} -optional" for e in block)
-            out[self.generated[kind]] = lines
-        return out
+        seen: set[str] = set()
+        lines: list[str] = []
+        for _, data in self.layers[1:]:
+            block = [e for e in _expand(data[_POINTER]) if e not in seen] if data.get(_POINTER) else []
+            seen.update(block)
+            if block:
+                lines.extend([""] if lines else [])
+                lines.extend(f"iproc_source -file {e.translate(_TCL_WORD_ESCAPES)} -optional" for e in block)
+        return {self.generated: lines}
 
 
-def _main_file(name: str, kind: str, base: bool) -> bool:
+def _main_file(name: str, base: bool) -> bool:
     if base:
-        return name == f"{kind}.tcl"
-    return name.endswith(f"{kind}.tcl") and not name.startswith(("tech_", "project_"))
+        return name == "vars.tcl"
+    return name.endswith("_vars.tcl") and not name.startswith(("tech_", "project_"))
 
 
 def _candidates(b: Bundle, key: str, data: dict[str, Any]) -> list[tuple[str, str, str]]:
-    """``(kind, file, edit)`` for each vars/procs file this layer could point at without changing output."""
+    """``(kind, file, edit)`` for each vars file this layer could point at without changing output."""
     out = []
     inc = [e for e in (data.get("files") or {}).get("include", []) if _literal(e)]
     pinc = (data.get("procedures") or {}).get("include", [])
     base = key == "base"
-    for kind in _KINDS:
-        if data.get(kind):
-            continue
-        whole = sorted(e for e in inc if _main_file(PurePosixPath(e).name, kind, base))
+    kind = _POINTER
+    if not data.get(kind):
+        whole = sorted(e for e in inc if _main_file(PurePosixPath(e).name, base))
         covered = sorted(
             p["file"]
             for p in pinc
-            if _main_file(PurePosixPath(p["file"]).name, kind, base)
+            if _main_file(PurePosixPath(p["file"]).name, base)
             and b.defined(p["file"])
             and b.defined(p["file"]) <= set(p.get("procs", []))
         )
@@ -231,7 +227,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
     for key, data in named + b.layers:
         if _version(data) == "v1":
             new = str(data.get("$schema", "")).replace("-v1", "-v2")
-            why = "this run mixes v1 and v2 (VE-41)" if mixed else "v2 enables vars/procs pointers"
+            why = "this run mixes v1 and v2 (VE-41)" if mixed else "v2 enables vars_file pointers"
             add(
                 "unflipped-json",
                 "fix" if mixed else "improve",
@@ -254,7 +250,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                 + (
                     " (the infra already loads the base file)."
                     if key == "base"
-                    else f" and sources it from {b.generated[kind]}."
+                    else f" and sources it from {b.generated}."
                 )
                 + (
                     " Nothing references it today (no stage step, no other kept Tcl file), so the pointer"
@@ -264,7 +260,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                 ),
                 edit,
             )
-        for kind in _KINDS:
+        for kind in (_POINTER,):
             ptr = data.get(kind)
             if not ptr:
                 continue
@@ -274,7 +270,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                     "review",
                     key,
                     f"nothing in the baseline references {ptr} (no stage step, no other kept Tcl file); the"
-                    f' "{kind}" pointer now loads it at startup from {b.generated[kind]}. Confirm it should load.',
+                    f' "{kind}" pointer now loads it at startup from {b.generated}. Confirm it should load.',
                     f'no JSON edit if intended; otherwise remove "{kind}": "{ptr}" and keep it with files.include',
                 )
             if not b.exists(ptr):
@@ -303,29 +299,6 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                             f'{variant} is kept automatically when it exists (variant of the "{kind}" pointer).',
                             f'remove "{variant}" from files.include',
                         )
-            if kind == "procs":
-                for entry in (data.get("procedures") or {}).get("include", []):
-                    if entry["file"] not in _expand(ptr):
-                        continue
-                    dropped = sorted(b.defined(entry["file"]) - set(entry.get("procs", [])))
-                    if dropped:
-                        exclude = json.dumps({"procedures": {"exclude": [{"file": entry["file"], "procs": dropped}]}})
-                        add(
-                            "procs-pointer-proc-trim",
-                            "fix",
-                            key,
-                            f"the procs pointer copies {entry['file']} whole (VW-09), bringing back {_q(dropped)}.",
-                            f'remove "procs": "{ptr}" and keep procedures.include; or keep the pointer and replace the'
-                            f" include with {exclude[1:-1]} (an exclude list also keeps procs added later)",
-                        )
-                    else:
-                        add(
-                            "redundant-pointer-include",
-                            "improve",
-                            key,
-                            f"the procs pointer already keeps every proc in {entry['file']}.",
-                            f'remove the procedures.include entry for "{entry["file"]}"',
-                        )
         for step in sorted(set(_steps(data))):
             path = _sourced(step)
             if path is not None and path in pfiles:
@@ -344,7 +317,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                     key,
                     f'VW-15 for "{step.split()[0]}" is a false positive: the step check reads only "source <path>" /'
                     f' "iproc_source <path>", so "{step}" looks like a call to a missing proc. Nothing is missing.',
-                    f"if {path} becomes a vars/procs pointer, delete the step; otherwise list {step.split()[0]} in a"
+                    f"if {path} becomes a vars_file pointer, delete the step; otherwise list {step.split()[0]} in a"
                     " --tool-commands file to silence VW-15 (never add a stub proc)",
                 )
         for x in sorted(e for e in (data.get("files") or {}).get("exclude", []) if _literal(e) and not b.exists(e)):
@@ -364,7 +337,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                 '"description": "<one line: what this layer adds>"',
             )
         if key != "base":
-            mains = {k: data[k] for k in _KINDS if data.get(k)}
+            mains = {_POINTER: data[_POINTER]} if data.get(_POINTER) else {}
             for kind, x, _ in _candidates(b, key, data):
                 mains[kind] = x
             for kind, x in sorted(mains.items()):
@@ -372,7 +345,7 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                     if not b.exists(variant):
                         continue
                     if data.get(kind):
-                        state = f"is now kept and sourced after {x} by {b.generated[kind]}"
+                        state = f"is now kept and sourced after {x} by {b.generated}"
                     else:
                         live = any(_sourced(s) == variant for _, d in b.layers for s in _steps(d))
                         state = (
@@ -450,17 +423,16 @@ def _suggest(b: Bundle, before: Bundle | None = None) -> list[dict[str, str]]:
                 else "add it to a project or delete it",
             )
 
-    for code, kind in (("VW-29", "vars"), ("VW-31", "procs")):
-        for d in b.codes(code):
-            m = re.search(r"from feature '([^']+)' already sourced by feature '([^']+)'", d.get("message", ""))
-            if m:
-                add(
-                    "shared-pointer",
-                    "review",
-                    f"feature:{m.group(1)}",
-                    d["message"],
-                    f'remove "{kind}" from feature {m.group(1)} or from feature {m.group(2)}',
-                )
+    for d in b.codes("VW-29"):
+        m = re.search(r"from feature '([^']+)' already sourced by feature '([^']+)'", d.get("message", ""))
+        if m:
+            add(
+                "shared-pointer",
+                "review",
+                f"feature:{m.group(1)}",
+                d["message"],
+                f'remove "{_POINTER}" from feature {m.group(1)} or from feature {m.group(2)}',
+            )
     for d in b.codes("VW-09"):
         m = re.match(r"'([^']+)'", d.get("message", ""))
         if m and d.get("file") not in pfiles:
@@ -483,7 +455,7 @@ def _adoption(b: Bundle) -> dict[str, Any]:
 
 
 def _delta(b: Bundle, baseline: Path) -> list[dict[str, str]]:
-    gen = set(b.generated.values())
+    gen = {b.generated}
     pfiles = b.pointer_files()
     changes = list(diff(_facts(baseline), _facts(b.audit)))
     file_class: dict[str, tuple[str, str]] = {}
@@ -494,7 +466,7 @@ def _delta(b: Bundle, baseline: Path) -> list[dict[str, str]]:
                 return "expected", "generated sourcing file"
             return (
                 "review",
-                "kept (and sourced) automatically by a vars/procs pointer" if key in pfiles else "new output file",
+                "kept (and sourced) automatically by a vars_file pointer" if key in pfiles else "new output file",
             )
         if sign == "-":
             return "unexpected", "file is no longer in the output"
@@ -521,7 +493,7 @@ def _delta(b: Bundle, baseline: Path) -> list[dict[str, str]]:
             elif key in gen:
                 cls, note = "expected", "generated sourcing file"
             elif key in pfiles:
-                cls, note = "review", "kept (and sourced) automatically by a vars/procs pointer"
+                cls, note = "review", "kept (and sourced) automatically by a vars_file pointer"
             else:
                 cls, note = "review", "newly kept"
         elif section == "p4":
@@ -571,7 +543,7 @@ def _gate(
         row("one-version", len(b.versions) == 1, ", ".join(b.versions)),
     ]
     v2 = b.schema == "v2"
-    missing = sorted(d.get("message", "") for d in b.codes("VW-27") + b.codes("VW-30"))
+    missing = sorted(d.get("message", "") for d in b.codes("VW-27"))
     gates.append(row("pointer-targets", None if not v2 else not missing, "; ".join(missing) or "all pointers exist"))
     if not v2 or b.manifest is None:
         gates.append(row("generated-files", None, "v1 run" if not v2 else "no compiled manifest"))
@@ -587,7 +559,7 @@ def _gate(
             )
         ]
         gates.append(
-            row("generated-files", not bad, f"not emitted/kept/p4: {', '.join(bad)}" if bad else "both emitted")
+            row("generated-files", not bad, f"not emitted/kept/p4: {', '.join(bad)}" if bad else "emitted")
         )
     if not v2 or b.run.get("mode") != "live" or not run_ok:
         gates.append(row("generated-content", None, "needs a successful live v2 trim"))
@@ -612,7 +584,7 @@ def _gate(
             row(
                 "adoption",
                 v2 and bool(b.pointers()),
-                f"level {level}; requires v2 with at least one vars/procs pointer",
+                f"level {level}; requires v2 with at least one vars_file pointer",
             )
         )
     else:
@@ -664,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("audit", type=Path, help=".chopper folder (or a copy) to grade")
     parser.add_argument("--baseline", type=Path, help=".chopper folder from the v1 run to diff against")
-    parser.add_argument("--require-adoption", action="store_true", help="fail unless a vars/procs pointer is in use")
+    parser.add_argument("--require-adoption", action="store_true", help="fail unless a vars_file pointer is in use")
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     args = parser.parse_args(argv)
     report = build(args.audit, args.baseline, args.require_adoption)

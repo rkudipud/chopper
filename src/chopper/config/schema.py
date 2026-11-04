@@ -11,7 +11,7 @@ schema files are:
 * ``schemas/base-v1.schema.json``     -> ``$schema: base-v1``
 * ``schemas/feature-v1.schema.json``  -> ``$schema: feature-v1``
 * ``schemas/project-v1.schema.json``  -> ``$schema: project-v1``
-* ``schemas/<kind>-v2.schema.json``   -> ``$schema: <kind>-v2`` (v1 plus ``vars``)
+* ``schemas/<kind>-v2.schema.json``   -> ``$schema: <kind>-v2`` (v1 plus ``vars_file``)
 
 Diagnostic mapping:
 

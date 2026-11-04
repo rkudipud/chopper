@@ -7,5 +7,5 @@
     "jsons/features/fdr.feature.json",
     "jsons/features/dop.feature.json"
   ],
-  "notes": ["Feature order sets block order independently in both sourcing files: fdr first, then dop."]
+  "notes": ["Feature order sets the vars-wrapper block order: fdr first, then dop."]
 }

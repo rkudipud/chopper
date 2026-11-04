@@ -164,7 +164,6 @@ class CompilerService:
         stages = resolve_stages(ctx, loaded.base.stages, loaded.features, insert_markers=options.insert_markers)
         _register_generated_stage_files(ctx, file_decisions, provenance, stages, loaded)
         _register_feature_vars_file(ctx, file_decisions, provenance, loaded)
-        _register_feature_vars_file(ctx, file_decisions, provenance, loaded, procs=True)
         stack_order = compute_stack_order(ctx, stages)
 
         return CompiledManifest(
@@ -176,7 +175,6 @@ class CompilerService:
             stack_order=stack_order,
             options=options,
             feature_vars=loaded.feature_vars,
-            feature_procs=loaded.feature_procs,
         )
 
 
@@ -282,31 +280,28 @@ def _register_feature_vars_file(
     file_decisions: dict[Path, FileTreatment],
     provenance: dict[Path, FileProvenance],
     loaded: LoadedConfig,
-    *,
-    procs: bool = False,
 ) -> None:
-    """Register a v2 vars/procs sourcing file and reject collisions."""
-    blocks = loaded.feature_procs if procs else loaded.feature_vars
-    kind = "procs" if procs else "vars"
+    """Register the v2 feature-vars sourcing file and reject collisions."""
+    blocks = loaded.feature_vars
     if blocks is None:
         return
 
-    path = Path(f"{ctx.config.domain_root.name}_feature_{kind}.tcl")
+    path = Path(f"{ctx.config.domain_root.name}_feature_vars.tcl")
     if path in file_decisions:
         ctx.diag.emit(
             Diagnostic.build(
-                "VE-42" if procs else "VE-40",
+                "VE-40",
                 phase=Phase.P3_COMPILE,
-                message=f"Generated feature {kind} file {path.as_posix()!r} collides with an existing file decision",
+                message=f"Generated feature vars file {path.as_posix()!r} collides with an existing file decision",
                 path=path,
                 hint="Remove the path from files.* / procedures.*, or rename the hand-written file or stage",
             )
         )
-        raise ChopperError(f"Feature {kind} path {path.as_posix()!r} collides with an existing file decision")
+        raise ChopperError(f"Feature vars path {path.as_posix()!r} collides with an existing file decision")
 
     contributors = [
         "base",
-        *(f"feature:{f.name}:{kind}" for f in loaded.features if (f.procs if procs else f.vars) is not None),
+        *(f"feature:{f.name}:vars_file" for f in loaded.features if f.vars_file is not None),
     ]
     file_decisions[path] = FileTreatment.GENERATED
     provenance[path] = FileProvenance(
@@ -425,7 +420,6 @@ def _extract_facts(
             fi_literal_set.add(Path(entry))
     # v2 vars files present in the domain are implicit files.include literals (Sec.3.12).
     fi_literal_set.update(source.vars_keep)
-    fi_literal_set.update(source.procs_keep)
 
     fe_literal_set: set[Path] = set()
     fe_glob_patterns: list[str] = []

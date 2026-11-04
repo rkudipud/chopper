@@ -246,8 +246,7 @@ def load_base(
         procedures=procs,
         stages=stages,
         schema_version=_schema_version(raw),
-        vars=raw.get("vars"),
-        procs=raw.get("procs"),
+        vars_file=raw.get("vars_file"),
     )
 
 
@@ -282,8 +281,7 @@ def load_feature(
         procedures=procs,
         flow_actions=actions,
         schema_version=_schema_version(raw),
-        vars=raw.get("vars"),
-        procs=raw.get("procs"),
+        vars_file=raw.get("vars_file"),
     )
 
 

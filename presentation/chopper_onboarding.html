@@ -1236,10 +1236,9 @@ N main
 J -xt vw Imy_shell -B BLOCK -T main
 L 0 3
 I apr_fc_feature_vars.tcl
-I apr_fc_feature_procs.tcl
 D setup</div>
-      <p style="font-size:15px;color:var(--ink-dim)">Serial is implicit. Each record declares both v2 sourcing
-        files as inputs; it does not source them. Standalone stacks remain verbatim.</p>
+      <p style="font-size:15px;color:var(--ink-dim)">Serial is implicit. Each record declares the v2 feature-vars
+        wrapper as an input; it does not source it. Standalone stacks remain verbatim.</p>
 
       <h3>Vendor &amp; tool agnostic</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1718,10 +1717,10 @@ D setup</div>
   </div>
 
   <div class="callout">
-    <strong>v2 outputs:</strong> <code>apr_fc_feature_vars.tcl</code> and <code>apr_fc_feature_procs.tcl</code>.
-    Each feature pointer adds authored / <code>tech_</code> / <code>project_</code> optional entries.
-    Base pointers are F1-only; infrastructure owns loading. One version per run.
-    Both files reach p4, audit, LoC, P6, and aggregate-stack inputs. See <code>examples/16_feature_vars/</code>.
+    <strong>v2 output:</strong> <code>apr_fc_feature_vars.tcl</code>.
+    Each feature <code>vars_file</code> pointer adds authored / <code>tech_</code> / <code>project_</code> optional entries.
+    Procedure-hosting files remain F2 selections. Infrastructure owns loading. One version per run.
+    The wrapper reaches p4, audit, LoC, P6, and aggregate-stack inputs. See <code>examples/16_feature_vars/</code>.
   </div>
 
   <div class="foot"><span>chopper &middot; JSON structure</span><span>12 / 17</span></div>

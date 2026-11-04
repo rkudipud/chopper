@@ -401,7 +401,7 @@ Pre-trim (P1) and post-trim (P6) validation.
 JSON schema loading.
 
 - Uses `jsonschema` library
-- Schemas: `schemas/{base,feature,project}-v1.schema.json` and the `-v2` siblings. v2 adds the optional `vars` / `procs` pointers that feed the generated `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl`; a run is all-v1 or all-v2 (mixing is `VE-41`). See [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md)
+- Schemas: `schemas/{base,feature,project}-v1.schema.json` and the `-v2` siblings. v2 adds optional `vars_file` pointers that feed the generated `<flow>_feature_vars.tcl`; procedure-hosting files remain F2 selections through `procedures.include` / `procedures.exclude`. A run is all-v1 or all-v2 (mixing is `VE-41`). See [technical_docs/JSON_AUTHORING_GUIDE.md](../../technical_docs/JSON_AUTHORING_GUIDE.md)
 
 ---
 

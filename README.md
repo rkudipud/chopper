@@ -37,7 +37,7 @@ The **Chopper Agent** ([.github/agents/chopper-agent.agent.md](.github/agents/ch
 - Runs named CLI playbooks: **bisect** a feature that broke trim, **compare** two runs, **prove-safe** a JSON change
 - Works in two modes: **analyze-only** (JSON authoring, no CLI calls) or **full-loop** (analyze + run + audit)
 
-**Prompt library** -- ready-to-use starting points under [.github/prompts/](.github/prompts/): `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`, `package-bug-artifacts`.
+**Prompt library** -- ready-to-use starting points under [.github/skills/](.github/skills/): `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`, `package-bug-artifacts`.
 
 > [!TIP]
 > Open VS Code Copilot Chat, pick the Chopper Agent, and say: *"bootstrap a starter JSON for my domain at `path/to/domain/`"* -- or just *"hi"* and it will show you a two-tier menu of everything it can do.
@@ -79,7 +79,7 @@ Every `validate` and `trim` run -- including failures and dry-runs -- writes a `
 | Feature (zero or more) | `<domain>/jsons/features/<name>.feature.json` | No | Files, procs, or stage changes for one optional capability |
 | Project | anywhere | No | One base path plus an ordered feature list, invoked with `--project` |
 
-Pick one schema generation per run: v1 (`base-v1` / `feature-v1` / `project-v1`) or v2 (`base-v2` / `feature-v2` / `project-v2`), which adds per-layer `vars` / `procs` pointers and generates `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl`. Mixing generations is rejected (`VE-41`). Moving from v1? Ask the Chopper Agent to *"migrate my domain to v2"*.
+Pick one schema generation per run: v1 (`base-v1` / `feature-v1` / `project-v1`) or v2 (`base-v2` / `feature-v2` / `project-v2`), which adds optional `vars_file` pointers and generates `<flow>_feature_vars.tcl`. Procedure-hosting files remain trimmed through F2 `procedures.include` / `procedures.exclude`; no procedure wrapper is generated. Mixing generations is rejected (`VE-41`). Moving from v1? Ask the Chopper Agent to *"migrate my JSONs to v2"*: its [migrate-v1-to-v2 skill](.github/skills/migrate-v1-to-v2/SKILL.md) interviews you, migrates one layer per dry-run, and proves each step against your v1 baseline. Ask *"check my v2 migration"* to confirm v2 is actually adopted. Manual steps, keys added over time, and v2 examples: [JSON_AUTHORING_GUIDE.md Sec.12](technical_docs/JSON_AUTHORING_GUIDE.md#12-schema-v2-and-migrating-from-v1).
 
 **3. Run the safe loop.**
 
@@ -108,7 +108,7 @@ Copy the nearest folder under [examples/](examples/) into your domain and adapt 
 | `12`, `13` | Aggregate `<flow>.stack` and per-stage standalone stacks |
 | `14_cross_feature_skip_if_no_stage/` | Cross-cutting feature using `skip_if_no_stage` |
 | `15_stage_reference_file/` | Stage body loaded from an existing script via `reference_file` |
-| [16_feature_vars/](examples/16_feature_vars/) | All-v2 `vars` / `procs` pointers, generated sourcing files, aggregate-stack inputs, and p4/LoC outputs |
+| [16_feature_vars/](examples/16_feature_vars/) | All-v2 `vars_file` pointers, F2 procedure selection, the generated vars wrapper, aggregate-stack inputs, and p4/LoC outputs |
 
 ---
 
@@ -357,6 +357,12 @@ Contributor workflow, local quality gates, working rules, and the pull-request c
 
 Major milestones only. The canonical release version number lives in [pyproject.toml](pyproject.toml) (`[project].version`) and is exposed at runtime via `chopper.__version__`.
 
+Versions above 4.5.0 are unreleased development milestones; 4.5.0 is the latest shipped version.
+
+### 4.12.0 -- 2026-11-04
+
+- **Mutate the unreleased v2 JSON contract in place.** Rename the base and feature vars pointer to `vars_file`; remove the proc pointer and generated feature-procs wrapper. Procedure-hosting files remain trimmed through F2 `procedures.include` / `procedures.exclude`. Base `vars_file` participates in normal R1/F2 merging, while feature pointers supply the feature-vars wrapper. Reserved the never-shipped `VE-42`, `VW-30`, and `VW-31` slots again. See [ARCHITECTURE.md Sec.3.12](technical_docs/ARCHITECTURE.md), [JSON_AUTHORING_GUIDE.md Sec.2.4](technical_docs/JSON_AUTHORING_GUIDE.md), and [example 16](examples/16_feature_vars/).
+
 ### 4.11.3 -- 2026-11-03
 
 - **Fixed: excluding a file that is already gone no longer crashes.** A literal `files.exclude` path that does not exist now only warns with `VW-25` and the trim continues, as documented; before, the missing file reached the parser and the run ended with an internal error (exit 3). Regression tests cover base and feature layers, with and without a backup.
@@ -374,9 +380,9 @@ Major milestones only. The canonical release version number lives in [pyproject.
 
 - **Internal: one composer, one source-root rule, one application layer (no behavior change).** `orchestrator/runner.py` is now the single place that orders phases, gates them, and keeps run bookkeeping. `default_providers()` builds every phase implementation, and any one of them can be swapped through `ChopperRunner(providers=...)`. Live trim and `chopper loc` share one P5 sequence instead of two copies. The "read from `<domain>_backup/` if it exists" rule lives once in `core/layout.py` instead of six copies. Domain resolution, JSON discovery, run-config building, trim-statistics rows, and cleanup moved from the CLI into a new front-end-neutral `chopper.app` package, which the CLI now calls through one multi-domain loop. This prepares for a future local browser GUI (plain HTML/CSS/JS over a standard-library server; recorded in `FD-04`, nothing built yet). Every command, flag, diagnostic, exit code, output line, and written file is unchanged; a differential run over every fixture and example domain confirmed it. See [ARCHITECTURE.md Sec.5.2 and Sec.5.11](technical_docs/ARCHITECTURE.md) and the 4.11.0 revision row.
 
-### 4.10.0 -- 2026-10-06
+### 4.10.0 -- 2026-10-06 (superseded before shipping)
 
-- **New: v2 schemas and feature vars/procs sourcing files.** `base-v2` and `feature-v2` add optional `vars` and `procs` pointers; `project-v2` selects the same schema generation. All-v2 runs generate `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root. Each feature pointer contributes three `iproc_source -file ... -optional` lines: the entry and its `tech_` / `project_` basename variants, in resolved feature order. Base pointers are kept but not listed. Existing files are kept whole by F1 without extra `files.include` entries. Infrastructure owns sourcing both outputs. Both flow into `.chopper/p4_commands.txt` (`p4 add`/`p4 edit`), the audit kept list, and the `chopper loc` GENERATED bucket; with `options.generate_stack: true` every `<flow>.stack` record lists both as `I` inputs. v1 runs are unchanged. Diagnostic references: `VE-40`, `VE-41`, `VE-42`, `VW-27`, `VW-28`, `VW-29`, `VW-30`, `VW-31`; see [DIAGNOSTIC_CODES.md](technical_docs/DIAGNOSTIC_CODES.md). See [ARCHITECTURE.md Sec.3.12](technical_docs/ARCHITECTURE.md), [JSON_AUTHORING_GUIDE.md Sec.2.4](technical_docs/JSON_AUTHORING_GUIDE.md), and [example 16](examples/16_feature_vars/).
+- **Original v2 design (superseded in 4.12.0).** The initial unreleased design added `vars` and `procs` pointers and generated two sourcing wrappers. It was replaced before shipment by the vars-only `vars_file` contract and F2 procedure selection. See the 4.12.0 entry and the architecture revision history for the current behavior.
 
 ### 4.9.2 -- 2026-09-29
 
@@ -738,7 +744,7 @@ Major milestones only. The canonical release version number lives in [pyproject.
 ### 0.3.2 -- 2026-04-24
 
 - **Companion consolidation + discoverability.** The former `domain-analyzer` agent was absorbed into the [Chopper Agent](.github/agents/chopper-agent.agent.md), now the **single user-facing agent** for anything Chopper-related. The companion card gained explicit **Operating Modes** (`analyze-only` vs `full-loop`), a **Q1-Q5 Discovery Protocol** for unfamiliar codebases, **JSON Templates & Checklists**, a **Schema Error -> Fix Mapping** table, a **Bootstrapping-a-new-domain** playbook, and named **Common CLI Workflows** (Bisect / Compare-two-runs / Prove-JSON-safe / Explain-a-diagnostic). The greeting is now a tier-2 menu (Tier 1 "where are you starting from?" table -> Tier 2 full capability list).
-- **Prompt library.** New [`.github/prompts/`](.github/prompts/) directory with six ready-to-use starting points: `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
+- **Prompt library.** New `.github/prompts/` directory (since moved to [`.github/skills/`](.github/skills/)) with six ready-to-use starting points: `bootstrap-domain`, `explain-last-run`, `why-was-dropped`, `validate-my-jsons`, `bisect-feature-breakage`, `report-chopper-bug`.
 - **USER_MANUAL cross-ref.** `doc/USER_MANUAL.md` (since replaced by `user_docs/`) now points at the companion at the top of the Operating Tasks section.
 - No runtime, schema, diagnostic-registry, or scope-lock changes -- agents, docs, and version files only.
 

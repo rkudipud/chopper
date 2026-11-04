@@ -28,17 +28,11 @@
       "type": "string",
       "description": "Tool name (e.g., formality, primetime, innovus)"
     },
-    "procs": {
+    "vars_file": {
       "type": "string",
       "minLength": 1,
       "pattern": "^(?!\\.\\.)(?!/)(?![A-Za-z]:)(?![\\s\\S]*\\.\\./)(?![\\s\\S]*//)(?![\\s\\S]*(?:^|/)\\.\\.?(/|$))(?![\\s\\S]*/$)[^\\\\*?\\[]*$",
-      "description": "Domain-relative path of the flow's procs file. Preserved by F1 when present, but not listed in the generated feature procs sourcing file because infrastructure loads it separately. Same path constraints as vars."
-    },
-    "vars": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!\\.\\.)(?!/)(?![A-Za-z]:)(?![\\s\\S]*\\.\\./)(?![\\s\\S]*//)(?![\\s\\S]*(?:^|/)\\.\\.?(/|$))(?![\\s\\S]*/$)[^\\\\*?\\[]*$",
-      "description": "Domain-relative path of the flow's own vars file (e.g. 'vars.tcl'). Infrastructure sources it before the generated <flow>_feature_vars.tcl, so it is never written into that file; when present in the domain it is kept by F1 as an implicit files.include. No globs, no '..', no absolute paths."
+      "description": "Domain-relative path of the flow's own vars file (e.g. 'vars.tcl'). Infrastructure sources it before the generated <flow>_feature_vars.tcl, so it is never written into that file; when present in the domain it is a layer-local whole-file include merged with normal R1/F2 decisions. No globs, no '..', no absolute paths."
     },
     "description": {
       "type": "string",

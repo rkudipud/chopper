@@ -5460,7 +5460,7 @@
           <li>&bull; P0 domain state → P1 config+pre-validate → P2 parse → P3 compile</li>
           <li>&bull; P4 trace is reporting-only: traced callees are never copied</li>
           <li>&bull; P5 rebuild → P6 post-validate → P7 audit</li>
-          <li>&bull; v2: P1 resolves vars/procs pointers → P3 registers F1 keeps and generated paths → P5 emits both sourcing files</li>
+          <li>&bull; v2: P1 resolves vars_file pointers → P3 registers F1 keeps and generated paths → P5 emits the feature-vars wrapper</li>
         </ul>
       </div>
 
@@ -5473,8 +5473,8 @@
           <li>&bull; Every phase gate routes through has_errors(ctx, phase); errors abort the run</li>
           <li>&bull; --dry-run skips domain writes; P6 checks generated Tcl in memory</li>
           <li>&bull; AuditService always runs from ChopperRunner&#39;s finally block (except `loc`)</li>
-          <li>&bull; &lt;flow&gt;_feature_vars.tcl / &lt;flow&gt;_feature_procs.tcl: p4 plan, audit kept list, LoC GENERATED bucket</li>
-          <li>&bull; generate_stack declares both as I inputs on every aggregate record; infrastructure owns loading, standalone bodies stay verbatim</li>
+          <li>&bull; &lt;flow&gt;_feature_vars.tcl: p4 plan, audit kept list, LoC GENERATED bucket</li>
+          <li>&bull; generate_stack declares it as an I input on every aggregate record; infrastructure owns loading, standalone bodies stay verbatim</li>
         </ul>
       </div>
     </div>

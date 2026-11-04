@@ -74,6 +74,19 @@ class TestLoadBase:
         assert base.options.cross_validate is True  # default
         assert base.stages == ()
 
+    def test_v2_vars_file_hydrates_without_procs_pointer(self) -> None:
+        raw = {
+            "$schema": "base-v2",
+            "domain": "d",
+            "files": {"include": ["main.tcl"]},
+            "vars_file": "vars.tcl",
+        }
+
+        base, _ = _collect_base(raw)
+
+        assert base.vars_file == "vars.tcl"
+        assert not hasattr(base, "procs")
+
     def test_options_cross_validate_false(self) -> None:
         raw = {
             "$schema": "base-v1",
@@ -202,6 +215,19 @@ class TestLoadBase:
 
 
 class TestLoadFeature:
+    def test_v2_vars_file_hydrates_without_procs_pointer(self) -> None:
+        raw = {
+            "$schema": "feature-v2",
+            "name": "f",
+            "files": {"include": ["main.tcl"]},
+            "vars_file": "feature_vars.tcl",
+        }
+
+        feature, _ = _collect_feat(raw)
+
+        assert feature.vars_file == "feature_vars.tcl"
+        assert not hasattr(feature, "procs")
+
     def test_minimal(self) -> None:
         raw = {"$schema": "feature-v1", "name": "dft"}
         feat, diags = _collect_feat(raw)

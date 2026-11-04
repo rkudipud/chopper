@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **chopper** (6276 symbols, 12552 relationships, 241 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **chopper** (4191 symbols, 15763 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -68,8 +68,6 @@ When behavior is ambiguous, **`technical_docs/ARCHITECTURE.md` wins**.
 You are not done until you can explain **what the user’s codebase does**, **what their project slice should keep**, and **how the JSON layers express that**.
 
 Extended playbooks and GHCP tool names: **`.github/agents/chopper-agent.agent.md`**.
-
-**New-release FEV JSON refresh:** load [refresh-fev-release](.github/skills/refresh-fev-release/SKILL.md) and its linked instructions before updating Conformal/Formality JSONs for December or another release. Use the user's `final` or approved durable area; historical results are context, not current validation.
 
 ---
 
@@ -259,7 +257,7 @@ Validate: schema script → **`chopper validate --project ...`** → **`trim --d
 
 ## JSON authoring checklist
 
-- `"$schema": "base-v1" | "feature-v1" | "project-v1"` on every file, or all v2 (`base-v2` / `feature-v2` / `project-v2`) when using `vars` / `procs` and the generated `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl` (never mix versions: `VE-41`).
+- `"$schema": "base-v1" | "feature-v1" | "project-v1"` on every file, or all v2 (`base-v2` / `feature-v2` / `project-v2`) when using `vars_file` and the generated `<flow>_feature_vars.tcl` wrapper (never mix versions: `VE-41`). Procedure-hosting files remain F2 selections through `procedures.include` / `procedures.exclude`; no procedure wrapper is generated.
 - Forward slashes; no `..`; no empty arrays (omit optional keys).
 - Feature **`name`** unique; **`domain`** matches base when set.
 - Stage **`reference`** / step anchors **byte-exact** (including `\n` in anchor comments).
@@ -281,7 +279,7 @@ Map requests to actions:
 | “Nest power under LP mode” | `depends_on`, ordered features, optional `flow_actions` / stage replacements |
 | “Compare two project configs” | Two dry-runs; diff manifests and `trim_report.json` |
 | “Prove JSON change is safe” | Dry-run before/after manifest diff |
-| “Migrate to v2” / “Is my v2 migration done?” / “Review my JSONs” | Load the [migrate-v1-to-v2](.github/skills/migrate-v1-to-v2/SKILL.md) skill and grade the `.chopper/` copy with its `check_v2.py` (gate, adoption level, exact JSON edits). Done requires `--require-adoption` to pass with at least one actual `vars`/`procs` pointer; neither `schema-only` nor `not-applicable` proves adoption. |
+| “Migrate to v2” / “Is my v2 migration done?” / “Review my JSONs” | Load the [migrate-v1-to-v2](.github/skills/migrate-v1-to-v2/SKILL.md) skill and grade the `.chopper/` copy with its `check_v2.py` (gate, adoption level, exact JSON edits). Done requires `--require-adoption` to pass with at least one actual `vars_file` pointer; neither `schema-only` nor `not-applicable` proves adoption. |
 | “Trim for CI” | Project JSON in repo; document `chopper validate` + `--strict` if warnings must fail |
 | Refactor Tcl for clearer boundaries | Propose isolation of optional flows, explicit proc entry points—frame as trimming-enabling |
 

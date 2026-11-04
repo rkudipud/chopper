@@ -149,9 +149,6 @@ class CompiledManifest:
     """Blocks of the v2 ``<flow>_feature_vars.tcl`` (Sec.3.12), copied from
     :attr:`LoadedConfig.feature_vars`; ``None`` on a v1 run (no file)."""
 
-    feature_procs: tuple[tuple[str, ...], ...] | None = None
-    """Procs sourcing blocks, with the same v1/v2 semantics as ``feature_vars``."""
-
     def __post_init__(self) -> None:
         fd_keys = [p.as_posix() for p in self.file_decisions]
         if fd_keys != sorted(fd_keys):

@@ -18,6 +18,7 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 9. [Decision Guide -- Which JSON to Use](#9-decision-guide)
 10. [Validation Workflow](#10-validation-workflow)
 11. [Common Mistakes](#11-common-mistakes)
+12. [Schema v2 and Migrating from v1](#12-schema-v2-and-migrating-from-v1)
 
 ---
 
@@ -29,7 +30,7 @@ Use this guide to author and validate all three Chopper JSON types before Choppe
 | **Feature** | `feature-v1` or `feature-v2` | Extends or removes elements of the base via file/proc/stage selections. Zero or more features per project. |
 | **Project** | `project-v1` or `project-v2` | Selects and orders one base and zero or more features for a specific trim run. |
 
-The v2 schemas are v1 plus optional `vars` and `procs` keys on base and feature (Sec.2.4); project-v2 is identical to project-v1 apart from its id. One run uses one version: mixing v1 and v2 JSONs fails with `VE-41`.
+The v2 schemas are v1 plus optional `vars_file` on base and feature (Sec.2.4); project-v2 is identical to project-v1 apart from its id. One run uses one version: mixing v1 and v2 JSONs fails with `VE-41`. Migration steps, the keys added over time, agent-assisted migration, and v2 examples are in Sec.12.
 
 **Relationship:**
 
@@ -59,7 +60,7 @@ Use the example folders as templates, not as production-ready inputs. Pick the c
 | Aggregate + per-stage standalone stack | `examples/13_base_with_standalone_stack/` |
 | Cross-feature `skip_if_no_stage` injection | `examples/14_cross_feature_skip_if_no_stage/` |
 | Stage steps sourced from a file (`reference_file`) | `examples/15_stage_reference_file/` |
-| Feature vars sourcing file (v2 `vars`) | `examples/16_feature_vars/` |
+| Feature vars sourcing file and F2 procedure trimming (v2 `vars_file`) | `examples/16_feature_vars/` |
 
 Recommended sequence:
 
@@ -252,16 +253,22 @@ Chopper resolves this stage exactly as if you had authored:
 - **The referenced file is not automatically kept in the trimmed output.** Reading it for its content does not add it to `files.include` -- default-exclude still applies. If you want the source `.steps` file itself to survive trimming (not just its content baked into the generated `<stage>.tcl`), add it to `files.include` explicitly. If you forget, Chopper emits advisory `VW-26 stage-reference-file-not-preserved` (gated by `options.cross_validate`, same as VW-14/15/16) so the gap does not go unnoticed.
 - **Provenance only, not a new data path.** The resolved `steps` are indistinguishable downstream from inline authoring -- same generated `<stage>.tcl`, same `flow_actions` targeting, same cross-validation. `reference_file` is retained on the compiled stage purely so `compiled_manifest.json` can explain where a stage's steps came from.
 
-### 2.4 Feature vars and procs sourcing files (v2 only)
+### 2.4 Feature vars sourcing file (v2 only)
 
-A v2 base or feature may declare optional `vars` and `procs` pointers (domain-relative file paths, no globs, trailing slashes, dot components, or Windows drive prefixes). Every all-v2 run generates both `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl`, where `<flow>` is the domain directory name. Infrastructure loads base vars/procs first, then the matching generated file; Chopper does not add loader calls to stage steps. Spaces and Tcl metacharacters in a pointer are escaped so each source command receives one literal filename.
+A v2 base or feature may declare an optional `vars_file` pointer (a domain-relative path with no globs, trailing slash, dot components, or Windows drive prefix). Every all-v2 run generates `<flow>_feature_vars.tcl`, where `<flow>` is the domain directory name. Infrastructure loads the base vars file and then this wrapper; Chopper does not add loader calls to stage steps. Spaces and Tcl metacharacters in a feature pointer are escaped so each source command receives one literal filename.
+
+Procedure-hosting files do not use a pointer or a generated wrapper. Select their files and procedures with the existing F2 `procedures.include` / `procedures.exclude` rules. For example:
 
 ```json
 {
   "$schema": "feature-v2",
   "name": "fdr",
-  "vars": "fdr_vars.tcl",
-  "procs": "procs/fdr_procs.tcl"
+  "vars_file": "fdr_vars.tcl",
+  "procedures": {
+    "include": [
+      { "file": "procs/fdr_procs.tcl", "procs": ["fm_setup", "fm_read_design"] }
+    ]
+  }
 }
 ```
 
@@ -281,16 +288,17 @@ iproc_source -file project_dop_vars.tcl -optional
 
 **Rules:**
 
-- **Three lines per pointer.** Expand the authored path, then `tech_` and `project_` basename variants. Thus `procs/fdr_procs.tcl` contributes three entries under `procs/` to the procs output, independently of the vars output. Every line is `-optional`.
-- **Base pointers are F1-only.** They are kept but never listed, avoiding double-loading.
-- **Feature order and deduplication.** After dependency sorting, first occurrence wins independently in each output; fully duplicated blocks are omitted. An output without feature pointers still has its header and title.
-- **Whole-file preservation (F1).** Existing base pointers and expanded feature entries are automatic layer-local whole-file includes; no duplicate `files.include` is needed. Normal R1 layering can still remove them later (`VW-21`).
-- **Optional files and diagnostics.** Missing authored pointers and duplicate entries emit `VW-27`, `VW-29`, `VW-30`, or `VW-31`; absent variants do not warn. Code meanings and recovery instructions are owned by [DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
+- **Three lines per feature pointer.** Expand the authored path, then `tech_` and `project_` basename variants. Every line is `-optional`.
+- **Base `vars_file` and F1/F2.** The base file is an implicit whole-file include, merged with normal R1/F2 signals; it is kept but never listed, avoiding double-loading. Explicit procedure rules and later excludes retain their normal behavior.
+- **Feature order and deduplication.** After dependency sorting, the first occurrence of an identical source path wins; fully duplicated blocks are omitted. With no feature pointers the wrapper still has its header and title.
+- **Procedure trimming stays F2.** `procedures.include` / `procedures.exclude` selects the surviving procs in procedure-hosting files, regardless of whether the rules are in base or feature JSON. Chopper generates no procedure-source wrapper.
+- **Whole-file preservation (F1).** Existing feature `vars_file` and expanded variants are automatic layer-local whole-file includes. Normal R1 layering can still remove them later (`VW-21`).
+- **Optional files and diagnostics.** Missing authored vars pointers and duplicate source entries emit `VW-27` and `VW-29`; absent variants do not warn. Code meanings and recovery instructions are owned by [DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md).
 - **Name the base JSON after the flow** (`jsons/apr_fc.json` for `apr_fc`). Any other name warns `VW-28`.
-- **Generated names are reserved.** Do not include either output in `files.*` or define a colliding stage (`VE-40`, `VE-42`).
-- **One version per run.** Project, base, and features must all use v1 or all use v2 (`VE-41`). v1 rejects both pointer keys and emits neither sourcing file.
-- **Downstream services.** Both outputs appear in `files_kept.txt`, count in the `loc` GENERATED bucket, and get add/edit commands in `.chopper/p4_commands.txt` based on the pristine filesystem baseline, not a depot query. Dry-run checks them in memory; it does not write them into the domain.
-- **Scheduler inputs, not sourcing steps.** With `options.generate_stack: true` and resolved stages, every aggregate-stack record lists both sourcing files as `I` inputs after authored inputs, without repeating matches. Standalone stack bodies remain verbatim. `indent` affects formatting only; `insert_markers` does not annotate these lists.
+- **Generated name is reserved.** Do not include `<flow>_feature_vars.tcl` in `files.*` or define a colliding stage (`VE-40`).
+- **One version per run.** Project, base, and features must all use v1 or all use v2 (`VE-41`). v1 rejects `vars_file` and emits no vars sourcing file.
+- **Downstream services.** The vars wrapper appears in `files_kept.txt`, counts in the `loc` GENERATED bucket, and gets add/edit commands in `.chopper/p4_commands.txt` based on the pristine filesystem baseline, not a depot query. Dry-run checks it in memory; it does not write it into the domain.
+- **Scheduler input, not a sourcing step.** With `options.generate_stack: true` and resolved stages, every aggregate-stack record lists the vars wrapper as an `I` input after authored inputs, without repeating matches. Standalone stack bodies remain verbatim. `indent` affects formatting only; `insert_markers` does not annotate these lists.
 
 See ARCHITECTURE.md Sec.3.12 and `examples/16_feature_vars/`.
 
@@ -334,10 +342,9 @@ See ARCHITECTURE.md Sec.3.12 and `examples/16_feature_vars/`.
 | `procedures.include` | procEntry[] | No* | Proc-level includes |
 | `procedures.exclude` | procEntry[] | No | Proc-level excludes |
 | `stages` | stageDefinition[] | No* | Ordered stage definitions |
-| `vars` | string | No (v2 only) | Domain-relative path to the flow's vars file. Kept as F1; never written into `<flow>_feature_vars.tcl` (Sec.2.4) |
-| `procs` | string | No (v2 only) | Domain-relative path to the flow's procs file. Kept as F1; never written into `<flow>_feature_procs.tcl` (Sec.2.4) |
+| `vars_file` | string | No (v2 only) | Domain-relative path to the flow's vars file. Kept by F1 and merged with normal R1/F2 signals; never written into `<flow>_feature_vars.tcl` (Sec.2.4) |
 
-*At least one of `files`, `procedures`, or `stages` required.
+*At least one of `files`, `procedures`, or `stages` is required.
 
 Each `stageDefinition` requires **exactly one** of `steps` (array of step strings) or `reference_file` (domain-relative path read at P1 and split into steps) -- see Sec.2.3.
 
@@ -408,7 +415,7 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 **Rules:**
 - `$schema` and `name` are required. Everything else is optional.
 - `name` must be unique across all features in a project.
-- At least one of `files`, `procedures`, or `flow_actions` should be present (otherwise the feature does nothing).
+- At least one of `files`, `procedures`, `flow_actions`, or (v2) `vars_file` should be present (otherwise the feature does nothing).
 
 ### Full field reference
 
@@ -426,8 +433,7 @@ Each `stageDefinition` requires **exactly one** of `steps` (array of step string
 | `procedures.include` | procEntry[] | No | Additional proc-level includes |
 | `procedures.exclude` | procEntry[] | No | Proc-level excludes |
 | `flow_actions` | flowAction[] | No | Stage modifications (add/remove/replace steps or stages) |
-| `vars` | string | No (v2 only) | Domain-relative path to this feature's vars file. Expands to three `-optional` lines in `<flow>_feature_vars.tcl` (Sec.2.4) |
-| `procs` | string | No (v2 only) | Domain-relative path to this feature's procs file. Expands to three `-optional` lines in `<flow>_feature_procs.tcl` (Sec.2.4) |
+| `vars_file` | string | No (v2 only) | Domain-relative path to this feature's vars file. Expands to three `-optional` lines in `<flow>_feature_vars.tcl` (Sec.2.4) |
 
 ### `metadata` example
 
@@ -1117,3 +1123,212 @@ Only a **missing** prerequisite (`VE-15`) or a **cycle** (`VE-22`) fails validat
 ```
 
 Declaring the relationship on one side is enough; Chopper checks both directions automatically. Also remember: naming a feature that isn't part of the current selection is not an error -- `incompatible_with` only fires when both named features are actually selected together.
+
+---
+
+## 12. Schema v2 and Migrating from v1
+
+v2 is an unreleased mutation of the v1 contract; 4.5.0 is the latest shipped version. It adds the optional `vars_file` pointer on base and feature JSONs. Existing v1 sets keep working unchanged. Use v2 when Chopper should generate the feature-vars sourcing wrapper.
+
+### 12.1 What v2 adds
+
+| Key / value | JSON | Type | Effect |
+|---|---|---|---|
+| `"$schema": "base-v2"` | base | string | Selects the v2 base schema |
+| `"$schema": "feature-v2"` | feature | string | Selects the v2 feature schema |
+| `"$schema": "project-v2"` | project | string | Selects the v2 project schema; no other field differs from `project-v1` |
+| `vars_file` | base | path | The flow's own vars file. Kept by F1 and merged with normal R1/F2 signals; never written into the generated wrapper, because infrastructure already loads it |
+| `vars_file` | feature | path | Adds three `iproc_source -file ... -optional` lines (the path, its `tech_` variant, its `project_` variant) to `<flow>_feature_vars.tcl`; every existing expanded file is kept whole |
+
+Every all-v2 run writes one generated file at the domain root, where `<flow>` is the domain directory name:
+
+| Generated file | Contents |
+|---|---|
+| `<flow>_feature_vars.tcl` | Intel header, title comment, then one three-line block per feature `vars_file` pointer in resolved feature order |
+
+The wrapper is written even when no feature declares a pointer (header and title only). It is `GENERATED` in `compiled_manifest.json`, listed in `files_kept.txt`, counted by `chopper loc`, given `p4 add` / `p4 edit` lines in `.chopper/p4_commands.txt`, and added as an `I` input on aggregate-stack records when `options.generate_stack` is `true`. Chopper never adds a stage step that sources it; the flow infrastructure owns loading it. Procedure-hosting files and surviving procedures remain controlled by F2 `procedures.include` / `procedures.exclude`; no procedure pointer or source wrapper is generated. Full rules: Sec.2.4.
+
+Diagnostics specific to v2 (meanings and recovery hints are in [DIAGNOSTIC_CODES.md](DIAGNOSTIC_CODES.md)):
+
+| When | Code |
+|---|---|
+| v1 and v2 JSONs selected in one run | `VE-41` |
+| A generated vars-wrapper name is also a `files.*` selection, or a stage generates that name | `VE-40` |
+| A `vars_file` pointer names a file that does not exist | `VW-27` |
+| Base JSON is not named `jsons/<flow>.json` | `VW-28` |
+| Two features expand to the same sourcing entry | `VW-29` |
+
+### 12.2 Keys added to the schemas over time
+
+Older JSON sets and wiki pages may predate these keys. All of them are valid in both v1 and v2 except `vars_file`.
+
+| Key | Where | Since | What it does | Reference |
+|---|---|---|---|---|
+| `options.generate_stack` | base | -- | Emit one aggregate `<flow>.stack` with a record per stage, in dependency order | Sec.2.1 |
+| `standalone_stack` | stage definition | -- | Emit `<stage>.stack` verbatim from `steps` instead of `<stage>.tcl` | Sec.2.2 |
+| `options.indent` | base | -- | Opt-in Tcl re-indentation of proc-trimmed and generated files (default `false`) | Sec.3 |
+| `options.cross_validate` | base | -- | Cross-check generated F3 output against the domain (default `true`) | Sec.3 |
+| `skip_if_no_stage` | `flow_actions[]` entry | 3.5.0 | Skip, instead of fail, when the target stage is not in the selection | Sec.7 |
+| `incompatible_with` | feature | 4.6.0 | Declare features that must never be selected together | Sec.6 |
+| `reference_file` | stage definition | 4.7.0 | Read the stage's `steps` from a domain file, one step per line | Sec.2.3 |
+| `reference_file` | `add_step_before` / `add_step_after` | 4.8.0 | Read the injected step block from a domain file instead of `items` | Sec.2.3, Sec.7 |
+| `options.insert_markers` | base | 4.9.0 | Opt-in `## CHOPPER: BEGIN/END` provenance comments (default `false`) | Sec.3, Sec.7 |
+| `vars_file` | base, feature (v2 only) | 4.12.0 | Feature vars sourcing file, see Sec.12.1 | Sec.2.4 |
+
+Base auto-discovery also accepts the v2 naming convention: with a named `--domain` and no `--base`, Chopper tries `jsons/base.json`, then `jsons/<flow>.json`.
+
+### 12.3 Before you migrate
+
+v2 only helps when the answers below are "yes". Check them first:
+
+1. **The infrastructure sources the vars files.** The flow loads its base `vars.tcl` and then the generated `<flow>_feature_vars.tcl`. If it does not, the feature wrapper is inert. If executor configuration still expects `feature_procs.tcl`, ask the setup team to remove that load; Chopper no longer generates it.
+2. **Features own dedicated vars files.** `vars_file` names one vars file. A feature whose settings live inside a shared vars file has nothing to point at; keep it pointer-free.
+3. **Procedure-hosting files remain F2 selections.** To add selected procedures from a feature-owned file, use `procedures.include` with that file and the proc names. Do not add a `procs` pointer; no proc wrapper exists. Avoid adding a redundant `files.include` for the same file when using `procedures.include` (`VW-09`).
+4. **Base vars files can also host procedures.** A base `vars_file` adds a whole-file keep signal, but normal F2 procedure selection still applies. Use `procedures.include` / `procedures.exclude` to state exactly which procs survive.
+5. **Nothing re-sources the base vars file later.** A stage step or script that sources `vars.tcl` again after startup overwrites the values the feature file just set. Remove the re-source or accept the override knowingly.
+6. **Vars timing still fits.** Moving a feature's vars from a late stage step to the startup sourcing file changes when they take effect. Confirm no stage depends on the old order.
+
+### 12.4 Migration steps
+
+Migrate in proven steps. Each step is one change set followed by a dry-run compared against the v1 baseline. Run every command from the domain's parent directory with `--domain`.
+
+1. **Baseline.** Run the v1 recipe as used today (`chopper validate`, then `chopper trim --dry-run`) and copy the whole `.chopper/` folder to a scratch `v1/` folder.
+2. **Flip every `$schema` at once.** `base-v1` -> `base-v2`, `feature-v1` -> `feature-v2`, `project-v1` -> `project-v2`, including features not selected today (otherwise a later selection hits `VE-41`). Dry-run again. The only expected difference is the generated vars wrapper (with its kept and `p4 add` lines) and `VW-28` if the base is not named after the flow. Anything else is a mistake; stop and investigate.
+3. **Optional rename.** Rename `jsons/base.json` to `jsons/<flow>.json` (use `p4 move`) and update `base` in every project JSON and any script that passes `--base`. The only expected difference is that `VW-28` disappears.
+4. **Add `vars_file`, one layer at a time.** Add the base pointer first, then each feature pointer in project order. After each layer: `python schemas/scripts/validate_jsons.py <domain>`, `chopper validate`, `chopper trim --dry-run`, and compare with the baseline. Expected changes are the new feature-vars sourcing lines and, for feature pointers, the pointer files and their existing `tech_` / `project_` variants becoming kept. Continue to select procedure-hosting files and procedures through F2 rules.
+5. **Clean up.** A `files.include` entry for a file now named by `vars_file` is redundant; removing it is harmless. Never list the generated vars wrapper in `files.*` (`VE-40`).
+6. **Live trim** only after the final dry-run matches intent, and only with a recovery path (version control or a snapshot not named `<domain>_backup/`).
+
+### 12.5 Let the Chopper Agent migrate for you
+
+The Chopper Agent ships a [migrate-v1-to-v2](../.github/skills/migrate-v1-to-v2/SKILL.md) skill that runs Sec.12.4 for you. It interviews you before touching any file, edits only your `jsons/` and project JSONs, runs dry-runs only, and proves every step with a deterministic checker. Ask it in plain language:
+
+| Say | What happens |
+|---|---|
+| *"Migrate my JSONs to v2"* | Inventory, v1 baseline, interview, schema flip, optional rename, then pointers one layer at a time -- each step graded against the baseline |
+| *"Check my v2 migration"* | Grades your latest dry-run and reports whether v2 is actually adopted, not just schema-flipped |
+| *"Review my JSONs"* | Works on v1 or v2: ranked `fix` / `improve` / `review` suggestions, each with the exact JSON edit |
+| *"Why did `VE-41` / `VW-28` appear after the upgrade?"* | Explains the code against your audit bundle and proposes the edit |
+
+The checker can also be run by hand on a copy of any `.chopper/` folder:
+
+```text
+python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <copy-of-.chopper> --baseline <v1-copy>
+python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <copy-of-.chopper> --require-adoption
+```
+
+It prints a pass/fail gate, the adoption level (`none`, `schema-only`, `partial`, `full`, or `not-applicable`), a preview of the generated feature-vars wrapper, every difference from the baseline classified as `expected`, `review`, or `unexpected`, and ranked suggestions. A migration is done only when `--require-adoption` passes with at least one real base or feature `vars_file` pointer; a schema flip alone (`schema-only`) is compatibility, not adoption. The checker is agent tooling, not a Chopper command; Chopper's own diagnostics remain authoritative.
+
+### 12.6 v2 JSON examples
+
+The runnable reference is [examples/16_feature_vars/](../examples/16_feature_vars/). The snippets below show the common shapes for a flow named `fev_conformal`. They are illustrative: the feature vars/procedure file names assume a domain that has split those settings into dedicated files.
+
+**Base -- `jsons/fev_conformal.json`.** The base vars file becomes a pointer. `default_procs.tcl` remains F2-trimmed through `procedures.include`.
+
+```json
+{
+  "$schema": "base-v2",
+  "domain": "fev_conformal",
+  "vendor": "cadence",
+  "tool": "conformal",
+  "description": "Minimal Conformal RTL-to-gate verification.",
+  "vars_file": "vars.tcl",
+  "files": {
+    "include": ["prepare_fev_conformal.tcl", "default_config.conf.csv", "promote.tcl"]
+  },
+  "procedures": {
+    "include": [
+      { "file": "default_procs.tcl", "procs": ["fev_setup_commands", "read_gate", "report_flat_results"] }
+    ]
+  }
+}
+```
+
+**Feature vars file and selected procedures.** The feature vars pointer picks up its `tech_` and `project_` variants when they exist. The procedure-hosting file is handled separately through F2 selection.
+
+```json
+{
+  "$schema": "feature-v2",
+  "name": "low_power",
+  "description": "Low-power verification settings and helpers.",
+  "vars_file": "low_power_vars.tcl",
+  "files": { "include": ["PowerIntentFilter.pl"] },
+  "procedures": {
+    "include": [
+      { "file": "procs/low_power_procs.tcl", "procs": ["lp_setup", "lp_read_intent"] }
+    ]
+  }
+}
+```
+
+**Feature with a vars pointer and v1-era keys.** `vars_file` combines freely with `depends_on`, `incompatible_with`, and `flow_actions`.
+
+```json
+{
+  "$schema": "feature-v2",
+  "name": "fev_lite",
+  "description": "Lightweight RTL-to-RTL run.",
+  "depends_on": ["fev_rtl2rtl"],
+  "incompatible_with": ["hier"],
+  "vars_file": "fev_lite_vars.tcl",
+  "files": { "include": ["fev_lite.stack"] }
+}
+```
+
+**Project -- every selected JSON is v2.**
+
+```json
+{
+  "$schema": "project-v2",
+  "project": "CONFORMAL_LP",
+  "domain": "fev_conformal",
+  "base": "jsons/fev_conformal.json",
+  "features": [
+    "jsons/features/low_power.feature.json",
+    "jsons/features/fev_rtl2rtl.feature.json",
+    "jsons/features/fev_lite.feature.json"
+  ]
+}
+```
+
+**Generated `fev_conformal_feature_vars.tcl`** for that project (after the Intel header). `fev_rtl2rtl` has no `vars_file` pointer, so it contributes no block; the base `vars.tcl` is never listed.
+
+```tcl
+# Feature vars.tcl sourcing file for fev_conformal
+
+iproc_source -file low_power_vars.tcl -optional
+iproc_source -file tech_low_power_vars.tcl -optional
+iproc_source -file project_low_power_vars.tcl -optional
+
+iproc_source -file fev_lite_vars.tcl -optional
+iproc_source -file tech_fev_lite_vars.tcl -optional
+iproc_source -file project_fev_lite_vars.tcl -optional
+```
+
+**Common migration mistakes:**
+
+```json
+// WRONG -- v2 feature in a v1 run: VE-41
+{ "$schema": "feature-v2", "name": "low_power", "vars_file": "low_power_vars.tcl" }   // with a base-v1 base
+
+// WRONG -- vars_file in a v1 JSON: schema error
+{ "$schema": "feature-v1", "name": "low_power", "vars_file": "low_power_vars.tcl" }
+
+// WRONG -- listing a generated file: VE-40
+{ "files": { "include": ["fev_conformal_feature_vars.tcl"] } }
+
+// WRONG -- glob in a pointer: schema error (pointers name exactly one file)
+{ "vars_file": "vars/*.tcl" }
+
+// WRONG -- top-level proc pointer is not part of v2
+{ "$schema": "feature-v2", "name": "low_power", "procs": "procs/low_power_procs.tcl" }
+
+// CORRECT -- the nested `procs` list names procedures selected by F2
+{
+  "procedures": {
+    "include": [
+      { "file": "procs/low_power_procs.tcl", "procs": ["lp_setup"] }
+    ]
+  }
+}
+```

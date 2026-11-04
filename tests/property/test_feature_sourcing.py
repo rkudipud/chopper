@@ -1,4 +1,4 @@
-"""Property checks for the shared vars/procs expansion and emission contract."""
+"""Property checks for v2 feature-vars expansion and emission."""
 
 from __future__ import annotations
 
@@ -29,16 +29,13 @@ def test_pointer_expansion_preserves_parent_and_prefixes_only_basename(entry: st
 
 
 @settings(max_examples=500)
-@given(flow=_SEGMENT, entries=st.lists(_PATH, max_size=5, unique=True), procs=st.booleans())
-def test_emitter_keeps_block_order_and_emits_exactly_three_optional_lines(
-    flow: str, entries: list[str], procs: bool
-) -> None:
+@given(flow=_SEGMENT, entries=st.lists(_PATH, max_size=5, unique=True))
+def test_emitter_keeps_block_order_and_emits_exactly_three_optional_lines(flow: str, entries: list[str]) -> None:
     blocks = tuple(expand_vars_entry(entry) for entry in entries)
-    artifact = emit_feature_vars(flow, blocks, procs=procs)
-    kind = "procs" if procs else "vars"
-    assert artifact.path == Path(f"{flow}_feature_{kind}.tcl")
-    assert f"# Feature {kind}.tcl sourcing file for {flow}\n" in artifact.content
+    artifact = emit_feature_vars(flow, blocks)
+    assert artifact.path == Path(f"{flow}_feature_vars.tcl")
+    assert f"# Feature vars.tcl sourcing file for {flow}\n" in artifact.content
     assert [line for line in artifact.content.splitlines() if line.startswith("iproc_source ")] == [
         f"iproc_source -file {entry} -optional" for block in blocks for entry in block
     ]
-    assert emit_feature_vars(flow, blocks, procs=procs) == artifact
+    assert emit_feature_vars(flow, blocks) == artifact

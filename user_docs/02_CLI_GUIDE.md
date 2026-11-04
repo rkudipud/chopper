@@ -184,7 +184,7 @@ Step by step:
    - **`FULL_COPY`** -- opaque byte-for-byte copy via `shutil.copy2` (mode bits preserved on POSIX).
    - **`PROC_TRIM`** -- Tcl file rewritten in place: kept procs survive, the rest are removed.
    - **`REMOVE`** -- file is not copied across.
-   - **`GENERATED`** -- `<stage>.tcl` (and `<stage>.stack` / `<flow>.stack` when stack generation is on) written into the rebuilt domain. All-v2 runs also write `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root (`<flow>` = domain directory name; architecture doc Sec.3.12).
+   - **`GENERATED`** -- `<stage>.tcl` (and `<stage>.stack` / `<flow>.stack` when stack generation is on) written into the rebuilt domain. All-v2 runs also write `<flow>_feature_vars.tcl` at the domain root (`<flow>` = domain directory name; architecture doc Sec.3.12).
 3. P5c -- if `base.options.indent: true`, every emitted PROC_TRIM/GENERATED Tcl file is normalised by a deterministic indentation pass. Default: skipped (Chopper writes those outputs verbatim).
 4. P5d -- companion-file sync: for every `PROC_TRIM` `default_rules.<sfx>.tcl`, the sibling `default_config.<sfx>.csv` and `default_milestone.<sfx>.tcl` are filtered to keep only rows/lines matching surviving procs. Emits `VW-24` if a companion is missing; `VI-04` on success.
 5. JSON input preservation -- the entire `<domain_backup>/jsons/` tree is mirrored into the rebuilt `<domain>/jsons/`, and any out-of-tree JSON inputs are copied to `<domain>/jsons/_external/`.
@@ -320,7 +320,7 @@ treatment.GENERATED.sloc_after: 182
 | **no** | `.json`, `instructions.md`, and anything under `.chopper/` | authoring/audit artifacts, excluded from all LoC accounting |
 | **no** | everything else: `.v`, `.sv`, `.vhd`, `.lib`, `.def`, `.spef`, images, binaries, ... | not enumerated; invisible to the report |
 
-Generated artifacts are language-detected by their path suffix: a generated `<stage>.tcl` and the v2 `<flow>_feature_vars.tcl` / `<flow>_feature_procs.tcl` are measured as Tcl and appear in the GENERATED bucket. Pointer-selected `vars`/`procs` libraries are ordinary F1 files; they are not counted as part of the generated sourcing file.
+Generated artifacts are language-detected by their path suffix: a generated `<stage>.tcl` and the v2 `<flow>_feature_vars.tcl` are measured as Tcl and appear in the GENERATED bucket. `vars_file`-selected libraries are ordinary F1 files; they are not counted as part of the generated sourcing file. Procedure-hosting files remain subject to F2 selection.
 
 > **If your trim acts on a Verilog or Liberty file, `chopper loc` will not show it.** The full trim still applies normally -- `loc` is just a reporting view limited to script-language sources. Use `.chopper/trim_report.json` from a real `chopper trim` run for full-fidelity per-file outcomes.
 

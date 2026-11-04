@@ -275,9 +275,9 @@ That is enough. The full field reference lives in [../technical_docs/JSON_AUTHOR
 
 ### `$schema` IDs
 
-Always one of: `"base-v1"`, `"feature-v1"`, `"project-v1"`, or their v2 forms `"base-v2"`, `"feature-v2"`, `"project-v2"` (v2 adds the `vars` and `procs` keys; see `technical_docs/JSON_AUTHORING_GUIDE.md` Sec.2.4). One run uses one version. These are short identifiers Chopper resolves against the bundled `schemas/` directory -- they are **not** filesystem paths and stay valid regardless of where the repo is checked out.
+Always one of: `"base-v1"`, `"feature-v1"`, `"project-v1"`, or their v2 forms `"base-v2"`, `"feature-v2"`, `"project-v2"` (v2 adds the optional `vars_file` key to base and feature JSONs; see `technical_docs/JSON_AUTHORING_GUIDE.md` Sec.2.4). One run uses one version. These are short identifiers Chopper resolves against the bundled `schemas/` directory -- they are **not** filesystem paths and stay valid regardless of where the repo is checked out.
 
-In v2, name the base `jsons/<flow>.json`. Base pointers keep the flow's libraries without listing them in generated files. Feature pointers each contribute authored, `tech_`, and `project_` entries to `<flow>_feature_vars.tcl` or `<flow>_feature_procs.tcl`. Infrastructure owns loading both. They participate in p4 planning, audit, LoC, and P6 checks like other generated files; `generate_stack` also lists them as inputs on every aggregate record. See [example 16](../examples/16_feature_vars/) for a runnable recipe; earlier examples intentionally remain v1.
+In v2, name the base `jsons/<flow>.json`. Base `vars_file` keeps the vars file and merges with normal R1/F2 decisions without listing it in the generated wrapper. Feature `vars_file` pointers contribute authored, `tech_`, and `project_` entries to `<flow>_feature_vars.tcl`. Infrastructure loads the base vars and that wrapper. Procedure-hosting files remain trimmed through F2 `procedures.include` / `procedures.exclude`; no procedure wrapper is generated. The vars wrapper participates in p4 planning, audit, LoC, and P6 checks like other generated files; `generate_stack` also lists it as an input on every aggregate record. See [example 16](../examples/16_feature_vars/) for a runnable recipe; earlier examples intentionally remain v1. To move an existing v1 set, follow the migration guide in [JSON_AUTHORING_GUIDE.md Sec.12](../technical_docs/JSON_AUTHORING_GUIDE.md#12-schema-v2-and-migrating-from-v1), or ask the Chopper Agent to *"migrate my JSONs to v2"*.
 
 ---
 
@@ -443,7 +443,7 @@ Copy the nearest example into your domain root, replace placeholders, validate, 
 | Aggregate + per-stage standalone stack | [../examples/13_base_with_standalone_stack/](../examples/13_base_with_standalone_stack/) |
 | Cross-feature `skip_if_no_stage` injection | [../examples/14_cross_feature_skip_if_no_stage/](../examples/14_cross_feature_skip_if_no_stage/) |
 | Stage steps sourced from a file (`reference_file`) | [../examples/15_stage_reference_file/](../examples/15_stage_reference_file/) |
-| Feature vars/procs sourcing files, F1 keeps, and stack inputs (v2) | [../examples/16_feature_vars/](../examples/16_feature_vars/) |
+| Feature vars wrapper, F2 procedure trimming, and stack inputs (v2) | [../examples/16_feature_vars/](../examples/16_feature_vars/) |
 
 ---
 

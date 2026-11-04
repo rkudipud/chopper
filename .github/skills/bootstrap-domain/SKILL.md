@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 Invoke the **Chopper Agent** in `full-loop` mode.
 
-Read [.github/agents/chopper-agent.agent.md](../agents/chopper-agent.agent.md) for the full protocol, then:
+Read [.github/agents/chopper-agent.agent.md](../../agents/chopper-agent.agent.md) for the full protocol, then:
 
 1. Ask me for the domain root path
 2. Run the Q1-Q5 Discovery Protocol against the path

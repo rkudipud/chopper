@@ -94,15 +94,15 @@ def _v1_layers(version: str = "v1") -> Layers:
 def _good_layers() -> Layers:
     layers = _v1_layers("v2")
     base, fdr, dop = layers["base"], layers["fdr"], layers["dop"]
-    base["vars"] = "vars.tcl"
+    base["vars_file"] = "vars.tcl"
     base["files"] = {"include": ["utils/*.tcl"]}
     base["procedures"]["include"][0]["procs"] = ["core_setup", "core_helper"]
     base["stages"][0]["steps"] = ["core_setup"]
-    fdr["vars"] = "fdr_vars.tcl"
+    fdr["vars_file"] = "fdr_vars.tcl"
     del fdr["files"]
     fdr["flow_actions"][0]["items"] = ["fdr_run"]
-    dop.update(description="dop", vars="dop_vars.tcl", procs="procs/dop_procs.tcl")
-    del dop["files"], dop["procedures"]
+    dop.update(description="dop", vars_file="dop_vars.tcl")
+    del dop["files"]
     layers["legacy"]["$schema"] = "feature-v2"
     layers["project"]["base"] = "jsons/apr_fc.json"
     layers["project"]["features"].append("jsons/features/legacy.feature.json")
@@ -112,8 +112,8 @@ def _good_layers() -> Layers:
 
 def _flawed_layers() -> Layers:
     layers = _v1_layers("v2")
-    layers["fdr"].update(vars="fdr_vars.tcl", procs="procs/fdr_procs.tcl")
-    layers["dop"]["vars"] = "dop_var.tcl"
+    layers["fdr"]["vars_file"] = "fdr_vars.tcl"
+    layers["dop"]["vars_file"] = "dop_var.tcl"
     return layers
 
 
@@ -202,11 +202,7 @@ def test_clean_v2_migration_passes_with_full_adoption(snaps: Callable[[str], Pat
         "iproc_source -file tech_dop_vars.tcl -optional",
         "iproc_source -file project_dop_vars.tcl -optional",
     ]
-    assert report["preview"]["apr_fc_feature_procs.tcl"] == [
-        "iproc_source -file procs/dop_procs.tcl -optional",
-        "iproc_source -file procs/tech_dop_procs.tcl -optional",
-        "iproc_source -file procs/project_dop_procs.tcl -optional",
-    ]
+    assert set(report["preview"]) == {"apr_fc_feature_vars.tcl"}
     review = {d["line"] for d in report["delta"] if d["class"] == "review"}
     assert any("project_fdr_vars.tcl" in line for line in review)
 
@@ -216,7 +212,7 @@ def test_schema_only_flip_is_not_a_finished_migration(snaps: Callable[[str], Pat
 
     assert rc == 0
     assert report["adoption"]["level"] == "schema-only"
-    assert report["preview"] == {"apr_fc_feature_vars.tcl": [], "apr_fc_feature_procs.tcl": []}
+    assert report["preview"] == {"apr_fc_feature_vars.tcl": []}
     assert {
         ("pointer-candidate", "feature:fdr"),
         ("pointer-candidate", "feature:dop"),
@@ -233,10 +229,8 @@ def test_schema_only_flip_is_not_a_finished_migration(snaps: Callable[[str], Pat
     [
         ("v1", None, None, None, "none", 1),
         ("v2", None, None, None, "not-applicable", 1),
-        ("v2", "base", "vars", "vars.tcl", "full", 0),
-        ("v2", "base", "procs", "procs/core_procs.tcl", "full", 0),
-        ("v2", "fdr", "vars", "fdr_vars.tcl", "full", 0),
-        ("v2", "fdr", "procs", "procs/fdr_procs.tcl", "full", 0),
+        ("v2", "base", "vars_file", "vars.tcl", "full", 0),
+        ("v2", "fdr", "vars_file", "fdr_vars.tcl", "full", 0),
     ],
 )
 def test_strict_adoption_requires_a_pointer_even_without_candidates(
@@ -277,7 +271,7 @@ def test_strict_adoption_requires_a_pointer_even_without_candidates(
 
 def test_strict_adoption_accepts_a_pointer_with_remaining_candidates(tmp_path: Path) -> None:
     layers = _v1_layers("v2")
-    layers["base"]["vars"] = "vars.tcl"
+    layers["base"]["vars_file"] = "vars.tcl"
     domain = _write_domain(tmp_path, layers)
     assert _trim(domain) == 0
 
@@ -285,7 +279,7 @@ def test_strict_adoption_accepts_a_pointer_with_remaining_candidates(tmp_path: P
     assert rc == 0, report
     assert report["result"] == "pass"
     assert report["adoption"]["level"] == "partial"
-    assert report["adoption"]["pointers"] == ["base vars vars.tcl"]
+    assert report["adoption"]["pointers"] == ["base vars_file vars.tcl"]
     assert report["adoption"]["candidates"]
     assert _gate(report)["adoption"] == "pass"
 
@@ -297,7 +291,6 @@ def test_flawed_migration_fails_with_an_edit_for_every_mistake(snaps: Callable[[
     assert _gate(report)["pointer-targets"] == "fail"
     assert {
         ("missing-pointer", "feature:dop"),
-        ("procs-pointer-proc-trim", "feature:fdr"),
         ("double-sourcing-step", "feature:fdr"),
         ("redundant-pointer-include", "feature:fdr"),
         ("manual-variant-include", "feature:fdr"),
@@ -313,8 +306,10 @@ def test_flawed_migration_fails_with_an_edit_for_every_mistake(snaps: Callable[[
     assert "dop_vars.tcl" in typo["edit"]
     unexpected = {d["line"] for d in report["delta"] if d["class"] == "unexpected"}
     assert any("VW-27" in line for line in unexpected)
-    review = {d["line"]: d["note"] for d in report["delta"] if d["class"] == "review"}
-    assert any("fdr_debug" in note for note in review.values())
+    manifest = json.loads((snaps("flawed") / "compiled_manifest.json").read_text(encoding="utf-8"))
+    fdr_file = next(f for f in manifest["files"] if f["path"] == "procs/fdr_procs.tcl")
+    assert fdr_file["treatment"] == "proc-trim"
+    assert fdr_file["surviving_procs"] == ["procs/fdr_procs.tcl::fdr_run"]
 
 
 def test_v1_bundle_gets_a_migration_plan(snaps: Callable[[str], Path]) -> None:
@@ -337,23 +332,20 @@ def test_v1_bundle_gets_a_migration_plan(snaps: Callable[[str], Path]) -> None:
     assert all("procs" not in s["edit"] for s in fdr), "fdr keeps only fdr_run; a procs pointer would revert that"
 
 
-def test_pointer_that_starts_loading_an_unreferenced_file_is_flagged(snaps: Callable[[str], Path]) -> None:
-    # v1 keeps dop_vars.tcl / procs/dop_procs.tcl but no step or kept Tcl file loads them;
-    # fdr_vars.tcl is sourced by an fdr step, so pointing at it only moves the load point.
+def test_vars_pointer_that_starts_loading_an_unreferenced_file_is_flagged(snaps: Callable[[str], Path]) -> None:
+    # v1 keeps dop_vars.tcl but no step or kept Tcl file loads it; fdr_vars.tcl is sourced by an fdr step.
     _, v1 = _check(snaps("v1"))
     candidates = {s["target"]: s["message"] for s in v1["suggestions"] if s["slug"] == "pointer-candidate"}
     dop = [s["message"] for s in v1["suggestions"] if s["slug"] == "pointer-candidate" and s["target"] == "feature:dop"]
-    assert len(dop) == 2
+    assert len(dop) == 1
     assert all("Nothing references it today" in m for m in dop)
     assert "Nothing references it today" not in candidates["feature:fdr"]
 
     _, good = _check(snaps("good"), "--baseline", str(snaps("v1")))
     fresh = [s for s in good["suggestions"] if s["slug"] == "newly-sourced"]
     assert {(s["target"], s["level"]) for s in fresh} == {("feature:dop", "review")}
-    assert sorted(m for s in fresh for m in ("dop_vars.tcl", "procs/dop_procs.tcl") if m in s["message"]) == [
-        "dop_vars.tcl",
-        "procs/dop_procs.tcl",
-    ]
+    assert len(fresh) == 1
+    assert "dop_vars.tcl" in fresh[0]["message"]
 
     _, alone = _check(snaps("good"))
     assert not [s for s in alone["suggestions"] if s["slug"] == "newly-sourced"], "needs a baseline to know"

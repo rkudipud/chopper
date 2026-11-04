@@ -187,9 +187,9 @@ class BaseOptions:
 class BaseJson:
     """Hydrated ``base-v1`` / ``base-v2`` JSON.
 
-    ``vars`` and ``procs`` are authored v2 paths (ARCHITECTURE Sec.3.12);
-    ``vars_keep`` / ``procs_keep`` are filled by P1 with files that exist in the
-    domain and become implicit ``files.include`` literals of this layer.
+    ``vars_file`` is an authored v2 path (ARCHITECTURE Sec.3.12); ``vars_keep``
+    is filled by P1 with the file when it exists in the domain and becomes an
+    implicit ``files.include`` literal of this layer.
     """
 
     source_path: Path
@@ -203,10 +203,8 @@ class BaseJson:
     procedures: ProceduresSection = field(default_factory=ProceduresSection)
     stages: tuple[StageDefinition, ...] = ()
     schema_version: int = 1
-    vars: str | None = None
+    vars_file: str | None = None
     vars_keep: tuple[Path, ...] = ()
-    procs: str | None = None
-    procs_keep: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -224,8 +222,8 @@ class FeatureMetadata:
 class FeatureJson:
     """Hydrated ``feature-v1`` / ``feature-v2`` JSON.
 
-    ``vars`` / ``procs`` follow :class:`BaseJson`; for a feature,
-    their keep tuples cover all three expanded entries that exist.
+    ``vars_file`` follows :class:`BaseJson`; its keep tuple covers all three
+    expanded entries that exist.
     """
 
     source_path: Path
@@ -239,10 +237,8 @@ class FeatureJson:
     procedures: ProceduresSection = field(default_factory=ProceduresSection)
     flow_actions: tuple[FlowAction, ...] = ()
     schema_version: int = 1
-    vars: str | None = None
+    vars_file: str | None = None
     vars_keep: tuple[Path, ...] = ()
-    procs: str | None = None
-    procs_keep: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -265,9 +261,8 @@ class LoadedConfig:
     """Aggregate returned by :class:`ConfigService`.
 
     ``feature_vars`` holds the ``<flow>_feature_vars.tcl`` blocks (one
-    tuple of deduplicated entries per feature that declares ``vars``, in
+    tuple of deduplicated entries per feature that declares ``vars_file``, in
     resolved feature order). ``None`` on a v1 run -- no file is generated.
-    ``feature_procs`` holds the equivalent blocks for procs.
     """
 
     base: BaseJson
@@ -277,7 +272,6 @@ class LoadedConfig:
     tool_command_pool: frozenset[str] = frozenset()
     domain_file_cache: tuple[tuple[Path, str], ...] = ()
     feature_vars: tuple[tuple[str, ...], ...] | None = None
-    feature_procs: tuple[tuple[str, ...], ...] | None = None
 
     def __post_init__(self) -> None:
         names = [f.name for f in self.features]

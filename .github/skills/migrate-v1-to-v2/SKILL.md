@@ -1,13 +1,13 @@
 ---
 name: migrate-v1-to-v2
-description: 'Use when a user wants to move Chopper base/feature/project JSONs from v1 (base-v1, feature-v1, project-v1) to v2, add vars/procs pointers, adopt the generated <flow>_feature_vars.tcl / <flow>_feature_procs.tcl files, asks whether a v2 migration is done or correct, wants v1 or v2 JSONs reviewed for better trim output, or asks why VE-41, VW-27..VW-31, VE-40 or VE-42 appeared after an upgrade.'
+description: 'Use when a user wants to move Chopper base/feature/project JSONs from v1 (base-v1, feature-v1, project-v1) to v2, add vars_file pointers, adopt the generated <flow>_feature_vars.tcl wrapper, asks whether a v2 migration is done or correct, wants v1 or v2 JSONs reviewed for better trim output, or asks why VE-41, VW-27..VW-29, or VE-40 appeared after an upgrade.'
 ---
 
 # Migrate Chopper JSONs from v1 to v2
 
-v2 adds two optional pointer keys, `vars` and `procs`, to base and feature JSONs. In an all-v2 run Chopper generates `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` at the domain root, which the flow infrastructure loads after the base vars and procs. Nothing else changes.
+v2 adds the optional `vars_file` pointer to base and feature JSONs. In an all-v2 run Chopper generates only `<flow>_feature_vars.tcl` at the domain root; the flow infrastructure loads it after the base vars file. Procedure-hosting files continue to use F2 `procedures.include` / `procedures.exclude`; Chopper has no procedure-file pointer or generated procedure wrapper.
 
-**Core principle:** migrate in proven steps. Flipping `$schema` alone must change nothing except adding the two generated files. Every later change is one layer at a time, and each is proven with a dry-run diff against the v1 baseline.
+**Core principle:** migrate in proven steps. Flipping `$schema` alone must change nothing except adding the generated vars wrapper. Every later change is one layer at a time, and each is proven with a dry-run diff against the v1 baseline.
 
 **Proof is deterministic.** [`scripts/check_v2.py`](./scripts/check_v2.py) grades every snapshot. It runs a pass/fail gate, reports the adoption level, previews the generated files, classifies every change against the v1 baseline, and gives an exact JSON edit for each issue. Don't call a phase done, or the migration finished, without its `RESULT: PASS`. Reference: [check_v2.md](./references/check_v2.md).
 
@@ -25,15 +25,16 @@ There is no `chopper migrate` command. A migration is a set of hand edits to JSO
 | Rule | Detail |
 | --- | --- |
 | One version per run | Project, base and every selected feature must all be v1 or all v2. A mix emits `VE-41`. `project-v2` differs from `project-v1` only in its `$schema` value. |
-| Pointer shape | `vars` / `procs` hold one domain-relative file path: no globs, no `..`, no trailing `/`, no drive letter. Both are optional. |
-| Base pointer | Kept as an F1 whole-file include, and **never** listed in the generated files (the infrastructure already loads it). `tech_`/`project_` variants are **not** expanded for the base. |
-| Feature pointer | Expands to `X`, `<dir>/tech_<name>` and `<dir>/project_<name>`. Each becomes `iproc_source -file … -optional` in the generated file. Variants that exist are kept automatically; missing variants are silent. |
-| Block order | Features in dependency-sorted project order; the first occurrence of an entry wins (`VW-29` / `VW-31` for duplicates). |
-| Missing pointer file | `VW-27` (vars) / `VW-30` (procs). The block is still emitted. |
+| Pointer shape | `vars_file` holds one domain-relative file path: no globs, no `..`, no trailing `/`, no drive letter. It is optional. |
+| Base pointer | The base vars file is kept but never listed in the generated wrapper (the infrastructure already loads it). Its keep is merged with normal R1/F2 decisions. `tech_`/`project_` variants are not expanded for the base. |
+| Feature pointer | Expands to `X`, `<dir>/tech_<name>` and `<dir>/project_<name>`. Each becomes `iproc_source -file … -optional` in the generated wrapper. Variants that exist are kept automatically; missing variants are silent. |
+| Block order | Features in dependency-sorted project order; the first occurrence of an entry wins (`VW-29` for duplicates). |
+| Missing pointer file | `VW-27`. The block is still emitted. |
 | Flow name | `<flow>` = the domain directory's name. A base JSON not named `jsons/<flow>.json` emits `VW-28`. |
-| Reserved names | Don't list the generated names in `files.*`, and don't define a stage whose `<stage>.tcl` would collide with them (`VE-40`, `VE-42`). |
-| Outputs | `GENERATED` in the manifest, listed in `files_kept.txt`, counted by `chopper loc`, given `p4 add`/`p4 edit` lines in `.chopper/p4_commands.txt`, and added as `I` inputs on aggregate-stack records when `options.generate_stack` is true. |
-| Not automatic | Chopper never adds a stage step that sources the generated files. The infrastructure must load them. |
+| Reserved name | Don't list the generated vars-wrapper name in `files.*` or define a stage whose `<stage>.tcl` would collide with it (`VE-40`). |
+| Outputs | The vars wrapper is `GENERATED` in the manifest, listed in `files_kept.txt`, counted by `chopper loc`, given `p4 add`/`p4 edit` lines in `.chopper/p4_commands.txt`, and added as an `I` input on aggregate-stack records when `options.generate_stack` is true. |
+| Procedure trimming | Procedure-hosting files and procedures are selected with F2 `procedures.include` / `procedures.exclude` in base or feature JSONs. |
+| Not automatic | Chopper never adds a stage step that sources the generated vars wrapper. The infrastructure must load it. No procedure wrapper is generated. |
 
 Field reference: [JSON_AUTHORING_GUIDE.md Sec.2.4](../../../technical_docs/JSON_AUTHORING_GUIDE.md). Worked example: [examples/16_feature_vars/](../../../examples/16_feature_vars/). Code meanings: [DIAGNOSTIC_CODES.md](../../../technical_docs/DIAGNOSTIC_CODES.md).
 
@@ -63,7 +64,7 @@ Ask the questions in [interview.md](./references/interview.md), Round 1 then Rou
    ```text
    python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <scratch>/p2 --baseline <scratch>/v1
    ```
-   **Expected:** `RESULT: PASS`, adoption `schema-only` (or `not-applicable` when no candidates are detected), and no `unexpected` delta. Neither level proves v2 adoption. The `expected` rows are the two `generated` files (`<flow>_feature_vars.tcl`, `<flow>_feature_procs.tcl`) with their `kept` and `p4 add` lines; the only `review` row is `+ diag VW-28`, when the base JSON isn't named `jsons/<flow>.json`. With `generate_stack`, the two files also become `I` inputs. Anything else means the migration went wrong. Stop.
+   **Expected:** `RESULT: PASS`, adoption `schema-only` (or `not-applicable` when no candidates are detected), and no `unexpected` delta. Neither level proves v2 adoption. The expected row is the generated `<flow>_feature_vars.tcl` file with its `kept` and `p4 add` lines; the only `review` row is `+ diag VW-28`, when the base JSON isn't named `jsons/<flow>.json`. With `generate_stack`, the vars wrapper also becomes an `I` input. Anything else means the migration went wrong. Stop.
 
    For a raw diff between any two snapshots, `scripts/compare_manifests.py BEFORE AFTER` prints the same facts unclassified. Provenance labels (`contributed_by`, `selection_source`) are ignored on purpose: they move to whichever layer contributed last, without changing what is kept.
 3. If you see `VW-28`, offer the rename (Phase 3). It's optional.
@@ -72,38 +73,36 @@ Ask the questions in [interview.md](./references/interview.md), Round 1 then Rou
 
 Rename `jsons/base.json` to `jsons/<flow>.json`, and update `base` in every project JSON plus any scripts or CI that pass `--base`. In Perforce, use `p4 move`, not delete plus add, so the file keeps its history. Auto-discovery tries `jsons/base.json` first, then `jsons/<flow>.json`, so bare `--domain` runs keep working. Dry-run; the only delta against Phase 2 must be `- diag VW-28`.
 
-### Phase 4 — Pointers, one layer at a time
+### Phase 4 — Vars pointer and F2 selections, one layer at a time
 
 Order: the base first, then each feature in project order. For each layer:
 
-1. Add the pointer(s) the user confirmed.
+1. Add the `vars_file` pointer the user confirmed. Procedure-hosting files remain F2 selections; update `procedures.include` / `procedures.exclude` only when that is part of the user's requested trim intent.
 2. Apply the **cleanup checklist** below, but only the items the user approved.
 3. Run `python schemas/scripts/validate_jsons.py <domain>`, then `chopper validate --domain <domain> …`, then `chopper trim --dry-run --domain <domain> …`. Snapshot the whole `.chopper/` into a new scratch folder.
 4. **Write down the predicted delta before you run**, then run `check_v2.py <scratch>/<step> --baseline <scratch>/v1` and say whether it matched. `compare_manifests.py <previous> <step>` isolates this step's change. If the gate fails or a row surprises you, stop and explain before editing further.
 
-A dry-run lists the generated files as `generated` rows but **never writes their contents**. The checker's `PREVIEW` section shows exactly what `<flow>_feature_vars.tcl` and `<flow>_feature_procs.tcl` will contain, built the same way Chopper builds them: project order, first-seen dedup, Tcl escaping. Show it to the user. After a live trim, the `generated-content` gate proves the files on disk match it.
+A dry-run lists the vars wrapper as a `generated` row but **never writes its contents**. The checker's `PREVIEW` section shows exactly what `<flow>_feature_vars.tcl` will contain, built the same way Chopper builds it: project order, first-seen dedup, Tcl escaping. Show it to the user. After a live trim, the `generated-content` gate proves the file on disk matches it.
 
 **Cleanup checklist (per pointer):**
 
 - [ ] **Redundant whole-file include.** A `files.include` of the same path is now redundant. Removing it is harmless; offer to.
 - [ ] **Manual variants.** A `files.include` of `tech_<name>` / `project_<name>` next to a feature pointer is now automatic. Remove it.
 - [ ] **Variants that were never sourced become active.** v1 may have kept `tech_<name>` / `project_<name>` without any step sourcing them. After migration the generated file sources them, which changes values. For example, a `tech_dft_vars.tcl` that sets `dft_chains 16` overrides the 8 from `dft_vars.tcl`. List every such variant, and confirm with the user that each should now load.
-- [ ] **Feature files nothing loaded before start loading.** v1 may keep a feature's vars or procs file without any step or kept Tcl file sourcing it (the checker says "Nothing references it today", or `newly-sourced` with a baseline). The pointer makes it load at startup. Ask how it is loaded today. If the infrastructure already loads it, the pointer loads it twice.
+- [ ] **Feature vars files nothing loaded before start loading.** v1 may keep a feature vars file without any step or kept Tcl file sourcing it (the checker says "Nothing references it today", or `newly-sourced` with a baseline). The pointer makes it load at startup. Ask how it is loaded today. If the infrastructure already loads it, the pointer loads it twice.
 - [ ] **Double sourcing of a feature file.** A stage step or `flow_actions` item that already sources the pointer file (`source X`, `iproc_source -file X …`) now loads it twice, and **re-applies the base value after a `tech_` override**. **Ask** before removing it, because the load point moves from that stage step to infrastructure startup (Round 2, Q5). That matters when the step ran after something the vars depend on, such as `core_run`.
 - [ ] **Re-sourcing the base vars.** A stage step that sources the **base** `vars.tcl` after startup resets every feature override the generated file just applied. Ask whether that step still has to run (Round 2, base row).
 - [ ] **Anchor coupling.** Before removing any base step, search every feature for an `add_step_after`, `add_step_before`, `replace_step` or `remove_step` whose `reference` names that step. Re-anchor those first, for example with `add_step_before` on the next step. Otherwise that feature fails with `VE-05`.
-- [ ] **A `procs` pointer keeps the whole file.** If v1 trimmed that file at proc level (`procedures.include`), a pointer silently brings back the dropped procs. Choose with the user:
-  - **(a)** no `procs` pointer for that file; or
-  - **(b)** pointer plus `procedures.exclude` of exactly the procs v1 dropped. Verify the file is still `proc-trim` with the same surviving procs. `excluded_procs` in the manifest is always `null`; compare the surviving procs instead. The `selection_source` label changes to `…:procedures.exclude`; that's expected. An exclude list keeps any proc added to the file later. If that's not what the user wants, option (a) is safer.
-- [ ] **Reserved names.** No `files.*` entry or stage name matches `<flow>_feature_vars` / `<flow>_feature_procs`.
-- [ ] **One owner per pointer file.** Two features pointing at the same file get `VW-29` / `VW-31`. Keep one owner, and use `depends_on` if the other needs it first.
+- [ ] **Procedure files remain F2-trimmed.** Add procedure-hosting files and named procs through `procedures.include`; never add a top-level `procs` pointer. If the same file is also the base `vars_file`, confirm that F2 still leaves exactly the intended procs.
+- [ ] **Reserved name.** No `files.*` entry or stage name matches `<flow>_feature_vars`.
+- [ ] **One owner per vars pointer file.** Two features pointing at the same file get `VW-29`. Keep one owner, and use `depends_on` if the other needs it first.
 
 **Side effects to predict, not to be surprised by:**
 
 - Removing the only stage step that calls `iproc_source` clears its `VW-15` (the checker's `step-source-form`).
 - Removing the last `flow_actions` entry that touched a stage re-credits that `<stage>.tcl` to another layer in `files_kept.txt`. The script ignores labels, so you'll see no delta.
-- The generated files are credited to `feature:<name>:vars` / `:procs` in `files_kept.txt`. Pointer-implied keeps show as `feature:<name>:files.include` in `input_sources`.
-- A feature that holds only a `vars` or `procs` pointer is schema-legal. It doesn't need `files` or `procedures`.
+- The vars wrapper is credited to its feature source in `files_kept.txt`. Pointer-implied keeps show as `feature:<name>:files.include` in `input_sources`.
+- A feature that holds only a `vars_file` pointer is schema-legal. It doesn't need `files`, `procedures`, or `flow_actions`.
 
 ### Phase 5 — Handoff
 
@@ -113,7 +112,7 @@ The migration is done only when the final snapshot passes the strict gate:
 python .github/skills/migrate-v1-to-v2/scripts/check_v2.py <scratch>/final --baseline <scratch>/v1 --require-adoption
 ```
 
-`RESULT: PASS` with adoption `full` (or `partial`, with each remaining candidate listed as a user decision) is the deterministic proof. At least one actual base or feature `vars`/`procs` pointer is required. `none`, `schema-only` and `not-applicable` fail here on purpose: no v2 pointer adoption has been demonstrated.
+`RESULT: PASS` with adoption `full` (or `partial`, with each remaining candidate listed as a user decision) is the deterministic proof. At least one actual base or feature `vars_file` pointer is required. `none`, `schema-only` and `not-applicable` fail here on purpose: no v2 pointer adoption has been demonstrated.
 
 If no suitable pointer exists, report the JSONs as v2-compatible with adoption `not-applicable`, not as a completed adoption. An ordinary review without `--require-adoption` can still pass. Do not invent a pointer or a Tcl file just to satisfy the gate; ask whether the user wants a schema-only upgrade or a separately approved feature split.
 
@@ -140,12 +139,12 @@ Don't invent suggestions the report doesn't support. If you see something it mis
 
 Raise each one that applies, explain the benefit in one line, and ask before acting:
 
-1. **Split feature vars out of the base vars.** `if {$use_dft} {…}` blocks in the base `vars.tcl` belong in a `dft_vars.tcl` behind the `dft` feature's `vars` pointer. Then the trimmed base only carries what every project needs.
-2. **Use `tech_` / `project_` overrides** instead of editing the shared vars or procs. Drop `tech_dft_vars.tcl` next to `dft_vars.tcl`; it's sourced after the base file and kept automatically, with no JSON change.
-3. **Feature procs files.** Move procs that only one feature calls into `procs/<feature>_procs.tcl` behind a `procs` pointer. This removes `procedures.include` bookkeeping from the base.
+1. **Split feature vars out of the base vars.** `if {$use_dft} {…}` blocks in the base `vars.tcl` belong in a `dft_vars.tcl` behind the `dft` feature's `vars_file` pointer. Then the trimmed base only carries what every project needs.
+2. **Use `tech_` / `project_` vars overrides** instead of editing shared vars. Drop `tech_dft_vars.tcl` next to `dft_vars.tcl`; it's sourced after the base file and kept automatically, with no JSON change.
+3. **Feature procedure files.** Move feature-only procs into `procs/<feature>_procs.tcl`, then select the file and named procs through that feature's F2 `procedures.include`. This keeps procedure selection in the existing F2 model.
 4. **One `project-v2` recipe per product line** (`jsons/project_lp.json`, `jsons/project_full.json`). Keep project JSONs under `jsons/` or outside the domain: a live trim only preserves `jsons/` and out-of-tree inputs. A `project.json` at the domain root is dropped, and you'll see it in the `exclude_file_list` section of `p4_commands.txt`.
-5. **`options.generate_stack: true`.** Both generated files become scheduler `I` inputs on every aggregate-stack record automatically.
-6. **Perforce and LoC.** `trim --p4` and `.chopper/p4_commands.txt` already include `p4 add` for the two new files, and `chopper loc` counts them under GENERATED.
+5. **`options.generate_stack: true`.** The generated vars wrapper becomes a scheduler `I` input on every aggregate-stack record automatically.
+6. **Perforce and LoC.** `trim --p4` and `.chopper/p4_commands.txt` already include `p4 add` for the generated vars wrapper, and `chopper loc` counts it under GENERATED.
 
 ## Red flags — stop and correct
 
@@ -158,7 +157,7 @@ Raise each one that applies, explain the benefit in one line, and ask before act
 | "The pointer covers `tech_dft_vars.tcl`, so I'll also list it to be safe." | It's redundant noise. Variants are automatic. |
 | "I'll put `<flow>_feature_vars.tcl` in `files.include` so it's kept." | It's reserved (`VE-40`), and it's always generated. |
 | "Only flip the features in this project." | Any v1 feature selected later fails with `VE-41`. Flip the whole `jsons/` set, or record which ones you left on v1. The checker's `orphan-json` row lists them. |
-| "All `$schema` values say v2 and validate passes, so the migration is done." | Without pointers, that's `schema-only` or `not-applicable`: same output as v1 plus two empty files. `--require-adoption` fails both. Done means pointers in use. |
+| "All `$schema` values say v2 and validate passes, so the migration is done." | Without a pointer, that's `schema-only` or `not-applicable`: same output as v1 plus an empty vars wrapper. `--require-adoption` fails both. Done means `vars_file` is in use. |
 | "I'll read the manifests by hand; the checker is overkill." | Hand reading took the baseline agents about five minutes per scenario, and they still disagreed. Run the checker first, then explain its rows. |
 | "`VW-15` on `iproc_source` is expected because the infrastructure provides it." | It's a false positive from the `-file` form (`step-source-form`), not something to ignore. Delete the step if the file becomes a pointer, or list `iproc_source` in a `--tool-commands` file. Never add a stub proc. |
 | "The gate passed, so every `review` row is fine." | `review` rows change behavior on purpose (procs brought back, variants now sourced). Explain each one and get a yes. |
